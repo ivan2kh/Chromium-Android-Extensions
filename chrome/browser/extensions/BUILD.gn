@@ -895,7 +895,7 @@ static_library("extensions") {
     "//components/update_client",
     "//components/url_matcher",
     "//components/user_prefs",
-    "//components/web_modal",
+#    "//components/web_modal",
     "//components/zoom",
     "//content/app/resources",
     "//content/public/common",

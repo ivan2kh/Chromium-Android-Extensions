@@ -101,7 +101,7 @@ json_schema_api("api_registration") {
 
   deps = [
     ":api",
-    "//device/serial",
+#    "//device/serial",
     "//extensions/common/api",
     "//extensions/common/api/cast_channel:cast_channel_proto",
     "//skia",

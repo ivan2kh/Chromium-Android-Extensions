@@ -8,7 +8,11 @@ import("//tools/grit/repack.gni")
 
 assert(enable_extensions)
 
-group("extensions_resources") {
+if (is_android) {
+  import("//build/config/android/rules.gni")
+}
+
+java_group("extensions_resources") {
   public_deps = [
     ":extensions_browser_resources",
     ":extensions_renderer_resources",
@@ -52,7 +56,7 @@ grit("extensions_renderer_resources") {
 
   deps = [
     "//chrome/browser/media/router:mojo_bindings__generator",
-    "//device/serial:serial_mojo__generator",
+#    "//device/serial:serial_mojo__generator",
     "//extensions/common:mojo__generator",
     "//extensions/common/api:mojom__generator",
     "//mojo/common:common_custom_types__generator",
@@ -287,7 +291,7 @@ source_set("chrome_extensions_browsertests") {
     "//crypto:platform",
     "//crypto:test_support",
     "//device/bluetooth:mocks",
-    "//device/serial:test_support",
+ #   "//device/serial:test_support",
     "//extensions/common/api",
     "//google_apis:test_support",
     "//media",
