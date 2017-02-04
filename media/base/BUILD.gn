@@ -291,6 +291,8 @@ target(link_target_type, "base") {
 
   if (media_use_ffmpeg) {
     if (!is_android) {
+    }
+    if (1==1) {
       sources += [
         "audio_video_metadata_extractor.cc",
         "audio_video_metadata_extractor.h",

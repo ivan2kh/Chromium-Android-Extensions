@@ -176,12 +176,13 @@ void InternalExtensionProvider::ApplyPluginContentSettingsForExtension(
     SetContentSettingForExtensionAndResource(
         extension, ChromeContentClient::kRemotingViewerPluginPath, setting);
   }
-
+#if !defined(OS_ANDROID)
   // The PDF viewer extension relies on the out of process PDF plugin.
   if (extension->id() == extension_misc::kPdfExtensionId) {
     SetContentSettingForExtensionAndResource(
         extension, pdf_extension_util::kPdfResourceIdentifier, setting);
   }
+#endif //!defined(OS_ADNDROID)
 }
 
 void InternalExtensionProvider::SetContentSettingForExtension(

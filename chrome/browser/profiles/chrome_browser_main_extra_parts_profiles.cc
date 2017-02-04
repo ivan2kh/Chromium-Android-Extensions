@@ -181,7 +181,7 @@ ChromeBrowserMainExtraPartsProfiles::~ChromeBrowserMainExtraPartsProfiles() {
 // static
 void ChromeBrowserMainExtraPartsProfiles::
 EnsureBrowserContextKeyedServiceFactoriesBuilt() {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS) && !defined(OS_ANDROID)
   apps::EnsureBrowserContextKeyedServiceFactoriesBuilt();
   extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
   extensions::ExtensionManagementFactory::GetInstance();
@@ -230,7 +230,7 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   dom_distiller::DomDistillerServiceFactory::GetInstance();
   domain_reliability::DomainReliabilityServiceFactory::GetInstance();
   DownloadServiceFactory::GetInstance();
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS) && !defined(OS_ANDROID)
   EasyUnlockServiceFactory::GetInstance();
   EnhancedBookmarkKeyServiceFactory::GetInstance();
 #endif

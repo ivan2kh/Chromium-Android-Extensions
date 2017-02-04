@@ -549,6 +549,8 @@ component("base") {
   }
 
   if (use_aura) {
+  }
+  if (1==1) {
     if (is_android) {
       sources += [ "cursor/cursor_loader_android.cc" ]
     }
@@ -590,6 +592,8 @@ component("base") {
   }
 
   if (is_android && !use_aura) {
+  }
+  if (1==0) {
     sources -= [
       "cursor/cursor_android.cc",
       "cursor/image_cursors.cc",

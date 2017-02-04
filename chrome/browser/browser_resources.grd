@@ -250,6 +250,8 @@
       <include name="IDR_OTHER_DEVICES_JS" file="resources\history\other_devices.js" flattenhtml="true" type="BINDATA" compress="gzip" />
 
       <if expr="not is_android and not is_ios">
+      </if>
+      <if expr="1==1">
         <!-- MD Bookmarks. -->
         <include name="IDR_MD_BOOKMARKS_APP_HTML" file="resources\md_bookmarks\app.html" type="BINDATA" />
         <include name="IDR_MD_BOOKMARKS_APP_JS" file="resources\md_bookmarks\app.js" type="BINDATA" />

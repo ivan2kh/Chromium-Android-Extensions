@@ -71,6 +71,8 @@ static_library("router") {
   ]
 
   if (!is_android) {
+  }
+  if (true) {
     deps += [
       ":mojo_bindings",
       "//extensions/browser",

@@ -2078,6 +2078,8 @@ const char kCustomHandlersEnabled[] = "custom_handlers.enabled";
 const char kDevicePolicyRefreshRate[] = "policy.device_refresh_rate";
 
 #if !defined(OS_ANDROID)
+#endif  // !defined(OS_ANDROID)
+#if 1
 // A boolean where true means that the browser has previously attempted to
 // enable autoupdate and failed, so the next out-of-date browser start should
 // not prompt the user to enable autoupdate, it should offer to reinstall Chrome

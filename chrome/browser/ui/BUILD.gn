@@ -1194,6 +1194,50 @@ split_static_library("ui") {
     ]
   }
 
+  else if (is_android && enable_extensions) {
+    sources += [
+      "global_error/global_error.cc",
+      "global_error/global_error.h",
+      "global_error/global_error_bubble_view_base.h",
+      "global_error/global_error_service.cc",
+      "global_error/global_error_service.h",
+      "global_error/global_error_service_factory.cc",
+      "global_error/global_error_service_factory.h",
+      "toolbar/toolbar_actions_bar_android.cc",
+      "toolbar/toolbar_actions_bar.h",
+      "tabs/tab_strip_model_android.cc",
+      "tabs/tab_strip_model.h",
+      "tabs/tab_strip_model_observer.h",
+      "tabs/tab_strip_model_observer.cc",
+      "webui/site_settings_helper.cc",
+      "webui/site_settings_helper.h",
+      "webui/signin/login_ui_service_factory.cc",
+      "webui/signin/login_ui_service_factory.h",
+      "webui/signin/login_ui_service.cc",
+      "webui/signin/login_ui_service.h",
+
+      "webui/extensions/extension_loader_handler.cc",
+      "webui/extensions/extension_loader_handler.h",
+      "webui/extensions/extension_settings_handler.cc",
+      "webui/extensions/extension_settings_handler.h",
+      "webui/extensions/extensions_ui.cc",
+      "webui/extensions/extensions_ui.h",
+      "webui/extensions/install_extension_handler.cc",
+      "webui/extensions/install_extension_handler.h",
+
+      "webui/md_bookmarks/md_bookmarks_ui.cc",
+      "webui/md_bookmarks/md_bookmarks_ui.h",
+
+      "bookmarks/bookmark_drag_drop.cc",
+      "bookmarks/bookmark_drag_drop.h",
+
+      "bookmarks/bookmark_tab_helper.cc",
+      "bookmarks/bookmark_tab_helper.h",
+      # "bookmarks/bookmark_tab_helper_delegate.cc",
+      # "bookmarks/bookmark_tab_helper_delegate.h",
+    ]
+  }
+
   if (enable_basic_printing || enable_print_preview) {
     deps += [ "//printing" ]
   }

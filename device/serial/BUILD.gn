@@ -24,6 +24,7 @@ static_library("serial") {
     "buffer.h",
     "serial_device_enumerator.cc",
     "serial_device_enumerator.h",
+    "serial_device_enumerator_android.cc",
     "serial_device_enumerator_linux.cc",
     "serial_device_enumerator_linux.h",
     "serial_device_enumerator_mac.cc",

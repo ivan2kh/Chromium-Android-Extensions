@@ -102,16 +102,6 @@ Browser* CreateBrowser(Profile* profile, int window_id, std::string* error) {
   return browser;
 }
 
-// Use this function for reporting a tab id to an extension. It will
-// take care of setting the id to TAB_ID_NONE if necessary (for
-// example with devtools).
-int GetTabIdForExtensions(const WebContents* web_contents) {
-  Browser* browser = chrome::FindBrowserWithWebContents(web_contents);
-  if (browser && !ExtensionTabUtil::BrowserSupportsTabs(browser))
-    return -1;
-  return SessionTabHelper::IdForTab(web_contents);
-}
-
 }  // namespace
 
 ExtensionTabUtil::OpenTabParams::OpenTabParams()
@@ -128,7 +118,7 @@ base::DictionaryValue* ExtensionTabUtil::OpenTab(
     const OpenTabParams& params,
     std::string* error) {
 #if defined(OS_ANDROID)
-  if(0) CreateBrowser(NULL,NULL,NULL);
+  if(0) CreateBrowser(NULL,0,NULL);
   return NULL;
 #else
   ChromeExtensionFunctionDetails chrome_details(function);
@@ -379,41 +369,7 @@ std::unique_ptr<api::tabs::Tab> ExtensionTabUtil::CreateTabObject(
 
   if (!tab_strip)
     ExtensionTabUtil::GetTabStripModel(contents, &tab_strip, &tab_index);
-  bool is_loading = contents->IsLoading();
   std::unique_ptr<api::tabs::Tab> tab_object(new api::tabs::Tab);
-  tab_object->id.reset(new int(GetTabIdForExtensions(contents)));
-  tab_object->index = tab_index;
-  tab_object->window_id = GetWindowIdOfTab(contents);
-  tab_object->status.reset(new std::string(GetTabStatusText(is_loading)));
-  tab_object->active = tab_strip && tab_index == tab_strip->active_index();
-  tab_object->selected = tab_strip && tab_index == tab_strip->active_index();
-  tab_object->highlighted = tab_strip && tab_strip->IsTabSelected(tab_index);
-  tab_object->pinned = tab_strip && tab_strip->IsTabPinned(tab_index);
-  tab_object->audible.reset(new bool(contents->WasRecentlyAudible()));
-  tab_object->discarded =
-      g_browser_process->GetTabManager()->IsTabDiscarded(contents);
-  tab_object->auto_discardable =
-      g_browser_process->GetTabManager()->IsTabAutoDiscardable(contents);
-  tab_object->muted_info = CreateMutedInfo(contents);
-  tab_object->incognito = contents->GetBrowserContext()->IsOffTheRecord();
-  tab_object->width.reset(
-      new int(contents->GetContainerBounds().size().width()));
-  tab_object->height.reset(
-      new int(contents->GetContainerBounds().size().height()));
-
-  tab_object->url.reset(new std::string(contents->GetURL().spec()));
-  tab_object->title.reset(
-      new std::string(base::UTF16ToUTF8(contents->GetTitle())));
-  NavigationEntry* entry = contents->GetController().GetVisibleEntry();
-  if (entry && entry->GetFavicon().valid)
-    tab_object->fav_icon_url.reset(
-        new std::string(entry->GetFavicon().url.spec()));
-  if (tab_strip) {
-    WebContents* opener = tab_strip->GetOpenerOfWebContentsAt(tab_index);
-    if (opener)
-      tab_object->opener_tab_id.reset(new int(GetTabIdForExtensions(opener)));
-  }
-
   return tab_object;
 }
 
@@ -422,23 +378,6 @@ std::unique_ptr<api::tabs::MutedInfo> ExtensionTabUtil::CreateMutedInfo(
     content::WebContents* contents) {
   DCHECK(contents);
   std::unique_ptr<api::tabs::MutedInfo> info(new api::tabs::MutedInfo);
-  info->muted = contents->IsAudioMuted();
-  switch (chrome::GetTabAudioMutedReason(contents)) {
-    case TabMutedReason::NONE:
-      break;
-    case TabMutedReason::CONTEXT_MENU:
-    case TabMutedReason::AUDIO_INDICATOR:
-      info->reason = api::tabs::MUTED_INFO_REASON_USER;
-      break;
-    case TabMutedReason::MEDIA_CAPTURE:
-      info->reason = api::tabs::MUTED_INFO_REASON_CAPTURE;
-      break;
-    case TabMutedReason::EXTENSION:
-      info->reason = api::tabs::MUTED_INFO_REASON_EXTENSION;
-      info->extension_id.reset(
-          new std::string(chrome::GetExtensionIdForMutedTab(contents)));
-      break;
-  }
   return info;
 }
 
@@ -583,38 +522,11 @@ void ExtensionTabUtil::CreateTab(WebContents* web_contents,
                                  WindowOpenDisposition disposition,
                                  const gfx::Rect& initial_rect,
                                  bool user_gesture) {
-  Profile* profile =
-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
-  Browser* browser = chrome::FindTabbedBrowser(profile, false);
-  const bool browser_created = !browser;
-  if (!browser)
-    browser = new Browser(Browser::CreateParams(profile));
-  chrome::NavigateParams params(web_contents);
-
-  // The extension_app_id parameter ends up as app_name in the Browser
-  // which causes the Browser to return true for is_app().  This affects
-  // among other things, whether the location bar gets displayed.
-  // TODO(mpcomplete): This seems wrong. What if the extension content is hosted
-  // in a tab?
-  if (disposition == WindowOpenDisposition::NEW_POPUP)
-    params.extension_app_id = extension_id;
-
-  params.disposition = disposition;
-  params.window_bounds = initial_rect;
-  params.window_action = chrome::NavigateParams::SHOW_WINDOW;
-  params.user_gesture = user_gesture;
-  chrome::Navigate(&params);
-
-  // Close the browser if chrome::Navigate created a new one.
-  if (browser_created && false /*(browser != params.browser)*/)
-    browser->window()->Close();
 }
 
 // static
 void ExtensionTabUtil::ForEachTab(
     const base::Callback<void(WebContents*)>& callback) {
-  for (TabContentsIterator iterator; !iterator.done(); iterator.Next())
-    callback.Run(*iterator);
 }
 
 // static
@@ -629,46 +541,6 @@ WindowController* ExtensionTabUtil::GetWindowControllerOfTab(
 
 bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
                                        Browser* browser) {
-  if (!OptionsPageInfo::HasOptionsPage(extension))
-    return false;
-
-  // Force the options page to open in non-OTR window, because it won't be
-  // able to save settings from OTR.
-  std::unique_ptr<chrome::ScopedTabbedBrowserDisplayer> displayer;
-  if (browser->profile()->IsOffTheRecord()) {
-    displayer.reset(new chrome::ScopedTabbedBrowserDisplayer(
-        browser->profile()->GetOriginalProfile()));
-    browser = displayer->browser();
-  }
-
-  GURL url_to_navigate;
-  bool open_in_tab = OptionsPageInfo::ShouldOpenInTab(extension);
-  if (open_in_tab) {
-    // Options page tab is simply e.g. chrome-extension://.../options.html.
-    url_to_navigate = OptionsPageInfo::GetOptionsPage(extension);
-  } else {
-    // Options page tab is Extension settings pointed at that Extension's ID,
-    // e.g. chrome://extensions?options=...
-    url_to_navigate = GURL(chrome::kChromeUIExtensionsURL);
-    GURL::Replacements replacements;
-    std::string query =
-        base::StringPrintf("options=%s", extension->id().c_str());
-    replacements.SetQueryStr(query);
-    url_to_navigate = url_to_navigate.ReplaceComponents(replacements);
-  }
-
-  chrome::NavigateParams params(
-      chrome::GetSingletonTabNavigateParams(browser, url_to_navigate));
-  // We need to respect path differences because we don't want opening the
-  // options page to close a page that might be open to extension content.
-  // However, if the options page opens inside the chrome://extensions page, we
-  // can override an existing page.
-  // Note: default ref behavior is IGNORE_REF, which is correct.
-  params.path_behavior = open_in_tab
-                             ? chrome::NavigateParams::RESPECT
-                             : chrome::NavigateParams::IGNORE_AND_NAVIGATE;
-  params.url = url_to_navigate;
-  chrome::ShowSingletonTabOverwritingNTP(browser, params);
   return true;
 }
 

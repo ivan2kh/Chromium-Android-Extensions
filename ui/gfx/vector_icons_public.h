@@ -7,7 +7,7 @@
 
 #include "build/build_config.h"
 
-#if defined(USE_AURA) || (!defined(OS_IOS) && !defined(OS_ANDROID))
+#if defined(USE_AURA) || (!defined(OS_IOS))
 #include "ui/gfx/vector_icons/vector_icons.h"
 #else
 // Define this type so non-views platforms will compile.

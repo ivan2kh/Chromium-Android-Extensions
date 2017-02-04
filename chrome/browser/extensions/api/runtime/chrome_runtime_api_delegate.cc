@@ -261,7 +261,11 @@ void ChromeRuntimeAPIDelegate::OpenURL(const GURL& uninstall_url) {
     browser = new Browser(Browser::CreateParams(profile));
 
   chrome::NavigateParams params(
+#if defined(OS_ANDROID)
+      profile, uninstall_url, ui::PAGE_TRANSITION_CLIENT_REDIRECT);
+#else
       browser, uninstall_url, ui::PAGE_TRANSITION_CLIENT_REDIRECT);
+#endif //defined(OS_ANDROID)
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   params.user_gesture = false;
   chrome::Navigate(&params);

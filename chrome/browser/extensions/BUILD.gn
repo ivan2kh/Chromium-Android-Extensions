@@ -1104,6 +1104,40 @@ static_library("extensions") {
       "display_info_provider_aura.cc",
       "display_info_provider_aura.h",
     ]
+  } else if(is_android) {
+    sources += [
+      "api/tabs/tabs_api_android.cc",
+
+      "extension_tab_util_android.cc",
+
+#      "display_info_provider_android.cc",
+#      "display_info_provider_android.h",
+
+      "global_shortcut_listener_android.cc",
+#      "global_shortcut_listener_android.h",
+    ]
+    sources -= [
+      "api/tabs/tabs_api.cc",
+      #"api/tabs/tabs_api.h",
+      "api/tabs/tabs_windows_api.cc",
+      "api/tabs/tabs_windows_api.h",
+      "api/tabs/tabs_event_router.cc",
+      "api/tabs/tabs_event_router.h",
+
+      "extension_tab_util.cc",
+
+      # "api/tabs/app_base_window.cc",
+      # "api/tabs/app_base_window.h",
+      # "api/tabs/app_window_controller.cc",
+      # "api/tabs/app_window_controller.h",
+      # "api/tabs/tabs_constants.cc",
+      # "api/tabs/tabs_constants.h",
+      # "api/tabs/windows_event_router.cc",
+      # "api/tabs/windows_event_router.h",
+      # "api/tabs/windows_util.cc",
+      # "api/tabs/windows_util.h",
+    ]
+
   }
 
   if (is_win || (is_linux && !is_chromeos)) {

@@ -221,6 +221,9 @@ WebContents* OpenApplicationWindow(const AppLaunchParams& params,
 
 WebContents* OpenApplicationTab(const AppLaunchParams& launch_params,
                            const GURL& url) {
+#if defined(OS_ANDROID)
+  return NULL;
+#else 
   const Extension* extension = GetExtension(launch_params);
   CHECK(extension);
   Profile* const profile = launch_params.profile;
@@ -295,6 +298,7 @@ WebContents* OpenApplicationTab(const AppLaunchParams& launch_params,
   }
 #endif  // USE_ASH
   return contents;
+#endif
 }
 
 WebContents* OpenEnabledApplication(const AppLaunchParams& params) {

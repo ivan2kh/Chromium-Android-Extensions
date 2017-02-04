@@ -56,6 +56,8 @@
 #endif
 
 #if !defined(OS_ANDROID)
+#endif
+#if 1
 #include "chrome/browser/signin/signin_manager_factory.h"
 #include "components/signin/core/browser/signin_manager.h"
 #endif
@@ -405,6 +407,8 @@ void ShowSearchEngineSettings(Browser* browser) {
 }
 
 #if !defined(OS_ANDROID)
+#endif
+#if 1
 void ShowBrowserSignin(Browser* browser,
                        signin_metrics::AccessPoint access_point) {
   Profile* original_profile = browser->profile()->GetOriginalProfile();

@@ -606,7 +606,11 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
   Browser* new_window = new Browser(create_params);
 
   for (const GURL& url : urls) {
+#if defined(OS_ANDROID)
+    chrome::NavigateParams navigate_params(window_profile, url,
+#else
     chrome::NavigateParams navigate_params(new_window, url,
+#endif //defined(OS_ANDROID)
                                            ui::PAGE_TRANSITION_LINK);
     navigate_params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
     navigate_params.source_site_instance =

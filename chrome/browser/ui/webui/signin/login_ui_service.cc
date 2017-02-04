@@ -57,10 +57,13 @@ void LoginUIService::ShowLoginPopup() {
 #if defined(OS_CHROMEOS)
   NOTREACHED();
 #else
+  profile_ = nullptr;
+#if 0 //not implemented
   chrome::ScopedTabbedBrowserDisplayer displayer(profile_);
   chrome::ShowBrowserSignin(
       displayer.browser(),
       signin_metrics::AccessPoint::ACCESS_POINT_EXTENSIONS);
+#endif //not implemented
 #endif
 }
 
@@ -74,10 +77,12 @@ void LoginUIService::DisplayLoginResult(Browser* browser,
   last_login_result_ = error_message;
   last_login_error_email_ = email;
   if (switches::IsMaterialDesignUserMenu() && !error_message.empty()) {
+#if 0 //not implemented
     if (browser)
       browser->ShowModalSigninErrorWindow();
     else
       UserManagerProfileDialog::DisplayErrorMessage();
+#endif
   } else if (browser) {
     browser->window()->ShowAvatarBubbleFromAvatarButton(
         error_message.empty() ? BrowserWindow::AVATAR_BUBBLE_MODE_CONFIRM_SIGNIN

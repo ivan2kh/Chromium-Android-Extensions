@@ -130,7 +130,7 @@ class UI_BASE_EXPORT OSExchangeData {
     virtual bool HasHtml() const = 0;
 #endif
 
-#if defined(USE_AURA) || defined(OS_MACOSX)
+#if defined(USE_AURA) || defined(OS_MACOSX) || defined(OS_ANDROID)
     virtual void SetDragImage(const gfx::ImageSkia& image,
                               const gfx::Vector2d& cursor_offset) = 0;
     virtual const gfx::ImageSkia& GetDragImage() const = 0;

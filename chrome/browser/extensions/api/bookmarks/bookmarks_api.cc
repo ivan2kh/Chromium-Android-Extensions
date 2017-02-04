@@ -817,6 +817,7 @@ bool BookmarksImportFunction::RunOnReady() {
 void BookmarksImportFunction::FileSelected(const base::FilePath& path,
                                            int index,
                                            void* params) {
+#if 0 //not implemented
   // Deletes itself.
   ExternalProcessImporterHost* importer_host = new ExternalProcessImporterHost;
   importer::SourceProfile source_profile;
@@ -830,6 +831,7 @@ void BookmarksImportFunction::FileSelected(const base::FilePath& path,
   importer::LogImporterUseToMetrics("BookmarksAPI",
                                     importer::TYPE_BOOKMARKS_FILE);
   Release();  // Balanced in BookmarksIOFunction::SelectFile()
+#endif
 }
 
 bool BookmarksExportFunction::RunOnReady() {
@@ -840,7 +842,8 @@ bool BookmarksExportFunction::RunOnReady() {
 void BookmarksExportFunction::FileSelected(const base::FilePath& path,
                                            int index,
                                            void* params) {
-  bookmark_html_writer::WriteBookmarks(GetProfile(), path, NULL);
+//not implemented
+//  bookmark_html_writer::WriteBookmarks(GetProfile(), path, NULL);
   Release();  // Balanced in BookmarksIOFunction::SelectFile()
 }
 

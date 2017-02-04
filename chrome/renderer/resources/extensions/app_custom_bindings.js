@@ -8,8 +8,10 @@ var GetAvailability = requireNative('v8_context').GetAvailability;
 if (!GetAvailability('app').is_available) {
   exports.$set('binding', {});
   exports.$set('onInstallStateResponse', function(){});
-  return;
+//  return;
 }
+
+else {
 
 var appNatives = requireNative('app');
 var process = requireNative('process');
@@ -72,3 +74,5 @@ if (extensionId)
 
 exports.$set('binding', app);
 exports.$set('onInstallStateResponse', onInstallStateResponse);
+
+}

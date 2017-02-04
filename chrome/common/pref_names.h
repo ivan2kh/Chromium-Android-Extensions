@@ -744,6 +744,8 @@ extern const char kShowCastIconInToolbar[];
 #endif  // defined(ENABLE_MEDIA_ROUTER)
 
 #if !defined(OS_ANDROID)
+#endif  // !defined(OS_ANDROID)
+#if 1
 extern const char kAttemptedToEnableAutoupdate[];
 
 extern const char kMediaGalleriesUniqueId[];

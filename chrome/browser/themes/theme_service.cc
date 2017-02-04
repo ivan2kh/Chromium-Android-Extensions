@@ -612,7 +612,7 @@ void ThemeService::NotifyThemeChanged() {
   }
 }
 
-#if defined(USE_AURA)
+#if defined(USE_AURA) || defined(OS_ANDROID)
 void ThemeService::FreePlatformCaches() {
   // Views (Skia) has no platform image cache to clear.
 }
