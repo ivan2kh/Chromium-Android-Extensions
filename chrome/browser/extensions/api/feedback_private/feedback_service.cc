@@ -56,9 +56,9 @@ void FeedbackService::SendFeedback(
 
 void FeedbackService::GetSystemInformation(
     const system_logs::SysLogsFetcherCallback& callback) {
-  system_logs::ScrubbedSystemLogsFetcher* fetcher =
-      new system_logs::ScrubbedSystemLogsFetcher();
-  fetcher->Fetch(callback);
+//  system_logs::ScrubbedSystemLogsFetcher* fetcher =
+//      new system_logs::ScrubbedSystemLogsFetcher();
+//  fetcher->Fetch(callback);
 }
 
 void FeedbackService::AttachedFileCallback(

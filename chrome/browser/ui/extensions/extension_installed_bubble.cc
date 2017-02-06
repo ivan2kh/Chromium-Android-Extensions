@@ -114,13 +114,13 @@ class ExtensionInstalledBubbleObserver
     // TODO(hcarmona): Investigate having the BubbleManager query the bubble
     // for |ShouldShow|. This is important because the BubbleManager may decide
     // to delay showing the bubble.
-    if (bubble_->ShouldShow()) {
-      // Must be 2 lines because the manager will take ownership of bubble.
-      BubbleManager* manager = bubble_->browser()->GetBubbleManager();
-      manager->ShowBubble(std::move(bubble_));
-      delete this;
-      return;
-    }
+//    if (bubble_->ShouldShow()) {
+//      // Must be 2 lines because the manager will take ownership of bubble.
+//      BubbleManager* manager = bubble_->browser()->GetBubbleManager();
+//      manager->ShowBubble(std::move(bubble_));
+//      delete this;
+//      return;
+//    }
     if (animation_wait_retries_++ < kAnimationWaitRetries) {
       base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE, base::Bind(&ExtensionInstalledBubbleObserver::Show,
@@ -204,6 +204,11 @@ ExtensionInstalledBubble::ExtensionInstalledBubble(const Extension* extension,
 
 ExtensionInstalledBubble::~ExtensionInstalledBubble() {}
 
+std::unique_ptr<BubbleUi> BuildBubbleUi() {
+  std::unique_ptr<BubbleUi> z;
+  return z;
+}
+
 bool ExtensionInstalledBubble::ShouldClose(BubbleCloseReason reason) const {
   // Installing an extension triggers a navigation event that should be ignored.
   return reason != BUBBLE_CLOSE_NAVIGATED;
@@ -267,9 +272,9 @@ void ExtensionInstalledBubble::Initialize() {
   }
 
   action_command_ = GetCommand(extension_->id(), browser_->profile(), type_);
-  if (extensions::sync_helper::IsSyncable(extension_) &&
-      SyncPromoUI::ShouldShowSyncPromo(browser_->profile()))
-    options_ |= SIGN_IN_PROMO;
+//  if (extensions::sync_helper::IsSyncable(extension_) &&
+//      SyncPromoUI::ShouldShowSyncPromo(browser_->profile()))
+//    options_ |= SIGN_IN_PROMO;
 
   // Determine the bubble options we want, based on the extension type.
   switch (type_) {

@@ -190,8 +190,8 @@ bool ExtensionActionAPI::ShowExtensionActionPopup(
   }
 
   // Don't support showing action popups in a popup window.
-  if (!browser->SupportsWindowFeature(Browser::FEATURE_TOOLBAR))
-    return false;
+//  if (!browser->SupportsWindowFeature(Browser::FEATURE_TOOLBAR))
+//    return false;
 
   ToolbarActionsBar* toolbar_actions_bar =
       browser->window()->GetToolbarActionsBar();

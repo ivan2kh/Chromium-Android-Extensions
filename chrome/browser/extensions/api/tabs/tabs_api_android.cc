@@ -342,8 +342,8 @@ bool ExecuteCodeInTabFunction::HasPermission() {
   
 }
 
-bool ExecuteCodeInTabFunction::Init() {
-    return true;
+ExecuteCodeFunction::InitResult ExecuteCodeInTabFunction::Init() {
+    return set_init_result(VALIDATION_FAILURE);;
 
 }
 

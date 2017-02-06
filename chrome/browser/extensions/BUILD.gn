@@ -895,7 +895,7 @@ static_library("extensions") {
     "//components/update_client",
     "//components/url_matcher",
     "//components/user_prefs",
-#    "//components/web_modal",
+    "//components/web_modal",
     "//components/zoom",
     "//content/app/resources",
     "//content/public/common",
@@ -937,6 +937,10 @@ static_library("extensions") {
     "//ui/strings",
     "//url",
   ]
+  
+  if(is_android) {
+    deps -= [ "//components/web_modal" ]
+  }
 
   if (!is_chromeos) {
     sources += [ "chrome_kiosk_delegate.cc" ]
@@ -1110,7 +1114,7 @@ static_library("extensions") {
 
       "extension_tab_util_android.cc",
 
-#      "display_info_provider_android.cc",
+      "display_info_provider_android.cc",
 #      "display_info_provider_android.h",
 
       "global_shortcut_listener_android.cc",

@@ -47,7 +47,7 @@ ExtensionActionViewController::ExtensionActionViewController(
       toolbar_actions_bar_(toolbar_actions_bar),
       popup_host_(nullptr),
       view_delegate_(nullptr),
-      platform_delegate_(ExtensionActionPlatformDelegate::Create(this)),
+      platform_delegate_(nullptr),//ExtensionActionPlatformDelegate::Create(this)),
       icon_factory_(browser->profile(), extension, extension_action, this),
       extension_registry_(
           extensions::ExtensionRegistry::Get(browser_->profile())),

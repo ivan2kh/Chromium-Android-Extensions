@@ -256,9 +256,9 @@ bool ChromeRuntimeAPIDelegate::CheckForUpdates(
 
 void ChromeRuntimeAPIDelegate::OpenURL(const GURL& uninstall_url) {
   Profile* profile = Profile::FromBrowserContext(browser_context_);
-  Browser* browser = chrome::FindLastActiveWithProfile(profile);
-  if (!browser)
-    browser = new Browser(Browser::CreateParams(profile));
+//  Browser* browser = chrome::FindLastActiveWithProfile(profile);
+//  if (!browser)
+//    browser = new Browser(Browser::CreateParams(profile));
 
   chrome::NavigateParams params(
 #if defined(OS_ANDROID)
@@ -268,7 +268,7 @@ void ChromeRuntimeAPIDelegate::OpenURL(const GURL& uninstall_url) {
 #endif //defined(OS_ANDROID)
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   params.user_gesture = false;
-  chrome::Navigate(&params);
+  //chrome::Navigate(&params);
 }
 
 bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {

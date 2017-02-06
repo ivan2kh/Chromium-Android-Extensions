@@ -66,7 +66,8 @@ MediaGalleriesPermissionController::MediaGalleriesPermissionController(
         preferences_(
             g_browser_process->media_file_system_registry()->GetPreferences(
                 GetProfile())),
-        create_dialog_callback_(base::Bind(&MediaGalleriesDialog::Create)) {
+        create_dialog_callback_() {
+        //create_dialog_callback_(base::Bind(&MediaGalleriesDialog::Create)) {
   // Passing unretained pointer is safe, since the dialog controller
   // is self-deleting, and so won't be deleted until it can be shown
   // and then closed.

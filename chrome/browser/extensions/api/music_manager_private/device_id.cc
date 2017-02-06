@@ -18,39 +18,39 @@ namespace {
 using extensions::api::DeviceId;
 
 // Compute HMAC-SHA256(|key|, |text|) as a string.
-bool ComputeHmacSha256(const std::string& key,
-                       const std::string& text,
-                       std::string* signature_return) {
-  crypto::HMAC hmac(crypto::HMAC::SHA256);
-  const size_t digest_length = hmac.DigestLength();
-  std::vector<uint8_t> digest(digest_length);
-  bool result = hmac.Init(key) &&
-      hmac.Sign(text, &digest[0], digest.size());
-  if (result) {
-    *signature_return = base::ToLowerASCII(
-        base::HexEncode(digest.data(), digest.size()));
-  }
-  return result;
-}
+//bool ComputeHmacSha256(const std::string& key,
+//                       const std::string& text,
+//                       std::string* signature_return) {
+//  crypto::HMAC hmac(crypto::HMAC::SHA256);
+//  const size_t digest_length = hmac.DigestLength();
+//  std::vector<uint8_t> digest(digest_length);
+//  bool result = hmac.Init(key) &&
+//      hmac.Sign(text, &digest[0], digest.size());
+//  if (result) {
+//    *signature_return = base::ToLowerASCII(
+//        base::HexEncode(digest.data(), digest.size()));
+//  }
+//  return result;
+//}
 
-void GetRawDeviceIdCallback(const std::string& extension_id,
-                            const DeviceId::IdCallback& callback,
-                            const std::string& raw_device_id) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  if (raw_device_id.empty()) {
-    callback.Run("");
-    return;
-  }
-
-  std::string device_id;
-  if (!ComputeHmacSha256(raw_device_id, extension_id, &device_id)) {
-    DLOG(ERROR) << "Error while computing HMAC-SHA256 of device id.";
-    callback.Run("");
-    return;
-  }
-  callback.Run(device_id);
-}
+//void GetRawDeviceIdCallback(const std::string& extension_id,
+//                            const DeviceId::IdCallback& callback,
+//                            const std::string& raw_device_id) {
+//  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+//
+//  if (raw_device_id.empty()) {
+//    callback.Run("");
+//    return;
+//  }
+//
+//  std::string device_id;
+//  if (!ComputeHmacSha256(raw_device_id, extension_id, &device_id)) {
+//    DLOG(ERROR) << "Error while computing HMAC-SHA256 of device id.";
+//    callback.Run("");
+//    return;
+//  }
+//  callback.Run(device_id);
+//}
 
 bool IsValidMacAddressImpl(const void* bytes, size_t size) {
   const size_t MAC_LENGTH = 6;
@@ -185,7 +185,7 @@ void DeviceId::GetDeviceId(const std::string& extension_id,
 
   // Forward call to platform specific implementation, then compute the HMAC
   // in the callback.
-  GetRawDeviceId(base::Bind(&GetRawDeviceIdCallback, extension_id, callback));
+//  GetRawDeviceId(base::Bind(&GetRawDeviceIdCallback, extension_id, callback));
 }
 
 // static

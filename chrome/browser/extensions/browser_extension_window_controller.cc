@@ -32,12 +32,12 @@ int BrowserExtensionWindowController::GetWindowId() const {
 namespace keys = extensions::tabs_constants;
 
 std::string BrowserExtensionWindowController::GetWindowTypeText() const {
-  if (browser_->is_devtools())
-    return keys::kWindowTypeValueDevTools;
-  if (browser_->is_type_popup())
-    return keys::kWindowTypeValuePopup;
-  if (browser_->is_app())
-    return keys::kWindowTypeValueApp;
+//  if (browser_->is_devtools())
+//    return keys::kWindowTypeValueDevTools;
+//  if (browser_->is_type_popup())
+//    return keys::kWindowTypeValuePopup;
+//  if (browser_->is_app())
+//    return keys::kWindowTypeValueApp;
   return keys::kWindowTypeValueNormal;
 }
 
@@ -74,8 +74,8 @@ bool BrowserExtensionWindowController::CanClose(Reason* reason) const {
 void BrowserExtensionWindowController::SetFullscreenMode(
     bool is_fullscreen,
     const GURL& extension_url) const {
-  if (browser_->window()->IsFullscreen() != is_fullscreen)
-    browser_->ToggleFullscreenModeWithExtension(extension_url);
+//  if (browser_->window()->IsFullscreen() != is_fullscreen)
+//    browser_->ToggleFullscreenModeWithExtension(extension_url);
 }
 
 Browser* BrowserExtensionWindowController::GetBrowser() const {
@@ -86,5 +86,6 @@ bool BrowserExtensionWindowController::IsVisibleToExtension(
     const extensions::Extension* extension) const {
   DCHECK(extension);
   // Platform apps can only see their own windows.
-  return !browser_->is_devtools() && !extension->is_platform_app();
+  return false;
+//  return !browser_->is_devtools() && !extension->is_platform_app();
 }

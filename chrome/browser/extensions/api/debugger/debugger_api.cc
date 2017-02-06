@@ -218,13 +218,13 @@ ExtensionDevToolsInfoBar::ExtensionDevToolsInfoBar(
           base::Bind(&ExtensionDevToolsInfoBar::InfoBarDismissed,
                      base::Unretained(this)),
           extension_name));
-  infobar_ = GlobalConfirmInfoBar::Show(std::move(delegate));
+  //infobar_ = GlobalConfirmInfoBar::Show(std::move(delegate));
 }
 
 ExtensionDevToolsInfoBar::~ExtensionDevToolsInfoBar() {
   g_extension_info_bars.Get().erase(extension_id_);
-  if (infobar_)
-    infobar_->Close();
+//  if (infobar_)
+//    infobar_->Close();
 }
 
 void ExtensionDevToolsInfoBar::Remove(
@@ -674,7 +674,7 @@ const char kTargetAttachedField[] = "attached";
 const char kTargetUrlField[] = "url";
 const char kTargetFaviconUrlField[] = "faviconUrl";
 const char kTargetTabIdField[] = "tabId";
-const char kTargetExtensionIdField[] = "extensionId";
+//const char kTargetExtensionIdField[] = "extensionId";
 const char kTargetTypeWorker[] = "worker";
 
 std::unique_ptr<base::DictionaryValue> SerializeTarget(
@@ -691,9 +691,10 @@ std::unique_ptr<base::DictionaryValue> SerializeTarget(
     int tab_id =
         extensions::ExtensionTabUtil::GetTabId(host->GetWebContents());
     dictionary->SetInteger(kTargetTabIdField, tab_id);
-  } else if (type == ChromeDevToolsManagerDelegate::kTypeBackgroundPage) {
-    dictionary->SetString(kTargetExtensionIdField, host->GetURL().host());
   }
+//  else if (type == ChromeDevToolsManagerDelegate::kTypeBackgroundPage) {
+//    dictionary->SetString(kTargetExtensionIdField, host->GetURL().host());
+//  }
 
   if (type == DevToolsAgentHost::kTypeServiceWorker ||
       type == DevToolsAgentHost::kTypeSharedWorker) {

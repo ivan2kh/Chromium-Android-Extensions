@@ -93,9 +93,9 @@ class ManagementUninstallFunctionUninstallDialogDelegate
       bool show_programmatic_uninstall_ui)
       : function_(function) {
     ChromeExtensionFunctionDetails details(function);
-    extension_uninstall_dialog_.reset(
-        extensions::ExtensionUninstallDialog::Create(
-            details.GetProfile(), details.GetNativeWindowForUI(), this));
+//    extension_uninstall_dialog_.reset(
+//        extensions::ExtensionUninstallDialog::Create(
+//            details.GetProfile(), details.GetNativeWindowForUI(), this));
     extensions::UninstallSource source =
         function->source_context_type() == extensions::Feature::WEBUI_CONTEXT
             ? extensions::UNINSTALL_SOURCE_CHROME_EXTENSIONS_PAGE
@@ -252,11 +252,11 @@ bool ChromeManagementAPIDelegate::CreateAppShortcutFunctionDelegate(
     return false;
   }
 
-  chrome::ShowCreateChromeAppShortcutsDialog(
-      browser->window()->GetNativeWindow(), browser->profile(), extension,
-      base::Bind(&extensions::ManagementCreateAppShortcutFunction::
-                     OnCloseShortcutPrompt,
-                 function));
+//  chrome::ShowCreateChromeAppShortcutsDialog(
+//      browser->window()->GetNativeWindow(), browser->profile(), extension,
+//      base::Bind(&extensions::ManagementCreateAppShortcutFunction::
+//                     OnCloseShortcutPrompt,
+//                 function));
 
   return true;
 }

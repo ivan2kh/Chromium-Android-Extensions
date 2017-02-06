@@ -1112,8 +1112,8 @@ void ExtensionService::NotifyExtensionLoaded(const Extension* extension) {
 
   // Same for chrome://theme/ resources.
   if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
-    ThemeSource* theme_source = new ThemeSource(profile_);
-    content::URLDataSource::Add(profile_, theme_source);
+//    ThemeSource* theme_source = new ThemeSource(profile_);
+//    content::URLDataSource::Add(profile_, theme_source);
   }
 
   // Same for chrome://thumb/ resources.

@@ -140,7 +140,7 @@ gfx::Rect ToolbarActionsBar::GetFrameForIndex(
 
 std::vector<ToolbarActionViewController*>
 ToolbarActionsBar::GetActions() const {
-  std::vector<ToolbarActionViewController*> actions = toolbar_actions_.get();
+  std::vector<ToolbarActionViewController*> actions;
 
   return actions;
 }

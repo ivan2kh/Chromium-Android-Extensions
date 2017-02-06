@@ -107,7 +107,7 @@ std::unique_ptr<extensions::ExtensionMessageBubbleController>
 ExtensionMessageBubbleFactory::GetController() {
   Profile* original_profile = browser_->profile()->GetOriginalProfile();
   std::set<Profile*>& profiles_evaluated = g_profiles_evaluated.Get();
-  bool is_initial_check = profiles_evaluated.count(original_profile) == 0;
+//  bool is_initial_check = profiles_evaluated.count(original_profile) == 0;
   profiles_evaluated.insert(original_profile);
 
   std::unique_ptr<extensions::ExtensionMessageBubbleController> controller;
@@ -137,14 +137,14 @@ ExtensionMessageBubbleFactory::GetController() {
     // No use showing this if it's not the startup of the profile, and if the
     // browser was restarted, then we always do a session restore (rather than
     // showing normal startup pages).
-    if (is_initial_check && !StartupBrowserCreator::WasRestarted()) {
-      controller.reset(new extensions::ExtensionMessageBubbleController(
-              new extensions::SettingsApiBubbleDelegate(
-                  browser_->profile(), extensions::BUBBLE_TYPE_STARTUP_PAGES),
-                  browser_));
-      if (controller->ShouldShow())
-        return controller;
-    }
+//    if (is_initial_check && !StartupBrowserCreator::WasRestarted()) {
+//      controller.reset(new extensions::ExtensionMessageBubbleController(
+//              new extensions::SettingsApiBubbleDelegate(
+//                  browser_->profile(), extensions::BUBBLE_TYPE_STARTUP_PAGES),
+//                  browser_));
+//      if (controller->ShouldShow())
+//        return controller;
+//    }
   }
 
   if (EnableProxyOverrideBubble()) {

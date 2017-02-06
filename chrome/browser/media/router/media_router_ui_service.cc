@@ -11,7 +11,7 @@
 namespace media_router {
 
 MediaRouterUIService::MediaRouterUIService(Profile* profile)
-    : action_controller_(profile) {}
+    /*: action_controller_(profile)*/ {}
 
 MediaRouterUIService::~MediaRouterUIService() {}
 
@@ -21,7 +21,7 @@ MediaRouterUIService* MediaRouterUIService::Get(Profile* profile) {
 }
 
 MediaRouterActionController* MediaRouterUIService::action_controller() {
-  return &action_controller_;
+  return NULL;//&action_controller_;
 }
 
 }  // namespace media_router

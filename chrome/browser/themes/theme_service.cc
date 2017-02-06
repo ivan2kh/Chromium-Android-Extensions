@@ -871,6 +871,6 @@ bool ThemeService::IsSupervisedUser() const {
 }
 
 void ThemeService::SetSupervisedUserTheme() {
-  SetCustomDefaultTheme(new SupervisedUserTheme);
+//  SetCustomDefaultTheme(new SupervisedUserTheme);
 }
 #endif

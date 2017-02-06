@@ -90,7 +90,7 @@ ExtensionViewHost::~ExtensionViewHost() {
 }
 
 void ExtensionViewHost::CreateView(Browser* browser) {
-  view_ = CreateExtensionView(this, browser);
+//  view_ = CreateExtensionView(this, browser);
 }
 
 void ExtensionViewHost::SetAssociatedWebContents(WebContents* web_contents) {

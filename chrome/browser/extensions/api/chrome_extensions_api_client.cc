@@ -80,9 +80,9 @@ void ChromeExtensionsAPIClient::AttachWebContentsHelpers(
   printing::PrintViewManagerBasic::CreateForWebContents(web_contents);
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 #endif  // BUILDFLAG(ENABLE_PRINTING)
-  pdf::PDFWebContentsHelper::CreateForWebContentsWithClient(
-      web_contents, std::unique_ptr<pdf::PDFWebContentsHelperClient>(
-                        new ChromePDFWebContentsHelperClient()));
+//  pdf::PDFWebContentsHelper::CreateForWebContentsWithClient(
+//      web_contents, std::unique_ptr<pdf::PDFWebContentsHelperClient>(
+//                        new ChromePDFWebContentsHelperClient()));
 
   data_use_measurement::DataUseWebContentsObserver::CreateForWebContents(
       web_contents);

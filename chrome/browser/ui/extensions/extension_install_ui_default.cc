@@ -58,11 +58,12 @@ Browser* FindOrCreateVisibleBrowser(Profile* profile) {
   // after fixing http://crbug.com/38676.
   if (!IncognitoModePrefs::CanOpenBrowser(profile))
     return NULL;
-  chrome::ScopedTabbedBrowserDisplayer displayer(profile);
-  Browser* browser = displayer.browser();
-  if (browser->tab_strip_model()->count() == 0)
-    chrome::AddTabAt(browser, GURL(), -1, true);
-  return browser;
+//  chrome::ScopedTabbedBrowserDisplayer displayer(profile);
+//  Browser* browser = displayer.browser();
+//  if (browser->tab_strip_model()->count() == 0)
+//    chrome::AddTabAt(browser, GURL(), -1, true);
+//  return browser;
+  return nullptr;
 }
 
 void ShowExtensionInstalledBubble(const extensions::Extension* extension,
@@ -228,14 +229,14 @@ void ExtensionInstallUIDefault::OpenAppInstalledUI(const std::string& app_id) {
   Profile* current_profile = profile_->GetOriginalProfile();
   Browser* browser = FindOrCreateVisibleBrowser(current_profile);
   if (browser) {
-    chrome::NavigateParams params(chrome::GetSingletonTabNavigateParams(
-        browser, GURL(chrome::kChromeUIAppsURL)));
-    chrome::Navigate(&params);
+//    chrome::NavigateParams params(chrome::GetSingletonTabNavigateParams(
+//        browser, GURL(chrome::kChromeUIAppsURL)));
+//    chrome::Navigate(&params);
 
-    content::NotificationService::current()->Notify(
-        chrome::NOTIFICATION_APP_INSTALLED_TO_NTP,
-        content::Source<WebContents>(params.target_contents),
-        content::Details<const std::string>(&app_id));
+//    content::NotificationService::current()->Notify(
+//        chrome::NOTIFICATION_APP_INSTALLED_TO_NTP,
+//        content::Source<WebContents>(params.target_contents),
+//        content::Details<const std::string>(&app_id));
   }
 #endif
 }

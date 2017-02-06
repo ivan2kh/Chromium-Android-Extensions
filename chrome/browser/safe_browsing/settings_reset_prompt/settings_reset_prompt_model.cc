@@ -30,12 +30,12 @@ enum SettingsType : uint32_t {
                       SETTINGS_TYPE_STARTUP_URLS,
 };
 
-const extensions::Extension* GetExtension(
-    Profile* profile,
-    const extensions::ExtensionId& extension_id) {
-  return extensions::ExtensionRegistry::Get(profile)->GetInstalledExtension(
-      extension_id);
-}
+//const extensions::Extension* GetExtension(
+//    Profile* profile,
+//    const extensions::ExtensionId& extension_id) {
+//  return extensions::ExtensionRegistry::Get(profile)->GetInstalledExtension(
+//      extension_id);
+//}
 
 }  // namespace
 
@@ -45,7 +45,7 @@ SettingsResetPromptModel::SettingsResetPromptModel(
     std::unique_ptr<ResettableSettingsSnapshot> settings_snapshot)
     : profile_(profile),
       prompt_config_(std::move(prompt_config)),
-      settings_snapshot_(std::move(settings_snapshot)),
+//      settings_snapshot_(std::move(settings_snapshot)),
       settings_types_initialized_(0),
       homepage_reset_domain_id_(-1),
       homepage_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED),
@@ -54,7 +54,7 @@ SettingsResetPromptModel::SettingsResetPromptModel(
       startup_urls_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED) {
   DCHECK(profile_);
   DCHECK(prompt_config_);
-  DCHECK(settings_snapshot_);
+//  DCHECK(settings_snapshot_);
 
   InitHomepageData();
   InitDefaultSearchData();
@@ -76,7 +76,7 @@ bool SettingsResetPromptModel::ShouldPromptForReset() {
 }
 
 std::string SettingsResetPromptModel::homepage() const {
-  return settings_snapshot_->homepage();
+  return std::string();//settings_snapshot_->homepage();
 }
 
 SettingsResetPromptModel::ResetState
@@ -87,7 +87,7 @@ SettingsResetPromptModel::homepage_reset_state() const {
 }
 
 std::string SettingsResetPromptModel::default_search() const {
-  return settings_snapshot_->dse_url();
+  return std::string();//settings_snapshot_->dse_url();
 }
 
 SettingsResetPromptModel::ResetState
@@ -123,18 +123,18 @@ void SettingsResetPromptModel::InitHomepageData() {
 
   // If the home button is not visible to the user, then the homepage setting
   // has no real user-visible effect.
-  if (!settings_snapshot_->show_home_button())
-    return;
+//  if (!settings_snapshot_->show_home_button())
+//    return;
 
   // We do not currently support resetting New Tab pages that are set by
   // extensions.
-  if (settings_snapshot_->homepage_is_ntp())
-    return;
+//  if (settings_snapshot_->homepage_is_ntp())
+//    return;
 
-  homepage_reset_domain_id_ =
-      prompt_config_->UrlToResetDomainId(GURL(settings_snapshot_->homepage()));
-  if (homepage_reset_domain_id_ < 0)
-    return;
+//  homepage_reset_domain_id_ =
+//      prompt_config_->UrlToResetDomainId(GURL(settings_snapshot_->homepage()));
+//  if (homepage_reset_domain_id_ < 0)
+//    return;
 
   homepage_reset_state_ = RESET_REQUIRED;
 }
@@ -144,8 +144,8 @@ void SettingsResetPromptModel::InitDefaultSearchData() {
 
   settings_types_initialized_ |= SETTINGS_TYPE_DEFAULT_SEARCH;
 
-  default_search_reset_domain_id_ =
-      prompt_config_->UrlToResetDomainId(GURL(settings_snapshot_->dse_url()));
+//  default_search_reset_domain_id_ =
+//      prompt_config_->UrlToResetDomainId(GURL(settings_snapshot_->dse_url()));
   if (default_search_reset_domain_id_ < 0)
     return;
 
@@ -158,17 +158,17 @@ void SettingsResetPromptModel::InitStartupUrlsData() {
   settings_types_initialized_ |= SETTINGS_TYPE_STARTUP_URLS;
 
   // Only the URLS startup type is a candidate for resetting.
-  if (settings_snapshot_->startup_type() == SessionStartupPref::URLS) {
-    startup_urls_ = settings_snapshot_->startup_urls();
-    for (const GURL& startup_url : settings_snapshot_->startup_urls()) {
-      int reset_domain_id = prompt_config_->UrlToResetDomainId(startup_url);
-      if (reset_domain_id >= 0) {
-        startup_urls_reset_state_ = RESET_REQUIRED;
-        startup_urls_to_reset_.push_back(startup_url);
-        domain_ids_for_startup_urls_to_reset_.insert(reset_domain_id);
-      }
-    }
-  }
+//  if (settings_snapshot_->startup_type() == SessionStartupPref::URLS) {
+//    startup_urls_ = settings_snapshot_->startup_urls();
+//    for (const GURL& startup_url : settings_snapshot_->startup_urls()) {
+//      int reset_domain_id = prompt_config_->UrlToResetDomainId(startup_url);
+//      if (reset_domain_id >= 0) {
+//        startup_urls_reset_state_ = RESET_REQUIRED;
+//        startup_urls_to_reset_.push_back(startup_url);
+//        domain_ids_for_startup_urls_to_reset_.insert(reset_domain_id);
+//      }
+//    }
+//  }
 }
 
 // Populate |extensions_to_disable_| with all enabled extensions that override
@@ -178,37 +178,37 @@ void SettingsResetPromptModel::InitStartupUrlsData() {
 // that default values can be restored. This function should be called after
 // other Init*() functions.
 void SettingsResetPromptModel::InitExtensionData() {
-  DCHECK(settings_snapshot_);
+//  DCHECK(settings_snapshot_);
   DCHECK_EQ(settings_types_initialized_, SETTINGS_TYPE_ALL);
 
   // |enabled_extensions()| is a container of [id, name] pairs.
-  for (const auto& id_name : settings_snapshot_->enabled_extensions()) {
-    // Just in case there are duplicates in the list of enabled extensions.
-    if (extensions_to_disable_.find(id_name.first) !=
-        extensions_to_disable_.end()) {
-      continue;
-    }
-
-    const extensions::Extension* extension =
-        GetExtension(profile_, id_name.first);
-    if (!extension)
-      continue;
-
-    const extensions::SettingsOverrides* overrides =
-        extensions::SettingsOverrides::Get(extension);
-    if (!overrides)
-      continue;
-
-    if ((homepage_reset_state_ == RESET_REQUIRED && overrides->homepage) ||
-        (default_search_reset_state_ == RESET_REQUIRED &&
-         overrides->search_engine) ||
-        (startup_urls_reset_state_ == RESET_REQUIRED &&
-         !overrides->startup_pages.empty())) {
-      ExtensionInfo extension_info(extension);
-      extensions_to_disable_.insert(
-          std::make_pair(extension_info.id, extension_info));
-    }
-  }
+//  for (const auto& id_name : settings_snapshot_->enabled_extensions()) {
+//    // Just in case there are duplicates in the list of enabled extensions.
+//    if (extensions_to_disable_.find(id_name.first) !=
+//        extensions_to_disable_.end()) {
+//      continue;
+//    }
+//
+//    const extensions::Extension* extension =
+//        GetExtension(profile_, id_name.first);
+//    if (!extension)
+//      continue;
+//
+//    const extensions::SettingsOverrides* overrides =
+//        extensions::SettingsOverrides::Get(extension);
+//    if (!overrides)
+//      continue;
+//
+//    if ((homepage_reset_state_ == RESET_REQUIRED && overrides->homepage) ||
+//        (default_search_reset_state_ == RESET_REQUIRED &&
+//         overrides->search_engine) ||
+//        (startup_urls_reset_state_ == RESET_REQUIRED &&
+//         !overrides->startup_pages.empty())) {
+//      ExtensionInfo extension_info(extension);
+//      extensions_to_disable_.insert(
+//          std::make_pair(extension_info.id, extension_info));
+//    }
+//  }
 }
 
 }  // namespace safe_browsing.

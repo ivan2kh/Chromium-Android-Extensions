@@ -586,8 +586,8 @@ void ExtensionStorageMonitor::ShowUninstallPrompt(
     return;
 
   if (!uninstall_dialog_.get()) {
-    uninstall_dialog_.reset(ExtensionUninstallDialog::Create(
-        Profile::FromBrowserContext(context_), NULL, this));
+//    uninstall_dialog_.reset(ExtensionUninstallDialog::Create(
+//        Profile::FromBrowserContext(context_), NULL, this));
   }
 
   uninstall_extension_id_ = extension->id();

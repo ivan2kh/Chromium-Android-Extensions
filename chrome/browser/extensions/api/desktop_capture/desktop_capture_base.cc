@@ -178,8 +178,9 @@ bool DesktopCaptureChooseDesktopMediaFunctionBase::Execute(
       }
     }
 
-    if (show_tabs)
-      tab_list = base::MakeUnique<TabDesktopMediaList>();
+    NOTIMPLEMENTED();
+//    if (show_tabs)
+//      tab_list = base::MakeUnique<TabDesktopMediaList>();
 
     DCHECK(screen_list || window_list || tab_list);
 

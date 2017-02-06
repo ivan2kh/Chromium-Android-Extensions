@@ -132,8 +132,8 @@ class UninstallDialogHelper : public ExtensionUninstallDialog::Delegate {
   ~UninstallDialogHelper() override {}
 
   void BeginUninstall(Browser* browser, const Extension* extension) {
-    uninstall_dialog_.reset(ExtensionUninstallDialog::Create(
-        browser->profile(), browser->window()->GetNativeWindow(), this));
+//    uninstall_dialog_.reset(ExtensionUninstallDialog::Create(
+//        browser->profile(), browser->window()->GetNativeWindow(), this));
     uninstall_dialog_->ConfirmUninstall(extension,
                                         UNINSTALL_REASON_USER_INITIATED,
                                         UNINSTALL_SOURCE_TOOLBAR_CONTEXT_MENU);
@@ -273,7 +273,7 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
       break;
     }
     case MANAGE: {
-      chrome::ShowExtensions(browser_, extension->id());
+//      chrome::ShowExtensions(browser_, extension->id());
       break;
     }
     case INSPECT_POPUP: {

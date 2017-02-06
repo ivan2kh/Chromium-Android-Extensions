@@ -11,9 +11,9 @@ std::unique_ptr<SerialDeviceEnumerator> SerialDeviceEnumerator::Create() {
   return NULL;
 }                                                                        
                                                                          
-mojo::Array<serial::DeviceInfoPtr> SerialDeviceEnumerator::GetDevices() {
+std::vector<serial::DeviceInfoPtr> SerialDeviceEnumerator::GetDevices() {
   NOTIMPLEMENTED();                                                      
-  mojo::Array<serial::DeviceInfoPtr> devices;
+  std::vector<serial::DeviceInfoPtr> devices;
   return devices;                    
 }                                                                        
                                                                          

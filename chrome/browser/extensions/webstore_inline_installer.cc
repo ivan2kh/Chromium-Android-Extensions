@@ -34,8 +34,8 @@ const char kInlineInstallSupportedError[] =
     "redirected to the Chrome Web Store.";
 const char kInitiatedFromPopupError[] =
     "Inline installs can not be initiated from pop-up windows.";
-const char kInitiatedFromFullscreenError[] =
-    "Inline installs can not be initiated from fullscreen.";
+//const char kInitiatedFromFullscreenError[] =
+//    "Inline installs can not be initiated from fullscreen.";
 
 WebstoreInlineInstaller::WebstoreInlineInstaller(
     content::WebContents* web_contents,
@@ -182,12 +182,12 @@ bool WebstoreInlineInstaller::CheckInlineInstallPermitted(
     *error = kInitiatedFromPopupError;
     return false;
   }
-  FullscreenController* controller =
-      browser->exclusive_access_manager()->fullscreen_controller();
-  if (controller->IsFullscreenForBrowser() || controller->IsTabFullscreen()) {
-    *error = kInitiatedFromFullscreenError;
-    return false;
-  }
+//  FullscreenController* controller =
+//      browser->exclusive_access_manager()->fullscreen_controller();
+//  if (controller->IsFullscreenForBrowser() || controller->IsTabFullscreen()) {
+//    *error = kInitiatedFromFullscreenError;
+//    return false;
+//  }
   // The store may not support inline installs for this item, in which case
   // we open the store-provided redirect URL in a new tab and abort the
   // installation process.

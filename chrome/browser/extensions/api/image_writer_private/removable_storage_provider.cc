@@ -27,11 +27,11 @@ void RemovableStorageProvider::GetAllDevices(DeviceListReadyCallback callback) {
   scoped_refptr<StorageDeviceList> device_list(new StorageDeviceList);
 
   // We need to do some file i/o to get the device block size
-  content::BrowserThread::PostTaskAndReplyWithResult(
-      content::BrowserThread::FILE,
-      FROM_HERE,
-      base::Bind(PopulateDeviceList, device_list),
-      base::Bind(callback, device_list));
+//  content::BrowserThread::PostTaskAndReplyWithResult(
+//      content::BrowserThread::FILE,
+//      FROM_HERE,
+//      base::Bind(PopulateDeviceList, device_list),
+//      base::Bind(callback, device_list));
 }
 
 void RemovableStorageProvider::SetDeviceListForTesting(

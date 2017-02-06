@@ -28,7 +28,7 @@ class MediaRouterUIService : public KeyedService {
  private:
   friend class MediaRouterUIBrowserTest;
 
-  MediaRouterActionController action_controller_;
+  //MediaRouterActionController action_controller_;
 
   DISALLOW_COPY_AND_ASSIGN(MediaRouterUIService);
 };

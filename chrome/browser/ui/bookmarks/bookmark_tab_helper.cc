@@ -31,8 +31,9 @@ bool IsNTP(content::WebContents* web_contents) {
       web_contents->GetController().GetLastCommittedEntry();
   if (!entry)
     entry = web_contents->GetController().GetVisibleEntry();
-  return (entry && NewTabUI::IsNewTab(entry->GetURL())) ||
-         search::NavEntryIsInstantNTP(web_contents, entry);
+  return false;
+//  return (entry && NewTabUI::IsNewTab(entry->GetURL())) ||
+//         search::NavEntryIsInstantNTP(web_contents, entry);
 }
 
 }  // namespace
@@ -48,8 +49,8 @@ bool BookmarkTabHelper::ShouldShowBookmarkBar() const {
   if (web_contents()->ShowingInterstitialPage())
     return false;
 
-  if (chrome::SadTab::ShouldShow(web_contents()->GetCrashedStatus()))
-    return false;
+//  if (chrome::SadTab::ShouldShow(web_contents()->GetCrashedStatus()))
+//    return false;
 
   if (!browser_defaults::bookmarks_enabled)
     return false;

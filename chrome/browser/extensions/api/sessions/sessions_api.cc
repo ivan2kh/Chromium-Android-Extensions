@@ -421,8 +421,9 @@ SessionsRestoreFunction::RestoreMostRecentlyClosed(Browser* browser) {
 
   bool is_window = is_window_entry(*entries.front());
   sessions::LiveTabContext* context =
-      BrowserLiveTabContext::FindContextForWebContents(
-          browser->tab_strip_model()->GetActiveWebContents());
+        NULL;
+//      BrowserLiveTabContext::FindContextForWebContents(
+//          browser->tab_strip_model()->GetActiveWebContents());
   std::vector<sessions::LiveTab*> restored_tabs =
       tab_restore_service->RestoreMostRecentEntry(context);
   DCHECK(restored_tabs.size());
@@ -461,8 +462,9 @@ ExtensionFunction::ResponseValue SessionsRestoreFunction::RestoreLocalSession(
   }
 
   sessions::LiveTabContext* context =
-      BrowserLiveTabContext::FindContextForWebContents(
-          browser->tab_strip_model()->GetActiveWebContents());
+          NULL;
+//      BrowserLiveTabContext::FindContextForWebContents(
+//          browser->tab_strip_model()->GetActiveWebContents());
   std::vector<sessions::LiveTab*> restored_tabs =
       tab_restore_service->RestoreEntryById(context, session_id.id(),
                                             WindowOpenDisposition::UNKNOWN);

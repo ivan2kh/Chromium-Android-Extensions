@@ -73,7 +73,7 @@ void ErrorBadge::ExecuteMenuItem(Browser* browser) {
   // a badge on the wrench menu in the future of this session.
   badge_service_->SuppressCurrentWarnings();
 
-  chrome::ExecuteCommand(browser, IDC_MANAGE_EXTENSIONS);
+//  chrome::ExecuteCommand(browser, IDC_MANAGE_EXTENSIONS);
 }
 
 bool ErrorBadge::HasBubbleView() {

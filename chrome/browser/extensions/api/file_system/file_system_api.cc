@@ -924,21 +924,21 @@ void FileSystemChooseEntryFunction::ConfirmDirectoryAccessOnFileThread(
         return;
       }
 
-      content::BrowserThread::PostTask(
-          content::BrowserThread::UI,
-          FROM_HERE,
-          base::Bind(
-              CreateDirectoryAccessConfirmationDialog,
-              app_file_handler_util::HasFileSystemWritePermission(
-                  extension_.get()),
-              base::UTF8ToUTF16(extension_->name()),
-              web_contents,
-              base::Bind(
-                  &FileSystemChooseEntryFunction::OnDirectoryAccessConfirmed,
-                  this,
-                  paths),
-              base::Bind(&FileSystemChooseEntryFunction::FileSelectionCanceled,
-                         this)));
+//      content::BrowserThread::PostTask(
+//          content::BrowserThread::UI,
+//          FROM_HERE,
+//          base::Bind(
+//              CreateDirectoryAccessConfirmationDialog,
+//              app_file_handler_util::HasFileSystemWritePermission(
+//                  extension_.get()),
+//              base::UTF8ToUTF16(extension_->name()),
+//              web_contents,
+//              base::Bind(
+//                  &FileSystemChooseEntryFunction::OnDirectoryAccessConfirmed,
+//                  this,
+//                  paths),
+//              base::Bind(&FileSystemChooseEntryFunction::FileSelectionCanceled,
+//                         this)));
       return;
     }
   }

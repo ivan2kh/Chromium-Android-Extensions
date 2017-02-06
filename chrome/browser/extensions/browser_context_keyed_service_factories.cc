@@ -131,7 +131,7 @@ void EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::PluginManager::GetFactoryInstance();
 #endif
   extensions::PreferenceAPI::GetFactoryInstance();
-  extensions::ProcessesAPI::GetFactoryInstance();
+//  extensions::ProcessesAPI::GetFactoryInstance();
   extensions::ScreenlockPrivateEventRouter::GetFactoryInstance();
   extensions::SessionsAPI::GetFactoryInstance();
   extensions::SettingsPrivateEventRouterFactory::GetInstance();
@@ -142,7 +142,7 @@ void EnsureBrowserContextKeyedServiceFactoriesBuilt() {
 #endif
   extensions::StreamsPrivateAPI::GetFactoryInstance();
   extensions::TabCaptureRegistry::GetFactoryInstance();
-  extensions::TabsWindowsAPI::GetFactoryInstance();
+//  extensions::TabsWindowsAPI::GetFactoryInstance();
   extensions::TtsAPI::GetFactoryInstance();
   extensions::WarningBadgeServiceFactory::GetInstance();
   extensions::WebNavigationAPI::GetFactoryInstance();

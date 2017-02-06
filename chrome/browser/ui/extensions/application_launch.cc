@@ -151,33 +151,33 @@ GURL UrlForExtension(const extensions::Extension* extension,
   return url;
 }
 
-ui::WindowShowState DetermineWindowShowState(
-    Profile* profile,
-    extensions::LaunchContainer container,
-    const Extension* extension) {
-  if (!extension || container != extensions::LAUNCH_CONTAINER_WINDOW)
-    return ui::SHOW_STATE_DEFAULT;
-
-  if (chrome::IsRunningInForcedAppMode())
-    return ui::SHOW_STATE_FULLSCREEN;
-
-#if defined(USE_ASH)
-  // In ash, LAUNCH_TYPE_FULLSCREEN launches in a maximized app window and
-  // LAUNCH_TYPE_WINDOW launches in a default app window.
-  extensions::LaunchType launch_type =
-      extensions::GetLaunchType(ExtensionPrefs::Get(profile), extension);
-  if (launch_type == extensions::LAUNCH_TYPE_FULLSCREEN)
-    return ui::SHOW_STATE_MAXIMIZED;
-  else if (launch_type == extensions::LAUNCH_TYPE_WINDOW)
-    return ui::SHOW_STATE_DEFAULT;
-#endif
-
-  return ui::SHOW_STATE_DEFAULT;
-}
+//ui::WindowShowState DetermineWindowShowState(
+//    Profile* profile,
+//    extensions::LaunchContainer container,
+//    const Extension* extension) {
+//  if (!extension || container != extensions::LAUNCH_CONTAINER_WINDOW)
+//    return ui::SHOW_STATE_DEFAULT;
+//
+//  if (chrome::IsRunningInForcedAppMode())
+//    return ui::SHOW_STATE_FULLSCREEN;
+//
+//#if defined(USE_ASH)
+//  // In ash, LAUNCH_TYPE_FULLSCREEN launches in a maximized app window and
+//  // LAUNCH_TYPE_WINDOW launches in a default app window.
+//  extensions::LaunchType launch_type =
+//      extensions::GetLaunchType(ExtensionPrefs::Get(profile), extension);
+//  if (launch_type == extensions::LAUNCH_TYPE_FULLSCREEN)
+//    return ui::SHOW_STATE_MAXIMIZED;
+//  else if (launch_type == extensions::LAUNCH_TYPE_WINDOW)
+//    return ui::SHOW_STATE_DEFAULT;
+//#endif
+//
+//  return ui::SHOW_STATE_DEFAULT;
+//}
 
 WebContents* OpenApplicationWindow(const AppLaunchParams& params,
                                    const GURL& url) {
-  Profile* const profile = params.profile;
+//  Profile* const profile = params.profile;
   const Extension* const extension = GetExtension(params);
 
   std::string app_name = extension ?
@@ -194,29 +194,29 @@ WebContents* OpenApplicationWindow(const AppLaunchParams& params,
         extensions::AppLaunchInfo::GetLaunchHeight(extension));
   }
 
-  Browser::CreateParams browser_params(Browser::CreateParams::CreateForApp(
-      app_name, true /* trusted_source */, initial_bounds, profile));
+  return NULL;
+//  Browser::CreateParams browser_params(Browser::CreateParams::CreateForApp(
+//      app_name, true /* trusted_source */, initial_bounds, profile));
 
-  browser_params.initial_show_state = DetermineWindowShowState(profile,
-                                                               params.container,
-                                                               extension);
-
-  Browser* browser = new Browser(browser_params);
-  ui::PageTransition transition =
-      (extension ? ui::PAGE_TRANSITION_AUTO_BOOKMARK
-                 : ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
-
-  WebContents* web_contents =
-      chrome::AddSelectedTabWithURL(browser, url, transition);
-  web_contents->GetMutableRendererPrefs()->can_accept_load_drops = false;
-  web_contents->GetRenderViewHost()->SyncRendererPrefs();
-
-  browser->window()->Show();
-
-  // TODO(jcampan): http://crbug.com/8123 we should not need to set the initial
-  //                focus explicitly.
-  web_contents->SetInitialFocus();
-  return web_contents;
+//  browser_params.initial_show_state = DetermineWindowShowState(profile,
+//                                                               params.container,
+//                                                               extension);
+//  Browser* browser = new Browser(browser_params);
+//  ui::PageTransition transition =
+//      (extension ? ui::PAGE_TRANSITION_AUTO_BOOKMARK
+//                 : ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
+//
+//  WebContents* web_contents =
+//      chrome::AddSelectedTabWithURL(browser, url, transition);
+//  web_contents->GetMutableRendererPrefs()->can_accept_load_drops = false;
+//  web_contents->GetRenderViewHost()->SyncRendererPrefs();
+//
+//  browser->window()->Show();
+//
+//  // TODO(jcampan): http://crbug.com/8123 we should not need to set the initial
+//  //                focus explicitly.
+//  web_contents->SetInitialFocus();
+//  return web_contents;
 }
 
 WebContents* OpenApplicationTab(const AppLaunchParams& launch_params,

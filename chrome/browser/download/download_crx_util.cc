@@ -47,9 +47,11 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
     content::WebContents* web_contents = download_item.GetWebContents();
     if (!web_contents) {
       Browser* browser = chrome::FindLastActiveWithProfile(profile);
-      if (!browser)
-        browser =
-            new Browser(Browser::CreateParams(Browser::TYPE_TABBED, profile));
+      if (!browser) {
+        NOTIMPLEMENTED();
+        browser = NULL;
+        //new Browser(Browser::CreateParams(Browser::TYPE_TABBED, profile));
+      }
       web_contents = browser->tab_strip_model()->GetActiveWebContents();
     }
     return std::unique_ptr<ExtensionInstallPrompt>(

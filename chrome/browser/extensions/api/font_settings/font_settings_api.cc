@@ -160,7 +160,7 @@ void FontSettingsEventRouter::OnFontNamePrefChanged(
     NOTREACHED();
     return;
   }
-  font_name = FontSettingsUtilities::MaybeGetLocalizedFontName(font_name);
+//  font_name = FontSettingsUtilities::MaybeGetLocalizedFontName(font_name);
 
   base::ListValue args;
   std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue());
@@ -246,7 +246,7 @@ ExtensionFunction::ResponseAction FontSettingsGetFontFunction::Run() {
   std::string font_name;
   EXTENSION_FUNCTION_VALIDATE(
       pref && pref->GetValue()->GetAsString(&font_name));
-  font_name = FontSettingsUtilities::MaybeGetLocalizedFontName(font_name);
+//  font_name = FontSettingsUtilities::MaybeGetLocalizedFontName(font_name);
 
   // We don't support incognito-specific font prefs, so don't consider them when
   // getting level of control.

@@ -196,7 +196,7 @@ void ExtensionUninstallDialog::HandleReportAbuse() {
       extension_urls::GetWebstoreReportAbuseUrl(extension_->id(), kReferrerId),
       ui::PAGE_TRANSITION_LINK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-  chrome::Navigate(&params);
+//  chrome::Navigate(&params);
 }
 
 }  // namespace extensions

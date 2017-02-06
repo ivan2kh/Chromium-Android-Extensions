@@ -496,8 +496,8 @@ void ComponentLoader::AddDefaultComponentExtensions(
   AddDefaultComponentExtensionsWithBackgroundPages(skip_session_components);
 
 #if BUILDFLAG(ENABLE_PLUGINS)
-  Add(pdf_extension_util::GetManifest(),
-      base::FilePath(FILE_PATH_LITERAL("pdf")));
+//  Add(pdf_extension_util::GetManifest(),
+//      base::FilePath(FILE_PATH_LITERAL("pdf")));
 #endif
 }
 
@@ -519,8 +519,8 @@ void ComponentLoader::AddDefaultComponentExtensionsForKioskMode(
   AddDefaultComponentExtensionsWithBackgroundPagesForKioskMode();
 
 #if BUILDFLAG(ENABLE_PLUGINS)
-  Add(pdf_extension_util::GetManifest(),
-      base::FilePath(FILE_PATH_LITERAL("pdf")));
+//  Add(pdf_extension_util::GetManifest(),
+//      base::FilePath(FILE_PATH_LITERAL("pdf")));
 #endif
 }
 

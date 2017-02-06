@@ -1289,16 +1289,16 @@ void DownloadsAcceptDangerFunction::PromptOrWait(int download_id, int retries) {
   RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
   // DownloadDangerPrompt displays a modal dialog using native widgets that the
   // user must either accept or cancel. It cannot be scripted.
-  DownloadDangerPrompt* prompt = DownloadDangerPrompt::Create(
-      download_item,
-      web_contents,
-      true,
-      base::Bind(&DownloadsAcceptDangerFunction::DangerPromptCallback,
-                 this, download_id));
-  // DownloadDangerPrompt deletes itself
-  if (on_prompt_created_ && !on_prompt_created_->is_null())
-    on_prompt_created_->Run(prompt);
-  // Function finishes in DangerPromptCallback().
+//  DownloadDangerPrompt* prompt = DownloadDangerPrompt::Create(
+//      download_item,
+//      web_contents,
+//      true,
+//      base::Bind(&DownloadsAcceptDangerFunction::DangerPromptCallback,
+//                 this, download_id));
+//  // DownloadDangerPrompt deletes itself
+//  if (on_prompt_created_ && !on_prompt_created_->is_null())
+//    on_prompt_created_->Run(prompt);
+//  // Function finishes in DangerPromptCallback().
 }
 
 void DownloadsAcceptDangerFunction::DangerPromptCallback(
@@ -1401,14 +1401,14 @@ ExtensionFunction::ResponseAction DownloadsDragFunction::Run() {
     return RespondNow(Error(error));
   }
   RecordApiFunctions(DOWNLOADS_FUNCTION_DRAG);
-  gfx::Image* icon = g_browser_process->icon_manager()->LookupIconFromFilepath(
-      download_item->GetTargetFilePath(), IconLoader::NORMAL);
-  gfx::NativeView view = web_contents->GetNativeView();
+//  gfx::Image* icon = g_browser_process->icon_manager()->LookupIconFromFilepath(
+//      download_item->GetTargetFilePath(), IconLoader::NORMAL);
+//  gfx::NativeView view = web_contents->GetNativeView();
   {
     // Enable nested tasks during DnD, while |DragDownload()| blocks.
     base::MessageLoop::ScopedNestableTaskAllower allow(
         base::MessageLoop::current());
-    DragDownloadItem(download_item, icon, view);
+//    DragDownloadItem(download_item, icon, view);
   }
   return RespondNow(NoArguments());
 }
@@ -1458,7 +1458,7 @@ ExtensionFunction::ResponseAction DownloadsSetShelfEnabledFunction::Run() {
            (current_service == incognito_service)) &&
           browser->window()->IsDownloadShelfVisible() &&
           !current_service->IsShelfEnabled())
-        browser->window()->GetDownloadShelf()->Close(DownloadShelf::AUTOMATIC);
+        ;//browser->window()->GetDownloadShelf()->Close(DownloadShelf::AUTOMATIC);
     }
   }
 

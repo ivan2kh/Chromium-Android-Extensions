@@ -45,8 +45,8 @@ const char kUserInitiatedKey[] = "userInitiated";
 const char kVolumeKey[] = "volume";
 
 // System update states.
-const char kNotAvailableState[] = "NotAvailable";
-const char kNeedRestartState[] = "NeedRestart";
+//const char kNotAvailableState[] = "NotAvailable";
+//const char kNeedRestartState[] = "NeedRestart";
 
 #if defined(OS_CHROMEOS)
 const char kUpdatingState[] = "Updating";
@@ -130,12 +130,12 @@ ExtensionFunction::ResponseAction SystemPrivateGetUpdateStatusFunction::Run() {
       break;
   }
 #else
-  if (UpgradeDetector::GetInstance()->notify_upgrade()) {
-    state = kNeedRestartState;
-    download_progress = 1;
-  } else {
-    state = kNotAvailableState;
-  }
+//  if (UpgradeDetector::GetInstance()->notify_upgrade()) {
+//    state = kNeedRestartState;
+//    download_progress = 1;
+//  } else {
+//    state = kNotAvailableState;
+//  }
 #endif
 
   std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue());

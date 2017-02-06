@@ -1196,6 +1196,21 @@ split_static_library("ui") {
 
   else if (is_android && enable_extensions) {
     sources += [
+
+      "views/apps/app_info_dialog/app_info_dialog_views_android.cc",
+      "views/apps/app_info_dialog/app_info_dialog_views.h",
+
+      "views/accelerator_utils_android.cc",
+
+      "views/browser_dialogs_views_android.cc",
+
+      "toolbar/component_toolbar_actions_factory.cc",
+      "toolbar/component_toolbar_actions_factory.h",
+
+      "browser_list_android.cc",
+      "browser_finder.cc",
+      "browser_finder.h",
+
       "global_error/global_error.cc",
       "global_error/global_error.h",
       "global_error/global_error_bubble_view_base.h",

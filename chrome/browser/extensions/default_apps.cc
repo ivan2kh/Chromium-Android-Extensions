@@ -78,11 +78,11 @@ bool Provider::ShouldInstallInProfile() {
       // Only new installations and profiles get default apps. In theory the
       // new profile checks should catch new installations, but that is not
       // always the case (http:/crbug.com/145351).
-      bool is_new_profile = profile_->WasCreatedByVersionOrLater(
-          version_info::GetVersionNumber());
-      bool is_first_run = first_run::IsChromeFirstRun();
-      if (!is_first_run && !is_new_profile)
-        install_apps = false;
+//      bool is_new_profile = profile_->WasCreatedByVersionOrLater(
+//          version_info::GetVersionNumber());
+//      bool is_first_run = first_run::IsChromeFirstRun();
+//      if (!is_first_run && !is_new_profile)
+//        install_apps = false;
       break;
     }
 

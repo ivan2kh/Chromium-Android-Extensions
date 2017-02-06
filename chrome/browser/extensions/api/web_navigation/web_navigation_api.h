@@ -171,7 +171,7 @@ class WebNavigationEventRouter : public TabStripModelObserver,
   // The profile that owns us via ExtensionService.
   Profile* profile_;
 
-  BrowserTabStripTracker browser_tab_strip_tracker_;
+  //BrowserTabStripTracker browser_tab_strip_tracker_;
 
   DISALLOW_COPY_AND_ASSIGN(WebNavigationEventRouter);
 };

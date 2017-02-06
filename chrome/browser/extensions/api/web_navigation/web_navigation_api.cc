@@ -73,7 +73,7 @@ WebNavigationEventRouter::PendingWebContents::PendingWebContents(
 WebNavigationEventRouter::PendingWebContents::~PendingWebContents() {}
 
 WebNavigationEventRouter::WebNavigationEventRouter(Profile* profile)
-    : profile_(profile), browser_tab_strip_tracker_(this, this, nullptr) {
+    : profile_(profile)/*, browser_tab_strip_tracker_(this, this, nullptr)*/ {
   CHECK(registrar_.IsEmpty());
   registrar_.Add(this,
                  chrome::NOTIFICATION_RETARGETING,
@@ -85,8 +85,8 @@ WebNavigationEventRouter::WebNavigationEventRouter(Profile* profile)
                  content::NOTIFICATION_WEB_CONTENTS_DESTROYED,
                  content::NotificationService::AllSources());
 
-  browser_tab_strip_tracker_.Init(
-      BrowserTabStripTracker::InitWith::ALL_BROWERS);
+//  browser_tab_strip_tracker_.Init(
+//      BrowserTabStripTracker::InitWith::ALL_BROWERS);
 }
 
 WebNavigationEventRouter::~WebNavigationEventRouter() {

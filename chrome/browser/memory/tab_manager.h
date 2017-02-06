@@ -375,7 +375,7 @@ class TabManager : public TabStripModelObserver {
 
   // Responsible for automatically registering this class as an observer of all
   // TabStripModels. Automatically tracks browsers as they come and go.
-  BrowserTabStripTracker browser_tab_strip_tracker_;
+  //BrowserTabStripTracker browser_tab_strip_tracker_;
 
   // Pointer to a test clock. If this is set, NowTicks() returns the value of
   // this test clock. Otherwise it returns the system clock's value.

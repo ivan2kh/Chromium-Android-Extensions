@@ -32,7 +32,7 @@ bool ChromeAppViewGuestDelegate::HandleContextMenu(
 }
 
 AppDelegate* ChromeAppViewGuestDelegate::CreateAppDelegate() {
-  return new ChromeAppDelegate(true);
+  return NULL;//new ChromeAppDelegate(true);
 }
 
 }  // namespace extensions

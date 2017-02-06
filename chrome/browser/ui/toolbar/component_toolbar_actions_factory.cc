@@ -45,10 +45,10 @@ ComponentToolbarActionsFactory* ComponentToolbarActionsFactory::GetInstance() {
 std::set<std::string> ComponentToolbarActionsFactory::GetInitialComponentIds(
     Profile* profile) {
   std::set<std::string> component_ids;
-  if (media_router::MediaRouterEnabled(profile) &&
-      MediaRouterActionController::IsActionShownByPolicy(profile)) {
-    component_ids.insert(kMediaRouterActionId);
-  }
+//  if (media_router::MediaRouterEnabled(profile) &&
+//      MediaRouterActionController::IsActionShownByPolicy(profile)) {
+//    component_ids.insert(kMediaRouterActionId);
+//  }
 
   return component_ids;
 }
@@ -69,9 +69,9 @@ ComponentToolbarActionsFactory::GetComponentToolbarActionForId(
   // should be okay. If this changes, we should rethink this design to have,
   // e.g., RegisterChromeAction().
 #if defined(ENABLE_MEDIA_ROUTER)
-  if (id == kMediaRouterActionId)
-    return std::unique_ptr<ToolbarActionViewController>(
-        new MediaRouterAction(browser, bar));
+//  if (id == kMediaRouterActionId)
+//    return std::unique_ptr<ToolbarActionViewController>(
+//        new MediaRouterAction(browser, bar));
 #endif  // defined(ENABLE_MEDIA_ROUTER)
 
   NOTREACHED();

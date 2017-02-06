@@ -72,7 +72,7 @@ class SettingsResetPromptModel {
 
   Profile* const profile_;
   std::unique_ptr<SettingsResetPromptConfig> prompt_config_;
-  std::unique_ptr<ResettableSettingsSnapshot> settings_snapshot_;
+//  std::unique_ptr<ResettableSettingsSnapshot> settings_snapshot_;
 
   // Bits to keep track of which settings types have been initialized.
   uint32_t settings_types_initialized_;

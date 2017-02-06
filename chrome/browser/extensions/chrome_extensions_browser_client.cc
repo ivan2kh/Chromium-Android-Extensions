@@ -410,8 +410,10 @@ std::unique_ptr<content::BluetoothChooser>
 ChromeExtensionsBrowserClient::CreateBluetoothChooser(
     content::RenderFrameHost* frame,
     const content::BluetoothChooser::EventHandler& event_handler) {
-  return base::MakeUnique<ChromeExtensionBluetoothChooser>(frame,
-                                                           event_handler);
+  NOTIMPLEMENTED();
+  return NULL;
+//  return base::MakeUnique<ChromeExtensionBluetoothChooser>(frame,
+//                                                           event_handler);
 }
 
 bool ChromeExtensionsBrowserClient::IsActivityLoggingEnabled(

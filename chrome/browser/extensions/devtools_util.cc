@@ -18,8 +18,8 @@ namespace {
 
 // Helper to inspect an ExtensionHost after it has been loaded.
 void InspectExtensionHost(ExtensionHost* host) {
-  if (host)
-    DevToolsWindow::OpenDevToolsWindow(host->host_contents());
+//  if (host)
+//    DevToolsWindow::OpenDevToolsWindow(host->host_contents());
 }
 
 }  // namespace

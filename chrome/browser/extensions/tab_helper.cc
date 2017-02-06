@@ -331,18 +331,18 @@ void TabHelper::DidFinishNavigation(
   const ExtensionSet& enabled_extensions = registry->enabled_extensions();
 
   if (util::IsNewBookmarkAppsEnabled()) {
-    Browser* browser = chrome::FindBrowserWithWebContents(web_contents());
-    if (browser && browser->is_app()) {
-      const Extension* extension = registry->GetExtensionById(
-          web_app::GetExtensionIdFromApplicationName(browser->app_name()),
-          ExtensionRegistry::EVERYTHING);
-      if (extension && AppLaunchInfo::GetFullLaunchURL(extension).is_valid())
-        SetExtensionApp(extension);
-    } else {
-      UpdateExtensionAppIcon(
-          enabled_extensions.GetExtensionOrAppByURL(
-              navigation_handle->GetURL()));
-    }
+//    Browser* browser = chrome::FindBrowserWithWebContents(web_contents());
+//    if (browser && browser->is_app()) {
+//      const Extension* extension = registry->GetExtensionById(
+//          web_app::GetExtensionIdFromApplicationName(browser->app_name()),
+//          ExtensionRegistry::EVERYTHING);
+//      if (extension && AppLaunchInfo::GetFullLaunchURL(extension).is_valid())
+//        SetExtensionApp(extension);
+//    } else {
+//      UpdateExtensionAppIcon(
+//          enabled_extensions.GetExtensionOrAppByURL(
+//              navigation_handle->GetURL()));
+//    }
   } else {
     UpdateExtensionAppIcon(
         enabled_extensions.GetExtensionOrAppByURL(navigation_handle->GetURL()));
@@ -400,9 +400,9 @@ void TabHelper::OnDidGetWebApplicationInfo(const WebApplicationInfo& info) {
   switch (pending_web_app_action_) {
 #if !defined(OS_MACOSX)
     case CREATE_SHORTCUT: {
-      chrome::ShowCreateWebAppShortcutsDialog(
-          web_contents()->GetTopLevelNativeWindow(),
-          web_contents());
+//      chrome::ShowCreateWebAppShortcutsDialog(
+//          web_contents()->GetTopLevelNativeWindow(),
+//          web_contents());
       break;
     }
 #endif

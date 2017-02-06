@@ -299,8 +299,8 @@ void ExtensionDisabledGlobalError::BubbleViewCancelButtonPressed(
   DCHECK(!extensions::util::IsExtensionSupervised(extension_,
                                                   service_->profile()));
 
-  uninstall_dialog_.reset(extensions::ExtensionUninstallDialog::Create(
-      service_->profile(), browser->window()->GetNativeWindow(), this));
+//  uninstall_dialog_.reset(extensions::ExtensionUninstallDialog::Create(
+//      service_->profile(), browser->window()->GetNativeWindow(), this));
   // Delay showing the uninstall dialog, so that this function returns
   // immediately, to close the bubble properly. See crbug.com/121544.
   base::ThreadTaskRunnerHandle::Get()->PostTask(
