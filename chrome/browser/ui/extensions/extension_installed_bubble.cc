@@ -33,6 +33,8 @@
 #include "extensions/common/feature_switch.h"
 #include "ui/base/l10n/l10n_util.h"
 
+#include "components/bubble/bubble_ui.h"
+
 using extensions::Extension;
 
 namespace {
@@ -204,9 +206,22 @@ ExtensionInstalledBubble::ExtensionInstalledBubble(const Extension* extension,
 
 ExtensionInstalledBubble::~ExtensionInstalledBubble() {}
 
-std::unique_ptr<BubbleUi> BuildBubbleUi() {
-  std::unique_ptr<BubbleUi> z;
-  return z;
+class DummyBubbleUi : public BubbleUi {
+ public:
+  DummyBubbleUi() {};
+  ~DummyBubbleUi() override {};
+
+  void Show(BubbleReference) override {};
+  void Close() override {};
+  void UpdateAnchorPosition() override {};
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DummyBubbleUi);
+};
+
+std::unique_ptr<BubbleUi> ExtensionInstalledBubble::BuildBubbleUi() {
+  std::unique_ptr<DummyBubbleUi> bubble_ui_;
+  return std::move(bubble_ui_);
 }
 
 bool ExtensionInstalledBubble::ShouldClose(BubbleCloseReason reason) const {
