@@ -42,7 +42,7 @@ namespace {
 
 // The color of the separator used inside the dialog - should match the app
 // list's app_list::kDialogSeparatorColor
-const SkColor kDialogSeparatorColor = SkColorSetRGB(0xD1, 0xD1, 0xD1);
+//const SkColor kDialogSeparatorColor = SkColorSetRGB(0xD1, 0xD1, 0xD1);
 
 #if defined(OS_MACOSX)
 bool IsAppInfoDialogMacEnabled() {
