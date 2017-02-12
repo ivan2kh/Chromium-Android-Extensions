@@ -575,9 +575,11 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   DriveAppMapping::RegisterProfilePrefs(registry);
   app_list::AppListSyncableService::RegisterProfilePrefs(registry);
 #endif
+#endif
   extensions::CommandService::RegisterProfilePrefs(registry);
   extensions::ExtensionSettingsHandler::RegisterProfilePrefs(registry);
   extensions::TabsCaptureVisibleTabFunction::RegisterProfilePrefs(registry);
+#if !defined(OS_ANDROID)
   first_run::RegisterProfilePrefs(registry);
   NewTabUI::RegisterProfilePrefs(registry);
   PepperFlashSettingsManager::RegisterProfilePrefs(registry);

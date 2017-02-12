@@ -249,9 +249,9 @@ BrowserProcessImpl::BrowserProcessImpl(
 
   device_client_.reset(new ChromeDeviceClient);
 
-#if BUILDFLAG(ENABLE_EXTENSIONS) && !defined(OS_ANDROID)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   // Athena sets its own instance during Athena's init process.
-  extensions::AppWindowClient::Set(ChromeAppWindowClient::GetInstance());
+//  extensions::AppWindowClient::Set(ChromeAppWindowClient::GetInstance());
 
   extension_event_router_forwarder_ = new extensions::EventRouterForwarder;
 
