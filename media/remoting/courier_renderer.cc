@@ -21,10 +21,14 @@
 #include "media/base/buffering_state.h"
 #include "media/base/media_resource.h"
 #include "media/base/renderer_client.h"
+#include "media/base/video_renderer_sink.h"
 #include "media/remoting/demuxer_stream_adapter.h"
 #include "media/remoting/proto_enum_utils.h"
 #include "media/remoting/proto_utils.h"
 #include "media/remoting/renderer_controller.h"
+
+namespace media {
+namespace remoting {
 
 namespace {
 
@@ -55,9 +59,6 @@ constexpr base::TimeDelta kDataFlowPollPeriod =
 
 }  // namespace
 
-namespace media {
-namespace remoting {
-
 CourierRenderer::CourierRenderer(
     scoped_refptr<base::SingleThreadTaskRunner> media_task_runner,
     const base::WeakPtr<RendererController>& controller,
@@ -79,7 +80,7 @@ CourierRenderer::CourierRenderer(
   // on the media thread. Therefore, all weak pointers must be dereferenced on
   // the media thread.
   controller_->SetShowInterstitialCallback(
-      base::Bind(&CourierRenderer::RequestUpdateInterstitialOnMainThread,
+      base::Bind(&CourierRenderer::RenderInterstitialAndShow,
                  media_task_runner_, weak_factory_.GetWeakPtr()));
   const RpcBroker::ReceiveMessageCallback receive_callback =
       base::Bind(&CourierRenderer::OnMessageReceivedOnMainThread,
@@ -91,9 +92,6 @@ CourierRenderer::~CourierRenderer() {
   VLOG(2) << __func__;
   DCHECK(media_task_runner_->BelongsToCurrentThread());
 
-  UpdateInterstitial(interstitial_background_, canvas_size_,
-                     InterstitialType::BETWEEN_SESSIONS);
-
   // Post task on main thread to unset the interstial callback.
   main_task_runner_->PostTask(
       FROM_HERE,
@@ -104,6 +102,14 @@ CourierRenderer::~CourierRenderer() {
   main_task_runner_->PostTask(
       FROM_HERE, base::Bind(&RpcBroker::UnregisterMessageReceiverCallback,
                             rpc_broker_, rpc_handle_));
+
+  // If the "between sessions" interstitial is not the one currently showing,
+  // paint a blank black frame to clear remoting messaging.
+  if (interstitial_type_ != InterstitialType::BETWEEN_SESSIONS) {
+    scoped_refptr<VideoFrame> frame =
+        VideoFrame::CreateBlackFrame(gfx::Size(1280, 720));
+    PaintInterstitial(frame, InterstitialType::BETWEEN_SESSIONS);
+  }
 }
 
 void CourierRenderer::Initialize(MediaResource* media_resource,
@@ -126,17 +132,20 @@ void CourierRenderer::Initialize(MediaResource* media_resource,
 
   state_ = STATE_CREATE_PIPE;
 
+  // TODO(servolk): Add support for multiple streams. For now use the first
+  // enabled audio and video streams to preserve the existing behavior.
+  ::media::DemuxerStream* audio_demuxer_stream =
+      media_resource_->GetFirstStream(DemuxerStream::AUDIO);
+  ::media::DemuxerStream* video_demuxer_stream =
+      media_resource_->GetFirstStream(DemuxerStream::VIDEO);
+
   // Create audio mojo data pipe handles if audio is available.
-  DemuxerStream* audio_demuxer_stream =
-      media_resource_->GetStream(DemuxerStream::AUDIO);
   std::unique_ptr<mojo::DataPipe> audio_data_pipe;
   if (audio_demuxer_stream) {
     audio_data_pipe = base::WrapUnique(DemuxerStreamAdapter::CreateDataPipe());
   }
 
   // Create video mojo data pipe handles if video is available.
-  DemuxerStream* video_demuxer_stream =
-      media_resource_->GetStream(DemuxerStream::VIDEO);
   std::unique_ptr<mojo::DataPipe> video_data_pipe;
   if (video_demuxer_stream) {
     video_data_pipe = base::WrapUnique(DemuxerStreamAdapter::CreateDataPipe());
@@ -326,9 +335,14 @@ void CourierRenderer::OnDataPipeCreated(
   DCHECK_EQ(state_, STATE_CREATE_PIPE);
   DCHECK(!init_workflow_done_callback_.is_null());
 
+  // TODO(servolk): Add support for multiple streams. For now use the first
+  // enabled audio and video streams to preserve the existing behavior.
+  ::media::DemuxerStream* audio_demuxer_stream =
+      media_resource_->GetFirstStream(DemuxerStream::AUDIO);
+  ::media::DemuxerStream* video_demuxer_stream =
+      media_resource_->GetFirstStream(DemuxerStream::VIDEO);
+
   // Create audio demuxer stream adapter if audio is available.
-  DemuxerStream* audio_demuxer_stream =
-      media_resource_->GetStream(DemuxerStream::AUDIO);
   if (audio_demuxer_stream && audio.is_valid() && audio_handle.is_valid() &&
       audio_rpc_handle != RpcBroker::kInvalidHandle) {
     VLOG(2) << "Initialize audio";
@@ -340,8 +354,6 @@ void CourierRenderer::OnDataPipeCreated(
   }
 
   // Create video demuxer stream adapter if video is available.
-  DemuxerStream* video_demuxer_stream =
-      media_resource_->GetStream(DemuxerStream::VIDEO);
   if (video_demuxer_stream && video.is_valid() && video_handle.is_valid() &&
       video_rpc_handle != RpcBroker::kInvalidHandle) {
     VLOG(2) << "Initialize video";
@@ -686,27 +698,32 @@ void CourierRenderer::OnFatalError(StopTrigger stop_trigger) {
 }
 
 // static
-void CourierRenderer::RequestUpdateInterstitialOnMainThread(
+void CourierRenderer::RenderInterstitialAndShow(
     scoped_refptr<base::SingleThreadTaskRunner> media_task_runner,
     base::WeakPtr<CourierRenderer> self,
-    const base::Optional<SkBitmap>& background_image,
-    const gfx::Size& canvas_size,
-    InterstitialType interstitial_type) {
+    const SkBitmap& background,
+    const gfx::Size& natural_size,
+    InterstitialType type) {
+  // Note: This is running on the main thread. |self| must only be dereferenced
+  // on the media thread.
+  scoped_refptr<VideoFrame> frame =
+      RenderInterstitialFrame(background, natural_size, type);
+  if (!frame) {
+    NOTREACHED();
+    return;
+  }
   media_task_runner->PostTask(
-      FROM_HERE, base::Bind(&CourierRenderer::UpdateInterstitial, self,
-                            background_image, canvas_size, interstitial_type));
+      FROM_HERE, base::Bind(&CourierRenderer::PaintInterstitial, self,
+                            std::move(frame), type));
 }
 
-void CourierRenderer::UpdateInterstitial(
-    const base::Optional<SkBitmap>& background_image,
-    const gfx::Size& canvas_size,
-    InterstitialType interstitial_type) {
+void CourierRenderer::PaintInterstitial(scoped_refptr<VideoFrame> frame,
+                                        InterstitialType type) {
   DCHECK(media_task_runner_->BelongsToCurrentThread());
-  if (background_image.has_value())
-    interstitial_background_ = background_image.value();
-  canvas_size_ = canvas_size;
-  PaintInterstitial(interstitial_background_, canvas_size_, interstitial_type,
-                    video_renderer_sink_);
+  interstitial_type_ = type;
+  if (!video_renderer_sink_)
+    return;
+  video_renderer_sink_->PaintSingleFrame(frame);
 }
 
 void CourierRenderer::OnMediaTimeUpdated() {

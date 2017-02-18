@@ -29,6 +29,7 @@
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalDOMWindow.h"
 #include "core/frame/LocalFrame.h"
+#include "core/input/InputDeviceCapabilities.h"
 #include "core/layout/LayoutObject.h"
 #include "core/paint/PaintLayer.h"
 #include "core/svg/SVGElement.h"
@@ -106,7 +107,7 @@ MouseEvent* MouseEvent::create(const AtomicString& eventType,
                                AbstractView* view,
                                Event* underlyingEvent,
                                SimulatedClickCreationScope creationScope) {
-  PlatformEvent::Modifiers modifiers = PlatformEvent::NoModifiers;
+  WebInputEvent::Modifiers modifiers = WebInputEvent::NoModifiers;
   if (UIEventWithKeyState* keyStateEvent =
           findEventWithKeyState(underlyingEvent)) {
     modifiers = keyStateEvent->modifiers();
@@ -161,17 +162,17 @@ MouseEvent::MouseEvent(const AtomicString& eventType,
           cancelable,
           abstractView,
           detail,
-          static_cast<PlatformEvent::Modifiers>(event.modifiers()),
+          static_cast<WebInputEvent::Modifiers>(event.modifiers()),
           TimeTicks::FromSeconds(event.timeStampSeconds()),
-          event.fromTouch()
-              ? InputDeviceCapabilities::firesTouchEventsSourceCapabilities()
-              : InputDeviceCapabilities::
-                    doesntFireTouchEventsSourceCapabilities()),
+          abstractView
+              ? abstractView->getInputDeviceCapabilities()->firesTouchEvents(
+                    event.fromTouch())
+              : nullptr),
       m_screenLocation(event.globalX, event.globalY),
       m_movementDelta(flooredIntPoint(event.movementInRootFrame())),
       m_positionType(PositionType::Position),
       m_button(static_cast<short>(event.button)),
-      m_buttons(platformModifiersToButtons(event.modifiers())),
+      m_buttons(webInputEventModifiersToButtons(event.modifiers())),
       m_relatedTarget(relatedTarget),
       m_syntheticEventType(event.fromTouch() ? FromTouch
                                              : RealOrIndistinguishable),
@@ -192,7 +193,7 @@ MouseEvent::MouseEvent(const AtomicString& eventType,
                        int windowY,
                        int movementX,
                        int movementY,
-                       PlatformEvent::Modifiers modifiers,
+                       WebInputEvent::Modifiers modifiers,
                        short button,
                        unsigned short buttons,
                        EventTarget* relatedTarget,
@@ -207,10 +208,10 @@ MouseEvent::MouseEvent(const AtomicString& eventType,
           detail,
           modifiers,
           platformTimeStamp,
-          syntheticEventType == FromTouch
-              ? InputDeviceCapabilities::firesTouchEventsSourceCapabilities()
-              : InputDeviceCapabilities::
-                    doesntFireTouchEventsSourceCapabilities()),
+          abstractView
+              ? abstractView->getInputDeviceCapabilities()->firesTouchEvents(
+                    syntheticEventType == FromTouch)
+              : nullptr),
       m_screenLocation(screenX, screenY),
       m_movementDelta(movementX, movementY),
       m_positionType(syntheticEventType == Positionless
@@ -287,15 +288,15 @@ void MouseEvent::initCoordinatesFromRootFrame(int windowX, int windowY) {
 
 MouseEvent::~MouseEvent() {}
 
-unsigned short MouseEvent::platformModifiersToButtons(unsigned modifiers) {
+unsigned short MouseEvent::webInputEventModifiersToButtons(unsigned modifiers) {
   unsigned short buttons = 0;
 
-  if (modifiers & PlatformEvent::LeftButtonDown)
+  if (modifiers & WebInputEvent::LeftButtonDown)
     buttons |= static_cast<unsigned short>(WebPointerProperties::Buttons::Left);
-  if (modifiers & PlatformEvent::RightButtonDown)
+  if (modifiers & WebInputEvent::RightButtonDown)
     buttons |=
         static_cast<unsigned short>(WebPointerProperties::Buttons::Right);
-  if (modifiers & PlatformEvent::MiddleButtonDown)
+  if (modifiers & WebInputEvent::MiddleButtonDown)
     buttons |=
         static_cast<unsigned short>(WebPointerProperties::Buttons::Middle);
 
@@ -342,7 +343,7 @@ void MouseEvent::initMouseEventInternal(
     int screenY,
     int clientX,
     int clientY,
-    PlatformEvent::Modifiers modifiers,
+    WebInputEvent::Modifiers modifiers,
     short button,
     EventTarget* relatedTarget,
     InputDeviceCapabilities* sourceCapabilities,

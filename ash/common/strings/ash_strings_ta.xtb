@@ -39,13 +39,13 @@
 <translation id="1923539912171292317">தன்னியக்க கிளிக்குகள்</translation>
 <translation id="1957803754585243749">0°</translation>
 <translation id="1969011864782743497"><ph name="DEVICE_NAME" /> (USB)</translation>
+<translation id="2122028596993374965"><ph name="TAB_NAME" />ஐ <ph name="RECEIVER_NAME" />க்கு அனுப்புவதை நிறுத்து</translation>
 <translation id="2127372758936585790">குறைந்த சக்திகொண்ட சார்ஜர்</translation>
 <translation id="2204305834655267233">பிணைய தகவல்</translation>
 <translation id="2208323208084708176">ஒன்றிணைந்த டெஸ்க்டாப் பயன்முறை</translation>
 <translation id="225680501294068881">சாதனங்களைக் கண்டறிகிறது...</translation>
 <translation id="2268130516524549846">புளூடூத் முடக்கப்பட்டது</translation>
 <translation id="2268813581635650749">அனைவரையும் வெளியேற்று</translation>
-<translation id="2297568595583585744">நிலைத் தட்டு</translation>
 <translation id="2303600792989757991">சாளர மேலோட்டத்தை நிலைமாற்று</translation>
 <translation id="2354174487190027830"><ph name="NAME" /> ஐச் செயல்படுத்துகிறது</translation>
 <translation id="2391579633712104609">180°</translation>
@@ -83,6 +83,7 @@
 <translation id="3126069444801937830">புதுப்பிக்க மீண்டும் தொடங்குக</translation>
 <translation id="3147142846278915599">துவக்கி (பயன்பாடுகளை ஒத்திசைக்கிறது...)</translation>
 <translation id="3157169093162779309">சுழற்றல் பூட்டை இயக்கு</translation>
+<translation id="3164154768979021380">டாக் செய்யப்பட்ட பயன்முறையிலிருந்து வெளியேறுகிறது</translation>
 <translation id="3294437725009624529">விருந்தினர்</translation>
 <translation id="3335772982573114336">புதிய குறிப்பு</translation>
 <translation id="3364721542077212959">ஸ்டைலஸ் கருவிகள்</translation>
@@ -99,9 +100,7 @@
 <translation id="3626281679859535460">ஒளிர்வு</translation>
 <translation id="3683428399328702079"><ph name="DISPLAY_NAME" /> தெளிவுத்திறன் <ph name="RESOLUTION" /> க்கு மாற்றப்பட்டது</translation>
 <translation id="370649949373421643">Wi-fi ஐ இயக்கு</translation>
-<translation id="3709443003275901162">9+</translation>
 <translation id="3712407551474845318">பகுதியைப் படமெடு</translation>
-<translation id="372094107052732682">வெளியேற Ctrl+Shift+Q ஐ இருமுறை அழுத்தவும்.</translation>
 <translation id="3742055079367172538">ஸ்கிரீன் ஷாட் எடுக்கப்பட்டது</translation>
 <translation id="3775358506042162758">பல உள்நுழைவில் மூன்று கணக்குகள் வரை மட்டுமே வைத்திருக்கலாம்.</translation>
 <translation id="3783640748446814672">alt</translation>
@@ -139,16 +138,15 @@
 <translation id="4957722034734105353">மேலும் அறிக...</translation>
 <translation id="4961318399572185831">அனுப்புதல் திரை</translation>
 <translation id="5011233892417813670">Chromebook</translation>
-<translation id="5045002648206642691">Google இயக்கக அமைப்புகள்...</translation>
 <translation id="510924152490034944">இணைப்பு கண்காணிக்கப்படலாம்</translation>
 <translation id="5168181903108465623">அனுப்பும் சாதனங்கள் உள்ளன</translation>
 <translation id="5170568018924773124">கோப்புறையில் காண்பி</translation>
 <translation id="5222676887888702881">வெளியேறு</translation>
-<translation id="5238774010593222950">மற்றொரு கணக்கில் உள்நுழைய முடியாது.</translation>
 <translation id="532063867737390965">இந்த நெட்வொர்க் அமைப்பு நிர்வாகியால் முடக்கப்பட்டுள்ளது.</translation>
 <translation id="5331975486040154427">USB-C சாதனம் (இடது பக்கம் பின்னே இருக்கும் போர்ட்)</translation>
 <translation id="5431825016875453137">OpenVPN / L2TP</translation>
 <translation id="544691375626129091">எல்லா பயனர்களும் ஏற்கனவே இந்த அமர்வில் சேர்க்கப்பட்டுள்ளனர்.</translation>
+<translation id="5504841533973703486">முன்பக்க மைக்ரோஃபோன்</translation>
 <translation id="5507786745520522457">மொபைல் தரவை அமை</translation>
 <translation id="5543001071567407895">SMS</translation>
 <translation id="5548285847212963613">இந்த நெட்வொர்க்குடன் இணைய, "<ph name="EXTENSION_NAME" />" நீட்டிப்பு உதவும்.</translation>
@@ -160,6 +158,7 @@
 <translation id="57838592816432529">ஒலியடக்கு</translation>
 <translation id="5825747213122829519">உங்கள் உள்ளீட்டு முறையானது <ph name="INPUT_METHOD_ID" /> க்கு மாற்றப்பட்டது.
 மாற்ற Shift + Alt ஐ அழுத்தவும்.</translation>
+<translation id="5830936593837877897">பின்பக்க மைக்ரோஃபோன்</translation>
 <translation id="5871632337994001636">சாதனங்களை நிர்வகி...</translation>
 <translation id="5895138241574237353">மறுதொடக்கம்</translation>
 <translation id="5901316534475909376">Shift+Esc</translation>
@@ -171,6 +170,7 @@
 <translation id="5977415296283489383">ஹெட்ஃபோன்</translation>
 <translation id="5978382165065462689">தொலைநிலை உதவி மூலம் உங்கள் திரையின் கட்டுப்பாட்டைப் பகிர்கிறது.</translation>
 <translation id="5980301590375426705">விருந்தினரிலிருந்து வெளியேறவும்</translation>
+<translation id="6018164090099858612">கண்ணாடிப் பயன்முறையிலிருந்து வெளியேறுகிறது</translation>
 <translation id="6041154455840261787">உயர் ஒளி மாறுபாட்டுப் பயன்முறை இயக்கப்பட்டது. அதை முடக்க, தேடு+ஷிஃப்ட்+H விசைகளை அழுத்தவும்.</translation>
 <translation id="6043212731627905357">இந்த மானிட்டர் உங்கள் <ph name="DEVICE_TYPE" /> உடன் செயல்படவில்லை (இந்த மானிட்டர் ஆதரிக்கப்படவில்லை).</translation>
 <translation id="6043994281159824495">இப்போது வெளியேறு</translation>
@@ -181,7 +181,6 @@
 <translation id="6144938890088808325">Chromebookகளை இன்னும் சிறப்பானதாக்க உதவவும்</translation>
 <translation id="615957422585914272">ஆன்-ஸ்கிரீன் விசைப்பலகையைக் காட்டு</translation>
 <translation id="6165508094623778733">மேலும் அறிக</translation>
-<translation id="6248847161401822652">வெளியேற Control Shift Q ஐ இருமுறை அழுத்தவும்.</translation>
 <translation id="6267036997247669271"><ph name="NAME" />: செயல்படுத்துகிறது...</translation>
 <translation id="6297287540776456956">பகுதியைத் தேர்ந்தெடுக்க, ஸ்டைஸைப் பயன்படுத்தவும்</translation>
 <translation id="6310121235600822547"><ph name="DISPLAY_NAME" /> <ph name="ROTATION" /> ஆகச் சுழற்றப்பட்டது</translation>
@@ -196,7 +195,6 @@
 <translation id="6521655319214113338">கையெழுத்து உள்ளீடு</translation>
 <translation id="6537270692134705506">திரையைப் படமெடு</translation>
 <translation id="6549021752953852991">செல்லுலார் நெட்வொர்க் இல்லை</translation>
-<translation id="6550675742724504774">விருப்பத்தேர்வுகள்</translation>
 <translation id="6585808820553845416"><ph name="SESSION_TIME_REMAINING" /> இல் அமர்வு முடிந்துவிடும்.</translation>
 <translation id="6596816719288285829">IP முகவரி</translation>
 <translation id="6650933572246256093">புளூடூத் சாதனம் "<ph name="DEVICE_NAME" />" இணைப்பதற்கான அனுமதியை விரும்புகிறது. அந்தச் சாதனத்தில் இந்தக் கடவுச்சொல்லை உள்ளிடவும்: <ph name="PASSKEY" /></translation>
@@ -208,10 +206,8 @@
 <translation id="6857811139397017780"><ph name="NETWORKSERVICE" /> ஐ செயல்படுத்து</translation>
 <translation id="6911468394164995108">மற்றொன்றில் சேர்...</translation>
 <translation id="6915678159055240887">Chromebox</translation>
-<translation id="6979158407327259162">Google இயக்ககம்</translation>
 <translation id="6981982820502123353">அணுகல் தன்மை</translation>
 <translation id="7029814467594812963">அமர்விலிருந்து வெளியேறவும்</translation>
-<translation id="703171847531699602">அனுப்பும் சாதனங்கள் இல்லை</translation>
 <translation id="7034339000180558234"><ph name="TAB_NAME" />ஐ <ph name="RECEIVER_NAME" />க்கு அனுப்புகிறது</translation>
 <translation id="7052914147756339792">வால்பேப்பரை அமை...</translation>
 <translation id="7066646422045619941">இந்த நெட்வொர்க் உங்கள் நிர்வாகியால் முடக்கப்பட்டுள்ளது.</translation>
@@ -232,7 +228,6 @@
 <translation id="7561014039265304140"><ph name="SPECIFIED_RESOLUTION" /> ஐ <ph name="DISPLAY_NAME" /> ஆதரிக்கவில்லை. <ph name="FALLBACK_RESOLUTION" /> க்குத் தெளிவு மாற்றப்பட்டது</translation>
 <translation id="7562368315689366235">ஈமொஜி தட்டு</translation>
 <translation id="7573962313813535744">டாக் செய்யப்பட்ட பயன்முறை</translation>
-<translation id="7580671184200851182">எல்லா ஸ்பீக்கர்களிலும் ஒரே ஆடியோவை இயக்கு (மோனோ ஆடியோ)</translation>
 <translation id="7581273696622423628">கருத்துக்கணிப்பைத் தொடங்கு</translation>
 <translation id="7593891976182323525">Search அல்லது Shift</translation>
 <translation id="7649070708921625228">உதவி</translation>
@@ -249,8 +244,10 @@
 <translation id="8000066093800657092">நெட்வொர்க் இல்லை</translation>
 <translation id="8054466585765276473">பேட்டரி நேரத்தைக் கணக்கிடுகிறது.</translation>
 <translation id="8077816382010018681">QU அம்சத்தின் அறிவிப்புத் தலைப்பு இங்கே</translation>
+<translation id="8098591350844501178"><ph name="RECEIVER_NAME" />க்குத் திரையை அனுப்புவதை நிறுத்து</translation>
 <translation id="8103386449138765447">SMS செய்திகள்: <ph name="MESSAGE_COUNT" /></translation>
 <translation id="8132793192354020517"><ph name="NAME" /> உடன் இணைக்கப்பட்டது</translation>
+<translation id="8180896103888046100">தெரியாத ரிசீவருக்கு அனுப்புவதை நிறுத்து</translation>
 <translation id="8185286464235484130">சில கேள்விகளுக்குப் பதிலளிப்பதன் மூலம் நாங்கள் எவ்வாறு செயல்படுகிறோம் என்பதை எங்களுக்குத் தெரிவிக்கவும்.</translation>
 <translation id="8190698733819146287">மொழிகள் மற்றும்  உள்ளீடைத் தனிப்பயனாக்கு...</translation>
 <translation id="8206859287963243715">செல்லுலர்</translation>
@@ -273,9 +270,11 @@
 <translation id="9074739597929991885">புளூடூத்</translation>
 <translation id="9080206825613744995">மைக்ரோஃபோன் பயன்பாட்டில் உள்ளது.</translation>
 <translation id="9089416786594320554">உள்ளீட்டு முறைகள்</translation>
+<translation id="9091626656156419976"><ph name="DISPLAY_NAME" /> டிஸ்ப்ளே அகற்றப்பட்டது</translation>
 <translation id="9151726767154816831">புதுப்பிக்க, மறுதுவக்கம் செய்து பவர்வாஷ் செய்யவும்</translation>
 <translation id="9194617393863864469">வேறொருவராக உள்நுழை...</translation>
 <translation id="9201131092683066720">பேட்டரி <ph name="PERCENTAGE" />% நிரம்பியது.</translation>
+<translation id="9210037371811586452">ஒன்றிணைந்த டெஸ்க்டாப் பயன்முறையிலிருந்து வெளியேறுகிறது</translation>
 <translation id="923686485342484400">வெளியேற Control Shift Q ஐ இருமுறை அழுத்தவும்.</translation>
 <translation id="938582441709398163">விசைப்பலகை மேல்தோற்றம்</translation>
 <translation id="939252827960237676">ஸ்கிரீன் ஷாட்டை சேமிப்பதில் தோல்வி</translation>

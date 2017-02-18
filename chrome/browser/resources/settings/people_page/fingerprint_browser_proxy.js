@@ -28,15 +28,31 @@ settings.FingerprintResultType = {
  */
 settings.FingerprintScan;
 
+/**
+ * An object describing the necessary info to display on the fingerprint
+ * settings. The structure of this data must be kept in sync with
+ * C++ FingerprintHandler.
+ * @typedef {{
+ *   fingerprintsList: !Array<string>,
+ *   isMaxed: boolean,
+ * }}
+ */
+settings.FingerprintInfo;
+
 cr.define('settings', function() {
   /** @interface */
   function FingerprintBrowserProxy() {}
 
   FingerprintBrowserProxy.prototype = {
     /**
-     * @return {!Promise<!Array<string>>}
+     * @return {!Promise<!settings.FingerprintInfo>}
      */
     getFingerprintsList: function () {},
+
+    /**
+     * @return {!Promise<number>}
+     */
+    getNumFingerprints: function () {},
 
     startEnroll: function () {},
 
@@ -50,7 +66,7 @@ cr.define('settings', function() {
 
     /**
      * @param {number} index
-     * @return {!Promise<!Array<string>>}
+     * @return {!Promise<boolean>}
      */
     removeEnrollment: function(index) {},
 
@@ -63,6 +79,13 @@ cr.define('settings', function() {
     startAuthentication: function() {},
 
     endCurrentAuthentication: function() {},
+
+    /**
+     * TODO(sammiequon): Temporary function to let the handler know when a
+     * completed scan has been sent via click on the setup fingerprint dialog.
+     * Remove this when real scans are implemented.
+     */
+    fakeScanComplete: function() {},
   };
 
   /**
@@ -76,6 +99,11 @@ cr.define('settings', function() {
     /** @override */
     getFingerprintsList: function () {
       return cr.sendWithPromise('getFingerprintsList');
+    },
+
+    /** @override */
+    getNumFingerprints: function () {
+      return cr.sendWithPromise('getNumFingerprints');
     },
 
     /** @override */
@@ -111,6 +139,11 @@ cr.define('settings', function() {
     /** @override */
     endCurrentAuthentication: function() {
       chrome.send('endCurrentAuthentication');
+    },
+
+    /** @override */
+    fakeScanComplete: function() {
+      chrome.send('fakeScanComplete');
     },
   };
 

@@ -34,9 +34,10 @@
 #include "content/common/host_zoom.mojom.h"
 #include "content/common/renderer.mojom.h"
 #include "content/public/common/console_message_level.h"
-#include "content/public/common/javascript_message_type.h"
+#include "content/public/common/javascript_dialog_type.h"
 #include "content/public/common/previews_state.h"
 #include "content/public/common/referrer.h"
+#include "content/public/common/request_context_type.h"
 #include "content/public/common/stop_find_action.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/renderer/frame_blame_context.h"
@@ -50,6 +51,7 @@
 #include "mojo/public/cpp/bindings/associated_binding.h"
 #include "mojo/public/cpp/bindings/binding.h"
 #include "ppapi/features/features.h"
+#include "services/service_manager/public/cpp/service_info.h"
 #include "services/service_manager/public/interfaces/connector.mojom.h"
 #include "services/service_manager/public/interfaces/interface_provider.mojom.h"
 #include "third_party/WebKit/public/platform/WebEffectiveConnectionType.h"
@@ -93,6 +95,7 @@ struct WebCompositionUnderline;
 struct WebContextMenuData;
 struct WebCursorInfo;
 struct WebFindOptions;
+class WebRelatedAppsFetcher;
 }  // namespace blink
 
 namespace gfx {
@@ -143,9 +146,9 @@ class NavigationState;
 class PepperPluginInstanceImpl;
 class PresentationDispatcher;
 class PushMessagingDispatcher;
+class RelatedAppsFetcher;
 class RenderAccessibilityImpl;
 class RendererMediaPlayerManager;
-class RendererMediaSessionManager;
 class RendererPpapiHost;
 class RenderFrameObserver;
 class RenderViewImpl;
@@ -549,7 +552,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void willSubmitForm(const blink::WebFormElement& form) override;
   void didCreateDataSource(blink::WebLocalFrame* frame,
                            blink::WebDataSource* datasource) override;
-  void didStartProvisionalLoad(blink::WebLocalFrame* frame) override;
+  void didStartProvisionalLoad(blink::WebDataSource* data_source) override;
   void didReceiveServerRedirectForProvisionalLoad(
       blink::WebLocalFrame* frame) override;
   void didFailProvisionalLoad(blink::WebLocalFrame* frame,
@@ -636,6 +639,7 @@ class CONTENT_EXPORT RenderFrameImpl
                            blink::WebStorageQuotaCallbacks callbacks) override;
   blink::WebPushClient* pushClient() override;
   blink::WebPresentationClient* presentationClient() override;
+  blink::WebRelatedAppsFetcher* relatedAppsFetcher() override;
   void willStartUsingPeerConnectionHandler(
       blink::WebRTCPeerConnectionHandler* handler) override;
   blink::WebUserMediaClient* userMediaClient() override;
@@ -874,6 +878,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void OnFocusedFormFieldDataRequest(int request_id);
   void OnSetAccessibilityMode(AccessibilityMode new_mode);
   void OnSnapshotAccessibilityTree(int callback_id);
+  void OnExtractSmartClipData(uint32_t callback_id, const gfx::Rect& rect);
   void OnUpdateOpener(int opener_routing_id);
   void OnDidUpdateSandboxFlags(blink::WebSandboxFlags flags);
   void OnSetFrameOwnerProperties(
@@ -906,6 +911,12 @@ class CONTENT_EXPORT RenderFrameImpl
   void OnFileChooserResponse(
       const std::vector<content::FileChooserFileInfo>& files);
   void OnClearFocusedElement();
+  void OnBlinkFeatureUsageReport(const std::set<int>& features);
+  void OnMixedContentFound(const GURL& main_resource_url,
+                           const GURL& mixed_content_url,
+                           RequestContextType request_context_type,
+                           bool was_allowed,
+                           bool had_redirect);
 #if defined(OS_ANDROID)
   void OnActivateNearestFindResult(int request_id, float x, float y);
   void OnGetNearestFindResult(int request_id, float x, float y);
@@ -983,11 +994,11 @@ class CONTENT_EXPORT RenderFrameImpl
   // selection handles in sync with the webpage.
   void SyncSelectionIfRequired();
 
-  bool RunJavaScriptMessage(JavaScriptMessageType type,
-                            const base::string16& message,
-                            const base::string16& default_value,
-                            const GURL& frame_url,
-                            base::string16* result);
+  bool RunJavaScriptDialog(JavaScriptDialogType type,
+                           const base::string16& message,
+                           const base::string16& default_value,
+                           const GURL& frame_url,
+                           base::string16* result);
 
   // Loads the appropriate error page for the specified failure into the frame.
   // |entry| is only used by PlzNavigate when navigating to a history item.
@@ -1059,14 +1070,7 @@ class CONTENT_EXPORT RenderFrameImpl
                              bool content_initiated);
 
 #if defined(OS_ANDROID)
-  blink::WebMediaPlayer* CreateAndroidWebMediaPlayer(
-      blink::WebMediaPlayerClient* client,
-      blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
-      const media::WebMediaPlayerParams& params);
-
   RendererMediaPlayerManager* GetMediaPlayerManager();
-
-  RendererMediaSessionManager* GetMediaSessionManager();
 #endif
 
   bool AreSecureCodecsSupported();
@@ -1248,7 +1252,6 @@ class CONTENT_EXPORT RenderFrameImpl
   // browser process. It's okay to use raw pointers since they're both
   // RenderFrameObservers.
   RendererMediaPlayerManager* media_player_manager_;
-  RendererMediaSessionManager* media_session_manager_;
 #endif
 
   media::SurfaceManager* media_surface_manager_;
@@ -1312,6 +1315,8 @@ class CONTENT_EXPORT RenderFrameImpl
   // Only valid if |accessibility_mode_| is anything other than
   // AccessibilityModeOff.
   RenderAccessibilityImpl* render_accessibility_;
+
+  std::unique_ptr<RelatedAppsFetcher> related_apps_fetcher_;
 
   // Manages play, pause notifications for WebMediaPlayer implementations; its
   // lifetime is tied to the RenderFrame via the RenderFrameObserver interface.

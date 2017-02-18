@@ -13,6 +13,7 @@
 #include "services/service_manager/public/cpp/service.h"
 #include "services/service_manager/public/cpp/service_context.h"
 #include "services/service_manager/public/cpp/service_runner.h"
+#include "ui/aura/client/default_capture_client.h"
 #include "ui/aura/env.h"
 #include "ui/aura/mus/property_converter.h"
 #include "ui/aura/mus/property_utils.h"
@@ -38,6 +39,8 @@ class TestWM : public service_manager::Service,
   TestWM() {}
 
   ~TestWM() override {
+    default_capture_client_.reset();
+
     // WindowTreeHost uses state from WindowTreeClient, so destroy it first.
     window_tree_host_.reset();
 
@@ -131,6 +134,9 @@ class TestWM : public service_manager::Service,
     DCHECK(!root_);
     window_tree_host_ = std::move(window_tree_host);
     root_ = window_tree_host_->window();
+    default_capture_client_ =
+        base::MakeUnique<aura::client::DefaultCaptureClient>(
+            root_->GetRootWindow());
     DCHECK(window_manager_client_);
     window_manager_client_->AddActivationParent(root_);
     ui::mojom::FrameDecorationValuesPtr frame_decoration_values =
@@ -143,6 +149,7 @@ class TestWM : public service_manager::Service,
   void OnWmDisplayRemoved(aura::WindowTreeHostMus* window_tree_host) override {
     DCHECK_EQ(window_tree_host, window_tree_host_.get());
     root_ = nullptr;
+    default_capture_client_.reset();
     window_tree_host_.reset();
   }
   void OnWmDisplayModified(const display::Display& display) override {}
@@ -175,6 +182,7 @@ class TestWM : public service_manager::Service,
   aura::Window* root_ = nullptr;
   aura::WindowManagerClient* window_manager_client_ = nullptr;
   std::unique_ptr<aura::WindowTreeClient> window_tree_client_;
+  std::unique_ptr<aura::client::DefaultCaptureClient> default_capture_client_;
 
   bool started_ = false;
 

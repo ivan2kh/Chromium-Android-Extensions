@@ -319,7 +319,8 @@ void GLManager::InitializeWithCommandLine(
         gpu_preferences_, mailbox_manager_.get(), nullptr,
         new gpu::gles2::ShaderTranslatorCache(gpu_preferences_),
         new gpu::gles2::FramebufferCompletenessCache, feature_info,
-        options.bind_generates_resource, options.image_factory, nullptr);
+        options.bind_generates_resource, options.image_factory, nullptr,
+        GpuFeatureInfo());
   }
 
   decoder_.reset(::gpu::gles2::GLES2Decoder::Create(context_group));
@@ -580,16 +581,6 @@ int32_t GLManager::CreateImage(ClientBuffer buffer,
   DCHECK(image_manager);
   image_manager->AddImage(gl_image.get(), new_id);
   return new_id;
-}
-
-int32_t GLManager::CreateGpuMemoryBufferImage(size_t width,
-                                              size_t height,
-                                              unsigned internalformat,
-                                              unsigned usage) {
-  DCHECK_EQ(usage, static_cast<unsigned>(GL_READ_WRITE_CHROMIUM));
-  std::unique_ptr<gfx::GpuMemoryBuffer> buffer = CreateGpuMemoryBuffer(
-      gfx::Size(width, height), gfx::BufferFormat::RGBA_8888);
-  return CreateImage(buffer->AsClientBuffer(), width, height, internalformat);
 }
 
 void GLManager::DestroyImage(int32_t id) {

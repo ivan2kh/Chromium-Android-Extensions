@@ -18,6 +18,7 @@ GEN_INCLUDE([
  * @constructor
  */
 function CountryDetailManagerTestImpl() {}
+
 CountryDetailManagerTestImpl.prototype = {
   /** @override */
   getCountryList: function() {
@@ -126,9 +127,13 @@ SettingsAutofillSectionBrowserTest.prototype = {
    * @private
    */
   createAutofillSection_: function(addresses, creditCards) {
+    // Override the AutofillManagerImpl for testing.
+    this.autofillManager = new TestAutofillManager();
+    this.autofillManager.data.addresses = addresses;
+    this.autofillManager.data.creditCards = creditCards;
+    AutofillManagerImpl.instance_ = this.autofillManager;
+
     var section = document.createElement('settings-autofill-section');
-    section.addresses = addresses;
-    section.creditCards = creditCards;
     document.body.appendChild(section);
     Polymer.dom.flush();
     return section;
@@ -167,6 +172,10 @@ SettingsAutofillSectionBrowserTest.prototype = {
 
 TEST_F('SettingsAutofillSectionBrowserTest', 'CreditCardTests', function() {
   var self = this;
+
+  setup(function() {
+    PolymerTest.clearBody();
+  });
 
   suite('AutofillSection', function() {
     test('verifyCreditCardCount', function() {
@@ -215,6 +224,32 @@ TEST_F('SettingsAutofillSectionBrowserTest', 'CreditCardTests', function() {
                    row.querySelector('#creditCardLabel').textContent);
       assertEquals(creditCard.expirationMonth + '/' + creditCard.expirationYear,
                    row.querySelector('#creditCardExpiration').textContent);
+    });
+
+    test('verifyCreditCardRowButtonIsDropdownWhenLocal', function() {
+      var creditCard = FakeDataMaker.creditCardEntry();
+      creditCard.metadata.isLocal = true;
+      var section = self.createAutofillSection_([], [creditCard]);
+      var creditCardList = section.$.creditCardList;
+      var row = creditCardList.children[0];
+      assertTrue(!!row);
+      var menuButton = row.querySelector('#creditCardMenu');
+      assertTrue(!!menuButton);
+      var outlinkButton = row.querySelector('[is="paper-icon-button-light"');
+      assertFalse(!!outlinkButton);
+    });
+
+    test('verifyCreditCardRowButtonIsOutlinkWhenRemote', function() {
+      var creditCard = FakeDataMaker.creditCardEntry();
+      creditCard.metadata.isLocal = false;
+      var section = self.createAutofillSection_([], [creditCard]);
+      var creditCardList = section.$.creditCardList;
+      var row = creditCardList.children[0];
+      assertTrue(!!row);
+      var menuButton = row.querySelector('#creditCardMenu');
+      assertFalse(!!menuButton);
+      var outlinkButton = row.querySelector('[is="paper-icon-button-light"');
+      assertTrue(!!outlinkButton);
     });
 
     test('verifyAddVsEditCreditCardTitle', function() {
@@ -376,6 +411,10 @@ TEST_F('SettingsAutofillSectionBrowserTest', 'CreditCardTests', function() {
 TEST_F('SettingsAutofillSectionBrowserTest', 'AddressTests', function() {
   var self = this;
 
+  setup(function() {
+    PolymerTest.clearBody();
+  });
+
   suite('AutofillSection', function() {
     test('verifyNoAddresses', function() {
       var section = self.createAutofillSection_([], []);
@@ -430,11 +469,38 @@ TEST_F('SettingsAutofillSectionBrowserTest', 'AddressTests', function() {
       assertEquals(addressSummary, actualSummary);
     });
 
+    test('verifyAddressRowButtonIsDropdownWhenLocal', function() {
+      var address = FakeDataMaker.addressEntry();
+      address.metadata.isLocal = true;
+      var section = self.createAutofillSection_([address], []);
+      var addressList = section.$.addressList;
+      var row = addressList.children[0];
+      assertTrue(!!row);
+      var menuButton = row.querySelector('#addressMenu')
+      assertTrue(!!menuButton);
+      var outlinkButton = row.querySelector('[is="paper-icon-button-light"]');
+      assertFalse(!!outlinkButton);
+    });
+
+    test('verifyAddressRowButtonIsOutlinkWhenRemote', function() {
+      var address = FakeDataMaker.addressEntry();
+      address.metadata.isLocal = false;
+      var section = self.createAutofillSection_([address], []);
+      var addressList = section.$.addressList;
+      var row = addressList.children[0];
+      assertTrue(!!row);
+      var menuButton = row.querySelector('#addressMenu')
+      assertFalse(!!menuButton);
+      var outlinkButton = row.querySelector('[is="paper-icon-button-light"]');
+      assertTrue(!!outlinkButton);
+    });
+
     test('verifyAddAddressDialog', function() {
       return self.createAddressDialog_(
           FakeDataMaker.emptyAddressEntry()).then(function(dialog) {
         var title = dialog.$$('.title');
-        assertEquals(loadTimeData.getString('addAddress'), title.textContent);
+        assertEquals(loadTimeData.getString('addAddressTitle'),
+            title.textContent);
         // Shouldn't be possible to save until something is typed in.
         assertTrue(dialog.$.saveButton.disabled);
       });
@@ -618,6 +684,10 @@ TEST_F('SettingsAutofillSectionBrowserTest', 'AddressTests', function() {
 
 TEST_F('SettingsAutofillSectionBrowserTest', 'AddressLocaleTests', function() {
   var self = this;
+
+  setup(function() {
+    PolymerTest.clearBody();
+  });
 
   suite('AutofillSection', function() {
     // US address has 3 fields on the same line.

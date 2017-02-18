@@ -345,7 +345,7 @@ InspectorTest.expandAndDumpEventListeners = function(eventListenersView, callbac
             InspectorTest.addResult("======== " + eventType + " ========");
             var listenerItems = listenerTypes[i].children();
             for (var j = 0; j < listenerItems.length; ++j) {
-                InspectorTest.addResult("== " + listenerItems[j].eventListener().listenerType());
+                InspectorTest.addResult("== " + listenerItems[j].eventListener().origin());
                 InspectorTest.dumpObjectPropertyTreeElement(listenerItems[j]);
             }
         }
@@ -355,7 +355,7 @@ InspectorTest.expandAndDumpEventListeners = function(eventListenersView, callbac
     if (force)
         listenersArrived();
     else
-        InspectorTest.addSniffer(Components.EventListenersView.prototype, "_eventListenersArrivedForTest", listenersArrived);
+        InspectorTest.addSniffer(EventListeners.EventListenersView.prototype, "_eventListenersArrivedForTest", listenersArrived);
 }
 
 InspectorTest.dumpNavigatorView = function(navigatorView, dumpIcons)
@@ -409,7 +409,7 @@ InspectorTest.dumpNavigatorViewInMode = function(view, mode)
     InspectorTest.dumpNavigatorView(view);
 }
 
-InspectorTest.waitForUISourceCode = function(callback, url, projectType)
+InspectorTest.waitForUISourceCode = function(url, projectType)
 {
     function matches(uiSourceCode)
     {
@@ -423,19 +423,21 @@ InspectorTest.waitForUISourceCode = function(callback, url, projectType)
     }
 
     for (var uiSourceCode of Workspace.workspace.uiSourceCodes()) {
-        if (url && matches(uiSourceCode)) {
-            callback(uiSourceCode);
-            return;
-        }
+        if (url && matches(uiSourceCode))
+            return Promise.resolve(uiSourceCode);
     }
 
+    var fulfill;
+    var promise = new Promise(x => fulfill = x);
     Workspace.workspace.addEventListener(Workspace.Workspace.Events.UISourceCodeAdded, uiSourceCodeAdded);
+    return promise;
+
     function uiSourceCodeAdded(event)
     {
         if (!matches(event.data))
             return;
         Workspace.workspace.removeEventListener(Workspace.Workspace.Events.UISourceCodeAdded, uiSourceCodeAdded);
-        callback(event.data);
+        fulfill(event.data);
     }
 }
 
@@ -968,7 +970,7 @@ SDK.targetManager.observeTargets({
         InspectorTest.debuggerModel = SDK.DebuggerModel.fromTarget(target);
         InspectorTest.runtimeModel = target.runtimeModel;
         InspectorTest.domModel = SDK.DOMModel.fromTarget(target);
-        InspectorTest.cssModel = SDK.CSSModel.fromTarget(target);
+        InspectorTest.cssModel = target.model(SDK.CSSModel);
         InspectorTest.powerProfiler = target.powerProfiler;
         InspectorTest.cpuProfilerModel = target.cpuProfilerModel;
         InspectorTest.heapProfilerModel = target.heapProfilerModel;

@@ -693,6 +693,7 @@
     {
         "domain": "Emulation",
         "description": "This domain emulates different environments for the page.",
+        "dependencies": ["DOM"],
         "types": [
             {
                 "id": "ScreenOrientation",
@@ -836,6 +837,14 @@
                 "parameters": [
                     { "name": "policy", "$ref": "VirtualTimePolicy" },
                     { "name": "budget", "type": "integer", "optional": true, "description": "If set, after this many virtual milliseconds have elapsed virtual time will be paused and a virtualTimeBudgetExpired event is sent." }
+                ],
+                "experimental": true
+            },
+            {
+                "name": "setDefaultBackgroundColorOverride",
+                "description": "Sets or clears an override of the default background color of the frame. This override is used if the content does not specify one.",
+                "parameters": [
+                    { "name": "color", "$ref": "DOM.RGBA", "optional": true, "description": "RGBA of the default background color. If not specified, any existing override will be cleared." }
                 ],
                 "experimental": true
             }
@@ -3254,7 +3263,7 @@
                     { "name": "columnNumber", "type": "integer", "description": "Column number in the script (0-based)." },
                     { "name": "handler", "$ref": "Runtime.RemoteObject", "optional": true, "description": "Event handler function value." },
                     { "name": "originalHandler", "$ref": "Runtime.RemoteObject", "optional": true, "description": "Event original handler function value." },
-                    { "name": "removeFunction", "$ref": "Runtime.RemoteObject", "optional": true, "description": "Event listener remove function." }
+                    { "name": "backendNodeId", "$ref": "DOM.BackendNodeId", "optional": true, "description": "Node the listener is added to (if any)." }
                 ],
                 "experimental": true
             }
@@ -3326,7 +3335,9 @@
                 "name": "getEventListeners",
                 "experimental": true,
                 "parameters": [
-                    { "name": "objectId", "$ref": "Runtime.RemoteObjectId", "description": "Identifier of the object to return listeners for." }
+                    { "name": "objectId", "$ref": "Runtime.RemoteObjectId", "description": "Identifier of the object to return listeners for." },
+                    { "name": "depth", "type": "integer", "optional": true, "description": "The maximum depth at which Node children should be retrieved, defaults to 1. Use -1 for the entire subtree or provide an integer larger than 0.", "experimental": true },
+                    { "name": "pierce", "type": "boolean", "optional": true, "description": "Whether or not iframes and shadow roots should be traversed when returning the subtree (default is false). Reports listeners for all contexts if pierce is enabled.", "experimental": true }
                 ],
                 "returns": [
                     { "name": "listeners", "type": "array", "items": { "$ref": "EventListener" }, "description": "Array of relevant listeners." }
@@ -4425,7 +4436,7 @@
                 "type": "object",
                 "description": "Violation configuration setting.",
                 "properties": [
-                    { "name": "name", "type": "string", "enum": ["longTask", "longLayout", "blockedEvent", "blockedParser", "handler", "recurringHandler"], "description": "Violation type." },
+                    { "name": "name", "type": "string", "enum": ["longTask", "longLayout", "blockedEvent", "blockedParser", "discouragedAPIUse", "handler", "recurringHandler"], "description": "Violation type." },
                     { "name": "threshold", "type": "number", "description": "Time threshold to trigger upon." }
                 ]
             }

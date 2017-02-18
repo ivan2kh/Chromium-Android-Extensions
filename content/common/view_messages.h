@@ -20,6 +20,7 @@
 #include "content/common/content_param_traits.h"
 #include "content/common/date_time_suggestion.h"
 #include "content/common/frame_replication_state.h"
+#include "content/common/message_port.h"
 #include "content/common/navigation_gesture.h"
 #include "content/common/resize_params.h"
 #include "content/common/text_input_state.h"
@@ -33,7 +34,6 @@
 #include "content/public/common/renderer_preferences.h"
 #include "content/public/common/screen_info.h"
 #include "content/public/common/three_d_api_types.h"
-#include "content/public/common/window_container_type.h"
 #include "ipc/ipc_channel_handle.h"
 #include "ipc/ipc_message_macros.h"
 #include "media/base/audio_parameters.h"
@@ -538,7 +538,19 @@ IPC_MESSAGE_ROUTED0(ViewMsg_WorkerScriptLoadFailed)
 
 // Sent when the worker has connected.
 // This message is sent only if the worker successfully loaded the script.
-IPC_MESSAGE_ROUTED0(ViewMsg_WorkerConnected)
+// |used_features| is the set of features that the worker has used. The values
+// must be from blink::UseCounter::Feature enum.
+IPC_MESSAGE_ROUTED1(ViewMsg_WorkerConnected,
+                    std::set<uint32_t> /* used_features */)
+
+// Sent when the worker is destroyed.
+IPC_MESSAGE_ROUTED0(ViewMsg_WorkerDestroyed)
+
+// Sent when the worker calls API that should be recored in UseCounter.
+// |feature| must be one of the values from blink::UseCounter::Feature
+// enum.
+IPC_MESSAGE_ROUTED1(ViewMsg_CountFeatureOnSharedWorker,
+                    uint32_t /* feature */)
 
 // Sent by the browser to synchronize with the next compositor frame. Used only
 // for tests.
@@ -574,10 +586,6 @@ IPC_MESSAGE_ROUTED3(ViewMsg_UpdateBrowserControlsState,
                     bool /* enable_showing */,
                     bool /* animate */)
 
-// Extracts the data at the given rect, returning it through the
-// ViewHostMsg_SmartClipDataExtracted IPC.
-IPC_MESSAGE_ROUTED1(ViewMsg_ExtractSmartClipData,
-                    gfx::Rect /* rect */)
 #endif
 
 // Sent by browser to tell renderer compositor that some resources that were
@@ -701,8 +709,8 @@ IPC_MESSAGE_CONTROL1(ViewHostMsg_DocumentDetached, uint64_t /* document_id */)
 // A renderer sends this to the browser process when it wants to connect to a
 // worker.
 IPC_MESSAGE_CONTROL2(ViewHostMsg_ConnectToWorker,
-                     int /* route_id */,
-                     int /* sent_message_port_id */)
+                     int32_t /* worker_route_id */,
+                     content::MessagePort /* port */)
 
 // Tells the browser that a specific Appcache manifest in the current page
 // was accessed.
@@ -868,12 +876,6 @@ IPC_MESSAGE_ROUTED0(ViewHostMsg_WaitForNextFrameForTests_ACK)
 IPC_MESSAGE_ROUTED2(ViewHostMsg_StartContentIntent,
                     GURL /* content_url */,
                     bool /* is_main_frame */)
-
-// Reply to the ViewMsg_ExtractSmartClipData message.
-IPC_MESSAGE_ROUTED3(ViewHostMsg_SmartClipDataExtracted,
-                    base::string16 /* text */,
-                    base::string16 /* html */,
-                    gfx::Rect /* rect */)
 
 // Notifies that an unhandled tap has occurred at the specified x,y position
 // and that the UI may need to be triggered.

@@ -16,6 +16,7 @@ import operator
 import optparse
 import os
 import re
+import shutil
 import struct
 import sys
 import tempfile
@@ -99,6 +100,52 @@ _DUMP_STATIC_INITIALIZERS_PATH = os.path.join(
 # Pragma exists when enable_resource_whitelist_generation=true.
 _RC_HEADER_RE = re.compile(
     r'^#define (?P<name>\w+) (?:_Pragma\(.*?\) )?(?P<id>\d+)$')
+_READELF_SIZES_METRICS = {
+  'text': ['.text'],
+  'data': ['.data', '.rodata', '.data.rel.ro', '.data.rel.ro.local'],
+  'relocations': ['.rel.dyn', '.rel.plt', '.rela.dyn', '.rela.plt'],
+  'unwind': ['.ARM.extab', '.ARM.exidx', '.eh_frame', '.eh_frame_hdr',],
+  'symbols': ['.dynsym', '.dynstr', '.dynamic', '.shstrtab', '.got', '.plt',
+              '.got.plt', '.hash'],
+  'bss': ['.bss'],
+  'other': ['.init_array', '.fini_array', '.comment', '.note.gnu.gold-version',
+            '.ARM.attributes', '.note.gnu.build-id', '.gnu.version',
+            '.gnu.version_d', '.gnu.version_r', '.interp', '.gcc_except_table']
+}
+
+
+def _ExtractMainLibSectionSizesFromApk(apk_path, main_lib_path):
+  tmpdir = tempfile.mkdtemp(suffix='_apk_extract')
+  grouped_section_sizes = collections.defaultdict(int)
+  try:
+    with zipfile.ZipFile(apk_path, 'r') as z:
+      extracted_lib_path = z.extract(main_lib_path, tmpdir)
+      section_sizes = _CreateSectionNameSizeMap(extracted_lib_path)
+
+      for group_name, section_names in _READELF_SIZES_METRICS.iteritems():
+        for section_name in section_names:
+          if section_name in section_sizes:
+            grouped_section_sizes[group_name] += section_sizes.pop(section_name)
+
+      # Group any unknown section headers into the "other" group.
+      for section_header, section_size in section_sizes.iteritems():
+        print "Unknown elf section header:", section_header
+        grouped_section_sizes['other'] += section_size
+
+      return grouped_section_sizes
+  finally:
+    shutil.rmtree(tmpdir)
+
+
+def _CreateSectionNameSizeMap(so_path):
+  stdout = cmd_helper.GetCmdOutput(['readelf', '-S', '--wide', so_path])
+  section_sizes = {}
+  # Matches  [ 2] .hash HASH 00000000006681f0 0001f0 003154 04   A  3   0  8
+  for match in re.finditer(r'\[[\s\d]+\] (\..*)$', stdout, re.MULTILINE):
+    items = match.group(1).split()
+    section_sizes[items[0]] = int(items[4], 16)
+
+  return section_sizes
 
 
 def CountStaticInitializers(so_path):
@@ -142,7 +189,7 @@ def GetStaticInitializers(so_path):
   return output.splitlines()
 
 
-def _NormalizeResourcesArsc(apk_path, num_supported_configs):
+def _NormalizeResourcesArsc(apk_path):
   """Estimates the expected overhead of untranslated strings in resources.arsc.
 
   See http://crbug.com/677966 for why this is necessary.
@@ -154,8 +201,10 @@ def _NormalizeResourcesArsc(apk_path, num_supported_configs):
   en_strings = _CreateResourceIdValueMap(aapt_output, 'en-rGB')
   fr_strings = _CreateResourceIdValueMap(aapt_output, 'fr')
 
-  # en-US and en-GB configs will never be translated.
-  config_count = num_supported_configs - 2
+  # Chrome supports 44 locales (en-US and en-GB will never be translated).
+  # This can be changed to |translations.GetNumEntries()| when Chrome and
+  # WebView support the same set of locales (http://crbug.com/369218).
+  config_count = 42
 
   size = 0
   for res_id, string_val in en_strings.iteritems():
@@ -365,6 +414,12 @@ def PrintApkAnalysis(apk_filename, chartjson=None):
     ReportPerfResult(chartjson, apk_basename + '_Specifics',
                      'other lib size', secondary_size, 'bytes')
 
+    main_lib_section_sizes = _ExtractMainLibSectionSizesFromApk(
+        apk_filename, main_lib_info.filename)
+    for metric_name, size in main_lib_section_sizes.iteritems():
+      ReportPerfResult(chartjson, apk_basename + '_MainLibInfo',
+                       metric_name, size, 'bytes')
+
   # Main metric that we want to monitor for jumps.
   normalized_apk_size = total_apk_size
   # Always look at uncompressed .dex & .so.
@@ -382,8 +437,7 @@ def PrintApkAnalysis(apk_filename, chartjson=None):
     # is relative to the average locale .pak.
     normalized_apk_size += int(
         english_pak.compress_size * num_translations * 1.17)
-    normalized_apk_size += int(
-        _NormalizeResourcesArsc(apk_filename, num_translations))
+    normalized_apk_size += int(_NormalizeResourcesArsc(apk_filename))
 
   ReportPerfResult(chartjson, apk_basename + '_Specifics',
                    'normalized apk size', normalized_apk_size, 'bytes')
@@ -467,23 +521,41 @@ def PrintPakAnalysis(apk_filename, min_pak_resource_size):
       total_resource_size)
   print
 
-  resource_id_name_map = _GetResourceIdNameMap()
+  resource_id_name_map, resources_id_header_map = _AnnotatePakResources()
 
   # Output the table of details about all resources across pak files.
   print
   print '%56s %5s %17s' % ('RESOURCE', 'COUNT', 'UNCOMPRESSED SIZE')
   for i in sorted(resource_size_map, key=resource_size_map.get,
                   reverse=True):
-    if resource_size_map[i] >= min_pak_resource_size:
-      print '%56s %5s %9s %6.2f%%' % (
-          resource_id_name_map.get(i, i),
-          resource_count_map[i],
-          _FormatBytes(resource_size_map[i]),
-          100.0 * resource_size_map[i] / total_resource_size)
+    if resource_size_map[i] < min_pak_resource_size:
+      break
+
+    print '%56s %5s %9s %6.2f%%' % (
+        resource_id_name_map.get(i, i),
+        resource_count_map[i],
+        _FormatBytes(resource_size_map[i]),
+        100.0 * resource_size_map[i] / total_resource_size)
+
+  # Print breakdown on a per-grd file basis.
+  size_by_header = collections.defaultdict(int)
+  for resid, size in resource_size_map.iteritems():
+    size_by_header[resources_id_header_map.get(resid, 'unknown')] += size
+
+  print
+  print '%80s %17s' % ('HEADER', 'UNCOMPRESSED SIZE')
+  for header in sorted(size_by_header, key=size_by_header.get, reverse=True):
+    if size_by_header[header] < min_pak_resource_size:
+      break
+
+    print '%80s %9s %6.2f%%' % (
+        header,
+        _FormatBytes(size_by_header[header]),
+        100.0 * size_by_header[header] / total_resource_size)
 
 
-def _GetResourceIdNameMap():
-  """Returns a map of {resource_id: resource_name}."""
+def _AnnotatePakResources():
+  """Returns a pair of maps: id_name_map, id_header_map."""
   out_dir = constants.GetOutDirectory()
   assert os.path.isdir(out_dir), 'Failed to locate out dir at %s' % out_dir
   print 'Looking at resources in: %s' % out_dir
@@ -495,6 +567,7 @@ def _GetResourceIdNameMap():
   assert grit_headers, 'Failed to find grit headers in %s' % out_dir
 
   id_name_map = {}
+  id_header_map = {}
   for header in grit_headers:
     with open(header, 'r') as f:
       for line in f.readlines():
@@ -506,7 +579,8 @@ def _GetResourceIdNameMap():
             print 'WARNING: Resource ID conflict %s (%s vs %s)' % (
                 i, id_name_map[i], name)
           id_name_map[i] = name
-  return id_name_map
+          id_header_map[i] = os.path.relpath(header, out_dir)
+  return id_name_map, id_header_map
 
 
 def _PrintStaticInitializersCountFromApk(apk_filename, chartjson=None):

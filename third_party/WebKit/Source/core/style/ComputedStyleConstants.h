@@ -121,15 +121,6 @@ enum EBorderPrecedence {
 
 enum OutlineIsAuto { OutlineIsAutoOff = 0, OutlineIsAutoOn };
 
-enum EPosition {
-  StaticPosition = 0,
-  RelativePosition = 1,
-  AbsolutePosition = 2,
-  StickyPosition = 3,
-  // This value is required to pack our bits efficiently in LayoutObject.
-  FixedPosition = 6
-};
-
 enum EMarginCollapse {
   MarginCollapseCollapse,
   MarginCollapseSeparate,
@@ -145,16 +136,6 @@ enum EBoxDecorationBreak { BoxDecorationBreakSlice, BoxDecorationBreakClone };
 enum class EBoxSizing : unsigned { kContentBox, kBorderBox };
 
 // Random visual rendering model attributes. Not inherited.
-
-enum class EOverflow : unsigned {
-  kVisible,
-  kHidden,
-  kScroll,
-  kAuto,
-  kOverlay,
-  kWebkitPagedX,
-  kWebkitPagedY
-};
 
 enum class EVerticalAlign : unsigned {
   kBaseline,
@@ -315,26 +296,6 @@ enum TextUnderlinePosition {
   // FIXME: Implement support for 'under left' and 'under right' values.
   TextUnderlinePositionAuto,
   TextUnderlinePositionUnder
-};
-
-enum EBreak {
-  BreakAuto,
-  BreakAvoid,
-  BreakAvoidColumn,
-  BreakAvoidPage,
-  // Values below are only allowed for break-after and break-before. Values
-  // above are also allowed for break-inside (in addition to break-after and
-  // break-before).
-  BreakValueLastAllowedForBreakInside = BreakAvoidPage,
-  BreakColumn,
-  BreakLeft,
-  BreakPage,
-  BreakRecto,
-  BreakRight,
-  BreakVerso,
-  BreakValueLastAllowedForBreakAfterAndBefore = BreakVerso,
-  BreakAlways  // Only needed by {page,-webkit-column}-break-{after,before}
-               // shorthands.
 };
 
 enum class ECursor : unsigned {

@@ -8,15 +8,15 @@
 #include <limits>
 
 #include "base/macros.h"
+#include "cc/paint/paint_canvas.h"
+#include "cc/paint/paint_flags.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
 #include "gpu/command_buffer/common/mailbox_holder.h"
 #include "media/base/data_buffer.h"
 #include "media/base/video_frame.h"
-#include "media/base/yuv_convert.h"
 #include "skia/ext/texture_handle.h"
 #include "third_party/libyuv/include/libyuv.h"
-#include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkImageGenerator.h"
 #include "third_party/skia/include/gpu/GrContext.h"
@@ -338,13 +338,13 @@ SkCanvasVideoRenderer::~SkCanvasVideoRenderer() {
 }
 
 void SkCanvasVideoRenderer::Paint(const scoped_refptr<VideoFrame>& video_frame,
-                                  SkCanvas* canvas,
+                                  cc::PaintCanvas* canvas,
                                   const gfx::RectF& dest_rect,
-                                  SkPaint& paint,
+                                  cc::PaintFlags& flags,
                                   VideoRotation video_rotation,
                                   const Context3D& context_3d) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (paint.getAlpha() == 0) {
+  if (flags.getAlpha() == 0) {
     return;
   }
 
@@ -357,9 +357,9 @@ void SkCanvasVideoRenderer::Paint(const scoped_refptr<VideoFrame>& video_frame,
       !(media::IsYuvPlanar(video_frame->format()) ||
         video_frame->format() == media::PIXEL_FORMAT_Y16 ||
         video_frame->HasTextures())) {
-    SkPaint blackWithAlphaPaint;
-    blackWithAlphaPaint.setAlpha(paint.getAlpha());
-    canvas->drawRect(dest, blackWithAlphaPaint);
+    cc::PaintFlags black_with_alpha_flags;
+    black_with_alpha_flags.setAlpha(flags.getAlpha());
+    canvas->drawRect(dest, black_with_alpha_flags);
     canvas->flush();
     return;
   }
@@ -368,10 +368,10 @@ void SkCanvasVideoRenderer::Paint(const scoped_refptr<VideoFrame>& video_frame,
   if (!UpdateLastImage(video_frame, context_3d))
     return;
 
-  SkPaint videoPaint;
-  videoPaint.setAlpha(paint.getAlpha());
-  videoPaint.setBlendMode(paint.getBlendMode());
-  videoPaint.setFilterQuality(paint.getFilterQuality());
+  cc::PaintFlags video_flags;
+  video_flags.setAlpha(flags.getAlpha());
+  video_flags.setBlendMode(flags.getBlendMode());
+  video_flags.setFilterQuality(flags.getFilterQuality());
 
   const bool need_rotation = video_rotation != VIDEO_ROTATION_0;
   const bool need_scaling =
@@ -421,9 +421,9 @@ void SkCanvasVideoRenderer::Paint(const scoped_refptr<VideoFrame>& video_frame,
   // threads. (skbug.com/4321).
   if (canvas->imageInfo().colorType() == kUnknown_SkColorType) {
     sk_sp<SkImage> swImage = last_image_->makeNonTextureImage();
-    canvas->drawImage(swImage, 0, 0, &videoPaint);
+    canvas->drawImage(swImage, 0, 0, &video_flags);
   } else {
-    canvas->drawImage(last_image_.get(), 0, 0, &videoPaint);
+    canvas->drawImage(last_image_.get(), 0, 0, &video_flags);
   }
 
   if (need_transform)
@@ -439,12 +439,12 @@ void SkCanvasVideoRenderer::Paint(const scoped_refptr<VideoFrame>& video_frame,
 }
 
 void SkCanvasVideoRenderer::Copy(const scoped_refptr<VideoFrame>& video_frame,
-                                 SkCanvas* canvas,
+                                 cc::PaintCanvas* canvas,
                                  const Context3D& context_3d) {
-  SkPaint paint;
-  paint.setBlendMode(SkBlendMode::kSrc);
-  paint.setFilterQuality(kLow_SkFilterQuality);
-  Paint(video_frame, canvas, gfx::RectF(video_frame->visible_rect()), paint,
+  cc::PaintFlags flags;
+  flags.setBlendMode(SkBlendMode::kSrc);
+  flags.setFilterQuality(kLow_SkFilterQuality);
+  Paint(video_frame, canvas, gfx::RectF(video_frame->visible_rect()), flags,
         media::VIDEO_ROTATION_0, context_3d);
 }
 

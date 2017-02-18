@@ -24,6 +24,7 @@
 #include "content/common/frame_message_enums.h"
 #include "content/common/frame_owner_properties.h"
 #include "content/common/frame_replication_state.h"
+#include "content/common/message_port.h"
 #include "content/common/navigation_gesture.h"
 #include "content/common/navigation_params.h"
 #include "content/common/savable_subframe.h"
@@ -35,11 +36,12 @@
 #include "content/public/common/file_chooser_params.h"
 #include "content/public/common/form_field_data.h"
 #include "content/public/common/frame_navigate_params.h"
-#include "content/public/common/javascript_message_type.h"
+#include "content/public/common/javascript_dialog_type.h"
 #include "content/public/common/page_importance_signals.h"
 #include "content/public/common/page_state.h"
 #include "content/public/common/previews_state.h"
 #include "content/public/common/referrer.h"
+#include "content/public/common/request_context_type.h"
 #include "content/public/common/resource_response.h"
 #include "content/public/common/stop_find_action.h"
 #include "content/public/common/three_d_api_types.h"
@@ -83,9 +85,9 @@ using FrameMsg_SerializeAsMHTML_FrameRoutingIdToContentIdMap =
 
 #define IPC_MESSAGE_START FrameMsgStart
 
-IPC_ENUM_TRAITS_MIN_MAX_VALUE(content::JavaScriptMessageType,
-                              content::JAVASCRIPT_MESSAGE_TYPE_ALERT,
-                              content::JAVASCRIPT_MESSAGE_TYPE_PROMPT)
+IPC_ENUM_TRAITS_MIN_MAX_VALUE(content::JavaScriptDialogType,
+                              content::JAVASCRIPT_DIALOG_TYPE_ALERT,
+                              content::JAVASCRIPT_DIALOG_TYPE_PROMPT)
 IPC_ENUM_TRAITS_MAX_VALUE(FrameMsg_Navigate_Type::Value,
                           FrameMsg_Navigate_Type::NAVIGATE_TYPE_LAST)
 IPC_ENUM_TRAITS_MAX_VALUE(FrameMsg_UILoadMetricsReportType::Value,
@@ -97,8 +99,6 @@ IPC_ENUM_TRAITS_MAX_VALUE(blink::WebContextMenuData::InputFieldType,
 IPC_ENUM_TRAITS_MAX_VALUE(blink::WebFocusType, blink::WebFocusTypeLast)
 IPC_ENUM_TRAITS_MAX_VALUE(blink::WebFrameOwnerProperties::ScrollingMode,
                           blink::WebFrameOwnerProperties::ScrollingMode::Last)
-IPC_ENUM_TRAITS_MAX_VALUE(blink::WebPermissionType,
-                          blink::WebPermissionTypeLast)
 IPC_ENUM_TRAITS_MAX_VALUE(content::StopFindAction,
                           content::STOP_FIND_ACTION_LAST)
 IPC_ENUM_TRAITS(blink::WebSandboxFlags)  // Bitmask.
@@ -177,7 +177,6 @@ IPC_STRUCT_TRAITS_BEGIN(content::FrameOwnerProperties)
   IPC_STRUCT_TRAITS_MEMBER(allow_fullscreen)
   IPC_STRUCT_TRAITS_MEMBER(allow_payment_request)
   IPC_STRUCT_TRAITS_MEMBER(required_csp)
-  IPC_STRUCT_TRAITS_MEMBER(delegated_permissions)
 IPC_STRUCT_TRAITS_END()
 
 IPC_STRUCT_TRAITS_BEGIN(content::PageImportanceSignals)
@@ -323,8 +322,7 @@ IPC_STRUCT_BEGIN(FrameMsg_PostMessage_Params)
   IPC_STRUCT_MEMBER(base::string16, target_origin)
 
   // Information about the MessagePorts this message contains.
-  IPC_STRUCT_MEMBER(std::vector<int>, message_ports)
-  IPC_STRUCT_MEMBER(std::vector<int>, new_routing_ids)
+  IPC_STRUCT_MEMBER(std::vector<content::MessagePort>, message_ports)
 IPC_STRUCT_END()
 
 IPC_STRUCT_TRAITS_BEGIN(content::CommonNavigationParams)
@@ -354,6 +352,7 @@ IPC_STRUCT_TRAITS_BEGIN(content::BeginNavigationParams)
   IPC_STRUCT_TRAITS_MEMBER(searchable_form_url)
   IPC_STRUCT_TRAITS_MEMBER(searchable_form_encoding)
   IPC_STRUCT_TRAITS_MEMBER(initiator_origin)
+  IPC_STRUCT_TRAITS_MEMBER(client_side_redirect_url)
 IPC_STRUCT_TRAITS_END()
 
 IPC_STRUCT_TRAITS_BEGIN(content::StartNavigationParams)
@@ -375,7 +374,6 @@ IPC_STRUCT_TRAITS_BEGIN(content::RequestNavigationParams)
   IPC_STRUCT_TRAITS_MEMBER(can_load_local_resources)
   IPC_STRUCT_TRAITS_MEMBER(page_state)
   IPC_STRUCT_TRAITS_MEMBER(nav_entry_id)
-  IPC_STRUCT_TRAITS_MEMBER(is_same_document_history_load)
   IPC_STRUCT_TRAITS_MEMBER(is_history_navigation_in_new_child)
   IPC_STRUCT_TRAITS_MEMBER(subframe_unique_names)
   IPC_STRUCT_TRAITS_MEMBER(has_committed_real_load)
@@ -742,6 +740,12 @@ IPC_MESSAGE_ROUTED0(FrameMsg_DeleteProxy)
 IPC_MESSAGE_ROUTED1(FrameMsg_TextSurroundingSelectionRequest,
                     uint32_t /* max_length */)
 
+// Extracts the data at the given rect, returning it through the
+// SmartClipDataExtracted IPC.
+IPC_MESSAGE_ROUTED2(FrameMsg_ExtractSmartClipData,
+                    uint32_t /* id */,
+                    gfx::Rect /* rect */)
+
 // Requests information about currently focused text input element from the
 // renderer.
 IPC_MESSAGE_ROUTED1(FrameMsg_FocusedFormFieldDataRequest, int /* request_id */)
@@ -945,6 +949,22 @@ IPC_MESSAGE_ROUTED0(FrameMsg_SetHasReceivedUserGesture)
 IPC_MESSAGE_ROUTED1(FrameMsg_RunFileChooserResponse,
                     std::vector<content::FileChooserFileInfo>)
 
+// Updates the renderer with a list of unique blink::UseCounter::Feature values
+// representing Blink features used, performed or encountered by the browser
+// during the current page load happening on the frame.
+IPC_MESSAGE_ROUTED1(FrameMsg_BlinkFeatureUsageReport,
+                    std::set<int>) /* features */
+
+// Informs the renderer that mixed content was found by the browser. The
+// included data is used for instance to report to the CSP policy and to log to
+// the frame console.
+IPC_MESSAGE_ROUTED5(FrameMsg_MixedContentFound,
+                    GURL,                        /* main_resource_url */
+                    GURL,                        /* mixed_content_url */
+                    content::RequestContextType, /* request_context_type */
+                    bool,                        /* was_allowed */
+                    bool)                        /* had_redirect */
+
 // -----------------------------------------------------------------------------
 // Messages sent from the renderer to the browser.
 
@@ -978,8 +998,9 @@ IPC_MESSAGE_ROUTED2(FrameHostMsg_RenderProcessGone,
 IPC_MESSAGE_ROUTED0(FrameHostMsg_FrameFocused)
 
 // Sent when the renderer starts a provisional load for a frame.
-IPC_MESSAGE_ROUTED2(FrameHostMsg_DidStartProvisionalLoad,
+IPC_MESSAGE_ROUTED3(FrameHostMsg_DidStartProvisionalLoad,
                     GURL /* url */,
+                    std::vector<GURL> /* redirect_chain */,
                     base::TimeTicks /* navigation_start */)
 
 // Sent when the renderer fails a provisional load with an error.
@@ -1360,13 +1381,13 @@ IPC_MESSAGE_ROUTED2(FrameHostMsg_JavaScriptExecuteResponse,
                     base::ListValue  /* result */)
 
 // A request to run a JavaScript dialog.
-IPC_SYNC_MESSAGE_ROUTED4_2(FrameHostMsg_RunJavaScriptMessage,
-                           base::string16     /* in - alert message */,
-                           base::string16     /* in - default prompt */,
-                           GURL               /* in - originating page URL */,
-                           content::JavaScriptMessageType /* in - type */,
-                           bool               /* out - success */,
-                           base::string16     /* out - user_input field */)
+IPC_SYNC_MESSAGE_ROUTED4_2(FrameHostMsg_RunJavaScriptDialog,
+                           base::string16 /* in - alert message */,
+                           base::string16 /* in - default prompt */,
+                           GURL /* in - originating page URL */,
+                           content::JavaScriptDialogType /* in - type */,
+                           bool /* out - success */,
+                           base::string16 /* out - user_input field */)
 
 // Displays a dialog to confirm that the user wants to navigate away from the
 // page. Replies true if yes, and false otherwise. The reply string is ignored,
@@ -1440,6 +1461,12 @@ IPC_MESSAGE_ROUTED2(FrameHostMsg_BeginNavigation,
 // Sent as a response to FrameMsg_VisualStateRequest.
 // The message is delivered using RenderWidget::QueueMessage.
 IPC_MESSAGE_ROUTED1(FrameHostMsg_VisualStateResponse, uint64_t /* id */)
+
+// Reply to the ExtractSmartClipData message.
+IPC_MESSAGE_ROUTED3(FrameHostMsg_SmartClipDataExtracted,
+                    uint32_t /* id */,
+                    base::string16 /* text */,
+                    base::string16 /* html */)
 
 // Puts the browser into "tab fullscreen" mode for the sending renderer.
 // See the comment in chrome/browser/ui/browser.h for more details.

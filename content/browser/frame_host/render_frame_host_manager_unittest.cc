@@ -40,7 +40,7 @@
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/common/bindings_policy.h"
 #include "content/public/common/browser_side_navigation_policy.h"
-#include "content/public/common/javascript_message_type.h"
+#include "content/public/common/javascript_dialog_type.h"
 #include "content/public/common/previews_state.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/url_utils.h"
@@ -431,7 +431,7 @@ class RenderFrameHostManagerTest : public RenderViewHostImplTestHarness {
                                                      ->GetController());
       FrameMsg_Navigate_Type::Value navigate_type =
           entry.restore_type() == RestoreType::NONE
-              ? FrameMsg_Navigate_Type::NORMAL
+              ? FrameMsg_Navigate_Type::DIFFERENT_DOCUMENT
               : FrameMsg_Navigate_Type::RESTORE;
       std::unique_ptr<NavigationRequest> navigation_request =
           NavigationRequest::CreateBrowserInitiated(
@@ -2837,8 +2837,8 @@ TEST_F(RenderFrameHostManagerTestWithBrowserSideNavigation,
       NavigationRequest::CreateBrowserInitiated(
           contents()->GetFrameTree()->root(), frame_entry->url(),
           frame_entry->referrer(), *frame_entry, entry,
-          FrameMsg_Navigate_Type::NORMAL, PREVIEWS_UNSPECIFIED, false, false,
-          base::TimeTicks::Now(),
+          FrameMsg_Navigate_Type::DIFFERENT_DOCUMENT, PREVIEWS_UNSPECIFIED,
+          false, false, base::TimeTicks::Now(),
           static_cast<NavigationControllerImpl*>(&controller()));
   manager->DidCreateNavigationRequest(navigation_request.get());
 
@@ -2898,8 +2898,8 @@ TEST_F(RenderFrameHostManagerTestWithBrowserSideNavigation,
       NavigationRequest::CreateBrowserInitiated(
           contents()->GetFrameTree()->root(), frame_entry->url(),
           frame_entry->referrer(), *frame_entry, entry,
-          FrameMsg_Navigate_Type::NORMAL, PREVIEWS_UNSPECIFIED, false, false,
-          base::TimeTicks::Now(),
+          FrameMsg_Navigate_Type::DIFFERENT_DOCUMENT, PREVIEWS_UNSPECIFIED,
+          false, false, base::TimeTicks::Now(),
           static_cast<NavigationControllerImpl*>(&controller()));
   manager->DidCreateNavigationRequest(navigation_request.get());
 
@@ -2956,8 +2956,8 @@ TEST_F(RenderFrameHostManagerTestWithBrowserSideNavigation,
       NavigationRequest::CreateBrowserInitiated(
           contents()->GetFrameTree()->root(), frame_entry->url(),
           frame_entry->referrer(), *frame_entry, entry,
-          FrameMsg_Navigate_Type::NORMAL, PREVIEWS_UNSPECIFIED, false, false,
-          base::TimeTicks::Now(),
+          FrameMsg_Navigate_Type::DIFFERENT_DOCUMENT, PREVIEWS_UNSPECIFIED,
+          false, false, base::TimeTicks::Now(),
           static_cast<NavigationControllerImpl*>(&controller()));
   manager->DidCreateNavigationRequest(navigation_request.get());
 

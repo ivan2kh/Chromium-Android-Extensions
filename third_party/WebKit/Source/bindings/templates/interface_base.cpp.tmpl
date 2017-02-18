@@ -33,7 +33,7 @@ namespace blink {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-{{wrapper_type_info_const}}WrapperTypeInfo {{v8_class}}::wrapperTypeInfo = { gin::kEmbedderBlink, {{dom_template}}, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func}}, "{{interface_name}}", {{parent_wrapper_type_info}}, WrapperTypeInfo::{{wrapper_type_prototype}}, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{event_target_inheritance}}, WrapperTypeInfo::{{lifetime}} };
+{{wrapper_type_info_const}}WrapperTypeInfo {{v8_class}}::wrapperTypeInfo = { gin::kEmbedderBlink, {{dom_template}}, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func}}, "{{interface_name}}", {{parent_wrapper_type_info}}, WrapperTypeInfo::{{wrapper_type_prototype}}, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{lifetime}} };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -514,6 +514,17 @@ static void install{{v8_class}}Template(v8::Isolate* isolate, const DOMWrapperWo
   {% if has_array_iterator and not is_partial %}
   // Array iterator (@@iterator)
   {%+ if is_global %}instanceTemplate{% else %}prototypeTemplate{% endif %}->SetIntrinsicDataProperty(v8::Symbol::GetIterator(isolate), v8::kArrayProto_values, v8::DontEnum);
+  {% if iterable %}
+  {% if is_global %}
+#error "iterable<V> on [Global] and [PrimaryGlobal] is currently unsupported."
+  {% endif %}
+  // For value iterators, the properties below must originally be set to the corresponding ones in %ArrayPrototype%.
+  // See https://heycam.github.io/webidl/#es-iterators.
+  prototypeTemplate->SetIntrinsicDataProperty(v8AtomicString(isolate, "entries"), v8::kArrayProto_entries);
+  prototypeTemplate->SetIntrinsicDataProperty(v8AtomicString(isolate, "forEach"), v8::kArrayProto_forEach);
+  prototypeTemplate->SetIntrinsicDataProperty(v8AtomicString(isolate, "keys"), v8::kArrayProto_keys);
+  prototypeTemplate->SetIntrinsicDataProperty(v8AtomicString(isolate, "values"), v8::kArrayProto_values);
+  {% endif %}
   {% endif %}
 
   {% if iterator_method %}
@@ -695,7 +706,46 @@ void {{v8_class_or_partial}}::install{{feature.name}}(ScriptState* scriptState) 
 {% block to_impl %}{% endblock %}
 {% block to_impl_with_type_check %}{% endblock %}
 {##############################################################################}
-{% block prepare_prototype_and_interface_object %}{% endblock %}
+{% block prepare_prototype_and_interface_object %}
+{% from 'attributes.cpp.tmpl' import install_conditionally_enabled_attributes_on_prototype with context %}
+{% from 'methods.cpp.tmpl' import install_conditionally_enabled_methods with context %}
+{% if has_prepare_prototype_and_interface_object %}
+void {{v8_class_or_partial}}::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
+  {% if is_partial %}
+  {{v8_class}}::preparePrototypeAndInterfaceObject(context, world, prototypeObject, interfaceObject, interfaceTemplate);
+  {% endif %}
+
+  v8::Isolate* isolate = context->GetIsolate();
+  {% if has_conditional_attributes_on_prototype or methods | conditionally_exposed(is_partial) %}
+  v8::Local<v8::Signature> signature = v8::Signature::New(isolate, interfaceTemplate);
+  ExecutionContext* executionContext = toExecutionContext(context);
+  DCHECK(executionContext);
+  {% endif %}
+
+{% if unscopables %}
+  v8::Local<v8::Name> unscopablesSymbol(v8::Symbol::GetUnscopables(isolate));
+  v8::Local<v8::Object> unscopables;
+  if (v8CallBoolean(prototypeObject->HasOwnProperty(context, unscopablesSymbol)))
+    unscopables = prototypeObject->Get(context, unscopablesSymbol).ToLocalChecked().As<v8::Object>();
+  else
+    unscopables = v8::Object::New(isolate);
+  {% for name, runtime_enabled_feature_name in unscopables %}
+  {% filter runtime_enabled(runtime_enabled_feature_name) %}
+  unscopables->CreateDataProperty(context, v8AtomicString(isolate, "{{name}}"), v8::True(isolate)).FromJust();
+  {% endfilter %}
+  {% endfor %}
+  prototypeObject->CreateDataProperty(context, unscopablesSymbol, unscopables).FromJust();
+{% endif %}{# unscopables #}
+{% if has_conditional_attributes_on_prototype %}
+  {{install_conditionally_enabled_attributes_on_prototype() | indent(2)}}
+{% endif %}
+{% if methods | conditionally_exposed(is_partial) %}
+  {{install_conditionally_enabled_methods() | indent(2)}}
+{% endif %}
+}
+{% endif %}
+
+{% endblock %}
 {##############################################################################}
 {% block partial_interface %}{% endblock %}
 }  // namespace blink

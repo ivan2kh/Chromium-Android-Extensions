@@ -9,6 +9,7 @@
 #include "base/guid.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
+#include "base/timer/elapsed_timer.h"
 #include "chrome/browser/android/shortcut_helper.h"
 #include "chrome/browser/android/shortcut_info.h"
 #include "chrome/browser/android/tab_android.h"
@@ -54,7 +55,7 @@ bool AppBannerInfoBarDelegateAndroid::Create(
     std::unique_ptr<SkBitmap> icon,
     int event_request_id,
     webapk::InstallSource webapk_install_source) {
-  bool is_webapk = ChromeWebApkHost::AreWebApkEnabled();
+  bool is_webapk = ChromeWebApkHost::CanInstallWebApk();
   std::string webapk_package_name = "";
   const GURL& url = shortcut_info->url;
   if (is_webapk)
@@ -326,6 +327,7 @@ bool AppBannerInfoBarDelegateAndroid::AcceptWebApk(
 
   // If the WebAPK is not installed and the "Add to Home Screen" button is
   // clicked, install the WebAPK.
+  timer_.reset(new base::ElapsedTimer());
   install_state_ = INSTALLING;
   webapk::TrackInstallSource(webapk_install_source_);
 
@@ -390,6 +392,8 @@ void AppBannerInfoBarDelegateAndroid::OnWebApkInstallFinished(
   }
 
   UpdateStateForInstalledWebAPK(webapk_package_name);
+  webapk::TrackInstallDuration(timer_->Elapsed());
+  timer_.reset();
   webapk::TrackInstallEvent(webapk::INSTALL_COMPLETED);
 }
 

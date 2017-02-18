@@ -52,9 +52,8 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS"/>
-    {% set enable_vr_shell = enable_vr_shell|default(0) %}
     {% set enable_webvr = enable_webvr|default(0) %}
-    {% if enable_vr_shell == "true" or enable_webvr == "true" %}
+    {% if enable_webvr == "true" %}
     <!-- Required to read the paired viewer's distortion parameters. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <!-- Indicates use of Android's VR-mode, available only on Android N+. -->
@@ -360,7 +359,10 @@ by a child template that "extends" this file.
             android:windowSoftInputMode="adjustResize"
             android:launchMode="singleTask"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize"
-            android:hardwareAccelerated="false">
+            android:hardwareAccelerated="false"
+            {% block supports_video_persistence %}
+            {% endblock %}
+            >
             <!--
               See the VRChromeTabbedActivity alias below for an explanation of this dummy intent
               filter. We need to add these filters here as well, or non-presenting webVR pages will
@@ -373,7 +375,7 @@ by a child template that "extends" this file.
             </intent-filter>
         </activity>
 
-        {% if enable_vr_shell == "true" or enable_webvr == "true" %}
+        {% if enable_webvr == "true" %}
         <!--
             TODO(mthiesse): Temporarily skip ChromeLauncherActivity when returning from Daydream
             DON flow to avoid polluting metrics.
@@ -457,7 +459,7 @@ by a child template that "extends" this file.
         <activity android:name="org.chromium.chrome.browser.bookmarks.BookmarkActivity"
             android:theme="@style/FullscreenWhiteActivityTheme"
             android:exported="false"
-            android:windowSoftInputMode="stateAlwaysHidden"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize">
         </activity>
         <activity android:name="org.chromium.chrome.browser.bookmarks.BookmarkAddActivity"
@@ -492,7 +494,7 @@ by a child template that "extends" this file.
         <!-- Activities for downloads. -->
         <activity android:name="org.chromium.chrome.browser.download.DownloadActivity"
             android:theme="@style/FullscreenWhiteActivityTheme"
-            android:windowSoftInputMode="stateAlwaysHidden"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
             android:exported="false"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize">
         </activity>
@@ -500,7 +502,7 @@ by a child template that "extends" this file.
         <!-- Activities for history. -->
         <activity android:name="org.chromium.chrome.browser.history.HistoryActivity"
             android:theme="@style/FullscreenWhiteActivityTheme"
-            android:windowSoftInputMode="stateAlwaysHidden"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
             android:exported="false"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize">
         </activity>
@@ -628,6 +630,23 @@ by a child template that "extends" this file.
         <!-- Service for handling Nearby Messages -->
         <service android:name="org.chromium.chrome.browser.physicalweb.NearbyMessageIntentService"
             android:exported="false" />
+
+        <!-- This activity is to expose the PhysicalWeb Share option via the generic Android share action. -->
+        <activity
+            android:name="org.chromium.chrome.browser.physicalweb.PhysicalWebShareActivity"
+            android:icon="@drawable/physical_web_notification_large"
+            android:label="@string/physical_web_share_activity_title"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize" >
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
 
         <!-- Providers for chrome data. -->
         <provider android:name="org.chromium.chrome.browser.provider.ChromeBrowserProvider"

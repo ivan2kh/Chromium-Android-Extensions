@@ -23,6 +23,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/task_runner.h"
 #include "base/task_runner_util.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "content/browser/resource_context_impl.h"
@@ -679,20 +680,20 @@ void ServiceWorkerURLRequestJob::CreateResponseHeader(
     const ServiceWorkerHeaderMap& headers) {
   // TODO(kinuko): If the response has an identifier to on-disk cache entry,
   // pull response header from the disk.
-  std::string status_line(
-      base::StringPrintf("HTTP/1.1 %d %s", status_code, status_text.c_str()));
-  status_line.push_back('\0');
-  http_response_headers_ = new net::HttpResponseHeaders(status_line);
-  for (ServiceWorkerHeaderMap::const_iterator it = headers.begin();
-       it != headers.end();
-       ++it) {
-    std::string header;
-    header.reserve(it->first.size() + 2 + it->second.size());
-    header.append(it->first);
-    header.append(": ");
-    header.append(it->second);
-    http_response_headers_->AddHeader(header);
+
+  // Build a string instead of using HttpResponseHeaders::AddHeader on
+  // each header, since AddHeader has O(n^2) performance.
+  std::string buf(base::StringPrintf("HTTP/1.1 %d %s\r\n", status_code,
+                                     status_text.c_str()));
+  for (const auto& item : headers) {
+    buf.append(item.first);
+    buf.append(": ");
+    buf.append(item.second);
+    buf.append("\r\n");
   }
+  buf.append("\r\n");
+  http_response_headers_ = new net::HttpResponseHeaders(
+      net::HttpUtil::AssembleRawHeaders(buf.c_str(), buf.size()));
 }
 
 void ServiceWorkerURLRequestJob::CommitResponseHeader() {
@@ -794,7 +795,8 @@ void ServiceWorkerURLRequestJob::NotifyStartError(
 
 void ServiceWorkerURLRequestJob::NotifyRestartRequired() {
   ServiceWorkerResponseInfo::ForRequest(request_, true)
-      ->OnPrepareToRestart(worker_start_time_, worker_ready_time_);
+      ->OnPrepareToRestart(worker_start_time_, worker_ready_time_,
+                           did_navigation_preload_);
   delegate_->OnPrepareToRestart();
   URLRequestJob::NotifyRestartRequired();
 }
@@ -818,7 +820,8 @@ void ServiceWorkerURLRequestJob::OnStartCompleted() const {
               base::TimeTicks() /* service_worker_ready_time */,
               false /* response_is_in_cache_storage */,
               std::string() /* response_cache_storage_cache_name */,
-              ServiceWorkerHeaderList() /* cors_exposed_header_names */);
+              ServiceWorkerHeaderList() /* cors_exposed_header_names */,
+              did_navigation_preload_);
       break;
     case FALLBACK_TO_RENDERER:
     case FORWARD_TO_SERVICE_WORKER:
@@ -832,7 +835,8 @@ void ServiceWorkerURLRequestJob::OnStartCompleted() const {
               fall_back_required_, response_url_list_,
               service_worker_response_type_, worker_start_time_,
               worker_ready_time_, response_is_in_cache_storage_,
-              response_cache_storage_cache_name_, cors_exposed_header_names_);
+              response_cache_storage_cache_name_, cors_exposed_header_names_,
+              did_navigation_preload_);
       break;
   }
 }

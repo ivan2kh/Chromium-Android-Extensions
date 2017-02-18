@@ -148,6 +148,7 @@ class CORE_EXPORT SVGElement : public Element {
   void synchronizeAnimatedSVGAttribute(const QualifiedName&) const;
 
   PassRefPtr<ComputedStyle> customStyleForLayoutObject() final;
+  bool layoutObjectIsNeeded(const ComputedStyle&) override;
 
 #if DCHECK_IS_ON()
   virtual bool isAnimatableAttribute(const QualifiedName&) const;
@@ -234,6 +235,8 @@ class CORE_EXPORT SVGElement : public Element {
   static void markForLayoutAndParentResourceInvalidation(LayoutObject*);
 
   virtual bool selfHasRelativeLengths() const { return false; }
+
+  bool hasSVGParent() const;
 
   SVGElementRareData* ensureSVGRareData();
   inline bool hasSVGRareData() const { return m_SVGRareData; }

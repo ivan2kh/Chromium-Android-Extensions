@@ -4,6 +4,10 @@
 
 #include "chrome/browser/chromeos/arc/arc_auth_notification.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "ash/common/system/chromeos/devicetype_utils.h"
 #include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
@@ -60,10 +64,10 @@ class ArcAuthNotificationDelegate
     StopObserving();
     if (button_index == 0) {
       UpdateOptInActionUMA(arc::OptInActionType::NOTIFICATION_ACCEPTED);
-      arc::ArcSessionManager::Get()->EnableArc();
+      arc::ArcSessionManager::Get()->SetArcPlayStoreEnabled(true);
     } else {
       UpdateOptInActionUMA(arc::OptInActionType::NOTIFICATION_DECLINED);
-      arc::ArcSessionManager::Get()->DisableArc();
+      arc::ArcSessionManager::Get()->SetArcPlayStoreEnabled(false);
     }
   }
 

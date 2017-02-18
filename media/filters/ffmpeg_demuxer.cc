@@ -498,6 +498,13 @@ void FFmpegDemuxerStream::EnqueuePacket(ScopedAVPacket packet) {
 
   buffer->set_timestamp(stream_timestamp - start_time);
 
+  // Only allow negative timestamps past if we know they'll be fixed up by the
+  // code paths below; otherwise they should be treated as a parse error.
+  if (!fixup_negative_timestamps_ && buffer->timestamp() < base::TimeDelta()) {
+    demuxer_->NotifyDemuxerError(DEMUXER_ERROR_COULD_NOT_PARSE);
+    return;
+  }
+
   // If enabled, and no codec delay is present, mark audio packets with
   // negative timestamps for post-decode discard.
   if (fixup_negative_timestamps_ && is_audio &&
@@ -552,7 +559,7 @@ void FFmpegDemuxerStream::EnqueuePacket(ScopedAVPacket packet) {
     }
 
     // The demuxer should always output positive timestamps.
-    DCHECK(buffer->timestamp() >= base::TimeDelta());
+    DCHECK_GE(buffer->timestamp(), base::TimeDelta());
 
     if (last_packet_timestamp_ < buffer->timestamp()) {
       buffered_ranges_.Add(last_packet_timestamp_, buffer->timestamp());
@@ -742,7 +749,7 @@ void FFmpegDemuxerStream::set_enabled(bool enabled, base::TimeDelta timestamp) {
     return;
   }
   if (!stream_status_change_cb_.is_null())
-    stream_status_change_cb_.Run(is_enabled_, timestamp);
+    stream_status_change_cb_.Run(this, is_enabled_, timestamp);
 }
 
 void FFmpegDemuxerStream::SetStreamStatusChangeCB(
@@ -991,7 +998,8 @@ void FFmpegDemuxer::Seek(base::TimeDelta time, const PipelineStatusCB& cb) {
   // When seeking in an opus stream we need to ensure we deliver enough data to
   // satisfy the seek preroll; otherwise the audio at the actual seek time will
   // not be entirely accurate.
-  FFmpegDemuxerStream* audio_stream = GetFFmpegStream(DemuxerStream::AUDIO);
+  FFmpegDemuxerStream* audio_stream =
+      GetFirstEnabledFFmpegStream(DemuxerStream::AUDIO);
   if (audio_stream) {
     const AudioDecoderConfig& config = audio_stream->audio_decoder_config();
     if (config.codec() == kCodecOpus)
@@ -1026,12 +1034,24 @@ base::Time FFmpegDemuxer::GetTimelineOffset() const {
   return timeline_offset_;
 }
 
-DemuxerStream* FFmpegDemuxer::GetStream(DemuxerStream::Type type) {
+std::vector<DemuxerStream*> FFmpegDemuxer::GetAllStreams() {
   DCHECK(task_runner_->BelongsToCurrentThread());
-  return GetFFmpegStream(type);
+  std::vector<DemuxerStream*> result;
+  for (const auto& stream : streams_) {
+    if (stream && stream->enabled())
+      result.push_back(stream.get());
+  }
+  return result;
 }
 
-FFmpegDemuxerStream* FFmpegDemuxer::GetFFmpegStream(
+void FFmpegDemuxer::SetStreamStatusChangeCB(const StreamStatusChangeCB& cb) {
+  for (const auto& stream : streams_) {
+    if (stream)
+      stream->SetStreamStatusChangeCB(cb);
+  }
+}
+
+FFmpegDemuxerStream* FFmpegDemuxer::GetFirstEnabledFFmpegStream(
     DemuxerStream::Type type) const {
   for (const auto& stream : streams_) {
     if (stream && stream->type() == type && stream->enabled()) {
@@ -1088,15 +1108,16 @@ void FFmpegDemuxer::NotifyCapacityAvailable() {
 void FFmpegDemuxer::NotifyBufferingChanged() {
   DCHECK(task_runner_->BelongsToCurrentThread());
   Ranges<base::TimeDelta> buffered;
-  FFmpegDemuxerStream* audio = GetFFmpegStream(DemuxerStream::AUDIO);
-  FFmpegDemuxerStream* video = GetFFmpegStream(DemuxerStream::VIDEO);
-  if (audio && video) {
-    buffered =
-        audio->GetBufferedRanges().IntersectionWith(video->GetBufferedRanges());
-  } else if (audio) {
-    buffered = audio->GetBufferedRanges();
-  } else if (video) {
-    buffered = video->GetBufferedRanges();
+  bool initialized_buffered_ranges = false;
+  for (const auto& stream : streams_) {
+    if (!stream)
+      continue;
+    if (initialized_buffered_ranges) {
+      buffered = buffered.IntersectionWith(stream->GetBufferedRanges());
+    } else {
+      buffered = stream->GetBufferedRanges();
+      initialized_buffered_ranges = true;
+    }
   }
   host_->OnBufferedTimeRangesChanged(buffered);
 }
@@ -1616,9 +1637,9 @@ void FFmpegDemuxer::OnEnabledAudioTracksChanged(
     base::TimeDelta currTime) {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
-  std::set<DemuxerStream*> enabled_streams;
+  std::set<FFmpegDemuxerStream*> enabled_streams;
   for (const auto& id : track_ids) {
-    DemuxerStream* stream = track_id_to_demux_stream_map_[id];
+    FFmpegDemuxerStream* stream = track_id_to_demux_stream_map_[id];
     DCHECK(stream);
     DCHECK_EQ(DemuxerStream::AUDIO, stream->type());
     enabled_streams.insert(stream);
@@ -1646,7 +1667,7 @@ void FFmpegDemuxer::OnSelectedVideoTrackChanged(
   DCHECK(task_runner_->BelongsToCurrentThread());
   DCHECK_LE(track_ids.size(), 1u);
 
-  DemuxerStream* selected_stream = nullptr;
+  FFmpegDemuxerStream* selected_stream = nullptr;
   if (!track_ids.empty()) {
     selected_stream = track_id_to_demux_stream_map_[track_ids[0]];
     DCHECK(selected_stream);

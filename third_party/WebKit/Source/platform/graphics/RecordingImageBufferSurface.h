@@ -41,7 +41,7 @@ class PLATFORM_EXPORT RecordingImageBufferSurface : public ImageBufferSurface {
   // If the fallbackFactory is null the buffer surface should only be used
   // for one frame and should not be used for any operations which need a
   // raster surface, (i.e. writePixels).
-  // Only #getPicture should be used to access the resulting frame.
+  // Only #getRecord should be used to access the resulting frame.
   RecordingImageBufferSurface(
       const IntSize&,
       std::unique_ptr<RecordingImageBufferFallbackSurfaceFactory>
@@ -54,7 +54,7 @@ class PLATFORM_EXPORT RecordingImageBufferSurface : public ImageBufferSurface {
   // Implementation of ImageBufferSurface interfaces
   PaintCanvas* canvas() override;
   void disableDeferral(DisableDeferralReason) override;
-  sk_sp<PaintRecord> getPicture() override;
+  sk_sp<PaintRecord> getRecord() override;
   void flush(FlushReason) override;
   void didDraw(const FloatRect&) override;
   bool isValid() const override { return true; }
@@ -65,7 +65,8 @@ class PLATFORM_EXPORT RecordingImageBufferSurface : public ImageBufferSurface {
                    int x,
                    int y) override;
   void willOverwriteCanvas() override;
-  virtual void finalizeFrame(const FloatRect&);
+  void finalizeFrame() override;
+  void doPaintInvalidation(const FloatRect&) override;
   void setImageBuffer(ImageBuffer*) override;
   sk_sp<SkImage> newImageSnapshot(AccelerationHint, SnapshotReason) override;
   void draw(GraphicsContext&,

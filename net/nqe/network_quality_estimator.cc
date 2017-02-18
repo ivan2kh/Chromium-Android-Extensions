@@ -326,8 +326,10 @@ NetworkQualityEstimator::NetworkQualityEstimator(
 
   watcher_factory_.reset(new nqe::internal::SocketWatcherFactory(
       base::ThreadTaskRunnerHandle::Get(),
+      nqe::internal::GetMinSocketWatcherNotificationInterval(variation_params),
       base::Bind(&NetworkQualityEstimator::OnUpdatedRTTAvailable,
-                 base::Unretained(this))));
+                 base::Unretained(this)),
+      tick_clock_.get()));
 
   // Record accuracy after a 15 second interval. The values used here must
   // remain in sync with the suffixes specified in
@@ -402,33 +404,16 @@ void NetworkQualityEstimator::NotifyStartTransaction(
   if (!RequestSchemeIsHTTPOrHTTPS(request))
     return;
 
-  throughput_analyzer_->NotifyStartTransaction(request);
-}
-
-void NetworkQualityEstimator::NotifyHeadersReceived(const URLRequest& request) {
-  TRACE_EVENT0(kNetTracingCategory,
-               "NetworkQualityEstimator::NotifyHeadersReceived");
-  DCHECK(thread_checker_.CalledOnValidThread());
-
-  if (!RequestSchemeIsHTTPOrHTTPS(request) ||
-      !RequestProvidesRTTObservation(request)) {
-    return;
-  }
-
-  const base::TimeTicks now = tick_clock_->NowTicks();
-
   // Update |estimated_quality_at_last_main_frame_| if this is a main frame
   // request.
   // TODO(tbansal): Refactor this to a separate method.
   if (request.load_flags() & LOAD_MAIN_FRAME_DEPRECATED) {
+    base::TimeTicks now = tick_clock_->NowTicks();
     last_main_frame_request_ = now;
 
     ComputeEffectiveConnectionType();
     effective_connection_type_at_last_main_frame_ = effective_connection_type_;
     estimated_quality_at_last_main_frame_ = network_quality_;
-
-    RecordMetricsOnMainFrameRequest();
-    MaybeQueryExternalEstimateProvider();
 
     // Post the tasks which will run in the future and record the estimation
     // accuracy based on the observations received between now and the time of
@@ -443,6 +428,23 @@ void NetworkQualityEstimator::NotifyHeadersReceived(const URLRequest& request) {
                      weak_ptr_factory_.GetWeakPtr(), measuring_delay),
           measuring_delay);
     }
+  }
+  throughput_analyzer_->NotifyStartTransaction(request);
+}
+
+void NetworkQualityEstimator::NotifyHeadersReceived(const URLRequest& request) {
+  TRACE_EVENT0(kNetTracingCategory,
+               "NetworkQualityEstimator::NotifyHeadersReceived");
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  if (!RequestSchemeIsHTTPOrHTTPS(request) ||
+      !RequestProvidesRTTObservation(request)) {
+    return;
+  }
+
+  if (request.load_flags() & LOAD_MAIN_FRAME_DEPRECATED) {
+    RecordMetricsOnMainFrameRequest();
+    MaybeQueryExternalEstimateProvider();
   }
 
   LoadTimingInfo load_timing_info;
@@ -468,9 +470,9 @@ void NetworkQualityEstimator::NotifyHeadersReceived(const URLRequest& request) {
         peak_network_quality_.downstream_throughput_kbps());
   }
 
-  RttObservation http_rtt_observation(observed_http_rtt, now,
-                                      signal_strength_dbm_,
-                                      NETWORK_QUALITY_OBSERVATION_SOURCE_HTTP);
+  RttObservation http_rtt_observation(
+      observed_http_rtt, tick_clock_->NowTicks(), signal_strength_dbm_,
+      NETWORK_QUALITY_OBSERVATION_SOURCE_HTTP);
   rtt_observations_.AddObservation(http_rtt_observation);
   NotifyObserversOfRTT(http_rtt_observation);
 }
@@ -1476,10 +1478,12 @@ void NetworkQualityEstimator::OnUpdatedEstimateAvailable(
     RecordExternalEstimateProviderMetrics(
         EXTERNAL_ESTIMATE_PROVIDER_STATUS_RTT_AVAILABLE);
     UMA_HISTOGRAM_TIMES("NQE.ExternalEstimateProvider.RTT", rtt);
-    rtt_observations_.AddObservation(RttObservation(
+    RttObservation rtt_observation(
         rtt, tick_clock_->NowTicks(), signal_strength_dbm_,
-        NETWORK_QUALITY_OBSERVATION_SOURCE_HTTP_EXTERNAL_ESTIMATE));
+        NETWORK_QUALITY_OBSERVATION_SOURCE_HTTP_EXTERNAL_ESTIMATE);
+    rtt_observations_.AddObservation(rtt_observation);
     external_estimate_provider_quality_.set_http_rtt(rtt);
+    NotifyObserversOfRTT(rtt_observation);
   }
 
   if (downstream_throughput_kbps > 0) {
@@ -1487,13 +1491,15 @@ void NetworkQualityEstimator::OnUpdatedEstimateAvailable(
         EXTERNAL_ESTIMATE_PROVIDER_STATUS_DOWNLINK_BANDWIDTH_AVAILABLE);
     UMA_HISTOGRAM_COUNTS("NQE.ExternalEstimateProvider.DownlinkBandwidth",
                          downstream_throughput_kbps);
+    ThroughputObservation throughput_observation(
+        downstream_throughput_kbps, tick_clock_->NowTicks(),
+        signal_strength_dbm_,
+        NETWORK_QUALITY_OBSERVATION_SOURCE_HTTP_EXTERNAL_ESTIMATE);
     downstream_throughput_kbps_observations_.AddObservation(
-        ThroughputObservation(
-            downstream_throughput_kbps, tick_clock_->NowTicks(),
-            signal_strength_dbm_,
-            NETWORK_QUALITY_OBSERVATION_SOURCE_HTTP_EXTERNAL_ESTIMATE));
+        throughput_observation);
     external_estimate_provider_quality_.set_downstream_throughput_kbps(
         downstream_throughput_kbps);
+    NotifyObserversOfThroughput(throughput_observation);
   }
 }
 
@@ -1523,6 +1529,10 @@ void NetworkQualityEstimator::NotifyObserversOfRTT(
     const RttObservation& observation) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK_NE(nqe::internal::InvalidRTT(), observation.value);
+  DCHECK_GT(NETWORK_QUALITY_OBSERVATION_SOURCE_MAX, observation.source);
+
+  UMA_HISTOGRAM_ENUMERATION("NQE.RTT.ObservationSource", observation.source,
+                            NETWORK_QUALITY_OBSERVATION_SOURCE_MAX);
 
   // Maybe recompute the effective connection type since a new RTT observation
   // is available.
@@ -1537,6 +1547,10 @@ void NetworkQualityEstimator::NotifyObserversOfThroughput(
     const ThroughputObservation& observation) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK_NE(nqe::internal::kInvalidThroughput, observation.value);
+  DCHECK_GT(NETWORK_QUALITY_OBSERVATION_SOURCE_MAX, observation.source);
+
+  UMA_HISTOGRAM_ENUMERATION("NQE.Kbps.ObservationSource", observation.source,
+                            NETWORK_QUALITY_OBSERVATION_SOURCE_MAX);
 
   // Maybe recompute the effective connection type since a new throughput
   // observation is available.

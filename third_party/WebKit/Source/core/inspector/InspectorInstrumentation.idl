@@ -126,6 +126,9 @@ class XMLHttpRequest;
     void willSendXMLHttpOrFetchNetworkRequest(ExecutionContext*, const String& url);
 
     [DOMDebugger]
+    void didCreateCanvasContext(Document*);
+
+    [DOMDebugger]
     void didFireWebGLError(Element*, const String& errorName);
 
     [DOMDebugger]
@@ -254,6 +257,12 @@ class XMLHttpRequest;
 
     [Page, Network]
     void frameClearedScheduledNavigation([Keep] LocalFrame*);
+
+    [Network]
+    void frameScheduledClientNavigation([Keep] LocalFrame*);
+
+    [Network]
+    void frameClearedScheduledClientNavigation([Keep] LocalFrame*);
 
     [Worker]
     void didStartWorker(ExecutionContext*, WorkerInspectorProxy* proxy, bool waitingForDebugger);

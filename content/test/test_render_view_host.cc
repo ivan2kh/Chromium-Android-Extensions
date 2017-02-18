@@ -199,8 +199,7 @@ bool TestRenderWidgetHostView::IsSpeaking() const {
   return false;
 }
 
-void TestRenderWidgetHostView::StopSpeaking() {
-}
+void TestRenderWidgetHostView::StopSpeaking() {}
 
 #endif
 

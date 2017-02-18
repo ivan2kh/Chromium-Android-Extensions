@@ -386,15 +386,16 @@
 
       Om den här inställningen inte konfigureras kan användare välja om de vill använda stavningskontrollen eller inte.</translation>
 <translation id="2294382669900758280">Videouppspelning i Android-appar påverkas inte även om den här principen har ställts in på <ph name="TRUE" />.</translation>
+<translation id="2298647742290373702">Konfigurera standardinställningen för sidan Ny flik i <ph name="PRODUCT_NAME" />.</translation>
 <translation id="2299220924812062390">Ange en lista med aktiverade plugin-program</translation>
 <translation id="2309390639296060546">Standardinställning för geografisk plats</translation>
 <translation id="2312134445771258233">Innebär att du kan konfigurera sidorna som läses in vid start.
 
       Innehållet på listan "Webbadresser att öppna vid start" ignoreras om du inte väljer "Öppna följande sidor" i "Vid start".</translation>
+<translation id="23323722127921515">Google Cast-ikonen i verktygsfältet visas</translation>
 <translation id="2337466621458842053">Policyn gör att du kan ställa in en lista med adressmönster som anger webbplatser som får visa bilder.
 
           Om den här policyn inte ställs in används det globala standardvärdet för alla webbplatser, antingen från policyn DefaultImagesSetting om den är inställd, eller från användarens personliga konfiguration om den inte är det.</translation>
-<translation id="2366415278352956652">Aktiverar cast</translation>
 <translation id="2372547058085956601">Fördröjningen av den automatiska inloggningen till en offentlig session.
 
       Om policyn |DeviceLocalAccountAutoLoginId| inte har angetts har inte policyn någon effekt. I annat fall:
@@ -524,6 +525,7 @@
 
       Om principen har värdet Falskt visas ett felmeddelande i stället för uppmaningen att konfigurera ett nätverk.</translation>
 <translation id="2498238926436517902">Dölj alltid hyllan automatiskt</translation>
+<translation id="2503514368596117142">Genom att konfigurera principer för Google Cast kan användare skicka innehåll på flikar, platser och skrivbordet från webbläsaren till fjärrskärmar och ljudsystem.</translation>
 <translation id="2514328368635166290">Policyn anger önskad ikonadress för standardsökleverantören.
 
           Policyn är valfri. Om den inte anges används ingen ikon för sökleverantören.
@@ -545,6 +547,9 @@
 <translation id="2529880111512635313">Konfigurera listan med appar och tillägg som måste installeras</translation>
 <translation id="253135976343875019">Inaktivitetstid när enheten är ansluten till elnätet</translation>
 <translation id="2552966063069741410">Tidszon</translation>
+<translation id="2558917182010914102">Om sant har angetts för principen eller om en inställning för principen saknas, aktiveras Google Cast och användarna kan starta det från appmenyn, snabbmenyer på sidor, mediekontroller på Cast-kompatibla webbplatser och Cast-ikonen i verktygsfältet (om den visas).
+
+          Om falskt har angetts för principen inaktiveras Google Cast.</translation>
 <translation id="2562339630163277285">Principen anger webbadressen till sökmotorn som används för att visa direktresultat. Webbadressen ska innehålla strängen <ph name="SEARCH_TERM_MARKER" />, som ersätts av den text användaren skrivit hittills när sökningen körs.
 
           Principen är valfri. Om den inte anges visas inget direktresultat.
@@ -913,6 +918,17 @@
 <translation id="3547954654003013442">Proxyinställningar</translation>
 <translation id="3570008976476035109">Blockera plugin-program för dessa webbplatser</translation>
 <translation id="3591584750136265240">Konfigurera vad som ska göras vid inloggningsautentisering</translation>
+<translation id="3601614035698083789">Konfigurerar en lista med hanterade bokmärken.
+
+      Principen är en lista med bokmärken och varje bokmärke är en
+      ordlista som innehåller nycklarna <ph name="NAME" /> och <ph name="URL_LABEL" />, som har bokmärkets namn och mål som värden. Det går att konfigurera en
+      undermapp genom att ange ett bokmärke utan nyckeln <ph name="URL_LABEL" /> men med en extra nyckel, <ph name="CHILDREN" />, som i sig innehåller en lista med bokmärken
+      enligt definitionen ovan (varav några kan vara mappar, och så vidare). <ph name="PRODUCT_NAME" /> kompletterar ofullständiga webbadresser
+      som om de skickats via adressfältet – <ph name="GOOGLE_COM" /> blir till exempel <ph name="HTTPS_GOOGLE_COM" />.
+
+      Bokmärkena läggs i en mapp med hanterade bokmärken som användaren inte kan ändra. Användaren kan däremot välja att dölja mappen i bokmärkesfältet. Hanterade bokmärken synkroniseras inte till användarkontot och inga tillägg kan ändra dem.
+
+      Från och med version 51 kan mappnamn för bokmärken anpassas genom att lägga till posten {”toplevel_name”: ”valfritt namn”} i listan.</translation>
 <translation id="3627678165642179114">Aktivera eller inaktivera webbtjänsten för stavningskontroll</translation>
 <translation id="3646859102161347133">Ange typen av skärmförstorare</translation>
 <translation id="3653237928288822292">Ikon för standardsökleverantör</translation>
@@ -945,6 +961,11 @@
 
           Om inställningen inte konfigureras tvingas inte några begränsningar på de accepterade tilläggs- och apptyperna fram.</translation>
 <translation id="3780152581321609624">Inkludera port som inte är standard i Kerberos SPN</translation>
+<translation id="3780319008680229708">Om sant har angetts för principen visas alltid Cast-ikonen i verktygsfältet eller i fler menyalternativ och användarna kan inte ta bort den.
+
+          Om falskt har angetts för principen eller om en inställning för principen saknas kan användarna fästa eller ta bort ikonen via dess sammanhangskänsliga meny.
+
+          Om falskt har angetts för principen EnableMediaRouter gäller inte värdet för denna princip och ikonen i verktygsfältet visas inte.</translation>
 <translation id="3788662722837364290">Energisparinställningar när användaren är inaktiv</translation>
 <translation id="3793095274466276777">Konfigurerar standardwebbläsarkontrollerna i <ph name="PRODUCT_NAME" /> och förhindrar att användarna ändrar dem.
 
@@ -1135,6 +1156,17 @@
 
       Om principen är inställd på falskt kan användare inte låsa skärmen (utan endast logga ut från användarsessionen). Om principen är inställd på sant eller inte har angetts kan användare som har autentiserats med ett lösenord låsa skärmen.</translation>
 <translation id="4121350739760194865">Förhindra att appkampanjer visas på den nya fliksidan</translation>
+<translation id="4133301551755536858">Standardwebbadressen för sidan Ny flik konfigureras i <ph name="PRODUCT_NAME" /> och användare hindras från att ändra den.
+
+          Sidan Ny flik är den sida som öppnas när nya flikar skapas (även de som öppnas i nya fönster)
+
+          Den här principen bestämmer inte vilka sidor som öppnas vid start. De styrs av principer för RestoreOnStartup, som kan vara inställda på att öppna sidan Ny flik.
+
+          Du kan ställa in NewTabPageLocation på en webbadress som du anger här. Om den ställs in på att öppna sidan Ny flik påverkas även startsidan. Även startfliken påverkas om sidan Ny flik anges.
+
+          Om principen inte anges eller lämnas tom används standardinställningen för sidan Ny flik.
+
+          Den här principen är inte tillgänglig på Windows-instanser som inte är anslutna till en Active Directory-domän.</translation>
 <translation id="4147054660081653009">Klientcertifikat för anslutning till RemoteAccessHostTokenValidationUrl.
 
           Om principen ställs in kommer värden att använda ett klientcertifikat med angivet utfärdar-CN vid autentisering gentemot  RemoteAccessHostTokenValidationUrl. Om principen ges värdet * kan du använda valfritt tillgängligt klientcertifikat. 
@@ -1212,7 +1244,6 @@
 <translation id="4467952432486360968">Blockera cookies från tredje part</translation>
 <translation id="4474167089968829729">Aktivera lösenordshanteraren för sparade lösenord</translation>
 <translation id="4476769083125004742">Om den här principen är inställd på <ph name="BLOCK_GEOLOCATION_SETTING" /> får Android-appar inte tillgång till platsinformation. Om principen är inställd på något annat eller lämnas utan inställning blir användaren tillfrågad om han eller hon vill ge Android-appen tillgång till platsinformationen när det blir aktuellt.</translation>
-<translation id="447686899376429408">Om det här alternativet är inställt på sant eller inte är inställt kan användarna casta flikar, webbplatser eller skrivbordet från webbläsaren. Om det är inställt på falskt går det inte att casta.</translation>
 <translation id="4480694116501920047">Tvinga fram användning av SafeSearch</translation>
 <translation id="4482640907922304445">Policyn visar knappen Startsida i verktygsfältet i <ph name="PRODUCT_NAME" />.
 
@@ -1223,6 +1254,7 @@
       Om du aktiverar eller inaktiverar inställningen kan den inte ändras eller åsidosättas av användare i <ph name="PRODUCT_NAME" />.
 
       Om du inte anger policyn kan användaren välja om knappen Startsida ska visas.</translation>
+<translation id="4485425108474077672">Konfigurera webbadressen för sidan Ny flik</translation>
 <translation id="4492287494009043413">Inaktivera tagning av skärmdumpar</translation>
 <translation id="450537894712826981">Konfigurerar storleken på cacheminnet där <ph name="PRODUCT_NAME" /> sparar cachade mediafiler på skivan.
 
@@ -1326,6 +1358,7 @@
           Om denna policy har inställningen sant, eller inte har ställts in, kommer skärmaktiveringslåsen att användas för näthantering.
 
           Om policyn har inställningen falskt kommer skärmaktiveringslåset att ignoreras.</translation>
+<translation id="4876805738539874299">Högsta SSL-version har aktiverats</translation>
 <translation id="4882546920824859909">Ange vilka domäner som ska ha tillgång till Google Apps</translation>
 <translation id="4890209226533226410">Anger vilken typ av skärmförstorare som är aktiverad.
 
@@ -1646,6 +1679,13 @@
 
           Om inställningen är inaktiverad eller inte konfigurerad kommer gnubby-autentiseringsbegäranden inte att skickas via proxy.</translation>
 <translation id="5898486742390981550">När flera användare är inloggade är det bara den primära användaren som kan använda Android-appar.</translation>
+<translation id="5906199912611534122">Gör det möjligt att aktivera eller inaktivera begränsad överföringshastighet i nätverket.
+      Detta gäller alla användare och alla gränssnitt på enheten. När principen
+      har ställts in används begränsningen tills den inaktiveras via principen.
+      
+
+      Med värdet falskt görs ingen begränsning av överföringshastigheten.
+      Med värdet sant begränsas upp- och nedladdningshastigheten till de angivna värdena (i kbit/s).</translation>
 <translation id="5921713479449475707">Tillåt nedladdning av automatiska uppdateringar via HTTP</translation>
 <translation id="5921888683953999946">Ange standardläget för hjälpmedelsfunktionen med en stor markör på inloggningsskärmen.
 
@@ -1662,6 +1702,7 @@
 
       Om du inaktiverar den här inställningen eller inte anger ett värde tvingas inte användningen av SafeSearch i Sök på Google fram.</translation>
 <translation id="5937539742111853215">Den här principen gäller bara utvecklarläget i <ph name="PRODUCT_OS_NAME" />. Om du vill förhindra åtkomst till Androids utvecklaralternativ måste du använda principen <ph name="DEVELOPER_TOOLS_POLICY" />.</translation>
+<translation id="5940306398763671235">Google Cast aktiveras</translation>
 <translation id="5946082169633555022">Betakanal</translation>
 <translation id="5950205771952201658">Eftersom återkallelsekontroller online vid programfel inte ger någon effektiv säkerhetsfördel är de inaktiverade som standard i <ph name="PRODUCT_NAME" /> version 19 och senare. Om du aktiverar den här principen återställs den tidigare inställningen och OCSP/CRL-onlinekontroller utförs.
 
@@ -1771,6 +1812,46 @@
 <translation id="6282799760374509080">Tillåta eller neka ljudinspelning</translation>
 <translation id="6284362063448764300">TLS 1.1</translation>
 <translation id="6310223829319187614">Aktivera autoslutförande av domännamn vid användarinloggning</translation>
+<translation id="6312861131491040487">
+          Anger en lista med appar och tillägg som installeras obemärkt,
+          utan att användaren gör något och som användaren inte kan
+          avinstallera. Alla behörigheter som begärs beviljas automatiskt,
+          utan att användaren behöver göra något. Det gäller även ytterligare
+          behörigheter som begärs i framtida versioner av appen/tillägget.
+          Behörigheter ges även för tilläggs-API:erna
+          enterprise.deviceAttributes och enterprise.platformKeys.
+          (Dessa två API:er är inte tillgängliga för appar/tillägg som
+          inte har installerats med en tvingande installation.)
+
+          Den här principen har företräde framför en eventuell
+          ExtensionsInstallBlacklist-princip i konflikt. Om en annan app som
+          tidigare har haft en tvingande installation tas bort från listan avinstalleras
+          den automatiskt av <ph name="PRODUCT_NAME" />.
+
+          För Windows-instanser som inte är kopplade till en Active Directory-
+          domän är tvingad installation begränsat till appar och tillägg
+          som anges i Chrome Web Store.
+
+          Observera att användare kan ändra källkoden till ett tillägg
+          (och eventuellt rendera tillägget felaktigt) med utvecklarverktygen.
+          Om detta är ett problem ska principen DeveloperToolsDisabled
+          anges.
+
+          Varje post i principen är en sträng som innehåller ett tilläggs-id
+          och en uppdateringsadress avgränsade med semikolon (<ph name="SEMICOLON" />). Ett tilläggs-id är en sträng
+          med 32 bokstäver, till exempel den som finns på <ph name="CHROME_EXTENSIONS_LINK" />
+          i utvecklarläget. Uppdateringsadressen ska peka på ett XML-
+          manifestdokument för uppdatering enligt beskrivningen på <ph name="LINK_TO_EXTENSION_DOC1" />. Observera
+          att uppdateringsadressen som anges i den här principen bara används
+          för den ursprungliga installationen. För senare uppdateringar av tillägget
+          används den uppdateringsadress som anges i tilläggets manifest.
+
+          Exempel: <ph name="EXTENSION_POLICY_EXAMPLE" />
+          installerar appen <ph name="EXTENSION_POLICY_EXAMPLE_EXTENSION_NAME" /> från standarduppdateringsadressen för Chrome Web Store.
+          Mer information om värdservrar för tillägg finns på <ph name="LINK_TO_EXTENSION_DOC2" />.
+
+          Om den här principen inte anges installeras inga appar eller tillägg
+          automatiskt, och användaren kan avinstallera appar och tillägg i <ph name="PRODUCT_NAME" />.</translation>
 <translation id="6315673513957120120">Chrome visar en varningssida när användare besöker webbplatser med SSL-fel. Som standardinställning eller om den här principen är inställd på sant ges användare möjligheten att klicka sig förbi dessa varningssidor.
       Om principen är inställd på falskt hindras användare från att klicka sig förbi varningssidor.</translation>
 <translation id="6353901068939575220">Anger parametrarna som används vid sökning efter en webbadress med POST. Den består av kommaavgränsade namn-/värdepar. Om ett värde är en mallparameter, t.ex. {searchTerms} i ovanstående exempel, ersätts det av riktiga söktermer.
@@ -1943,6 +2024,7 @@
       Minnesinfo rapporteras ändå till sidan, oavsett värdealternativ, men de storlekar som
       rapporterats kvantiseras och uppdateringsintervallet är begränsat av säkerhetsskäl.
       Om du vill få exakta data i realtid kan du använda ett verktyg som Telemetry.</translation>
+<translation id="6894178810167845842">Webbadress för sidan Ny flik</translation>
 <translation id="6899705656741990703">Identifiera proxyinställningar automatiskt</translation>
 <translation id="6903814433019432303">Den här policyn är bara aktiv i återförsäljarläge.
 
@@ -1999,6 +2081,11 @@
 <translation id="7027785306666625591">Konfigurera energihantering i <ph name="PRODUCT_OS_NAME" />.
 
       Med dessa policyer kan du konfigurera hur <ph name="PRODUCT_OS_NAME" /> ska fungera när användaren är inaktiv under en viss tid.</translation>
+<translation id="703078280527762319">Varning! Principen för den högsta TLS-versionen tas bort helt från <ph name="PRODUCT_NAME" /> kring version 66 (runt februari 2018).
+
+      Om denna princip inte konfigureras används den högsta standardversionen (TLSv1.3) av <ph name="PRODUCT_NAME" />.
+
+      I annat fall kan den anges till värdena tls1.2 eller tls1.3. När ett värde har angetts används inte versioner av SSL/TLS som är tidigare än den angivna versionen av <ph name="PRODUCT_NAME" />. Ett värde som inte känns igen ignoreras.</translation>
 <translation id="7040229947030068419">Exempelvärde:</translation>
 <translation id="7049373494483449255">Policyn gör att <ph name="PRODUCT_NAME" /> kan skicka dokument till <ph name="CLOUD_PRINT_NAME" /> för utskrift. Obs! Detta påverkar bara stöd för <ph name="CLOUD_PRINT_NAME" /> i <ph name="PRODUCT_NAME" />. Det förhindrar inte att användarna skickar utskriftsjobb på webbplatser.
 
@@ -2076,6 +2163,7 @@
 <translation id="7132877481099023201">Webbadresser som ska beviljas åtkomst till videoinspelningsenheter utan meddelande</translation>
 <translation id="7167436895080860385">Tillåt att användarnas lösenord visas i lösenordshanteraren (utfasad)</translation>
 <translation id="7173856672248996428">Kortlivad profil</translation>
+<translation id="7185078796915954712">TLS 1.3</translation>
 <translation id="718956142899066210">Anslutningstyper som tillåts för uppdateringar</translation>
 <translation id="7194407337890404814">Standardsökleverantörens namn</translation>
 <translation id="7195064223823777550">Ange vilken åtgärd som ska vidtas när användaren stänger locket.
@@ -2227,6 +2315,7 @@
       Om du aktiverar den här inställningen används den angivna språkversionen av <ph name="PRODUCT_NAME" />. Om den språkversion som anges inte stöds används en-US istället.
 
       Om inställningen inaktiveras eller inte är konfigurerad använder <ph name="PRODUCT_NAME" /> antingen den språkversion som användaren anger (om den är konfigurerad), samma språk som datorn eller standardversionen en-US.</translation>
+<translation id="7638300388094655454">Google Cast</translation>
 <translation id="7651739109954974365">Avgör om dataroaming ska vara tillåtet för enheten. Om värdet är sant är dataroaming tillåten. Om policyn inte är konfigurerad eller om värdet är falskt är dataroaming inte tillåten.</translation>
 <translation id="76810863974142048">Webbadress där fjärråtkomstklienter erhåller sin autentiseringstoken.
 
@@ -2508,6 +2597,7 @@
 
       Vi har för avsikt att ta bort åsidosättningsmöjligheten senare.</translation>
 <translation id="8285435910062771358">Helskärmsförstoraren är aktiverad</translation>
+<translation id="8288199156259560552">Aktivera Googles platstjänst för Android</translation>
 <translation id="8294750666104911727">Normalt kommer sidor med X-UA-Compatible som är inställda på chrome=1 att renderas i <ph name="PRODUCT_FRAME_NAME" /> trots policyn ChromeFrameRendererSettings.
 
           Om du aktiverar inställningen kommer sidorna inte att kunna genomsökas efter metataggar.
@@ -2599,6 +2689,17 @@
       som är kopplade till en Active Directory-domän.</translation>
 <translation id="8566842294717252664">Dölj webbutiken från sidan ny flik och startprogrammet för appar</translation>
 <translation id="8587229956764455752">Tillåt att nya användarkonton skapas</translation>
+<translation id="8613640727149655305">När sant anges för den här principen aktiveras Googles platstjänst för Android och enhetsplatsen kan då hittas av Android-appar med hjälp av tjänstens data. Dessutom kan anonyma platsuppgifter skickas till Google.
+
+      När falskt anges för den här principen inaktiveras Googles platstjänst för Android.
+
+      Om den här inställningen konfigureras kan inte användarna ändra den.
+
+      Om den här inställningen inte konfigureras kan användarna aktivera och inaktivera Googles platstjänst i appen Inställningar i Android.
+
+      Observera att principens värde kan åsidosättas av principen <ph name="DEFAULTGEOLOCATIONSETTING_POLICY_NAME" /> när den senare har angetts som <ph name="BLOCK_GEOLOCATION_SETTING" />.
+
+      Denna princip gäller endast för användare som kan köra Android-appar.</translation>
 <translation id="8614804915612153606">Inaktiverar automatisk uppdatering</translation>
 <translation id="8631434304112909927">till och med version <ph name="UNTIL_VERSION" /></translation>
 <translation id="863319402127182273">För Android-appar påverkar den här principen endast den inbyggda kameran. När principen är inställd på sant är kameran avstängd i alla Android-appar utan undantag.</translation>

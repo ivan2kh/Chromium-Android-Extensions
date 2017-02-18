@@ -30,7 +30,6 @@
 #include "core/loader/DocumentLoader.h"
 
 #include "core/dom/Document.h"
-#include "core/dom/DocumentParser.h"
 #include "core/dom/WeakIdentifierMap.h"
 #include "core/events/Event.h"
 #include "core/frame/Deprecation.h"
@@ -40,7 +39,6 @@
 #include "core/frame/Settings.h"
 #include "core/frame/csp/ContentSecurityPolicy.h"
 #include "core/html/HTMLFrameOwnerElement.h"
-#include "core/html/parser/HTMLDocumentParser.h"
 #include "core/html/parser/TextResourceDecoder.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/inspector/InspectorInstrumentation.h"
@@ -440,7 +438,7 @@ void DocumentLoader::cancelLoadAfterCSPDenied(
   m_request.setURL(blockedURL);
   m_redirectChain.pop_back();
   appendRedirect(blockedURL);
-  m_response = ResourceResponse(blockedURL, "text/html", 0, nullAtom, String());
+  m_response = ResourceResponse(blockedURL, "text/html", 0, nullAtom);
   finishedLoading(monotonicallyIncreasingTime());
 
   return;
@@ -504,6 +502,8 @@ void DocumentLoader::responseReceived(
 
   DCHECK(!m_frame->page()->suspended());
 
+  if (response.didServiceWorkerNavigationPreload())
+    UseCounter::count(m_frame, UseCounter::ServiceWorkerNavigationPreload);
   m_response = response;
 
   if (isArchiveMIMEType(m_response.mimeType()) &&
@@ -707,8 +707,7 @@ bool DocumentLoader::maybeLoadEmpty() {
   if (m_request.url().isEmpty() &&
       !frameLoader().stateMachine()->creatingInitialEmptyDocument())
     m_request.setURL(blankURL());
-  m_response =
-      ResourceResponse(m_request.url(), "text/html", 0, nullAtom, String());
+  m_response = ResourceResponse(m_request.url(), "text/html", 0, nullAtom);
   finishedLoading(monotonicallyIncreasingTime());
   return true;
 }

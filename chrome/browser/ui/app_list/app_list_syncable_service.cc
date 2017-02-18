@@ -261,11 +261,11 @@ class AppListSyncableService::ModelObserver : public AppListModelObserver {
 
 #if defined(OS_CHROMEOS)
     if (item->GetItemType() == ArcAppItem::kItemType) {
-      // Don't sync remove changes coming as result of disabling Arc.
+      // Don't sync remove changes coming as result of disabling ARC.
       const arc::ArcSessionManager* arc_session_manager =
           arc::ArcSessionManager::Get();
       DCHECK(arc_session_manager);
-      if (!arc_session_manager->IsArcEnabled())
+      if (!arc_session_manager->IsArcPlayStoreEnabled())
         return;
     }
 #endif

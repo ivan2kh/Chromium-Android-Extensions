@@ -73,14 +73,17 @@ void PrePaintTreeWalk::walk(FrameView& frameView,
 
 static void updateAuxiliaryObjectProperties(const LayoutObject& object,
                                             PrePaintTreeWalkContext& context) {
+  if (!RuntimeEnabledFeatures::slimmingPaintV2Enabled())
+    return;
+
   if (!object.hasLayer())
     return;
 
   PaintLayer* paintLayer = object.enclosingLayer();
   paintLayer->updateAncestorOverflowLayer(context.ancestorOverflowPaintLayer);
 
-  if (object.styleRef().position() == StickyPosition) {
-    paintLayer->layoutObject()->updateStickyPositionConstraints();
+  if (object.styleRef().position() == EPosition::kSticky) {
+    paintLayer->layoutObject().updateStickyPositionConstraints();
 
     // Sticky position constraints and ancestor overflow scroller affect the
     // sticky layer position, so we need to update it again here.
@@ -102,7 +105,7 @@ static bool isAncestorOfOrEqualTo(const ClipPaintPropertyNode* a,
   return b == a;
 }
 
-ClipRect PrePaintTreeWalk::clipRectForContext(
+FloatClipRect PrePaintTreeWalk::clipRectForContext(
     const PaintPropertyTreeBuilderContext::ContainingBlockContext& context,
     const EffectPaintPropertyNode* effect,
     const PropertyTreeState& ancestorState,
@@ -112,18 +115,16 @@ ClipRect PrePaintTreeWalk::clipRectForContext(
   // actually an ancestor clip. This ensures no accuracy issues due to
   // transforms applied to infinite rects.
   if (isAncestorOfOrEqualTo(context.clip, ancestorState.clip()))
-    return ClipRect(LayoutRect(LayoutRect::infiniteIntRect()));
+    return FloatClipRect();
 
   hasClip = true;
 
   PropertyTreeState localState(context.transform, context.clip, effect);
 
-  // TODO(chrishtr): remove need for this.
-  LayoutRect localRect(LayoutRect::infiniteIntRect());
+  FloatClipRect rect(
+      m_geometryMapper.sourceToDestinationClipRect(localState, ancestorState));
 
-  LayoutRect rect(m_geometryMapper.sourceToDestinationVisualRect(
-      FloatRect(localRect), localState, ancestorState));
-  rect.moveBy(-ancestorPaintOffset);
+  rect.moveBy(-FloatPoint(ancestorPaintOffset));
   return rect;
 }
 
@@ -137,7 +138,7 @@ void PrePaintTreeWalk::invalidatePaintLayerOptimizationsIfNeeded(
   PaintLayer& paintLayer = *toLayoutBoxModelObject(object).layer();
   PropertyTreeState ancestorState =
       *ancestorTransformedOrRootPaintLayer.layoutObject()
-           ->paintProperties()
+           .paintProperties()
            ->localBorderBoxProperties();
 
 #ifdef CHECK_CLIP_RECTS
@@ -146,10 +147,10 @@ void PrePaintTreeWalk::invalidatePaintLayerOptimizationsIfNeeded(
   if (ancestorTransformedOrRootPaintLayer.compositingState() ==
           PaintsIntoOwnBacking &&
       ancestorTransformedOrRootPaintLayer.layoutObject()
-          ->paintProperties()
+          .paintProperties()
           ->overflowClip()) {
     ancestorState.setClip(ancestorTransformedOrRootPaintLayer.layoutObject()
-                              ->paintProperties()
+                              .paintProperties()
                               ->overflowClip());
 #ifdef CHECK_CLIP_RECTS
     respectOverflowClip = IgnoreOverflowClip;
@@ -165,7 +166,7 @@ void PrePaintTreeWalk::invalidatePaintLayerOptimizationsIfNeeded(
   RefPtr<ClipRects> clipRects = ClipRects::create();
   clipRects->setOverflowClipRect(clipRectForContext(
       context.current, context.currentEffect, ancestorState,
-      ancestorTransformedOrRootPaintLayer.layoutObject()->paintOffset(),
+      ancestorTransformedOrRootPaintLayer.layoutObject().paintOffset(),
       hasClip));
 #ifdef CHECK_CLIP_RECTS
   CHECK(!hasClip ||
@@ -175,7 +176,7 @@ void PrePaintTreeWalk::invalidatePaintLayerOptimizationsIfNeeded(
 
   clipRects->setFixedClipRect(clipRectForContext(
       context.fixedPosition, context.currentEffect, ancestorState,
-      ancestorTransformedOrRootPaintLayer.layoutObject()->paintOffset(),
+      ancestorTransformedOrRootPaintLayer.layoutObject().paintOffset(),
       hasClip));
 #ifdef CHECK_CLIP_RECTS
   CHECK(hasClip || clipRects->fixedClipRect() == oldClipRects.fixedClipRect())
@@ -184,7 +185,7 @@ void PrePaintTreeWalk::invalidatePaintLayerOptimizationsIfNeeded(
 
   clipRects->setPosClipRect(clipRectForContext(
       context.absolutePosition, context.currentEffect, ancestorState,
-      ancestorTransformedOrRootPaintLayer.layoutObject()->paintOffset(),
+      ancestorTransformedOrRootPaintLayer.layoutObject().paintOffset(),
       hasClip));
 #ifdef CHECK_CLIP_RECTS
   CHECK(!hasClip || clipRects->posClipRect() == oldClipRects.posClipRect())
@@ -210,25 +211,18 @@ void PrePaintTreeWalk::walk(const LayoutObject& object,
                             const PrePaintTreeWalkContext& parentContext) {
   PrePaintTreeWalkContext context(parentContext);
 
-  // This must happen before updateContextForBoxPosition, because the
-  // latter reads some of the state computed uere.
-  updateAuxiliaryObjectProperties(object, context);
-
-  // Ensure the current context takes into account the box's position. This can
-  // force a subtree update due to paint offset changes and must precede any
-  // early out from the treewalk.
-  m_propertyTreeBuilder.updateContextForBoxPosition(object,
-                                                    context.treeBuilderContext);
-
   // Early out from the treewalk if possible.
   if (!object.needsPaintPropertyUpdate() &&
       !object.descendantNeedsPaintPropertyUpdate() &&
       !context.treeBuilderContext.forceSubtreeUpdate &&
       !context.paintInvalidatorContext.forcedSubtreeInvalidationFlags &&
       !object
-           .shouldCheckForPaintInvalidationRegardlessOfPaintInvalidationState()) {
+           .shouldCheckForPaintInvalidationRegardlessOfPaintInvalidationState())
     return;
-  }
+
+  // This must happen before updatePropertiesForSelf, because the latter reads
+  // some of the state computed here.
+  updateAuxiliaryObjectProperties(object, context);
 
   m_propertyTreeBuilder.updatePropertiesForSelf(object,
                                                 context.treeBuilderContext);

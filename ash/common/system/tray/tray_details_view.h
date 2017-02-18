@@ -12,6 +12,7 @@
 #include "ash/common/system/tray/tray_constants.h"
 #include "ash/common/system/tray/view_click_listener.h"
 #include "base/macros.h"
+#include "grit/ash_strings.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/view.h"
 
@@ -23,6 +24,7 @@ namespace views {
 class BoxLayout;
 class CustomButton;
 class ProgressBar;
+class ScrollView;
 }  // namespace views
 
 namespace ash {
@@ -30,7 +32,6 @@ namespace test {
 class TrayDetailsViewTest;
 }  // namespace test
 
-class FixedSizedScrollView;
 class ScrollBorder;
 class SystemTrayItem;
 class TriView;
@@ -52,7 +53,7 @@ class ASH_EXPORT TrayDetailsView : public views::View,
 
   SystemTrayItem* owner() { return owner_; }
   SpecialPopupRow* title_row() { return title_row_; }
-  FixedSizedScrollView* scroller() { return scroller_; }
+  views::ScrollView* scroller() { return scroller_; }
   views::View* scroll_content() { return scroll_content_; }
 
  protected:
@@ -87,7 +88,8 @@ class ASH_EXPORT TrayDetailsView : public views::View,
   // Helper functions which create and return the settings and help buttons,
   // respectively, used in the material design top-most header row. The caller
   // assumes ownership of the returned buttons.
-  views::CustomButton* CreateSettingsButton(LoginStatus status);
+  views::CustomButton* CreateSettingsButton(LoginStatus status,
+                                            int setting_accessible_name_id);
   views::CustomButton* CreateHelpButton(LoginStatus status);
 
   TriView* tri_view() { return tri_view_; }
@@ -124,7 +126,7 @@ class ASH_EXPORT TrayDetailsView : public views::View,
   SystemTrayItem* owner_;
   views::BoxLayout* box_layout_;
   SpecialPopupRow* title_row_;  // Not used in material design.
-  FixedSizedScrollView* scroller_;
+  views::ScrollView* scroller_;
   views::View* scroll_content_;
   views::ProgressBar* progress_bar_;
 

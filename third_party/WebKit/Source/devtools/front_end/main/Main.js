@@ -755,7 +755,7 @@ Main.NetworkPanelIndicator = class {
       return;
     var manager = SDK.multitargetNetworkManager;
     manager.addEventListener(SDK.MultitargetNetworkManager.Events.ConditionsChanged, updateVisibility);
-    var blockedURLsSetting = Common.moduleSetting('blockedURLs');
+    var blockedURLsSetting = Common.moduleSetting('networkBlockedURLs');
     blockedURLsSetting.addChangeListener(updateVisibility);
     updateVisibility();
 
@@ -839,10 +839,10 @@ Main.Main.InspectedNodeRevealer = class {
  */
 Main.sendOverProtocol = function(method, params) {
   return new Promise((resolve, reject) => {
-    Protocol.InspectorBackend.sendRawMessageForTesting(method, params, (err, result) => {
+    Protocol.InspectorBackend.sendRawMessageForTesting(method, params, (err, ...results) => {
       if (err)
         return reject(err);
-      return resolve(result);
+      return resolve(results);
     });
   });
 };

@@ -24,8 +24,6 @@
 #include "cc/debug/traced_value.h"
 #include "cc/input/page_scale_animation.h"
 #include "cc/input/scrollbar_animation_controller.h"
-#include "cc/input/scrollbar_animation_controller_linear_fade.h"
-#include "cc/input/scrollbar_animation_controller_thinning.h"
 #include "cc/layers/heads_up_display_layer_impl.h"
 #include "cc/layers/layer.h"
 #include "cc/layers/layer_iterator.h"
@@ -987,8 +985,9 @@ bool LayerTreeImpl::UpdateDrawProperties(
     TRACE_EVENT2(
         "cc", "LayerTreeImpl::UpdateDrawProperties::CalculateDrawProperties",
         "IsActive", IsActiveTree(), "SourceFrameNumber", source_frame_number_);
-    bool can_render_to_separate_surface =
-        (!is_in_resourceless_software_draw_mode());
+    // TODO(crbug.com/692780): Remove this option entirely once this get to
+    // stable and proves it works.
+    bool can_render_to_separate_surface = true;
 
     // We verify visible rect calculations whenever we verify clip tree
     // calculations except when this function is explicitly passed a flag asking
@@ -1378,17 +1377,19 @@ LayerTreeImpl::CreateScrollbarAnimationController(int scroll_layer_id) {
   base::TimeDelta resize_delay = settings().scrollbar_fade_resize_delay;
   base::TimeDelta fade_duration = settings().scrollbar_fade_duration;
   switch (settings().scrollbar_animator) {
-    case LayerTreeSettings::LINEAR_FADE: {
-      return ScrollbarAnimationControllerLinearFade::Create(
-          scroll_layer_id, layer_tree_host_impl_, delay, resize_delay,
-          fade_duration);
+    case LayerTreeSettings::ANDROID_OVERLAY: {
+      return ScrollbarAnimationController::
+          CreateScrollbarAnimationControllerAndroid(
+              scroll_layer_id, layer_tree_host_impl_, delay, resize_delay,
+              fade_duration);
     }
-    case LayerTreeSettings::THINNING: {
+    case LayerTreeSettings::AURA_OVERLAY: {
       base::TimeDelta thinning_duration =
           settings().scrollbar_thinning_duration;
-      return ScrollbarAnimationControllerThinning::Create(
-          scroll_layer_id, layer_tree_host_impl_, delay, resize_delay,
-          fade_duration, thinning_duration);
+      return ScrollbarAnimationController::
+          CreateScrollbarAnimationControllerAuraOverlay(
+              scroll_layer_id, layer_tree_host_impl_, delay, resize_delay,
+              fade_duration, thinning_duration);
     }
     case LayerTreeSettings::NO_ANIMATOR:
       NOTREACHED();
@@ -2059,8 +2060,6 @@ void LayerTreeImpl::GetViewportSelection(
       selection_.start,
       selection_.start.layer_id ? LayerById(selection_.start.layer_id) : NULL,
       device_scale_factor());
-  selection->is_editable = selection_.is_editable;
-  selection->is_empty_text_form_control = selection_.is_empty_text_form_control;
   if (selection->start.type() == gfx::SelectionBound::CENTER ||
       selection->start.type() == gfx::SelectionBound::EMPTY) {
     selection->end = selection->start;

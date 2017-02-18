@@ -15,7 +15,6 @@
 #include "ui/base/default_style.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/material_design/material_design_controller.h"
-#include "ui/base/models/combobox_model.h"
 #include "ui/base/models/combobox_model_observer.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/events/event.h"
@@ -393,6 +392,11 @@ class Combobox::ComboboxMenuModel : public ui::MenuModel,
 
 ////////////////////////////////////////////////////////////////////////////////
 // Combobox, public:
+
+Combobox::Combobox(std::unique_ptr<ui::ComboboxModel> model, Style style)
+    : Combobox(model.get(), style) {
+  owned_model_ = std::move(model);
+}
 
 Combobox::Combobox(ui::ComboboxModel* model, Style style)
     : model_(model),
@@ -857,14 +861,14 @@ void Combobox::PaintText(gfx::Canvas* canvas) {
     path.rLineTo(2 * kEpsilon, 0);
     path.rLineTo(height, -height);
     path.close();
-    cc::PaintFlags paint;
+    cc::PaintFlags flags;
     SkColor arrow_color = GetNativeTheme()->GetSystemColor(
         ui::NativeTheme::kColorId_ButtonEnabledColor);
     if (!enabled())
       arrow_color = SkColorSetA(arrow_color, gfx::kDisabledControlAlpha);
-    paint.setColor(arrow_color);
-    paint.setAntiAlias(true);
-    canvas->DrawPath(path, paint);
+    flags.setColor(arrow_color);
+    flags.setAntiAlias(true);
+    canvas->DrawPath(path, flags);
   } else {
     canvas->DrawImageInt(arrow_image_, arrow_bounds.x(), arrow_bounds.y());
   }

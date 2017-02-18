@@ -159,6 +159,8 @@ void Display::Resize(const gfx::Size& size) {
 
 void Display::SetColorSpace(const gfx::ColorSpace& color_space) {
   device_color_space_ = color_space;
+  if (aggregator_)
+    aggregator_->SetOutputColorSpace(device_color_space_);
 }
 
 void Display::SetOutputIsSecure(bool secure) {
@@ -215,11 +217,12 @@ void Display::InitializeRenderer() {
   aggregator_.reset(new SurfaceAggregator(
       surface_manager_, resource_provider_.get(), output_partial_list));
   aggregator_->set_output_is_secure(output_is_secure_);
+  aggregator_->SetOutputColorSpace(device_color_space_);
 }
 
 void Display::UpdateRootSurfaceResourcesLocked() {
   Surface* surface = surface_manager_->GetSurfaceForId(current_surface_id_);
-  bool root_surface_resources_locked = !surface || !surface->HasFrame();
+  bool root_surface_resources_locked = !surface || !surface->HasActiveFrame();
   if (scheduler_)
     scheduler_->SetRootSurfaceResourcesLocked(root_surface_resources_locked);
 }
@@ -314,7 +317,7 @@ bool Display::DrawAndSwap() {
 
     renderer_->DecideRenderPassAllocationsForFrame(frame.render_pass_list);
     renderer_->DrawFrame(&frame.render_pass_list, device_scale_factor_,
-                         device_color_space_, current_surface_size_);
+                         current_surface_size_);
   } else {
     TRACE_EVENT_INSTANT0("cc", "Draw skipped.", TRACE_EVENT_SCOPE_THREAD);
   }
@@ -374,8 +377,8 @@ void Display::OnSurfaceDamaged(const SurfaceId& surface_id, bool* changed) {
       aggregator_->previous_contained_surfaces().count(surface_id)) {
     Surface* surface = surface_manager_->GetSurfaceForId(surface_id);
     if (surface) {
-      if (!surface->HasFrame() ||
-          surface->GetEligibleFrame().resource_list.empty()) {
+      if (!surface->HasActiveFrame() ||
+          surface->GetActiveFrame().resource_list.empty()) {
         aggregator_->ReleaseResources(surface_id);
       }
     }

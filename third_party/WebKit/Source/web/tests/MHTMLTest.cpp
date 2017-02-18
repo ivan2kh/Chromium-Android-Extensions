@@ -45,7 +45,6 @@
 #include "public/platform/WebURLLoaderMockFactory.h"
 #include "public/platform/WebURLRequest.h"
 #include "public/platform/WebURLResponse.h"
-#include "public/web/WebCache.h"
 #include "public/web/WebDocument.h"
 #include "public/web/WebFrame.h"
 #include "public/web/WebView.h"
@@ -83,23 +82,22 @@ class LineReader {
 
 class MHTMLTest : public ::testing::Test {
  public:
-  MHTMLTest() {
-    m_filePath = testing::blinkRootDir();
-    m_filePath.append("/Source/web/tests/data/mhtml/");
-  }
+  MHTMLTest() { m_filePath = testing::webTestDataPath("mhtml/"); }
 
  protected:
   void SetUp() override { m_helper.initialize(); }
 
   void TearDown() override {
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
-    WebCache::clear();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
   }
 
   void registerMockedURLLoad(const std::string& url,
-                             const WebString& fileName) {
+                             const std::string& fileName) {
     URLTestHelpers::registerMockedURLLoad(
-        toKURL(url), fileName, WebString::fromUTF8("mhtml/"),
+        toKURL(url),
+        testing::webTestDataPath(WebString::fromUTF8("mhtml/" + fileName)),
         WebString::fromUTF8("multipart/related"));
   }
 
@@ -189,7 +187,7 @@ TEST_F(MHTMLTest, CheckDomain) {
 
   // Register the mocked frame and load it.
   WebURL url = toKURL(kFileURL);
-  registerMockedURLLoad(kFileURL, WebString::fromUTF8("simple_test.mht"));
+  registerMockedURLLoad(kFileURL, "simple_test.mht");
   loadURLInTopFrame(url);
   ASSERT_TRUE(page());
   LocalFrame* frame = toLocalFrame(page()->mainFrame());
@@ -269,7 +267,7 @@ TEST_F(MHTMLTest, EnforceSandboxFlags) {
   const char kURL[] = "http://www.example.com";
 
   // Register the mocked frame and load it.
-  registerMockedURLLoad(kURL, WebString::fromUTF8("simple_test.mht"));
+  registerMockedURLLoad(kURL, "simple_test.mht");
   loadURLInTopFrame(toKURL(kURL));
   ASSERT_TRUE(page());
   LocalFrame* frame = toLocalFrame(page()->mainFrame());

@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Otvori sve</translation>
 <translation id="1430915738399379752">Ispis</translation>
 <translation id="145015347812617860">Broj stavki: <ph name="COUNT" /></translation>
+<translation id="1491277525950327607">Dodirnite dvaput da biste promijenili postavku</translation>
 <translation id="1540800554400757039">1. adresni redak</translation>
 <translation id="1545749641540134597">Skeniranje QR koda</translation>
 <translation id="1580783302095112590">Poruka je poslana.</translation>
@@ -65,7 +66,6 @@ Na primjer, neke web-lokacije mogu reagirati na taj zahtjev prikazivanjem oglasa
 <translation id="2068952045031577364">Od proteklog tjedna</translation>
 <translation id="2079545284768500474">Poništi</translation>
 <translation id="209018056901015185">Prikaži klasičnu stranicu</translation>
-<translation id="2100215774115172756">Vaš popis za čitanje dostupan je offline.</translation>
 <translation id="2103075008456228677">Otvori history.google.com</translation>
 <translation id="2116625576999540962">Broj premještenih stavki: <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /></translation>
 <translation id="2149973817440762519">Uredi oznaku</translation>
@@ -120,7 +120,6 @@ Na primjer, neke web-lokacije mogu reagirati na taj zahtjev prikazivanjem oglasa
 <translation id="3175081911749765310">Web-usluge</translation>
 <translation id="3207960819495026254">Označeno</translation>
 <translation id="3210163015918861891">Sinkronizacija je isključena</translation>
-<translation id="3237561509210981547">Za dodavanje stranice na popis za čitanje dodirnite <ph name="BEGIN_BOLD_FONT" />Dijeli &gt; Kasnije čitanje<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Veza je kopirana</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> od <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Na primjer, neke web-lokacije mogu reagirati na taj zahtjev prikazivanjem oglasa
 <translation id="3414292259312108062">Chrome će to pohraniti u vašim <ph name="BEGIN_LINK" />Googleovim spremljenim zaporkama<ph name="END_LINK" /> i automatski popuniti umjesto vas kako ne biste morali pamtiti.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Podijeljeni prikaz</translation>
-<translation id="3474068797193663261">Za dodavanje stranice na popis za čitanje dodirnite <ph name="BEGIN_BOLD_FONT" />Izbornik &gt; Dijeli &gt; Kasnije čitanje<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Obrasci su ispunjeni.</translation>
 <translation id="3478058380795961209">Mjesec isteka</translation>
 <translation id="3482959374254649722">Sinkronizacija kartica...</translation>
@@ -171,6 +169,7 @@ Da biste prilagodili pojam za pretraživanje, dugo pritisnite za odabir. Da bist
 <translation id="4121993058175073134">Za slanje neto izvezenih datoteka konfigurirajte svoj račun e-pošte u aplikaciji Postavke.</translation>
 <translation id="4124987746317609294">Vremenski raspon</translation>
 <translation id="4172051516777682613">Uvijek prikaži</translation>
+<translation id="418156467088430727">Prikaži offline verziju na novoj kartici</translation>
 <translation id="424315890655130736">Unesite šifru</translation>
 <translation id="4272631900155121838">Da biste skenirali QR kod, omogućite fotoaparat u postavkama</translation>
 <translation id="4281844954008187215">Uvjeti upotrebe usluge</translation>
@@ -178,7 +177,6 @@ Da biste prilagodili pojam za pretraživanje, dugo pritisnite za odabir. Da bist
 <translation id="4359125752503270327">Stranica će se otvoriti u nekoj drugoj aplikaciji.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Obavijest o privatnosti</translation>
-<translation id="4426508677408162512">Sve oznake</translation>
 <translation id="4473991315115669931">Otvori anonimni način</translation>
 <translation id="4526249700380860531">Prikaz spremljenih zaporki i upravljanje njima na <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Pokušajte se ponovo prijaviti.</translation>
@@ -218,6 +216,7 @@ Vaši su podaci šifrirani vašom šifrom za sinkronizaciju. Unesite je da biste
 <translation id="5300589172476337783">Prikaži</translation>
 <translation id="5317780077021120954">Spremi</translation>
 <translation id="5327248766486351172">Naziv</translation>
+<translation id="5332219387342487447">Način otpreme</translation>
 <translation id="5388358297987318779">Otvori sliku</translation>
 <translation id="5409365236829784218">Nema instalirane aplikacije za otvaranje ove datoteke.</translation>
 <translation id="54401264925851789">Informacije o sigurnosti stranice</translation>
@@ -270,6 +269,7 @@ Handoff mora biti omogućen i u odjeljku Općenito u Postavkama, a vaši uređaj
 <translation id="6255097610484507482">Uredi kreditnu karticu</translation>
 <translation id="6308436439357671616">To vam omogućuje snimanje i prijenos fotografija.</translation>
 <translation id="6314335155547195432">Generiranje zaporke</translation>
+<translation id="6324528485781869530">Promjena računa za sink.</translation>
 <translation id="6324669097367352121">Postavke prijave</translation>
 <translation id="6337234675334993532">Enkripcija</translation>
 <translation id="633809752005859102">Dogodila se velika pogreška. Poradit ćemo na tome.</translation>

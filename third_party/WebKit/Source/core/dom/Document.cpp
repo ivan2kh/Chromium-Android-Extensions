@@ -247,6 +247,7 @@
 #include "public/platform/WebPrerenderingSupport.h"
 #include "public/platform/WebScheduler.h"
 #include "public/platform/modules/sensitive_input_visibility/sensitive_input_visibility_service.mojom-blink.h"
+#include "public/platform/site_engagement.mojom-blink.h"
 #include "wtf/AutoReset.h"
 #include "wtf/CurrentTime.h"
 #include "wtf/DateMath.h"
@@ -257,6 +258,7 @@
 #include "wtf/text/CharacterNames.h"
 #include "wtf/text/StringBuffer.h"
 #include "wtf/text/TextEncodingRegistry.h"
+
 #include <memory>
 
 using namespace WTF;
@@ -384,6 +386,10 @@ static bool s_threadedParsingEnabledForTesting = true;
 
 // This doesn't work with non-Document ExecutionContext.
 static void runAutofocusTask(ExecutionContext* context) {
+  // Document lifecycle check is done in Element::focus()
+  if (!context)
+    return;
+
   Document* document = toDocument(context);
   if (Element* element = document->autofocusElement()) {
     document->setAutofocusElement(0);
@@ -990,6 +996,10 @@ ProcessingInstruction* Document::createProcessingInstruction(
         InvalidCharacterError,
         "The data provided ('" + data + "') contains '?>'.");
     return nullptr;
+  }
+  if (isHTMLDocument()) {
+    UseCounter::count(*this,
+                      UseCounter::HTMLDocumentCreateProcessingInstruction);
   }
   return ProcessingInstruction::create(*this, target, data);
 }
@@ -1705,7 +1715,7 @@ void Document::updateStyleInvalidationIfNeeded() {
   DCHECK(isActive());
   ScriptForbiddenScope forbidScript;
 
-  if (!childNeedsStyleInvalidation())
+  if (!childNeedsStyleInvalidation() && !needsStyleInvalidation())
     return;
   TRACE_EVENT0("blink", "Document::updateStyleInvalidationIfNeeded");
   styleEngine().styleInvalidator().invalidate(*this);
@@ -2336,7 +2346,7 @@ void Document::scheduleUseShadowTreeUpdate(SVGUseElement& element) {
 }
 
 void Document::unscheduleUseShadowTreeUpdate(SVGUseElement& element) {
-  m_useElementsNeedingUpdate.remove(&element);
+  m_useElementsNeedingUpdate.erase(&element);
 }
 
 void Document::updateUseShadowTreesIfNeeded() {
@@ -2634,7 +2644,8 @@ void Document::open(Document* enteredDocument, ExceptionState& exceptionState) {
   }
 
   if (enteredDocument) {
-    if (!getSecurityOrigin()->canAccess(enteredDocument->getSecurityOrigin())) {
+    if (!getSecurityOrigin()->isSameSchemeHostPortAndSuborigin(
+            enteredDocument->getSecurityOrigin())) {
       exceptionState.throwSecurityError(
           "Can only call open() on same-origin documents.");
       return;
@@ -2971,6 +2982,7 @@ bool Document::dispatchBeforeUnloadEvent(ChromeClient& chromeClient,
     return false;
 
   BeforeUnloadEvent* beforeUnloadEvent = BeforeUnloadEvent::create();
+  beforeUnloadEvent->initEvent(EventTypeNames::beforeunload, false, true);
   m_loadEventProgress = BeforeUnloadEventInProgress;
   m_domWindow->dispatchEvent(beforeUnloadEvent, this);
   m_loadEventProgress = BeforeUnloadEventCompleted;
@@ -3168,6 +3180,9 @@ void Document::write(const SegmentedString& text,
     open(enteredDocument, ASSERT_NO_EXCEPTION);
 
   DCHECK(m_parser);
+  PerformanceMonitor::reportGenericViolation(
+      this, PerformanceMonitor::kDiscouragedAPIUse,
+      "Avoid using document.write().", 0, nullptr);
   InspectorInstrumentation::NativeBreakpoint nativeBreakpoint(
       this, "document.write", true);
   m_parser->insert(text);
@@ -3322,13 +3337,17 @@ void Document::processBaseElement() {
   }
 
   if (!baseElementURL.isEmpty()) {
-    if (baseElementURL.protocolIsData())
+    if (baseElementURL.protocolIsData()) {
       UseCounter::count(*this, UseCounter::BaseWithDataHref);
+      addConsoleMessage(ConsoleMessage::create(
+          SecurityMessageSource, ErrorMessageLevel,
+          "'data:' URLs may not be used as base URLs for a document."));
+    }
     if (!this->getSecurityOrigin()->canRequest(baseElementURL))
       UseCounter::count(*this, UseCounter::BaseWithCrossOriginHref);
   }
 
-  if (m_baseElementURL != baseElementURL &&
+  if (baseElementURL != m_baseElementURL && !baseElementURL.protocolIsData() &&
       contentSecurityPolicy()->allowBaseURI(baseElementURL)) {
     m_baseElementURL = baseElementURL;
     updateBaseURL();
@@ -3688,7 +3707,7 @@ bool Document::canAcceptChild(const Node& newChild,
   return true;
 }
 
-Node* Document::cloneNode(bool deep) {
+Node* Document::cloneNode(bool deep, ExceptionState&) {
   Document* clone = cloneDocumentWithoutChildren();
   clone->cloneDataFromDocument(*this);
   if (deep)
@@ -4163,10 +4182,10 @@ void Document::registerNodeList(const LiveNodeListBase* list) {
 
 void Document::unregisterNodeList(const LiveNodeListBase* list) {
   DCHECK(m_nodeLists[list->invalidationType()].contains(list));
-  m_nodeLists[list->invalidationType()].remove(list);
+  m_nodeLists[list->invalidationType()].erase(list);
   if (list->isRootedAtTreeScope()) {
     DCHECK(m_listsInvalidatedAtDocument.contains(list));
-    m_listsInvalidatedAtDocument.remove(list);
+    m_listsInvalidatedAtDocument.erase(list);
   }
 }
 
@@ -4178,7 +4197,7 @@ void Document::registerNodeListWithIdNameCache(const LiveNodeListBase* list) {
 
 void Document::unregisterNodeListWithIdNameCache(const LiveNodeListBase* list) {
   DCHECK(m_nodeLists[InvalidateOnIdNameAttrChange].contains(list));
-  m_nodeLists[InvalidateOnIdNameAttrChange].remove(list);
+  m_nodeLists[InvalidateOnIdNameAttrChange].erase(list);
 }
 
 void Document::attachNodeIterator(NodeIterator* ni) {
@@ -4188,7 +4207,7 @@ void Document::attachNodeIterator(NodeIterator* ni) {
 void Document::detachNodeIterator(NodeIterator* ni) {
   // The node iterator can be detached without having been attached if its root
   // node didn't have a document when the iterator was created, but has it now.
-  m_nodeIterators.remove(ni);
+  m_nodeIterators.erase(ni);
 }
 
 void Document::moveNodeIteratorsToNewDocument(Node& node,
@@ -4244,11 +4263,6 @@ void Document::nodeWillBeRemoved(Node& n) {
 
   if (n.inActiveDocument() && n.isElementNode())
     styleEngine().elementWillBeRemoved(toElement(n));
-}
-
-void Document::dataWillChange(const CharacterData& characterData) {
-  if (LocalFrame* frame = this->frame())
-    frame->selection().dataWillChange(characterData);
 }
 
 void Document::didInsertText(Node* text, unsigned offset, unsigned length) {
@@ -4645,9 +4659,14 @@ void Document::setDomain(const String& rawDomain,
     return;
   }
 
-  getSecurityOrigin()->setDomainFromDOM(newDomain);
-  if (m_frame)
+  if (m_frame) {
+    bool wasCrossDomain = m_frame->isCrossOriginSubframe();
+    getSecurityOrigin()->setDomainFromDOM(newDomain);
+    if (view() && (wasCrossDomain != m_frame->isCrossOriginSubframe()))
+      view()->crossOriginStatusChanged();
+
     m_frame->script().updateSecurityOrigin(getSecurityOrigin());
+  }
 }
 
 // http://www.whatwg.org/specs/web-apps/current-work/#dom-document-lastmodified
@@ -4659,9 +4678,12 @@ String Document::lastModified() const {
       const AtomicString& httpLastModified =
           documentLoader->response().httpHeaderField(HTTPNames::Last_Modified);
       if (!httpLastModified.isEmpty()) {
-        date.setMillisecondsSinceEpochForDateTime(
-            convertToLocalTime(parseDate(httpLastModified)));
-        foundDate = true;
+        double dateValue = parseDate(httpLastModified);
+        if (!std::isnan(dateValue)) {
+          date.setMillisecondsSinceEpochForDateTime(
+              convertToLocalTime(dateValue));
+          foundDate = true;
+        }
       }
     }
   }
@@ -5665,7 +5687,7 @@ void Document::attachRange(Range* range) {
 void Document::detachRange(Range* range) {
   // We don't ASSERT m_ranges.contains(range) to allow us to call this
   // unconditionally to fix: https://bugs.webkit.org/show_bug.cgi?id=26044
-  m_ranges.remove(range);
+  m_ranges.erase(range);
 }
 
 void Document::initDNSPrefetch() {
@@ -5720,10 +5742,12 @@ static void runAddConsoleMessageTask(MessageSource source,
 
 void Document::addConsoleMessage(ConsoleMessage* consoleMessage) {
   if (!isContextThread()) {
-    postTask(TaskType::Unthrottled, BLINK_FROM_HERE,
-             createCrossThreadTask(
-                 &runAddConsoleMessageTask, consoleMessage->source(),
-                 consoleMessage->level(), consoleMessage->message()));
+    TaskRunnerHelper::get(TaskType::Unthrottled, this)
+        ->postTask(
+            BLINK_FROM_HERE,
+            crossThreadBind(&runAddConsoleMessageTask, consoleMessage->source(),
+                            consoleMessage->level(), consoleMessage->message(),
+                            wrapCrossThreadPersistent(this)));
     return;
   }
 
@@ -6242,7 +6266,7 @@ Locale& Document::getCachedLocale(const AtomicString& locale) {
       !RuntimeEnabledFeatures::langAttributeAwareFormControlUIEnabled())
     return Locale::defaultLocale();
   LocaleIdentifierToLocaleMap::AddResult result =
-      m_localeCache.add(localeKey, nullptr);
+      m_localeCache.insert(localeKey, nullptr);
   if (result.isNewEntry)
     result.storedValue->value = Locale::create(localeKey);
   return *(result.storedValue->value);
@@ -6310,8 +6334,9 @@ void Document::setAutofocusElement(Element* element) {
   m_hasAutofocused = true;
   DCHECK(!m_autofocusElement);
   m_autofocusElement = element;
-  postTask(TaskType::UserInteraction, BLINK_FROM_HERE,
-           createSameThreadTask(&runAutofocusTask));
+  TaskRunnerHelper::get(TaskType::UserInteraction, this)
+      ->postTask(BLINK_FROM_HERE,
+                 WTF::bind(&runAutofocusTask, wrapWeakPersistent(this)));
 }
 
 Element* Document::activeElement() const {

@@ -5,6 +5,7 @@
 #include "ash/common/test/test_shelf_item_delegate.h"
 
 #include "ash/common/wm_window.h"
+#include "ash/wm/window_util.h"
 
 namespace ash {
 namespace test {
@@ -14,21 +15,23 @@ TestShelfItemDelegate::TestShelfItemDelegate(WmWindow* window)
 
 TestShelfItemDelegate::~TestShelfItemDelegate() {}
 
-ShelfItemDelegate::PerformedAction TestShelfItemDelegate::ItemSelected(
-    const ui::Event& event) {
+ShelfAction TestShelfItemDelegate::ItemSelected(ui::EventType event_type,
+                                                int event_flags,
+                                                int64_t display_id,
+                                                ShelfLaunchSource source) {
   if (window_) {
     if (window_->GetType() == ui::wm::WINDOW_TYPE_PANEL)
-      window_->MoveToEventRoot(event);
+      wm::MoveWindowToDisplay(window_->aura_window(), display_id);
     window_->Show();
     window_->Activate();
-    return kExistingWindowActivated;
+    return SHELF_ACTION_WINDOW_ACTIVATED;
   }
-  return kNoAction;
+  return SHELF_ACTION_NONE;
 }
 
-ui::SimpleMenuModel* TestShelfItemDelegate::CreateApplicationMenu(
-    int event_flags) {
-  return nullptr;
+ShelfAppMenuItemList TestShelfItemDelegate::GetAppMenuItems(int event_flags) {
+  // Return an empty item list to avoid showing an application menu.
+  return ShelfAppMenuItemList();
 }
 
 void TestShelfItemDelegate::Close() {}

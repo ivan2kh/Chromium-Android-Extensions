@@ -134,9 +134,6 @@ cc::LayerSelection ConvertWebSelection(const WebSelection& web_selection) {
   cc::LayerSelection cc_selection;
   cc_selection.start = ConvertWebSelectionBound(web_selection, true);
   cc_selection.end = ConvertWebSelectionBound(web_selection, false);
-  cc_selection.is_editable = web_selection.isEditable();
-  cc_selection.is_empty_text_form_control =
-      web_selection.isEmptyTextFormControl();
   return cc_selection;
 }
 
@@ -313,8 +310,6 @@ cc::LayerTreeSettings RenderWidgetCompositor::GenerateLayerTreeSettings(
       compositor_deps->GetGpuRasterizationMSAASampleCount();
   settings.gpu_rasterization_forced =
       compositor_deps->IsGpuRasterizationForced();
-  settings.gpu_rasterization_enabled =
-      compositor_deps->IsGpuRasterizationEnabled();
   settings.async_worker_context_enabled =
       compositor_deps->IsAsyncWorkerContextEnabled();
 
@@ -381,10 +376,6 @@ cc::LayerTreeSettings RenderWidgetCompositor::GenerateLayerTreeSettings(
   bool using_synchronous_compositor =
       GetContentClient()->UsingSynchronousCompositing();
 
-  // We can't use GPU rasterization on low-end devices, because the Ganesh
-  // cache would consume too much memory.
-  if (base::SysInfo::IsLowEndDevice())
-    settings.gpu_rasterization_enabled = false;
   settings.using_synchronous_renderer_compositor = using_synchronous_compositor;
   if (using_synchronous_compositor) {
     // Android WebView uses system scrollbars, so make ours invisible.
@@ -394,7 +385,7 @@ cc::LayerTreeSettings RenderWidgetCompositor::GenerateLayerTreeSettings(
     settings.scrollbar_animator = cc::LayerTreeSettings::NO_ANIMATOR;
     settings.solid_color_scrollbar_color = SK_ColorTRANSPARENT;
   } else {
-    settings.scrollbar_animator = cc::LayerTreeSettings::LINEAR_FADE;
+    settings.scrollbar_animator = cc::LayerTreeSettings::ANDROID_OVERLAY;
     settings.scrollbar_fade_delay = base::TimeDelta::FromMilliseconds(300);
     settings.scrollbar_fade_resize_delay =
         base::TimeDelta::FromMilliseconds(2000);
@@ -433,7 +424,7 @@ cc::LayerTreeSettings RenderWidgetCompositor::GenerateLayerTreeSettings(
 #else  // defined(OS_ANDROID)
 #if !defined(OS_MACOSX)
   if (ui::IsOverlayScrollbarEnabled()) {
-    settings.scrollbar_animator = cc::LayerTreeSettings::THINNING;
+    settings.scrollbar_animator = cc::LayerTreeSettings::AURA_OVERLAY;
     settings.scrollbar_fade_delay = ui::kOverlayScrollbarFadeOutDelay;
     settings.scrollbar_fade_resize_delay =
         ui::kOverlayScrollbarFadeOutDelay;
@@ -444,7 +435,7 @@ cc::LayerTreeSettings RenderWidgetCompositor::GenerateLayerTreeSettings(
   } else {
     // TODO(bokan): This section is probably unneeded? We don't use scrollbar
     // animations for non overlay scrollbars.
-    settings.scrollbar_animator = cc::LayerTreeSettings::LINEAR_FADE;
+    settings.scrollbar_animator = cc::LayerTreeSettings::ANDROID_OVERLAY;
     settings.solid_color_scrollbar_color = SkColorSetARGB(128, 128, 128, 128);
     settings.scrollbar_fade_delay = base::TimeDelta::FromMilliseconds(500);
     settings.scrollbar_fade_resize_delay =
@@ -1111,10 +1102,7 @@ void RenderWidgetCompositor::RequestScheduleAnimation() {
 
 void RenderWidgetCompositor::DidSubmitCompositorFrame() {}
 
-void RenderWidgetCompositor::DidLoseCompositorFrameSink() {
-  // The CompositorFrameSink is not lost in layout tests (single thread mode).
-  NOTREACHED();
-}
+void RenderWidgetCompositor::DidLoseCompositorFrameSink() {}
 
 void RenderWidgetCompositor::SetFrameSinkId(
     const cc::FrameSinkId& frame_sink_id) {

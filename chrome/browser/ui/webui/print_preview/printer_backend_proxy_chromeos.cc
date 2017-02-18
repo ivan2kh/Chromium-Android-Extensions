@@ -11,12 +11,13 @@
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/values.h"
 #include "chrome/browser/chromeos/printing/cups_print_job_manager.h"
 #include "chrome/browser/chromeos/printing/cups_print_job_manager_factory.h"
 #include "chrome/browser/chromeos/printing/ppd_provider_factory.h"
-#include "chrome/browser/chromeos/printing/printer_pref_manager.h"
-#include "chrome/browser/chromeos/printing/printer_pref_manager_factory.h"
+#include "chrome/browser/chromeos/printing/printers_manager.h"
+#include "chrome/browser/chromeos/printing/printers_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/print_preview/printer_capabilities.h"
 #include "chrome/common/chrome_switches.h"
@@ -160,7 +161,7 @@ void PPDResolve(std::unique_ptr<chromeos::Printer> printer,
 class PrinterBackendProxyChromeos : public PrinterBackendProxy {
  public:
   explicit PrinterBackendProxyChromeos(Profile* profile) {
-    prefs_ = chromeos::PrinterPrefManagerFactory::GetForBrowserContext(profile);
+    prefs_ = chromeos::PrintersManagerFactory::GetForBrowserContext(profile);
     ppd_provider_ = chromeos::printing::CreateProvider(profile);
 
     // Construct the CupsPrintJobManager to listen for printing events.
@@ -180,7 +181,7 @@ class PrinterBackendProxyChromeos : public PrinterBackendProxy {
   };
 
   void EnumeratePrinters(const EnumeratePrintersCallback& cb) override {
-    // PrinterPrefManager is not thread safe and must be called from the UI
+    // PrintersManager is not thread safe and must be called from the UI
     // thread.
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
@@ -222,7 +223,7 @@ class PrinterBackendProxyChromeos : public PrinterBackendProxy {
   };
 
  private:
-  chromeos::PrinterPrefManager* prefs_;
+  chromeos::PrintersManager* prefs_;
   scoped_refptr<chromeos::printing::PpdProvider> ppd_provider_;
 
   DISALLOW_COPY_AND_ASSIGN(PrinterBackendProxyChromeos);

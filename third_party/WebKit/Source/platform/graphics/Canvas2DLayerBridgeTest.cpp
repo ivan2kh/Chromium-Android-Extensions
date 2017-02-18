@@ -214,20 +214,20 @@ class Canvas2DLayerBridgeTest : public Test {
         Canvas2DLayerBridge::ForceAccelerationForTesting,
         gfx::ColorSpace::CreateSRGB(), false, kN32_SkColorType)));
     EXPECT_TRUE(bridge->checkSurfaceValid());
-    PaintFlags paint;
+    PaintFlags flags;
     uint32_t genID = bridge->getOrCreateSurface()->generationID();
-    bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), paint);
+    bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), flags);
     EXPECT_EQ(genID, bridge->getOrCreateSurface()->generationID());
     gl.setIsContextLost(true);
     EXPECT_EQ(genID, bridge->getOrCreateSurface()->generationID());
-    bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), paint);
+    bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), flags);
     EXPECT_EQ(genID, bridge->getOrCreateSurface()->generationID());
     // This results in the internal surface being torn down in response to the
     // context loss.
     EXPECT_FALSE(bridge->checkSurfaceValid());
     EXPECT_EQ(nullptr, bridge->getOrCreateSurface());
     // The following passes by not crashing
-    bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), paint);
+    bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), flags);
     bridge->flush();
   }
 
@@ -240,9 +240,7 @@ class Canvas2DLayerBridgeTest : public Test {
         Canvas2DLayerBridge::ForceAccelerationForTesting,
         gfx::ColorSpace::CreateSRGB(), false, kN32_SkColorType)));
 
-    // TODO(junov): The PrepareTextureMailbox() method will fail a DCHECK if we
-    // don't do this before calling it the first time when the context is lost.
-    bridge->prepareSurfaceForPaintingIfNeeded();
+    EXPECT_TRUE(bridge->isAccelerated());
 
     // When the context is lost we are not sure if we should still be producing
     // GL frames for the compositor or not, so fail to generate frames.
@@ -263,10 +261,8 @@ class Canvas2DLayerBridgeTest : public Test {
         Canvas2DLayerBridge::ForceAccelerationForTesting,
         gfx::ColorSpace::CreateSRGB(), false, kN32_SkColorType)));
 
-    // TODO(junov): The PrepareTextureMailbox() method will fail a DCHECK if we
-    // don't do this before calling it the first time when the context is lost.
-    bridge->prepareSurfaceForPaintingIfNeeded();
-
+    bridge->getOrCreateSurface();
+    EXPECT_TRUE(bridge->checkSurfaceValid());
     // When the context is lost we are not sure if we should still be producing
     // GL frames for the compositor or not, so fail to generate frames.
     gl.setIsContextLost(true);
@@ -342,8 +338,8 @@ class Canvas2DLayerBridgeTest : public Test {
           std::move(contextProvider), IntSize(300, 300), 0, NonOpaque,
           Canvas2DLayerBridge::EnableAcceleration,
           gfx::ColorSpace::CreateSRGB(), false, kN32_SkColorType)));
-      PaintFlags paint;
-      bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), paint);
+      PaintFlags flags;
+      bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), flags);
       sk_sp<SkImage> image =
           bridge->newImageSnapshot(PreferAcceleration, SnapshotReasonUnitTests);
       EXPECT_TRUE(bridge->checkSurfaceValid());
@@ -358,8 +354,8 @@ class Canvas2DLayerBridgeTest : public Test {
           std::move(contextProvider), IntSize(300, 300), 0, NonOpaque,
           Canvas2DLayerBridge::EnableAcceleration,
           gfx::ColorSpace::CreateSRGB(), false, kN32_SkColorType)));
-      PaintFlags paint;
-      bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), paint);
+      PaintFlags flags;
+      bridge->canvas()->drawRect(SkRect::MakeXYWH(0, 0, 1, 1), flags);
       sk_sp<SkImage> image = bridge->newImageSnapshot(PreferNoAcceleration,
                                                       SnapshotReasonUnitTests);
       EXPECT_TRUE(bridge->checkSurfaceValid());
@@ -420,7 +416,7 @@ void runCreateBridgeTask(Canvas2DLayerBridgePtr* bridgePtr,
                            Canvas2DLayerBridge::EnableAcceleration);
   // draw+flush to trigger the creation of a GPU surface
   (*bridgePtr)->didDraw(FloatRect(0, 0, 1, 1));
-  (*bridgePtr)->finalizeFrame(FloatRect(0, 0, 1, 1));
+  (*bridgePtr)->finalizeFrame();
   (*bridgePtr)->flush();
   doneEvent->signal();
 }
@@ -679,7 +675,7 @@ TEST_F(Canvas2DLayerBridgeTest,
 
 void runRenderingTask(Canvas2DLayerBridge* bridge, WaitableEvent* doneEvent) {
   bridge->didDraw(FloatRect(0, 0, 1, 1));
-  bridge->finalizeFrame(FloatRect(0, 0, 1, 1));
+  bridge->finalizeFrame();
   bridge->flush();
   doneEvent->signal();
 }

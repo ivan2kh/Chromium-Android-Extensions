@@ -995,8 +995,6 @@ CORE_EXPORT v8::Local<v8::Context> toV8ContextEvenIfDetached(Frame*,
 // a context, if the window is currently being displayed in a Frame.
 CORE_EXPORT Frame* toFrameIfNotDetached(v8::Local<v8::Context>);
 
-CORE_EXPORT EventTarget* toEventTarget(v8::Isolate*, v8::Local<v8::Value>);
-
 // If 'storage' is non-null, it must be large enough to copy all bytes in the
 // array buffer view into it.  Use allocateFlexibleArrayBufferStorage(v8Value)
 // to allocate it using alloca() in the callers stack frame.
@@ -1132,29 +1130,6 @@ CORE_EXPORT void moveEventListenerToNewWrapper(v8::Isolate*,
 // Result values for platform object 'deleter' methods,
 // http://www.w3.org/TR/WebIDL/#delete
 enum DeleteResult { DeleteSuccess, DeleteReject, DeleteUnknownProperty };
-
-class V8IsolateInterruptor final : public BlinkGCInterruptor {
- public:
-  explicit V8IsolateInterruptor(v8::Isolate* isolate) : m_isolate(isolate) {}
-
-  static void onInterruptCallback(v8::Isolate* isolate, void* data) {
-    V8IsolateInterruptor* interruptor =
-        reinterpret_cast<V8IsolateInterruptor*>(data);
-    interruptor->onInterrupted();
-  }
-
-  void requestInterrupt() override {
-    m_isolate->RequestInterrupt(&onInterruptCallback, this);
-  }
-
- private:
-  v8::Isolate* m_isolate;
-};
-
-typedef void (*InstallTemplateFunction)(
-    v8::Isolate*,
-    const DOMWrapperWorld&,
-    v8::Local<v8::FunctionTemplate> interfaceTemplate);
 
 // Freeze a V8 object. The type of the first parameter and the return value is
 // intentionally v8::Value so that this function can wrap ToV8().

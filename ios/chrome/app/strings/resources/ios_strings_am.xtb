@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">ሁሉንም ክፈት</translation>
 <translation id="1430915738399379752">አትም</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> ንጥሎች</translation>
+<translation id="1491277525950327607">ቅንብርን ለመቀያየር ሁለቴ መታ ያድርጉ</translation>
 <translation id="1540800554400757039">አድራሻ 1</translation>
 <translation id="1545749641540134597">የኪውአር ኮድ ይቃኙ</translation>
 <translation id="1580783302095112590">መልዕክት ተልኳል።</translation>
@@ -65,7 +66,6 @@
 <translation id="2068952045031577364">ያለፈው ሳምንት</translation>
 <translation id="2079545284768500474">ቀልብስ</translation>
 <translation id="209018056901015185">የዴስክቶፕ ጣቢያን ጠይቅ</translation>
-<translation id="2100215774115172756">የንባብ ዝርዝርዎ ከመስመር ውጭ ይገኛል።</translation>
 <translation id="2103075008456228677">history.google.comን ክፈት</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> ንጥሎች ተንቀሳቅሰዋል</translation>
 <translation id="2149973817440762519">እልባት አርትዕ</translation>
@@ -120,7 +120,6 @@
 <translation id="3175081911749765310">የድር አገልግሎቶች</translation>
 <translation id="3207960819495026254">ዕልባት ተደርጎበታል</translation>
 <translation id="3210163015918861891">አመሳስል ጠፍቷል</translation>
-<translation id="3237561509210981547">አንድ ገጽ ወደ የንባብ ዝርዝርዎ ለማከል <ph name="BEGIN_BOLD_FONT" />አጋራ &gt; በኋላ አንብብ<ph name="END_BOLD_FONT" />ን መታ ያድርጉ።</translation>
 <translation id="3240426699337459095">አገናኝ ተቀድቷል</translation>
 <translation id="3244271242291266297">ወወ</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />፣ <ph name="ADDITIONAL_INFO" />፣ <ph name="INDEX" /> ከ<ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@
 <translation id="3414292259312108062">Chrome ይህንን በእርስዎ በ<ph name="BEGIN_LINK" />Google የተቀመጡ የይለፍ ቃሎች<ph name="END_LINK" /> ያከማቸው እና እራስዎ ማስታወስ እንዳያስፈልግዎት በራስ-ሰር ይሞላልዎታል።</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> ደቂቃዎች</translation>
 <translation id="3448016392200048164">የተከፈለ ዕይታ</translation>
-<translation id="3474068797193663261">አንድ ገጽ ወደ የንባብ ዝርዝርዎ ለማከል <ph name="BEGIN_BOLD_FONT" />ምናሌ &gt; አጋራ &gt; በኋላ አንብብ<ph name="END_BOLD_FONT" />ን መታ ያድርጉ።</translation>
 <translation id="3474649192738347024">ቅጾች ተሞልተዋል።</translation>
 <translation id="3478058380795961209">ጊዜው የሚያልፍበት ወር</translation>
 <translation id="3482959374254649722">የእርስዎን ትሮች በማሰመር ላይ...</translation>
@@ -171,6 +169,7 @@
 <translation id="4121993058175073134">የተጣራ-ወደ-ውጭ-የሚላክ ውሂብ ለመላክ እባክዎ የኢሜይል መለያዎን በቅንብሮች መተግበሪያው ውስጥ ያዋቅሩ።</translation>
 <translation id="4124987746317609294">የጊዜ ወሰን</translation>
 <translation id="4172051516777682613">ሁልጊዜ አሳይ</translation>
+<translation id="418156467088430727">የመስመር ውጭ ስሪቱን በአዲስ ትር ውስጥ ይመልከቱ</translation>
 <translation id="424315890655130736">የይለፍ ሐረግ ያስገቡ</translation>
 <translation id="4272631900155121838">የQR ኮድን ለመቃኘት፣ ካሜራውን በቅንብሮች ውስጥ ያንቁ</translation>
 <translation id="4281844954008187215">የአግልግሎት ውል</translation>
@@ -178,7 +177,6 @@
 <translation id="4359125752503270327">ይህ ገጽ በሌላ መተግበሪያ ውስጥ ይከፈታል።</translation>
 <translation id="4378154925671717803">ስልክ</translation>
 <translation id="441868831736628555">የግላዊነት ማሳወቂያ</translation>
-<translation id="4426508677408162512">ሁሉም ዕልባቶች</translation>
 <translation id="4473991315115669931">ማንነት ወደ ማያሳውቅ ሁነታ ግባ</translation>
 <translation id="4526249700380860531"><ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /> ላይ የተቀመጡ የይለፍ ቃሎችን ይመልከቱ እና ያስተዳድሩ</translation>
 <translation id="4536418791685807335">እንደገና ወደ መለያ ለመግባት ይሞክሩ።</translation>
@@ -218,6 +216,7 @@
 <translation id="5300589172476337783">አሳይ</translation>
 <translation id="5317780077021120954">አስቀምጥ</translation>
 <translation id="5327248766486351172">ስም</translation>
+<translation id="5332219387342487447">የመላኪያ መንገድ</translation>
 <translation id="5388358297987318779">ምስል ክፈት</translation>
 <translation id="5409365236829784218">ይህን ፋይል መክፈት የሚችሉ መተግበሪያዎች አልተጫኑም።</translation>
 <translation id="54401264925851789">የገጽ ደህንነት መረጃ</translation>
@@ -256,6 +255,7 @@ Handoff እንዲሁም በSettings ውስጥ ባለው የGeneral ክፍል ላ
 <translation id="6042308850641462728">ተጨማሪ</translation>
 <translation id="605721222689873409">ዓዓ</translation>
 <translation id="6066301408025741299">ይቅር ለማለት መታ ያድርጉ።</translation>
+<translation id="60851516108411750">የንባብ ዝርዝርዎ ከመስመር ውጭ ይገኛል። ወደ የእርስዎ የንባብ ዝርዝር ገጽ ለማከል <ph name="SHARE_OPENING_ICON" />መታ ያድርጉ።</translation>
 <translation id="6122191549521593678">መስመር ላይ</translation>
 <translation id="6127379762771434464">ንጥል ተወግዷል</translation>
 <translation id="6136914049981179737">ከሰከንዶች በፊት</translation>
@@ -270,6 +270,7 @@ Handoff እንዲሁም በSettings ውስጥ ባለው የGeneral ክፍል ላ
 <translation id="6255097610484507482">ክሬዲት ካርድን አርትዕ</translation>
 <translation id="6308436439357671616">ይህ ፎቶዎችን እንዲያነሱ እና እንዲሰቅሉ ያስችልዎታል።</translation>
 <translation id="6314335155547195432">የይለፍ ቃል አፍልቅ</translation>
+<translation id="6324528485781869530">የማመሳስል መቀየሪያ መለያ</translation>
 <translation id="6324669097367352121">የመግቢያ ቅንብሮች</translation>
 <translation id="6337234675334993532">ምስጠራ</translation>
 <translation id="633809752005859102">የሆነ ከበድ ያለ ችግር ተፈጥሯል። ችግሩን ለመቅረፍ እየሰራን ነው።</translation>

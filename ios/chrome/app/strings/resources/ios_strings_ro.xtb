@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Deschideți-le pe toate</translation>
 <translation id="1430915738399379752">Printează</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> elemente</translation>
+<translation id="1491277525950327607">Atinge de două ori ca să comuți setarea</translation>
 <translation id="1540800554400757039">Adresă 1</translation>
 <translation id="1545749641540134597">Scanează codul QR</translation>
 <translation id="1580783302095112590">E-mail trimis.</translation>
@@ -65,7 +66,6 @@ De exemplu, unele site-uri pot răspunde la această solicitare afișând anunț
 <translation id="2068952045031577364">Din ultima săptămână</translation>
 <translation id="2079545284768500474">Anulează</translation>
 <translation id="209018056901015185">Site desktop</translation>
-<translation id="2100215774115172756">Lista de lectură este disponibilă offline.</translation>
 <translation id="2103075008456228677">Deschide history.google.com</translation>
 <translation id="2116625576999540962">Elemente mutate: <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /></translation>
 <translation id="2149973817440762519">Editați marcajul</translation>
@@ -120,7 +120,6 @@ De exemplu, unele site-uri pot răspunde la această solicitare afișând anunț
 <translation id="3175081911749765310">Servicii web</translation>
 <translation id="3207960819495026254">Marcată</translation>
 <translation id="3210163015918861891">Sincronizarea este dezactivată</translation>
-<translation id="3237561509210981547">Pentru a adăuga o pagină în lista de lectură, atinge <ph name="BEGIN_BOLD_FONT" />Trimite &gt; Citește mai târziu<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Linkul a fost copiat</translation>
 <translation id="3244271242291266297">LL</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> din <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ De exemplu, unele site-uri pot răspunde la această solicitare afișând anunț
 <translation id="3414292259312108062">Chrome o va stoca în <ph name="BEGIN_LINK" />parolele Google salvate<ph name="END_LINK" /> și o va completa automat ca să nu mai fie nevoie să o ții minte.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min.</translation>
 <translation id="3448016392200048164">Vizualizare împărțită</translation>
-<translation id="3474068797193663261">Pentru a adăuga o pagină în lista de lectură, atinge <ph name="BEGIN_BOLD_FONT" />Meniu &gt; Trimite &gt; Citește mai târziu<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Formulare completate.</translation>
 <translation id="3478058380795961209">Lună expirare</translation>
 <translation id="3482959374254649722">Se sincronizează filele...</translation>
@@ -171,6 +169,7 @@ Pentru a ajusta termenii căutării, apasă lung pentru a selecta. Pentru a rafi
 <translation id="4121993058175073134">Pentru trimitere date de export în rețea, configurați e-mailul în Setări.</translation>
 <translation id="4124987746317609294">Interval de timp</translation>
 <translation id="4172051516777682613">Afișați întotdeauna</translation>
+<translation id="418156467088430727">Vezi versiunea offline într-o filă nouă</translation>
 <translation id="424315890655130736">Introdu expresia de acces</translation>
 <translation id="4272631900155121838">Pentru a scana un cod QR, activează camera foto din setări</translation>
 <translation id="4281844954008187215">Condiții de furnizare a serviciilor</translation>
@@ -178,7 +177,6 @@ Pentru a ajusta termenii căutării, apasă lung pentru a selecta. Pentru a rafi
 <translation id="4359125752503270327">Această pagină se va deschide în altă aplicație.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Notificare de confidențialitate</translation>
-<translation id="4426508677408162512">Toate marcajele</translation>
 <translation id="4473991315115669931">Treci în modul incognito</translation>
 <translation id="4526249700380860531">Vezi și gestionează parolele salvate la <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Încearcă să te conectezi din nou.</translation>
@@ -218,6 +216,7 @@ Datele sunt criptate cu expresia de acces pentru sincronizare. Introdu-o pentru 
 <translation id="5300589172476337783">Afișează</translation>
 <translation id="5317780077021120954">Salvează</translation>
 <translation id="5327248766486351172">Nume</translation>
+<translation id="5332219387342487447">Metoda de expediere</translation>
 <translation id="5388358297987318779">Deschide imaginea</translation>
 <translation id="5409365236829784218">Nicio aplicație instalată nu poate deschide fișierul.</translation>
 <translation id="54401264925851789">Informații privind securitatea paginii</translation>
@@ -270,6 +269,7 @@ Trebuie să activezi Handoff în secțiunea General din Setări, iar dispozitive
 <translation id="6255097610484507482">Editați cardul de credit</translation>
 <translation id="6308436439357671616">Astfel, poți să fotografiezi și să încarci fotografiile.</translation>
 <translation id="6314335155547195432">Generează o parolă</translation>
+<translation id="6324528485781869530">Schimbă contul de sincronizare</translation>
 <translation id="6324669097367352121">Setări de conectare</translation>
 <translation id="6337234675334993532">Criptare</translation>
 <translation id="633809752005859102">A apărut o eroare. Ne vom ocupa de asta.</translation>

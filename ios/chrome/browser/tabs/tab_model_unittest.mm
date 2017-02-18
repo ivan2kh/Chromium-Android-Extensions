@@ -13,6 +13,7 @@
 #include "ios/chrome/browser/browser_state/test_chrome_browser_state_manager.h"
 #include "ios/chrome/browser/chrome_url_constants.h"
 #include "ios/chrome/browser/infobars/infobar_manager_impl.h"
+#include "ios/chrome/browser/sessions/ios_chrome_session_tab_helper.h"
 #import "ios/chrome/browser/sessions/session_window.h"
 #import "ios/chrome/browser/sessions/test_session_service.h"
 #import "ios/chrome/browser/tabs/tab.h"
@@ -64,29 +65,26 @@ using web::WebStateImpl;
               lastVisitedTimestamp:(double)lastVisitedTimestamp
                       browserState:(ios::ChromeBrowserState*)browserState
                           tabModel:(TabModel*)tabModel {
-  self = [super initWithWindowName:windowName
-                            opener:nil
-                       openedByDOM:NO
-                             model:tabModel
-                      browserState:browserState];
-  if (self) {
-    id webControllerMock =
-        [OCMockObject niceMockForClass:[CRWWebController class]];
+  id webControllerMock =
+      [OCMockObject niceMockForClass:[CRWWebController class]];
 
-    auto webStateImpl = base::MakeUnique<WebStateImpl>(browserState);
-    webStateImpl->SetWebController(webControllerMock);
-    webStateImpl->GetNavigationManagerImpl().InitializeSession(
-        windowName, @"opener", NO, -1);
-    [webStateImpl->GetNavigationManagerImpl().GetSessionController()
-        setLastVisitedTimestamp:lastVisitedTimestamp];
+  auto webStateImpl = base::MakeUnique<WebStateImpl>(browserState);
+  webStateImpl->SetWebController(webControllerMock);
+  webStateImpl->GetNavigationManagerImpl().InitializeSession(windowName,
+                                                             @"opener", NO, -1);
+  [webStateImpl->GetNavigationManagerImpl().GetSessionController()
+      setLastVisitedTimestamp:lastVisitedTimestamp];
 
-    WebStateImpl* webStateImplPtr = webStateImpl.get();
-    [[[webControllerMock stub] andReturnValue:OCMOCK_VALUE(webStateImplPtr)]
-        webStateImpl];
-    BOOL yes = YES;
-    [[[webControllerMock stub] andReturnValue:OCMOCK_VALUE(yes)] isViewAlive];
+  WebStateImpl* webStateImplPtr = webStateImpl.get();
+  [[[webControllerMock stub] andReturnValue:OCMOCK_VALUE(webStateImplPtr)]
+      webStateImpl];
+  BOOL yes = YES;
+  [[[webControllerMock stub] andReturnValue:OCMOCK_VALUE(yes)] isViewAlive];
 
-    [self replaceWebState:std::move(webStateImpl)];
+  if ((self = [super initWithWebState:std::move(webStateImpl)
+                                model:tabModel
+                     attachTabHelpers:NO])) {
+    IOSChromeSessionTabHelper::CreateForWebState(self.webState);
   }
   return self;
 }
@@ -159,14 +157,6 @@ class TabModelTest : public PlatformTest {
   }
 
  protected:
-  Tab* CreateTab(NSString* windowName,
-                 double lastVisitedTimestamp) NS_RETURNS_RETAINED {
-    return [[TabTest alloc] initWithWindowName:windowName
-                          lastVisitedTimestamp:lastVisitedTimestamp
-                                  browserState:chrome_browser_state_.get()
-                                      tabModel:tab_model_.get()];
-  }
-
   std::unique_ptr<WebStateImpl> CreateWebState(NSString* windowName,
                                                NSString* opener,
                                                NSInteger index) {
@@ -193,8 +183,8 @@ class TabModelTest : public PlatformTest {
     SessionWindowIOS* window = [[SessionWindowIOS alloc] init];
     for (int i = 0; i < entries; i++) {
       NSString* windowName = [NSString stringWithFormat:@"window %d", i + 1];
-      [window addSerializedSession:CreateWebState(windowName)
-                                       ->BuildSerializedNavigationManager()];
+      [window addSerializedSessionStorage:CreateWebState(windowName)
+                                              ->BuildSessionStorage()];
     }
     if (entries)
       [window setSelectedIndex:1];
@@ -206,9 +196,9 @@ class TabModelTest : public PlatformTest {
   web::ScopedTestingWebClient web_client_;
   base::scoped_nsobject<SessionWindowIOS> session_window_;
   std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
+  base::mac::ScopedNSAutoreleasePool pool_;
   base::scoped_nsobject<TabModel> tab_model_;
   base::scoped_nsobject<TabModelObserverPong> tab_model_observer_;
-  base::mac::ScopedNSAutoreleasePool pool_;
 };
 
 TEST_F(TabModelTest, IsEmpty) {
@@ -466,7 +456,6 @@ TEST_F(TabModelTest, OpenersEmptyModel) {
   EXPECT_TRUE([tab_model_ isEmpty]);
   EXPECT_FALSE([tab_model_ nextTabWithOpener:nil afterTab:nil]);
   EXPECT_FALSE([tab_model_ lastTabWithOpener:nil]);
-  EXPECT_FALSE([tab_model_ firstTabWithOpener:nil]);
 }
 
 TEST_F(TabModelTest, OpenersNothingOpenedGeneral) {
@@ -483,14 +472,12 @@ TEST_F(TabModelTest, OpenersNothingOpenedGeneral) {
   // All should fail since this hasn't opened anything else.
   EXPECT_FALSE([tab_model_ nextTabWithOpener:tab afterTab:nil]);
   EXPECT_FALSE([tab_model_ lastTabWithOpener:tab]);
-  EXPECT_FALSE([tab_model_ firstTabWithOpener:tab]);
 
   // Add more items to the tab, expect the same results.
   [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
   [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
   EXPECT_FALSE([tab_model_ nextTabWithOpener:tab afterTab:nil]);
   EXPECT_FALSE([tab_model_ lastTabWithOpener:tab]);
-  EXPECT_FALSE([tab_model_ firstTabWithOpener:tab]);
 }
 
 TEST_F(TabModelTest, OpenersNothingOpenedFirst) {
@@ -504,7 +491,6 @@ TEST_F(TabModelTest, OpenersNothingOpenedFirst) {
   // All should fail since this hasn't opened anything else.
   EXPECT_FALSE([tab_model_ nextTabWithOpener:tab afterTab:nil]);
   EXPECT_FALSE([tab_model_ lastTabWithOpener:tab]);
-  EXPECT_FALSE([tab_model_ firstTabWithOpener:tab]);
 }
 
 TEST_F(TabModelTest, OpenersNothingOpenedLast) {
@@ -517,16 +503,13 @@ TEST_F(TabModelTest, OpenersNothingOpenedLast) {
   // All should fail since this hasn't opened anything else.
   EXPECT_FALSE([tab_model_ nextTabWithOpener:tab afterTab:nil]);
   EXPECT_FALSE([tab_model_ lastTabWithOpener:tab]);
-  EXPECT_FALSE([tab_model_ firstTabWithOpener:tab]);
 }
 
 TEST_F(TabModelTest, OpenersChildTabBeforeOpener) {
   Tab* parent_tab = [tab_model_ insertTabWithWebState:CreateWebState(@"window")
                                               atIndex:[tab_model_ count]];
   // Insert child at start
-  Tab* child_tab =
-      [tab_model_ insertTabWithWebState:CreateChildWebState(parent_tab)
-                                atIndex:0];
+  [tab_model_ insertTabWithWebState:CreateChildWebState(parent_tab) atIndex:0];
 
   // Insert a few more between them.
   [tab_model_ insertTabWithWebState:CreateWebState(@"window") atIndex:1];
@@ -534,7 +517,6 @@ TEST_F(TabModelTest, OpenersChildTabBeforeOpener) {
 
   EXPECT_FALSE([tab_model_ nextTabWithOpener:parent_tab afterTab:nil]);
   EXPECT_FALSE([tab_model_ lastTabWithOpener:parent_tab]);
-  EXPECT_EQ([tab_model_ firstTabWithOpener:parent_tab], child_tab);
 }
 
 TEST_F(TabModelTest, OpenersChildTabAfterOpener) {
@@ -555,7 +537,6 @@ TEST_F(TabModelTest, OpenersChildTabAfterOpener) {
   EXPECT_EQ([tab_model_ nextTabWithOpener:parent_tab afterTab:child_tab1],
             child_tab2);
   EXPECT_EQ([tab_model_ lastTabWithOpener:parent_tab], child_tab2);
-  EXPECT_FALSE([tab_model_ firstTabWithOpener:parent_tab]);
 }
 
 TEST_F(TabModelTest, AddWithOrderController) {
@@ -632,7 +613,7 @@ TEST_F(TabModelTest, AddWithOrderControllerAndGrouping) {
       [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
   // Force the history to update, as it is used to determine grouping.
   ASSERT_TRUE([parent navigationManager]);
-  [[parent navigationManager]->GetSessionController() commitPendingEntry];
+  [[parent navigationManager]->GetSessionController() commitPendingItem];
   [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
   [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
 
@@ -670,7 +651,7 @@ TEST_F(TabModelTest, AddWithOrderControllerAndGrouping) {
   parent_params.transition_type = ui::PAGE_TRANSITION_TYPED;
   [[parent webController] loadWithParams:parent_params];
   ASSERT_TRUE([parent navigationManager]);
-  [[parent navigationManager]->GetSessionController() commitPendingEntry];
+  [[parent navigationManager]->GetSessionController() commitPendingItem];
   EXPECT_EQ([tab_model_ indexOfTab:parent], 0U);
 
   // Add a new tab. It should be added behind the parent. It should not be added
@@ -715,7 +696,7 @@ TEST_F(TabModelTest, AddWithLinkTransitionAndIndex) {
       [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
   // Force the history to update, as it is used to determine grouping.
   ASSERT_TRUE([parent navigationManager]);
-  [[parent navigationManager]->GetSessionController() commitPendingEntry];
+  [[parent navigationManager]->GetSessionController() commitPendingItem];
   [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
   [tab_model_ addTabWithURL:kURL referrer:kEmptyReferrer windowName:nil];
 
@@ -840,6 +821,14 @@ TEST_F(TabModelTest, PersistSelectionChange) {
   TestChromeBrowserState::Builder test_cbs_builder;
   auto chrome_browser_state = test_cbs_builder.Build();
 
+  // Tabs register some observers with the ChromeBrowserState in an ObserverList
+  // that assert it is empty in its destructor. As Tab are Objective-C object,
+  // it is necessary to use a local pool to ensure all autoreleased object that
+  // may reference those Tabs are deallocated before the TestChromeBrowserState
+  // is destroyed (this cannot use the TabModelTest ScopedNSAutoreleasePool as
+  // it will be drained after the local variable chrome_browser_state).
+  base::mac::ScopedNSAutoreleasePool pool;
+
   NSString* stashPath =
       base::SysUTF8ToNSString(chrome_browser_state->GetStatePath().value());
 
@@ -861,6 +850,9 @@ TEST_F(TabModelTest, PersistSelectionChange) {
                                            toDirectory:stashPath];
   [model browserStateDestroyed];
   model.reset();
+
+  // Restoring TabModel session sends asynchronous tasks to IO thread, wait
+  // for them to complete after destroying the TabModel.
   base::RunLoop().RunUntilIdle();
 
   SessionWindowIOS* sessionWindow = [[SessionServiceIOS sharedService]
@@ -876,6 +868,11 @@ TEST_F(TabModelTest, PersistSelectionChange) {
                browserState:chrome_browser_state.get()]);
   EXPECT_EQ(model.get().currentTab, [model tabAtIndex:1]);
   [model browserStateDestroyed];
+  model.reset();
+
+  // Restoring TabModel session sends asynchronous tasks to IO thread, wait
+  // for them to complete after destroying the TabModel.
+  base::RunLoop().RunUntilIdle();
 
   // Clean up.
   EXPECT_TRUE([[NSFileManager defaultManager] removeItemAtPath:stashPath

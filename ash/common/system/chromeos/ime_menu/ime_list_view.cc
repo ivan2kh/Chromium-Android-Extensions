@@ -105,7 +105,8 @@ class ImeListItemView : public ActionableView {
     // |kMenuIconSize| is not enough. The label will trigger eliding as "I..."
     // or "...". So we shrink the font size until it fits within the bounds.
     int size_delta = -1;
-    while (id_label->GetPreferredSize().width() > kMenuIconSize &&
+    while ((id_label->GetPreferredSize().width() -
+            id_label->GetInsets().width()) > kMenuIconSize &&
            size_delta >= kMinFontSizeDelta) {
       id_label->SetFontList(base_font_list.DeriveWithSizeDelta(size_delta));
       --size_delta;
@@ -180,7 +181,7 @@ class MaterialKeyboardStatusRowView : public views::View {
 
   ~MaterialKeyboardStatusRowView() override {}
 
-  const views::Button* toggle() const { return toggle_; }
+  views::Button* toggle() const { return toggle_; }
   bool is_toggled() const { return toggle_->is_on(); }
 
  protected:
@@ -227,13 +228,16 @@ class MaterialKeyboardStatusRowView : public views::View {
   DISALLOW_COPY_AND_ASSIGN(MaterialKeyboardStatusRowView);
 };
 
-ImeListView::ImeListView(SystemTrayItem* owner,
-                         bool show_keyboard_toggle,
-                         SingleImeBehavior single_ime_behavior)
+ImeListView::ImeListView(SystemTrayItem* owner)
     : TrayDetailsView(owner),
       last_item_selected_with_keyboard_(false),
       should_focus_ime_after_selection_with_keyboard_(false),
-      current_ime_view_(nullptr) {
+      current_ime_view_(nullptr) {}
+
+ImeListView::~ImeListView() {}
+
+void ImeListView::Init(bool show_keyboard_toggle,
+                       SingleImeBehavior single_ime_behavior) {
   SystemTrayDelegate* delegate = WmShell::Get()->system_tray_delegate();
   IMEInfoList list;
   delegate->GetAvailableIMEList(&list);
@@ -241,8 +245,6 @@ ImeListView::ImeListView(SystemTrayItem* owner,
   delegate->GetCurrentIMEProperties(&property_list);
   Update(list, property_list, show_keyboard_toggle, single_ime_behavior);
 }
-
-ImeListView::~ImeListView() {}
 
 void ImeListView::Update(const IMEInfoList& list,
                          const IMEPropertyInfoList& property_list,
@@ -453,6 +455,15 @@ void ImeListView::FocusCurrentImeIfNeeded() {
       return;
     }
   }
+}
+
+ImeListViewTestApi::ImeListViewTestApi(ImeListView* ime_list_view)
+    : ime_list_view_(ime_list_view) {}
+
+ImeListViewTestApi::~ImeListViewTestApi() {}
+
+views::View* ImeListViewTestApi::GetToggleView() const {
+  return ime_list_view_->material_keyboard_status_view_->toggle();
 }
 
 }  // namespace ash

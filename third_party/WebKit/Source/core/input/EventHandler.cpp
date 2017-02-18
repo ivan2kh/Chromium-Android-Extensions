@@ -86,7 +86,6 @@
 #include "core/paint/PaintLayer.h"
 #include "core/style/ComputedStyle.h"
 #include "core/style/CursorData.h"
-#include "core/svg/SVGDocumentExtensions.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/WindowsKeyboardCodes.h"
 #include "platform/geometry/FloatPoint.h"
@@ -678,9 +677,11 @@ WebInputEventResult EventHandler::handleMousePressEvent(
   HitTestResult hitTestResult = EventHandlingUtil::hitTestResultInFrame(
       m_frame, documentPoint, HitTestRequest::ReadOnly);
   InputDeviceCapabilities* sourceCapabilities =
-      mouseEvent.fromTouch()
-          ? InputDeviceCapabilities::firesTouchEventsSourceCapabilities()
-          : InputDeviceCapabilities::doesntFireTouchEventsSourceCapabilities();
+      m_frame->document()
+          ->domWindow()
+          ->getInputDeviceCapabilities()
+          ->firesTouchEvents(mouseEvent.fromTouch());
+
   if (eventResult == WebInputEventResult::NotHandled) {
     eventResult = m_mouseEventManager->handleMouseFocus(hitTestResult,
                                                         sourceCapabilities);
@@ -1894,7 +1895,7 @@ WebInputEventResult EventHandler::sendContextMenuEventForKey(
       WebFloatPoint(locationInRootFrame.x(), locationInRootFrame.y()),
       WebFloatPoint(globalPosition.x(), globalPosition.y()),
       WebPointerProperties::Button::NoButton, /* clickCount */ 0,
-      PlatformEvent::NoModifiers, TimeTicks::Now().InSeconds());
+      WebInputEvent::NoModifiers, TimeTicks::Now().InSeconds());
 
   // TODO(dtapuska): Transition the mouseEvent to be created really in viewport
   // coordinates instead of root frame coordinates.

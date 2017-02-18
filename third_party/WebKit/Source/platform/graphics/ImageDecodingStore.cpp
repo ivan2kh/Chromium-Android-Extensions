@@ -223,9 +223,9 @@ void ImageDecodingStore::insertCacheInternal(std::unique_ptr<T> cacheEntry,
 
   typename U::KeyType key = cacheEntry->cacheKey();
   typename V::AddResult result =
-      identifierMap->add(cacheEntry->generator(), typename V::MappedType());
+      identifierMap->insert(cacheEntry->generator(), typename V::MappedType());
   result.storedValue->value.insert(key);
-  cacheMap->add(key, std::move(cacheEntry));
+  cacheMap->insert(key, std::move(cacheEntry));
 
   TRACE_COUNTER1(TRACE_DISABLED_BY_DEFAULT("blink.image_decoding"),
                  "ImageDecodingStoreHeapMemoryUsageBytes",
@@ -247,7 +247,7 @@ void ImageDecodingStore::removeFromCacheInternal(
   // Remove entry from identifier map.
   typename V::iterator iter = identifierMap->find(cacheEntry->generator());
   ASSERT(iter != identifierMap->end());
-  iter->value.remove(cacheEntry->cacheKey());
+  iter->value.erase(cacheEntry->cacheKey());
   if (!iter->value.size())
     identifierMap->remove(iter);
 

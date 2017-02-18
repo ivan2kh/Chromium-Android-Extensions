@@ -9,13 +9,17 @@
 #include "base/path_service.h"
 #include "components/translate/core/browser/translate_download_manager.h"
 #include "ios/web_view/internal/criwv_browser_state.h"
-#import "ios/web_view/public/criwv_delegate.h"
+#import "ios/web_view/public/cwv_delegate.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/base/resource/resource_bundle.h"
 
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
 namespace ios_web_view {
 
-CRIWVWebMainParts::CRIWVWebMainParts(id<CRIWVDelegate> delegate) {
+CRIWVWebMainParts::CRIWVWebMainParts(id<CWVDelegate> delegate) {
   delegate_ = delegate;
 }
 
@@ -32,7 +36,8 @@ void CRIWVWebMainParts::PreMainMessageLoopRun() {
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
       pak_file, ui::SCALE_FACTOR_NONE);
 
-  browser_state_ = base::MakeUnique<CRIWVBrowserState>();
+  browser_state_ = base::MakeUnique<CRIWVBrowserState>(false);
+  off_the_record_browser_state_ = base::MakeUnique<CRIWVBrowserState>(true);
 
   // Initialize translate.
   translate::TranslateDownloadManager* download_manager =

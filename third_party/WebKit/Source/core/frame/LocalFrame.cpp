@@ -30,6 +30,8 @@
 
 #include "core/frame/LocalFrame.h"
 
+#include <memory>
+
 #include "bindings/core/v8/ScriptController.h"
 #include "core/InstrumentingAgents.h"
 #include "core/dom/ChildFrameDisconnector.h"
@@ -85,7 +87,7 @@
 #include "platform/graphics/paint/ClipRecorder.h"
 #include "platform/graphics/paint/PaintCanvas.h"
 #include "platform/graphics/paint/PaintController.h"
-#include "platform/graphics/paint/SkPictureBuilder.h"
+#include "platform/graphics/paint/PaintRecordBuilder.h"
 #include "platform/graphics/paint/TransformDisplayItem.h"
 #include "platform/json/JSONValues.h"
 #include "platform/loader/fetch/ResourceFetcher.h"
@@ -99,7 +101,6 @@
 #include "third_party/skia/include/core/SkSurface.h"
 #include "wtf/PtrUtil.h"
 #include "wtf/StdLibExtras.h"
-#include <memory>
 
 namespace blink {
 
@@ -124,7 +125,7 @@ class DragImageBuilder {
     float pageScaleFactor = m_localFrame->host()->visualViewport().scale();
     m_bounds.setWidth(m_bounds.width() * deviceScaleFactor * pageScaleFactor);
     m_bounds.setHeight(m_bounds.height() * deviceScaleFactor * pageScaleFactor);
-    m_pictureBuilder = WTF::wrapUnique(new SkPictureBuilder(
+    m_builder = WTF::wrapUnique(new PaintRecordBuilder(
         SkRect::MakeIWH(m_bounds.width(), m_bounds.height())));
 
     AffineTransform transform;
@@ -132,20 +133,19 @@ class DragImageBuilder {
                     deviceScaleFactor * pageScaleFactor);
     transform.translate(-m_bounds.x(), -m_bounds.y());
     context().getPaintController().createAndAppend<BeginTransformDisplayItem>(
-        *m_pictureBuilder, transform);
+        *m_builder, transform);
   }
 
-  GraphicsContext& context() { return m_pictureBuilder->context(); }
+  GraphicsContext& context() { return m_builder->context(); }
 
   std::unique_ptr<DragImage> createImage(
       float opacity,
       RespectImageOrientationEnum imageOrientation =
           DoNotRespectImageOrientation) {
-    context().getPaintController().endItem<EndTransformDisplayItem>(
-        *m_pictureBuilder);
+    context().getPaintController().endItem<EndTransformDisplayItem>(*m_builder);
     // TODO(fmalita): endRecording() should return a non-const SKP.
     sk_sp<PaintRecord> recording(
-        const_cast<PaintRecord*>(m_pictureBuilder->endRecording().release()));
+        const_cast<PaintRecord*>(m_builder->endRecording().release()));
 
     // Rasterize upfront, since DragImage::create() is going to do it anyway
     // (SkImage::asLegacyBitmap).
@@ -170,7 +170,7 @@ class DragImageBuilder {
  private:
   const Member<const LocalFrame> m_localFrame;
   FloatRect m_bounds;
-  std::unique_ptr<SkPictureBuilder> m_pictureBuilder;
+  std::unique_ptr<PaintRecordBuilder> m_builder;
 };
 
 class DraggedNodeImageBuilder {
@@ -217,7 +217,7 @@ class DraggedNodeImageBuilder {
         draggedLayoutObject->absoluteBoundingBoxRectIncludingDescendants();
     FloatRect boundingBox =
         layer->layoutObject()
-            ->absoluteToLocalQuad(FloatQuad(absoluteBoundingBox), UseTransforms)
+            .absoluteToLocalQuad(FloatQuad(absoluteBoundingBox), UseTransforms)
             .boundingBox();
     DragImageBuilder dragImageBuilder(*m_localFrame, boundingBox);
     {
@@ -590,8 +590,7 @@ void LocalFrame::setPrinting(bool printing,
     if (LayoutView* layoutView = view()->layoutView()) {
       layoutView->setPreferredLogicalWidthsDirty();
       layoutView->setNeedsLayout(LayoutInvalidationReason::PrintingChanged);
-      if (!RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled())
-        layoutView->setShouldDoFullPaintInvalidationForViewAndAllDescendants();
+      layoutView->setShouldDoFullPaintInvalidationForViewAndAllDescendants();
     }
     view()->layout();
     view()->adjustViewSize();
@@ -804,27 +803,6 @@ EphemeralRange LocalFrame::rangeForPoint(const IntPoint& framePoint) {
   }
 
   return EphemeralRange();
-}
-
-bool LocalFrame::isURLAllowed(const KURL& url) const {
-  // Exempt about: URLs from self-reference check.
-  if (url.protocolIsAbout())
-    return true;
-
-  // We allow one level of self-reference because some sites depend on that,
-  // but we don't allow more than one.
-  bool foundSelfReference = false;
-  for (const Frame* frame = this; frame; frame = frame->tree().parent()) {
-    if (!frame->isLocalFrame())
-      continue;
-    if (equalIgnoringFragmentIdentifier(toLocalFrame(frame)->document()->url(),
-                                        url)) {
-      if (foundSelfReference)
-        return false;
-      foundSelfReference = true;
-    }
-  }
-  return true;
 }
 
 bool LocalFrame::shouldReuseDefaultView(const KURL& url) const {

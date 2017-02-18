@@ -21,6 +21,7 @@
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/chromeos/app_mode/kiosk_app_manager.h"
 #include "chrome/browser/chromeos/app_mode/startup_app_launcher.h"
+#include "chrome/browser/chromeos/login/enterprise_user_session_metrics.h"
 #include "chrome/browser/chromeos/login/ui/login_display_host.h"
 #include "chrome/browser/chromeos/login/ui/login_display_host_impl.h"
 #include "chrome/browser/chromeos/login/ui/webui_login_view.h"
@@ -58,9 +59,9 @@ enum KioskLaunchType {
 const int kAppInstallSplashScreenMinTimeMS = 3000;
 
 bool IsEnterpriseManaged() {
-  policy::BrowserPolicyConnectorChromeOS* connector =
-      g_browser_process->platform_part()->browser_policy_connector_chromeos();
-  return connector->IsEnterpriseManaged();
+  return g_browser_process->platform_part()
+      ->browser_policy_connector_chromeos()
+      ->IsEnterpriseManaged();
 }
 
 void RecordKioskLaunchUMA(bool is_auto_launch) {
@@ -73,6 +74,13 @@ void RecordKioskLaunchUMA(bool is_auto_launch) {
 
   UMA_HISTOGRAM_ENUMERATION("Kiosk.LaunchType", launch_type,
                             KIOSK_LAUNCH_TYPE_COUNT);
+
+  if (IsEnterpriseManaged()) {
+    enterprise_user_session_metrics::RecordSignInEvent(
+        is_auto_launch
+            ? enterprise_user_session_metrics::SignInEventType::AUTOMATIC_KIOSK
+            : enterprise_user_session_metrics::SignInEventType::MANUAL_KIOSK);
+  }
 }
 
 }  // namespace
@@ -488,9 +496,17 @@ void AppLaunchController::OnLaunchSucceeded() {
 }
 
 void AppLaunchController::OnLaunchFailed(KioskAppLaunchError::Error error) {
-  LOG(ERROR) << "Kiosk launch failed. Will now shut down."
-             << ", error=" << error;
   DCHECK_NE(KioskAppLaunchError::NONE, error);
+  LOG(ERROR) << "Kiosk launch failed, error=" << error;
+
+  // Reboot on the recoverable cryptohome errors.
+  if (error == KioskAppLaunchError::CRYPTOHOMED_NOT_RUNNING ||
+      error == KioskAppLaunchError::ALREADY_MOUNTED) {
+    // Do not save the error because saved errors would stop app from launching
+    // on the next run.
+    chrome::AttemptRelaunch();
+    return;
+  }
 
   // Saves the error and ends the session to go back to login screen.
   KioskAppLaunchError::Save(error);

@@ -6,6 +6,7 @@
 
 #include "base/files/file_path.h"
 #include "base/guid.h"
+#include "base/logging.h"
 #include "build/build_config.h"
 #include "content/public/browser/client_certificate_delegate.h"
 #include "content/public/browser/memory_coordinator_delegate.h"
@@ -222,10 +223,12 @@ QuotaPermissionContext* ContentBrowserClient::CreateQuotaPermissionContext() {
   return nullptr;
 }
 
-std::unique_ptr<storage::QuotaEvictionPolicy>
-ContentBrowserClient::GetTemporaryStorageEvictionPolicy(
-    content::BrowserContext* context) {
-  return std::unique_ptr<storage::QuotaEvictionPolicy>();
+void ContentBrowserClient::GetQuotaSettings(
+    BrowserContext* context,
+    StoragePartition* partition,
+    const storage::OptionalQuotaSettingsCallback& callback) {
+  // By default, no quota is provided, embedders should override.
+  callback.Run(storage::GetNoQuotaSettings());
 }
 
 void ContentBrowserClient::SelectClientCertificate(
@@ -279,12 +282,12 @@ bool ContentBrowserClient::CanCreateWindow(
     const GURL& opener_url,
     const GURL& opener_top_level_frame_url,
     const GURL& source_origin,
-    WindowContainerType container_type,
+    content::mojom::WindowContainerType container_type,
     const GURL& target_url,
     const Referrer& referrer,
     const std::string& frame_name,
     WindowOpenDisposition disposition,
-    const blink::WebWindowFeatures& features,
+    const blink::mojom::WindowFeatures& features,
     bool user_gesture,
     bool opener_suppressed,
     ResourceContext* context,

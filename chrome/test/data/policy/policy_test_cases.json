@@ -372,7 +372,7 @@
     "can_be_recommended": true,
     "test_policy": { "PasswordManagerEnabled": false },
     "pref_mappings": [
-      { "pref": "profile.password_manager_enabled",
+      { "pref": "credentials_enable_service",
         "indicator_tests": [
           { "policy": { "PasswordManagerEnabled": false } }
         ]
@@ -2724,6 +2724,15 @@
     ]
   },
 
+  "ArcLocationServiceEnabled": {
+    "os": ["chromeos"],
+    "can_be_recommended": false,
+    "test_policy": { "ArcLocationServiceEnabled": false },
+    "pref_mappings": [
+      { "pref": "arc.location_service.enabled" }
+    ]
+  },
+
   "ReportArcStatusEnabled": {
     "os": ["chromeos"],
     "can_be_recommended": false,
@@ -2918,6 +2927,12 @@
   },
 
   "DeviceLoginScreenDefaultVirtualKeyboardEnabled" : {
+  },
+
+  "DeviceLoginScreenLocales" : {
+  },
+
+  "DeviceLoginScreenInputMethods" : {
   },
 
   "UptimeLimit": {

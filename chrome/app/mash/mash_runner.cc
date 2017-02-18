@@ -28,6 +28,7 @@
 #include "base/threading/thread.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/app/mash/chrome_mash_catalog.h"
+#include "chrome/common/chrome_switches.h"
 #include "components/tracing/common/trace_to_console.h"
 #include "components/tracing/common/tracing_switches.h"
 #include "content/public/common/content_switches.h"
@@ -54,12 +55,6 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/base/ui_base_switches.h"
-
-#if defined(OS_CHROMEOS)
-#include "base/debug/leak_annotations.h"
-#include "chrome/app/mash/mash_crash_reporter_client.h"
-#include "components/crash/content/app/breakpad_linux.h" // nogncheck
-#endif
 
 using service_manager::mojom::ServiceFactory;
 
@@ -99,12 +94,12 @@ class ServiceProcessLauncherDelegateImpl
         const service_manager::Identity& target,
         base::CommandLine* command_line) override {
     if (target.name() == kChromeMashServiceName ||
-        target.name() == content::mojom::kBrowserServiceName) {
+        target.name() == content::mojom::kPackagedServicesServiceName) {
       base::FilePath exe_path;
       base::PathService::Get(base::FILE_EXE, &exe_path);
       command_line->SetProgram(exe_path);
     }
-    if (target.name() != content::mojom::kBrowserServiceName) {
+    if (target.name() != content::mojom::kPackagedServicesServiceName) {
       // If running anything other than the browser process, launch a mash
       // child process. The new process will execute MashRunner::RunChild().
       command_line->AppendSwitchASCII(switches::kProcessType, kMashChild);
@@ -116,37 +111,17 @@ class ServiceProcessLauncherDelegateImpl
 
     // When launching the browser process, ensure that we don't inherit the
     // --mash flag so it proceeds with the normal content/browser startup path.
-    // Eliminate all copies in case the developer passed more than one.
-    base::CommandLine::StringVector new_argv;
-    for (const base::CommandLine::StringType& arg : command_line->argv()) {
-      if (arg != FILE_PATH_LITERAL("--mash"))
-        new_argv.push_back(arg);
+    base::CommandLine::SwitchMap new_switches = command_line->GetSwitches();
+    new_switches.erase(switches::kMash);
+    *command_line = base::CommandLine(command_line->GetProgram());
+    for (const std::pair<std::string, base::CommandLine::StringType>& sw :
+         new_switches) {
+      command_line->AppendSwitchNative(sw.first, sw.second);
     }
-    *command_line = base::CommandLine(new_argv);
   }
 
   DISALLOW_COPY_AND_ASSIGN(ServiceProcessLauncherDelegateImpl);
 };
-
-#if defined(OS_CHROMEOS)
-// Initializes breakpad crash reporting. MashCrashReporterClient handles
-// registering crash keys.
-void InitializeCrashReporting() {
-  DCHECK(!breakpad::IsCrashReporterEnabled());
-
-  // Intentionally leaked. The crash client needs to outlive all other code.
-  MashCrashReporterClient* client = new MashCrashReporterClient;
-  ANNOTATE_LEAKING_OBJECT_PTR(client);
-  crash_reporter::SetCrashReporterClient(client);
-
-  // For now all standalone services act like the browser process and write
-  // their own in-process crash dumps. When ash and the window server are
-  // sandboxed we will need to hook up the crash signal file descriptor, make
-  // the root process handle dumping, and pass a process type here.
-  const std::string process_type_unused;
-  breakpad::InitCrashReporter(process_type_unused);
-}
-#endif  // defined(OS_CHROMEOS)
 
 // Quits |run_loop| if the |identity| of the quitting service is critical to the
 // system (e.g. the window manager). Used in the main process.
@@ -157,7 +132,8 @@ void OnInstanceQuitInMain(base::RunLoop* run_loop,
   DCHECK(run_loop);
 
   if (identity.name() != mash::common::GetWindowManagerServiceName() &&
-      identity.name() != ui::mojom::kServiceName) {
+      identity.name() != ui::mojom::kServiceName &&
+      identity.name() != content::mojom::kPackagedServicesServiceName) {
     return;
   }
 
@@ -184,6 +160,8 @@ int MashRunner::Run() {
 }
 
 int MashRunner::RunMain() {
+  base::MessageLoop message_loop(base::MessageLoop::TYPE_UI);
+
   base::SequencedWorkerPool::EnableWithRedirectionToTaskSchedulerForProcess();
 
   mojo::edk::Init();
@@ -210,9 +188,9 @@ int MashRunner::RunServiceManagerInMain() {
   service_manager::BackgroundServiceManager background_service_manager(
       &service_process_launcher_delegate, CreateChromeMashCatalog());
   service_manager::mojom::ServicePtr service;
-  context_.reset(new service_manager::ServiceContext(
+  service_manager::ServiceContext context(
       base::MakeUnique<mash::MashPackagedService>(),
-      service_manager::mojom::ServiceRequest(&service)));
+      service_manager::mojom::ServiceRequest(&service));
   background_service_manager.RegisterService(
       service_manager::Identity(
           kChromeMashServiceName, service_manager::mojom::kRootUserID),
@@ -227,13 +205,14 @@ int MashRunner::RunServiceManagerInMain() {
 
   // Ping services that we know we want to launch on startup (UI service,
   // window manager, quick launch app).
-  context_->connector()->Connect(ui::mojom::kServiceName);
-  context_->connector()->Connect(mash::common::GetWindowManagerServiceName());
-  context_->connector()->Connect(mash::quick_launch::mojom::kServiceName);
+  context.connector()->Connect(ui::mojom::kServiceName);
+  context.connector()->Connect(mash::common::GetWindowManagerServiceName());
+  context.connector()->Connect(mash::quick_launch::mojom::kServiceName);
+  context.connector()->Connect(content::mojom::kPackagedServicesServiceName);
 
   run_loop.Run();
 
-  context_.reset();
+  // |context| must be destroyed before the message loop.
   return exit_value;
 }
 
@@ -255,12 +234,13 @@ void MashRunner::StartChildApp(
   // for now.
   base::MessageLoop message_loop(base::MessageLoop::TYPE_UI);
   base::RunLoop run_loop;
-  context_.reset(new service_manager::ServiceContext(
+  service_manager::ServiceContext context(
       base::MakeUnique<mash::MashPackagedService>(),
-      std::move(service_request)));
-  // Quit the child process if it loses its connection to service manager.
-  context_->SetConnectionLostClosure(run_loop.QuitClosure());
+      std::move(service_request));
+  // Quit the child process when the service quits.
+  context.SetQuitClosure(run_loop.QuitClosure());
   run_loop.Run();
+  // |context| must be destroyed before |message_loop|.
 }
 
 int MashMain() {
@@ -277,18 +257,10 @@ int MashMain() {
 #if !defined(OFFICIAL_BUILD)
   // Initialize stack dumping before initializing sandbox to make sure symbol
   // names in all loaded libraries will be cached.
+  // NOTE: On Chrome OS, crash reporting for the root process and non-browser
+  // service processes is handled by the OS-level crash_reporter.
   base::debug::EnableInProcessStackDumping();
 #endif
-
-#if defined(OS_CHROMEOS)
-  // Breakpad installs signal handlers, so crash reporting must be set up after
-  // EnableInProcessStackDumping() resets the signal handlers.
-  InitializeCrashReporting();
-#endif
-
-  std::unique_ptr<base::MessageLoop> message_loop;
-  if (!IsChild())
-    message_loop.reset(new base::MessageLoop(base::MessageLoop::TYPE_UI));
 
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kTraceToConsole)) {

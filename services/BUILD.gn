@@ -15,8 +15,10 @@ import("//testing/test.gni")
 # entries in the "service_unittests_catalog" target below.
 service_test("service_unittests") {
   deps = [
+    "//services/device:tests",
     "//services/image_decoder:tests",
-    "//services/memory_instrumentation:tests",
+    "//services/resource_coordinator:tests",
+    "//services/shape_detection:tests",
   ]
 
   if (is_android) {

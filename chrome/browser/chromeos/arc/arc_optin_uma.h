@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_CHROMEOS_ARC_ARC_OPTIN_UMA_H_
 #define CHROME_BROWSER_CHROMEOS_ARC_ARC_OPTIN_UMA_H_
 
+#include <ostream>
+
 namespace base {
 class TimeDelta;
 }
@@ -14,11 +16,11 @@ namespace arc {
 // These enums are used to define the buckets for an enumerated UMA histogram
 // and need to be synced with histograms.xml
 enum class OptInActionType : int {
-  OPTED_OUT = 0,               // Arc was opted out by user.
-  OPTED_IN = 1,                // Arc was opted in by user.
-  NOTIFICATION_ACCEPTED = 2,   // Arc OptIn notification was accepted.
-  NOTIFICATION_DECLINED = 3,   // Arc OptIn notification was declined.
-  NOTIFICATION_TIMED_OUT = 4,  // Arc OptIn notification was timed out.
+  OPTED_OUT = 0,               // ARC was opted out by user.
+  OPTED_IN = 1,                // ARC was opted in by user.
+  NOTIFICATION_ACCEPTED = 2,   // ARC OptIn notification was accepted.
+  NOTIFICATION_DECLINED = 3,   // ARC OptIn notification was declined.
+  NOTIFICATION_TIMED_OUT = 4,  // ARC OptIn notification was timed out.
   RETRY = 5,                   // User asked to retry OptIn.
   SIZE,                        // The size of this enum; keep last.
 };
@@ -119,6 +121,9 @@ void UpdateProvisioningTiming(const base::TimeDelta& elapsed_time,
                               bool success,
                               bool managed);
 void UpdateSilentAuthCodeUMA(OptInSilentAuthCode state);
+
+// Outputs the stringified |result| to |os|. This is only for logging purposes.
+std::ostream& operator<<(std::ostream& os, const ProvisioningResult& result);
 
 }  // namespace arc
 

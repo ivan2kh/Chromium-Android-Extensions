@@ -63,6 +63,20 @@ const char kAppAutoLaunched[] = "app-auto-launched";
 // Path for app's OEM manifest file.
 const char kAppOemManifestFile[] = "app-mode-oem-manifest";
 
+// Signals ARC support status on this device. This can take one of the
+// following three values.
+// - none: ARC is not installed on this device. (default)
+// - installed: ARC is installed on this device, but not officially supported.
+//   Users can enable ARC only when Finch experiment is turned on.
+// - installed-only-kiosk-supported: ARC is installed, but officially supported
+//   only in kiosk mode.
+// - officially-supported: ARC is installed and supported on this device. So
+//   users can enable ARC via settings etc.
+// - officially-supported-with-active-directory: ARC is supported and also
+//   allowed to use with Active Directory management.
+const char kArcAvailability[] = "arc-availability";
+
+// DEPRECATED: Please use --arc-availability=installed.
 // Signals the availability of the ARC instance on this device.
 const char kArcAvailable[] = "arc-available";
 
@@ -216,6 +230,7 @@ const char kEnableAd[] = "enable-ad";
 // Enables the Android Wallpapers App as the default app on Chrome OS.
 const char kEnableAndroidWallpapersApp[] = "enable-android-wallpapers-app";
 
+// DEPRECATED. Please use --arc-availability=officially-supported.
 // Enables starting the ARC instance upon session start.
 const char kEnableArc[] = "enable-arc";
 
@@ -272,6 +287,10 @@ const char kEnableTouchCalibrationSetting[] =
 // Enables touchpad three-finger-click as middle button.
 const char kEnableTouchpadThreeFingerClick[] =
     "enable-touchpad-three-finger-click";
+
+// Enables touch support for screen magnifier.
+const char kEnableTouchSupportForScreenMagnifier[] =
+    "enable-touch-support-for-screen-magnifier";
 
 // Enables the chromecast support for video player app.
 const char kEnableVideoPlayerChromecastSupport[] =

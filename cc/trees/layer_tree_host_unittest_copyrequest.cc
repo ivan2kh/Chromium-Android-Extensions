@@ -814,6 +814,11 @@ class LayerTreeHostCopyRequestTestDeleteTexture
                 base::Unretained(this)));
         break;
       case 1:
+        // Copy requests cause a followup commit and draw without the separate
+        // RenderPass required. This changes the number of active textures. So
+        // wait for that draw before counting textures and proceeding.
+        break;
+      case 2:
         // We did a readback, so there will be a readback texture around now.
         num_textures_after_readback_ =
             display_context_provider_->TestContext3d()->NumTextures();
@@ -1261,13 +1266,12 @@ class LayerTreeHostCopyRequestTestMultipleDrawsHiddenCopyRequest
 
         // End the test! Don't race with copy request callbacks, so post the end
         // to the main thread.
-        draw_happened_ = true;
         MainThreadTaskRunner()->PostTask(
             FROM_HERE,
             base::Bind(
                 &LayerTreeHostCopyRequestTestMultipleDrawsHiddenCopyRequest::
                     TryEndTest,
-                base::Unretained(this)));
+                base::Unretained(this), WhatHappened::DRAW));
         break;
     }
     return draw_result;
@@ -1275,11 +1279,23 @@ class LayerTreeHostCopyRequestTestMultipleDrawsHiddenCopyRequest
 
   void CopyOutputCallback(std::unique_ptr<CopyOutputResult> result) {
     EXPECT_FALSE(TestEnded());
-    copy_happened_ = true;
-    TryEndTest();
+    TryEndTest(WhatHappened::COPY);
   }
 
-  void TryEndTest() {
+  enum class WhatHappened {
+    DRAW,
+    COPY,
+  };
+
+  void TryEndTest(WhatHappened what) {
+    switch (what) {
+      case WhatHappened::DRAW:
+        draw_happened_ = true;
+        break;
+      case WhatHappened::COPY:
+        copy_happened_ = true;
+        break;
+    }
     if (draw_happened_ && copy_happened_)
       EndTest();
   }

@@ -23,6 +23,7 @@
 #include "components/metrics/proto/system_profile.pb.h"
 #include "components/omnibox/browser/omnibox_event_global_tracker.h"
 #include "components/ukm/observers/history_delete_observer.h"
+#include "components/ukm/observers/sync_disable_observer.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
 #include "ppapi/features/features.h"
@@ -50,7 +51,8 @@ class ProfilerMetricsProvider;
 class ChromeMetricsServiceClient : public metrics::MetricsServiceClient,
                                    public metrics::TrackingSynchronizerObserver,
                                    public content::NotificationObserver,
-                                   public ukm::HistoryDeleteObserver {
+                                   public ukm::HistoryDeleteObserver,
+                                   public ukm::SyncDisableObserver {
  public:
   ~ChromeMetricsServiceClient() override;
 
@@ -85,9 +87,13 @@ class ChromeMetricsServiceClient : public metrics::MetricsServiceClient,
   bool IsReportingPolicyManaged() override;
   metrics::EnableMetricsDefault GetMetricsReportingDefaultState() override;
   bool IsUMACellularUploadLogicEnabled() override;
+  bool IsHistorySyncEnabledOnAllProfiles() override;
 
-  // ukm::HistoryDeleteObserver
+  // ukm::HistoryDeleteObserver:
   void OnHistoryDeleted() override;
+
+  // ukm::SyncDisableObserver:
+  void OnSyncPrefsChanged(bool must_purge) override;
 
   // Persistent browser metrics need to be persisted somewhere. This constant
   // provides a known string to be used for both the allocator's internal name
@@ -101,6 +107,14 @@ class ChromeMetricsServiceClient : public metrics::MetricsServiceClient,
 
   // Completes the two-phase initialization of ChromeMetricsServiceClient.
   void Initialize();
+
+  // Registers providers to the MetricsService. These provide data from
+  // alternate sources.
+  void RegisterMetricsServiceProviders();
+
+  // Registers providers to the UkmService. These provide data from alternate
+  // sources.
+  void RegisterUKMProviders();
 
   // Callback to chain init tasks: Pops and executes the next init task from
   // |initialize_task_queue_|, then passes itself as callback for each init task
@@ -134,8 +148,8 @@ class ChromeMetricsServiceClient : public metrics::MetricsServiceClient,
   // there was recent activity.
   void RegisterForNotifications();
 
-  // Call to listen for history deletions by the selected profile.
-  void RegisterForHistoryDeletions(Profile* profile);
+  // Call to listen for events on the selected profile's services.
+  void RegisterForProfileEvents(Profile* profile);
 
   // content::NotificationObserver:
   void Observe(int type,

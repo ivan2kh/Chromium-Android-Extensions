@@ -172,7 +172,7 @@ class CORE_EXPORT PaintLayerClipper {
   DISALLOW_NEW();
 
  public:
-  explicit PaintLayerClipper(const PaintLayer&, bool useGeometryMapper);
+  explicit PaintLayerClipper(const PaintLayer&, GeometryMapper*);
 
   void clearClipRectsIncludingDescendants();
   void clearClipRectsIncludingDescendants(ClipRectsCacheSlot);
@@ -230,12 +230,12 @@ class CORE_EXPORT PaintLayerClipper {
       ClipRect& foregroundRect,
       const LayoutPoint* offsetFromRoot = 0) const;
 
-  ClipRect applyOverflowClipToBackgroundRectWithGeometryMapper(
+  void applyOverflowClipToBackgroundRectWithGeometryMapper(
       const ClipRectsContext&,
-      const ClipRect&) const;
+      ClipRect&) const;
 
   const PaintLayer& m_layer;
-  std::unique_ptr<GeometryMapper> m_geometryMapper;
+  GeometryMapper* m_geometryMapper;
 
   friend class PaintLayerClipperTest;
 };

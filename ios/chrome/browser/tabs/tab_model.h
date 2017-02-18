@@ -164,10 +164,6 @@ NSUInteger const kTabPositionAutomatically = NSNotFound;
 // as forward or back navigations (incrementing/decrementing the navigation
 // index) may result in incorrect tab pairings.
 
-// Returns the first tab in the model opened by the specified tab at its current
-// navigation index. The search starts at the beginning of the list and stops at
-// |tab|. Returns nil if no tab meets these constraints.
-- (Tab*)firstTabWithOpener:(Tab*)tab;
 // Returns the last tab in the model opened by the specified tab at its current
 // navigation index. The search starts at |tab|. Returns nil if no tab meets
 // these constraints.
@@ -228,10 +224,8 @@ NSUInteger const kTabPositionAutomatically = NSNotFound;
 - (void)moveTab:(Tab*)tab toIndex:(NSUInteger)index;
 
 // Replaces |oldTab| in the model with |newTab|. Closes the oldTab when
-// replacing it in the model unless |keepOldTabOpen|.
-- (void)replaceTab:(Tab*)oldTab
-           withTab:(Tab*)newTab
-    keepOldTabOpen:(BOOL)keepOldTabOpen;
+// replacing it in the model.
+- (void)replaceTab:(Tab*)oldTab withTab:(Tab*)newTab;
 
 // Closes the tab at the given |index|. |index| must be valid.
 - (void)closeTabAtIndex:(NSUInteger)index;

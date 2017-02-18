@@ -11,12 +11,12 @@
 
 #include "ash/common/shelf/shelf_item_delegate.h"
 #include "ash/common/shelf/shelf_item_types.h"
+#include "ash/public/cpp/shelf_application_menu_item.h"
 #include "ash/public/interfaces/shelf.mojom.h"
 #include "chrome/browser/ui/app_icon_loader.h"
 #include "chrome/browser/ui/app_icon_loader_delegate.h"
 #include "chrome/browser/ui/app_list/app_list_controller_delegate.h"
-#include "chrome/browser/ui/ash/launcher/chrome_launcher_app_menu_item.h"
-#include "chrome/browser/ui/ash/launcher/chrome_launcher_types.h"
+#include "chrome/browser/ui/ash/app_launcher_id.h"
 #include "chrome/browser/ui/ash/launcher/settings_window_observer.h"
 #include "mojo/public/cpp/bindings/associated_binding.h"
 
@@ -42,10 +42,6 @@ class Image;
 namespace ui {
 class BaseWindow;
 }
-
-// A list of the elements which makes up a simple menu description.
-using ChromeLauncherAppMenuItems =
-    std::vector<std::unique_ptr<ChromeLauncherAppMenuItem>>;
 
 // ChromeLauncherController manages the launcher items needed for content
 // windows. Launcher items have a type, an optional app id, and a controller.
@@ -138,24 +134,17 @@ class ChromeLauncherController : public ash::mojom::ShelfObserver,
   // Returns true if the specified item is for a platform app.
   virtual bool IsPlatformApp(ash::ShelfID id) = 0;
 
-  // Opens a new instance of the application identified by |app_id|.
+  // Opens a new instance of the application identified by the AppLauncherId.
   // Used by the app-list, and by pinned-app shelf items.
-  void LaunchApp(const std::string& app_id,
-                 ash::LaunchSource source,
+  void LaunchApp(ash::AppLauncherId id,
+                 ash::ShelfLaunchSource source,
                  int event_flags);
-
-  // As above but includes |launch_id|, an id that can be passed to an app when
-  // launched in order to support multiple shelf items per app.
-  void LaunchAppWithLaunchId(const std::string& app_id,
-                             const std::string& launch_id,
-                             ash::LaunchSource source,
-                             int event_flags);
 
   // If |app_id| is running, reactivates the app's most recently active window,
   // otherwise launches and activates the app.
   // Used by the app-list, and by pinned-app shelf items.
   virtual void ActivateApp(const std::string& app_id,
-                           ash::LaunchSource source,
+                           ash::ShelfLaunchSource source,
                            int event_flags) = 0;
 
   // Set the image for a specific shelf item (e.g. when set by the app).
@@ -178,11 +167,11 @@ class ChromeLauncherController : public ash::mojom::ShelfObserver,
 
   // Activates a |window|. If |allow_minimize| is true and the system allows
   // it, the the window will get minimized instead.
-  // Returns the action performed. Should be one of kNoAction,
-  // kExistingWindowActivated, or kExistingWindowMinimized.
-  virtual ash::ShelfItemDelegate::PerformedAction
-  ActivateWindowOrMinimizeIfActive(ui::BaseWindow* window,
-                                   bool allow_minimize) = 0;
+  // Returns the action performed. Should be one of SHELF_ACTION_NONE,
+  // SHELF_ACTION_WINDOW_ACTIVATED, or SHELF_ACTION_WINDOW_MINIMIZED.
+  virtual ash::ShelfAction ActivateWindowOrMinimizeIfActive(
+      ui::BaseWindow* window,
+      bool allow_minimize) = 0;
 
   // Called when the active user has changed.
   virtual void ActiveUserChanged(const std::string& user_email) = 0;
@@ -193,9 +182,8 @@ class ChromeLauncherController : public ash::mojom::ShelfObserver,
   // Get the list of all running incarnations of this item.
   // |event_flags| specifies the flags which were set by the event which
   // triggered this menu generation. It can be used to generate different lists.
-  virtual ChromeLauncherAppMenuItems GetApplicationList(
-      const ash::ShelfItem& item,
-      int event_flags) = 0;
+  virtual ash::ShelfAppMenuItemList GetAppMenuItems(const ash::ShelfItem& item,
+                                                    int event_flags) = 0;
 
   // Get the list of all tabs which belong to a certain application type.
   virtual std::vector<content::WebContents*> GetV1ApplicationsFromAppId(
@@ -245,7 +233,7 @@ class ChromeLauncherController : public ash::mojom::ShelfObserver,
   // Called when the user profile is fully loaded and ready to switch to.
   virtual void OnUserProfileReadyToSwitch(Profile* profile) = 0;
 
-  // Controller to launch Arc apps in deferred mode.
+  // Controller to launch ARC apps in deferred mode.
   virtual ArcAppDeferredLauncherController* GetArcDeferredLauncher() = 0;
 
   // Get the launch ID for a given shelf ID.

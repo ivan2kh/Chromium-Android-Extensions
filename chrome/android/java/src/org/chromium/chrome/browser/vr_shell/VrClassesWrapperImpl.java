@@ -4,13 +4,15 @@
 
 package org.chromium.chrome.browser.vr_shell;
 
-import android.app.Activity;
+import android.content.Context;
 import android.os.StrictMode;
 
 import com.google.vr.ndk.base.AndroidCompat;
 
 import org.chromium.base.Log;
+import org.chromium.base.VisibleForTesting;
 import org.chromium.base.annotations.UsedByReflection;
+import org.chromium.chrome.browser.ChromeActivity;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 
 /**
@@ -20,18 +22,24 @@ import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 @UsedByReflection("VrShellDelegate.java")
 public class VrClassesWrapperImpl implements VrClassesWrapper {
     private static final String TAG = "VrClassesWrapperImpl";
-    private final Activity mActivity;
+    private final Context mContext;
 
     @UsedByReflection("VrShellDelegate.java")
-    public VrClassesWrapperImpl(Activity activity) {
-        mActivity = activity;
+    public VrClassesWrapperImpl(ChromeActivity activity) {
+        mContext = activity;
+    }
+
+    @UsedByReflection("ChromeInstrumentationTestRunner.java")
+    @VisibleForTesting
+    public VrClassesWrapperImpl(Context context) {
+        mContext = context;
     }
 
     @Override
     public NonPresentingGvrContext createNonPresentingGvrContext() {
         StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
         try {
-            return new NonPresentingGvrContextImpl(mActivity);
+            return new NonPresentingGvrContextImpl((ChromeActivity) mContext);
         } catch (Exception ex) {
             Log.e(TAG, "Unable to instantiate NonPresentingGvrContextImpl", ex);
             return null;
@@ -41,10 +49,11 @@ public class VrClassesWrapperImpl implements VrClassesWrapper {
     }
 
     @Override
-    public VrShell createVrShell(CompositorViewHolder compositorViewHolder) {
+    public VrShell createVrShell(VrShellDelegate delegate,
+            CompositorViewHolder compositorViewHolder) {
         StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
         try {
-            return new VrShellImpl(mActivity, compositorViewHolder);
+            return new VrShellImpl((ChromeActivity) mContext, delegate, compositorViewHolder);
         } catch (Exception ex) {
             Log.e(TAG, "Unable to instantiate VrShellImpl", ex);
             return null;
@@ -55,7 +64,7 @@ public class VrClassesWrapperImpl implements VrClassesWrapper {
 
     @Override
     public VrDaydreamApi createVrDaydreamApi() {
-        return new VrDaydreamApiImpl(mActivity);
+        return new VrDaydreamApiImpl(mContext);
     }
 
     @Override
@@ -65,6 +74,6 @@ public class VrClassesWrapperImpl implements VrClassesWrapper {
 
     @Override
     public void setVrModeEnabled(boolean enabled) {
-        AndroidCompat.setVrModeEnabled(mActivity, enabled);
+        AndroidCompat.setVrModeEnabled((ChromeActivity) mContext, enabled);
     }
 }

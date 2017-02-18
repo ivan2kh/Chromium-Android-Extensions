@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">అన్నీ తెరువు</translation>
 <translation id="1430915738399379752">ముద్రించు</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> అంశాలు</translation>
+<translation id="1491277525950327607">సెట్టింగ్‌ను టోగుల్ చేయడానికి రెండుసార్లు నొక్కండి</translation>
 <translation id="1540800554400757039">చిరునామా 1</translation>
 <translation id="1545749641540134597">QR కోడ్‌ని స్కాన్ చేయండి</translation>
 <translation id="1580783302095112590">మెయిల్ పంపబడింది.</translation>
@@ -65,7 +66,6 @@
 <translation id="2068952045031577364">గత వారం</translation>
 <translation id="2079545284768500474">చర్య రద్దు</translation>
 <translation id="209018056901015185">డెస్క్‌టాప్ సైట్‌ను అభ్యర్థించు</translation>
-<translation id="2100215774115172756">మీ పఠన జాబితా ఆఫ్‌లైన్‌లో అందుబాటులో ఉంటుంది.</translation>
 <translation id="2103075008456228677">history.google.com తెరువు</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> అంశాలు తరలించబడ్డాయి</translation>
 <translation id="2149973817440762519">బుక్‌మార్క్‌ను సవరించు</translation>
@@ -120,7 +120,6 @@
 <translation id="3175081911749765310">వెబ్ సేవలు</translation>
 <translation id="3207960819495026254">బుక్‌మార్క్ చేయబడింది</translation>
 <translation id="3210163015918861891">సమకాలీకరణ ఆఫ్‌లో ఉంది</translation>
-<translation id="3237561509210981547">మీ పఠన జాబితాకు పేజీని జోడించేందుకు, <ph name="BEGIN_BOLD_FONT" />భాగస్వామ్యం &gt; తర్వాత చదవండి<ph name="END_BOLD_FONT" /> ఎంపికను నొక్కండి.</translation>
 <translation id="3240426699337459095">లింక్ కాపీ చేయబడింది</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="NUM_SUGGESTIONS" />లో <ph name="INDEX" /></translation>
@@ -133,7 +132,6 @@
 <translation id="3414292259312108062">Chrome దీన్ని మీ <ph name="BEGIN_LINK" />Google సేవ్ చేసిన పాస్‌వర్డ్‌లు<ph name="END_LINK" />లో నిల్వ చేస్తుంది మరియు మీ కోసం దీన్ని స్వీయపూర్తి చేస్తుంది, కావున మీ అంతట మీరే దీన్ని గుర్తుంచుకోవాల్సిన అవసరం లేదు.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> నిమి</translation>
 <translation id="3448016392200048164">విభజన వీక్షణ</translation>
-<translation id="3474068797193663261">మీ పఠన జాబితాకు పేజీని జోడించేందుకు, <ph name="BEGIN_BOLD_FONT" />మెను &gt; భాగస్వామ్యం &gt; తర్వాత చదవండి<ph name="END_BOLD_FONT" /> ఎంపికను నొక్కండి.</translation>
 <translation id="3474649192738347024">ఫారమ్‌లు పూరించబడ్డాయి.</translation>
 <translation id="3478058380795961209">గడువు ముగింపు నెల</translation>
 <translation id="3482959374254649722">మీ ట్యాబ్‌లను సమకాలీకరిస్తోంది...</translation>
@@ -171,6 +169,7 @@
 <translation id="4121993058175073134">నికర ఎగుమతి డేటాను పంపడానికి, దయచేసి సెట్టింగ్‌ల అనువర్తనంలో మీ ఇమెయిల్ ఖాతాను కాన్ఫిగర్ చేయండి.</translation>
 <translation id="4124987746317609294">సమయ పరిధి</translation>
 <translation id="4172051516777682613">ఎల్లప్పుడూ చూపు</translation>
+<translation id="418156467088430727">కొత్త ట్యాబ్‌లో ఆఫ్‌లైన్ సంస్కరణను వీక్షించండి</translation>
 <translation id="424315890655130736">రహస్య పదబంధాన్ని నమోదు చేయండి</translation>
 <translation id="4272631900155121838">QR కోడ్‌ను స్కాన్ చేయడానికి, సెట్టింగ్‌ల్లో కెమెరాను ప్రారంభించండి</translation>
 <translation id="4281844954008187215">సేవా నిబంధనలు</translation>
@@ -178,7 +177,6 @@
 <translation id="4359125752503270327">ఈ పేజీ మరొక అనువర్తనంలో తెరవబడుతుంది.</translation>
 <translation id="4378154925671717803">ఫోన్</translation>
 <translation id="441868831736628555">గోప్యతా నోటీసు</translation>
-<translation id="4426508677408162512">అన్ని బుక్‌మార్క్‌లు</translation>
 <translation id="4473991315115669931">అజ్ఞాత మోడ్‌లోకి ప్రవేశించండి</translation>
 <translation id="4526249700380860531"><ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" />లో సేవ్ చేసిన పాస్‌వర్డ్‌లను వీక్షించండి మరియు నిర్వహించండి</translation>
 <translation id="4536418791685807335">మళ్లీ సైన్ ఇన్ చేయడానికి ప్రయత్నించండి.</translation>
@@ -218,6 +216,7 @@
 <translation id="5300589172476337783">చూపించు</translation>
 <translation id="5317780077021120954">సేవ్ చేయి</translation>
 <translation id="5327248766486351172">పేరు</translation>
+<translation id="5332219387342487447">షిప్పింగ్ పద్ధతి</translation>
 <translation id="5388358297987318779">చిత్రాన్ని తెరువు</translation>
 <translation id="5409365236829784218">ఈ ఫైల్‌ను తెరవగలిగే అనువర్తనాలు ఇన్‌స్టాల్ చేయబడలేదు.</translation>
 <translation id="54401264925851789">పేజీ భద్రతా సమాచారం</translation>
@@ -256,6 +255,7 @@
 <translation id="6042308850641462728">మరింత</translation>
 <translation id="605721222689873409">YY</translation>
 <translation id="6066301408025741299">రద్దు చేయడానికి నొక్కండి.</translation>
+<translation id="60851516108411750">మీ పఠన జాబితా ఆఫ్‌లైన్‌లో అందుబాటులో ఉంది. మీ పఠన జాబితాకు పేజీని జోడించడానికి, <ph name="SHARE_OPENING_ICON" />నొక్కండి.</translation>
 <translation id="6122191549521593678">ఆన్‌లైన్</translation>
 <translation id="6127379762771434464">అంశాన్ని తీసివేసారు</translation>
 <translation id="6136914049981179737">సెకన్ల క్రితం</translation>
@@ -270,6 +270,7 @@
 <translation id="6255097610484507482">క్రెడిట్ కార్డ్‌ను సవరించు</translation>
 <translation id="6308436439357671616">దీని వలన మీరు ఫోటోలను తీసి, అప్‌లోడ్ చేయగలుగుతారు.</translation>
 <translation id="6314335155547195432">పాస్‌వర్డ్‌ను రూపొందించు</translation>
+<translation id="6324528485781869530">సమకాలీకరణ ఖాతాను మార్చండి</translation>
 <translation id="6324669097367352121">సైన్ ఇన్ సెట్టింగ్‌లు</translation>
 <translation id="6337234675334993532">గుప్తీకరణ</translation>
 <translation id="633809752005859102">వాస్తవంగా ఏదో తప్పు జరిగింది. మేము దానిపై పని చేస్తాము.</translation>

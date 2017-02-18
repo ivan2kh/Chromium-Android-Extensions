@@ -14,8 +14,9 @@
 #include "extensions/renderer/api_binding.h"
 #include "extensions/renderer/api_binding_types.h"
 #include "extensions/renderer/api_event_handler.h"
+#include "extensions/renderer/api_last_error.h"
 #include "extensions/renderer/api_request_handler.h"
-#include "extensions/renderer/argument_spec.h"
+#include "extensions/renderer/api_type_reference_map.h"
 
 namespace base {
 class DictionaryValue;
@@ -36,9 +37,10 @@ class APIBindingsSystem {
   APIBindingsSystem(const binding::RunJSFunction& call_js,
                     const binding::RunJSFunctionSync& call_js_sync,
                     const GetAPISchemaMethod& get_api_schema,
-                    const APIBinding::SendRequestMethod& send_request,
+                    const APIRequestHandler::SendRequestMethod& send_request,
                     const APIEventHandler::EventListenersChangedMethod&
-                        event_listeners_changed);
+                        event_listeners_changed,
+                    APILastError last_error);
   ~APIBindingsSystem();
 
   // Returns a new v8::Object representing the api specified by |api_name|.
@@ -50,8 +52,10 @@ class APIBindingsSystem {
       v8::Local<v8::Object>* hooks_interface_out);
 
   // Responds to the request with the given |request_id|, calling the callback
-  // with |response|.
-  void CompleteRequest(int request_id, const base::ListValue& response);
+  // with |response|. If |error| is non-empty, sets the last error.
+  void CompleteRequest(int request_id,
+                       const base::ListValue& response,
+                       const std::string& error);
 
   // Notifies the APIEventHandler to fire the corresponding event, notifying
   // listeners.
@@ -72,8 +76,12 @@ class APIBindingsSystem {
   // Creates a new APIBinding for the given |api_name|.
   std::unique_ptr<APIBinding> CreateNewAPIBinding(const std::string& api_name);
 
+  // Callback for the APITypeReferenceMap in order to initialize an unknown
+  // type.
+  void InitializeType(const std::string& name);
+
   // The map of cached API reference types.
-  ArgumentSpec::RefMap type_reference_map_;
+  APITypeReferenceMap type_reference_map_;
 
   // The request handler associated with the system.
   APIRequestHandler request_handler_;
@@ -97,11 +105,6 @@ class APIBindingsSystem {
   // The method to retrieve the DictionaryValue describing a given extension
   // API. Curried in for testing purposes so we can use fake APIs.
   GetAPISchemaMethod get_api_schema_;
-
-  // The method to call when a new API call is triggered. Curried in for testing
-  // purposes. Typically, this would send an IPC to the browser to begin the
-  // function work.
-  APIBinding::SendRequestMethod send_request_;
 
   DISALLOW_COPY_AND_ASSIGN(APIBindingsSystem);
 };

@@ -85,7 +85,6 @@ class CORE_EXPORT InputMethodController final
   // Deletes the existing composition text.
   void cancelComposition();
 
-  void cancelCompositionIfSelectionIsInvalid();
   EphemeralRange compositionEphemeralRange() const;
   Range* compositionRange() const;
 
@@ -126,6 +125,10 @@ class CORE_EXPORT InputMethodController final
 
   String composingText() const;
   void selectComposition() const;
+
+  EphemeralRange ephemeralRangeForOffsets(const PlainTextRange&) const;
+
+  // Returns true if selection offsets were successfully set.
   bool setSelectionOffsets(
       const PlainTextRange&,
       FrameSelection::SetSelectionOptions = FrameSelection::CloseTyping);

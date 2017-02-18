@@ -16,7 +16,6 @@ namespace internals {
 bool CreatePlatformShortcuts(
     const base::FilePath& web_app_path,
     std::unique_ptr<ShortcutInfo> shortcut_info,
-    const extensions::FileHandlersInfo& file_handlers_info,
     const ShortcutLocations& creation_locations,
     ShortcutCreationReason creation_reason) {
   return true;
@@ -28,8 +27,7 @@ void DeletePlatformShortcuts(const base::FilePath& web_app_path,
 void UpdatePlatformShortcuts(
     const base::FilePath& web_app_path,
     const base::string16& old_app_title,
-    std::unique_ptr<ShortcutInfo> shortcut_info,
-    const extensions::FileHandlersInfo& file_handlers_info) {}
+    std::unique_ptr<ShortcutInfo> shortcut_info) {}
 
 void DeleteAllShortcutsForProfile(const base::FilePath& profile_path) {}
 

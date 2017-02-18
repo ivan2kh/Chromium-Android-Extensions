@@ -33,6 +33,7 @@
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalDOMWindow.h"
 #include "core/html/HTMLElement.h"
+#include "core/input/InputDeviceCapabilities.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "platform/Histogram.h"
 
@@ -216,9 +217,10 @@ TouchEvent::TouchEvent(const WebTouchEvent& event,
           event.isCancelable(),
           view,
           0,
-          static_cast<PlatformEvent::Modifiers>(event.modifiers()),
+          static_cast<WebInputEvent::Modifiers>(event.modifiers()),
           TimeTicks::FromSeconds(event.timeStampSeconds()),
-          InputDeviceCapabilities::firesTouchEventsSourceCapabilities()),
+          view ? view->getInputDeviceCapabilities()->firesTouchEvents(true)
+               : nullptr),
       m_touches(touches),
       m_targetTouches(targetTouches),
       m_changedTouches(changedTouches),
@@ -251,15 +253,42 @@ void TouchEvent::preventDefault() {
   // A common developer error is to wait too long before attempting to stop
   // scrolling by consuming a touchmove event. Generate a warning if this
   // event is uncancelable.
+  MessageSource messageSource = JSMessageSource;
   String warningMessage;
   switch (handlingPassive()) {
     case PassiveMode::NotPassive:
     case PassiveMode::NotPassiveDefault:
       if (!cancelable()) {
-        warningMessage = "Ignored attempt to cancel a " + type() +
-                         " event with cancelable=false, for example "
-                         "because scrolling is in progress and "
-                         "cannot be interrupted.";
+        if (view() && view()->frame()) {
+          UseCounter::count(
+              view()->frame(),
+              UseCounter::UncancellableTouchEventPreventDefaulted);
+        }
+
+        if (m_nativeEvent &&
+            m_nativeEvent->dispatchType ==
+                WebInputEvent::
+                    ListenersForcedNonBlockingDueToMainThreadResponsiveness) {
+          // Non blocking due to main thread responsiveness.
+          if (view() && view()->frame()) {
+            UseCounter::count(
+                view()->frame(),
+                UseCounter::
+                    UncancellableTouchEventDueToMainThreadResponsivenessPreventDefaulted);
+          }
+          messageSource = InterventionMessageSource;
+          warningMessage =
+              "Ignored attempt to cancel a " + type() +
+              " event with cancelable=false. This event was forced to be "
+              "non-cancellable because the page was too busy to handle the "
+              "event promptly.";
+        } else {
+          // Non blocking for any other reason.
+          warningMessage = "Ignored attempt to cancel a " + type() +
+                           " event with cancelable=false, for example "
+                           "because scrolling is in progress and "
+                           "cannot be interrupted.";
+        }
       }
       break;
     case PassiveMode::PassiveForcedDocumentLevel:
@@ -267,6 +296,7 @@ void TouchEvent::preventDefault() {
       // an author may use touch action but call preventDefault for interop with
       // browsers that don't support touch-action.
       if (m_currentTouchAction == TouchActionAuto) {
+        messageSource = InterventionMessageSource;
         warningMessage =
             "Unable to preventDefault inside passive event listener due to "
             "target being treated as passive. See "
@@ -280,7 +310,7 @@ void TouchEvent::preventDefault() {
   if (!warningMessage.isEmpty() && view() && view()->isLocalDOMWindow() &&
       view()->frame()) {
     toLocalDOMWindow(view())->frame()->console().addMessage(
-        ConsoleMessage::create(JSMessageSource, WarningMessageLevel,
+        ConsoleMessage::create(messageSource, WarningMessageLevel,
                                warningMessage));
   }
 

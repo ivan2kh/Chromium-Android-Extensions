@@ -53,28 +53,6 @@
         width: 31px;
       }
 
-      iron-dropdown .dropdown-content {
-        min-width: 128px;
-        padding: 8px 0;
-      }
-
-      iron-dropdown .dropdown-item:focus {
-        @apply(--cr-selectable-focus);
-      }
-
-      iron-dropdown .dropdown-content {
-        background-color: white;
-        box-shadow: 0 2px 6px var(--paper-grey-500);
-      }
-
-      iron-dropdown .dropdown-content paper-item {
-        @apply(--settings-actionable);
-      }
-
-      iron-dropdown .dropdown-content .dropdown-item[disabled] {
-        opacity: var(--settings-disabled-opacity);
-      }
-
       span ~ a {
         -webkit-margin-start: 4px;
       }
@@ -327,7 +305,7 @@
        *  +-------------------------------------------------------+
        *  | Another setting-box without a secondary-action        |
        *  +-------------------------------------------------------+ */
-      .settings-box .secondary-action {
+      :-webkit-any(.settings-box, .list-item) .secondary-action {
         -webkit-border-start: var(--settings-separator-line);
         -webkit-margin-start: 20px;
         -webkit-padding-start: 20px;
@@ -335,10 +313,6 @@
         display: flex;
         flex-shrink: 0;
         height: var(--settings-row-min-height);
-      }
-
-      .settings-box paper-item iron-icon {
-        padding: var(--cr-icon-padding);
       }
 
       /* Helper for a list frame to automatically avoid the separator line. */
@@ -376,13 +350,13 @@
 
       /* Provides the arrow which points at the anchor element. */
       .search-bubble-innards::after {
-        -webkit-transform: rotate(-45deg);
         background-color: var(--paper-yellow-500);
         content: '';
         height: 10px;
         left: 55px;
         position: absolute;
         top: -5px;
+        transform: rotate(-45deg);
         width: 10px;
         z-index: -1;
       }
@@ -390,9 +364,9 @@
       /* Turns the arrow direction downwards, when the bubble is placed above
        * the anchor element */
       .search-bubble-innards.above::after {
-        -webkit-transform: rotate(-135deg);
         bottom: -5px;
         top: auto;
+        transform: rotate(-135deg);
       }
     </style>
   </template>

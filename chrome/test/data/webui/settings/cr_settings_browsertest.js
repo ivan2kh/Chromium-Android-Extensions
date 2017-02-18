@@ -271,6 +271,62 @@ TEST_F('CrSettingsPeoplePageSetupPinDialogTest', 'Test', function() {
 
 /**
  * Test fixture for
+ * chrome/browser/resources/settings/people_page/
+ * fingerprint_dialog_progress_arc.html.
+ *
+ * This is ChromeOS only.
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsFingerprintProgressArcTest() {}
+
+CrSettingsFingerprintProgressArcTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload:
+      'chrome://md-settings/people_page/fingerprint_progress_arc.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'fingerprint_progress_arc_browsertest_chromeos.js',
+  ]),
+};
+
+TEST_F('CrSettingsFingerprintProgressArcTest', 'FingerprintProgressArcTest',
+    function() {
+  mocha.run();
+});
+
+/**
+ * Test fixture for
+ * chrome/browser/resources/settings/people_page/fingerprint_list.html.
+ *
+ * This is ChromeOS only.
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsFingerprintListTest() {}
+
+CrSettingsFingerprintListTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/people_page/fingerprint_list.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'test_browser_proxy.js',
+    'fingerprint_browsertest_chromeos.js',
+  ]),
+};
+
+TEST_F('CrSettingsFingerprintListTest', 'FingerprintListTest', function() {
+  mocha.run();
+});
+
+/**
+ * Test fixture for
  * chrome/browser/resources/settings/people_page/change_picture.html.
  * This is ChromeOS only.
  * @constructor
@@ -417,12 +473,38 @@ CrSettingsResetPageTest.prototype = {
   extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
     'test_browser_proxy.js',
     'test_lifetime_browser_proxy.js',
+    'test_reset_browser_proxy.js',
     'reset_page_test.js',
   ]),
 };
 
 TEST_F('CrSettingsResetPageTest', 'ResetPage', function() {
-  settings_reset_page.registerTests();
+  mocha.run();
+});
+
+/**
+ * Test fixture for
+ * chrome/browser/resources/settings/reset_page/reset_profile_banner.html
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsResetProfileBannerTest() {}
+
+CrSettingsResetProfileBannerTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/reset_page/reset_profile_banner.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'test_browser_proxy.js',
+    'test_reset_browser_proxy.js',
+    'reset_profile_banner_test.js',
+  ]),
+};
+
+TEST_F('CrSettingsResetProfileBannerTest', 'ResetProfileBanner', function() {
   mocha.run();
 });
 
@@ -654,6 +736,7 @@ CrSettingsSiteSettingsTest.prototype = {
 
   /** @override */
   extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    // TODO(dbeam): split these up.
     'category_default_setting_tests.js',
     'category_setting_exceptions_tests.js',
     'site_details_tests.js',
@@ -663,7 +746,8 @@ CrSettingsSiteSettingsTest.prototype = {
     'test_site_settings_prefs_browser_proxy.js',
     'zoom_levels_tests.js',
     'usb_devices_tests.js',
-    'protocol_handlers_tests.js'
+    'protocol_handlers_tests.js',
+    'site_data_details_subpage_tests.js',
   ]),
 };
 
@@ -677,6 +761,28 @@ TEST_F('CrSettingsSiteSettingsTest', 'SiteSettings', function() {
   usb_devices.registerTests();
   protocol_handlers.registerTests();
 
+  mocha.run();
+});
+
+/**
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsSiteDataTest() {}
+
+CrSettingsSiteDataTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  browsePreload: 'chrome://md-settings/site_settings/site_data.html',
+
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'test_browser_proxy.js',
+    'test_site_settings_prefs_browser_proxy.js',
+    'site_data_test.js',
+  ]),
+};
+
+TEST_F('CrSettingsSiteDataTest', 'All', function() {
   mocha.run();
 });
 
@@ -722,6 +828,10 @@ TEST_F('CrSettingsDevicePageTest', 'PointersTest', function() {
 
 TEST_F('CrSettingsDevicePageTest', 'PowerTest', function() {
   mocha.grep(assert(device_page_tests.TestNames.Power)).run();
+});
+
+TEST_F('CrSettingsDevicePageTest', 'StylusTest', function() {
+  mocha.grep(assert(device_page_tests.TestNames.Stylus)).run();
 });
 
 /**
@@ -869,7 +979,8 @@ CrSettingsLanguagesTest.prototype = {
   ]),
 };
 
-TEST_F('CrSettingsLanguagesTest', 'Languages', function() {
+// Flaky on Win and Linux, see http://crbug/692356.
+TEST_F('CrSettingsLanguagesTest', 'DISABLED_Languages', function() {
   mocha.run();
 });
 
@@ -920,13 +1031,6 @@ TEST_F('CrSettingsNonExistentRouteTest', 'All', function() {
   mocha.run();
 });
 
-// Hangs on ASAN builder for unknown reasons. TODO(michaelpg): Find reason.
-GEN('#if defined(ADDRESS_SANITIZER)');
-GEN('#define MAYBE_All DISABLED_All');
-GEN('#else');
-GEN('#define MAYBE_All All');
-GEN('#endif');
-
 /**
  * @constructor
  * @extends {SettingsPageBrowserTest}
@@ -943,7 +1047,7 @@ CrSettingsRouteDynamicParametersTest.prototype = {
   runAccessibilityChecks: false,
 };
 
-TEST_F('CrSettingsRouteDynamicParametersTest', 'MAYBE_All', function() {
+TEST_F('CrSettingsRouteDynamicParametersTest', 'All', function() {
   suite('DynamicParameters', function() {
     test('get parameters from URL and navigation', function(done) {
       assertEquals(settings.Route.PEOPLE, settings.getCurrentRoute());
@@ -1132,7 +1236,7 @@ GEN('#endif');
 GEN('#if defined(OS_CHROMEOS)');
 
 /**
- * Test fixture for the Google Play Store (Arc++) page.
+ * Test fixture for the Google Play Store (ARC) page.
  * @constructor
  * @extends {CrSettingsBrowserTest}
  */

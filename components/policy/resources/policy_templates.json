@@ -139,9 +139,9 @@
 #   persistent IDs for all fields (but not for groups!) are needed. These are
 #   specified by the 'id' keys of each policy. NEVER CHANGE EXISTING IDs,
 #   because doing so would break the deployed wire format!
-#   For your editing convenience: highest ID currently used: 362
+#   For your editing convenience: highest ID currently used: 365
 #   And don't forget to also update the EnterprisePolicies enum of
-#   histograms.xml.
+#   histograms.xml (run tools/metrics/histograms/update_policies.py).
 #
 # Placeholders:
 #   The following placeholder strings are automatically substituted:
@@ -296,7 +296,7 @@
           'name': 'NewTabPageLocation',
           'type': 'string',
           'schema': { 'type': 'string' },
-          'supported_on': ['chrome.*:57-', 'chrome_os:57-'],
+          'supported_on': ['chrome.*:58-', 'chrome_os:58-'],
           'features': {
             'can_be_recommended': True,
             'dynamic_refresh': True,
@@ -8849,7 +8849,7 @@
       'type': 'int-enum',
       'schema': {
         'type': 'integer',
-        'enum': [ 0, 1, 2, 3 ],
+        'enum': [ 0, 1, 2, 3, 4 ],
       },
       'items': [
         {
@@ -8870,7 +8870,12 @@
         {
           'name': 'TimezoneAutomaticDetectionSendWiFiAccessPoints',
           'value': 3,
-          'caption': '''Always send WiFi acess-points to server while resolving timezone.''',
+          'caption': '''Always send WiFi access-points to server while resolving timezone.''',
+        },
+        {
+          'name': 'TimezoneAutomaticDetectionSendAllLocationInfo',
+          'value': 4,
+          'caption': '''Always send any available location signals to the server while resolving timezone.''',
         },
       ],
       'supported_on': ['chrome_os:53-'],
@@ -8891,6 +8896,8 @@
       If set to TimezoneAutomaticDetectionIPOnly, timezone controls in chrome://settings will be disabled. Automatic timezone detection will be always on. Timezone detection will use IP-only method to resolve location.
 
       If set to TimezoneAutomaticDetectionSendWiFiAccessPoints, timezone controls in chrome://settings will be disabled. Automatic timezone detection will be always on. The list of visible WiFi access-points will be always sent to Geolocation API server for fine-grained timezone detection.
+
+      If set to TimezoneAutomaticDetectionSendAllLocationInfo, timezone controls in chrome://settings will be disabled. Automatic timezone detection will be always on. Location information (such as WiFi access-points, reachable Cell Towers, GPS) will be sent to a server for fine-grained timezone detection.
 
       If this policy is not set, it will behave as if TimezoneAutomaticDetectionUsersDecide is set.
 
@@ -9207,6 +9214,32 @@
       If this setting is not configured then users are able to turn Android Backup Service on and off in the Android Settings app.''',
     },
     {
+      'name': 'ArcLocationServiceEnabled',
+      'type': 'main',
+      'schema': { 'type': 'boolean' },
+      'supported_on': ['chrome_os:57-'],
+      'features': {
+        'dynamic_refresh': True,
+        'per_profile': False,
+      },
+      'example_value': False,
+      'id': 363,
+      'caption': '''Enable Android Google Location Service''',
+      'tags': [],
+      'desc':
+      '''When this policy is set to true, the Android Google Location Service is enabled. This will allow Android apps to use its data to find the device location, and also will enable submitting of anonymous location data to Google.
+
+      When this policy is set to false, Android Google Location Service will be switched off.
+
+      If this setting is configured then users are not able change it themselves.
+
+      If this setting is not configured then users are able to turn Google Location Service on and off in the Android Settings app.
+
+      Note that this policy value may be overriden by the <ph name="DEFAULTGEOLOCATIONSETTING_POLICY_NAME">DefaultGeolocationSetting</ph> policy, when the latter is set to <ph name="BLOCK_GEOLOCATION_SETTING">BlockGeolocation</ph>.
+
+      This policy is applicable only to the users that are able to run Android apps.''',
+    },
+    {
       'name': 'NTPContentSuggestionsEnabled',
       'type': 'main',
       'schema': { 'type': 'boolean' },
@@ -9377,12 +9410,13 @@
           'id': 352,
           'caption': '''Configure allowed quick unlock modes.''',
           'tags': [],
-          'desc': '''Controls which quick unlock modes are allowed to be set up and used.
-          This setting white-lists the allowed quick unlock modes that can be set up and used to unlock the lock screen. The value is a list of strings, each of which should be one of the following: "all", "PIN". If "all" is selected, then all supported quick modes will be available, otherwise the modes in the list will be the ones available.
+          'desc': '''A whitelist controlling which quick unlock modes the user can configure and use to unlock the lock screen.
 
-          If this setting is configured, quick unlock modes which have a type that is not on this list can not be set up or used.
+          This value is a list of strings; valid list entries are: "all", "PIN". Adding "all" to the list means that every quick unlock mode is available to the user, including ones implemented in the future. Otherwise, only the quick unlock modes present in the list will be available.
 
-          If this setting is left not configured, "PIN" mode will be enabled, and all other modes will be disabled.''',
+          For example, to allow every quick unlock mode, use ["all"]. To allow only PIN unlock, use ["PIN"]. To disable all quick unlock modes, use [].
+
+          By default, no quick unlock modes are available for managed devices.''',
         },
         {
           'name': 'QuickUnlockTimeout',
@@ -9437,15 +9471,15 @@
             'dynamic_refresh': True,
             'per_profile': True,
           },
-          'example_value': 4,
+          'example_value': 6,
           'id': 354,
           'caption': '''Sets the minimum length of the lock screen PIN.''',
           'tags': [],
-          'desc': '''This setting controls the minimum length a PIN can be.
+          'desc': '''This setting controls the minimum PIN length.
 
-          If this setting is configured to be less than 1, the minimum length a PIN can be is 1.
+          The absolute minimum PIN length is 1; values less than 1 are treated as 1.
 
-          If this setting is not configured, the minimum length a PIN can be is 4.''',
+          The default and recommended minimum PIN length is 6 digits.''',
         },
         {
           'name': 'PinUnlockMaximumLength',
@@ -9460,13 +9494,13 @@
           'id': 355,
           'caption': '''Sets the maximum length of the lock screen PIN.''',
           'tags': [],
-          'desc': '''This setting controls the maximum length a PIN can be.
+          'desc': '''This setting controls the maximum PIN length.
 
-          If this setting is configured to be 0 or less, there is no maximum length and a user can set a PIN as long as they want.
+          If this setting is 0 or less, there is no maximum length; the user can set a PIN as long as they want.
 
           If this setting is less than PinUnlockMinimumLength but greater than 0, the maximum length is the same as the minimum length.
 
-          If this setting is not configured, there is no maximum length and a user can set a PIN as long as they want.''',
+          This setting defaults to no maximum length.''',
         },
         {
           'name': 'PinUnlockWeakPinsAllowed',
@@ -9481,9 +9515,11 @@
           'id': 356,
           'caption': '''Enables users to set weak PINs for the lock screen PIN.''',
           'tags': [],
-          'desc': '''If this setting is configured to be false, users will be prevented from setting PINs that are considered weak. Such PINs include PINs which contain the same digit throughout, PINs whose digits are increasing by 1, PINs whose digits are decreasing by 1 and PINs which are too common.
+          'desc': '''If false, users will be unable to set PINs which are weak and easy to guess.
 
-          If this setting is configured to be true, or not configured, users can enter these PINs and will only get a warning display.''',
+          Some example weak PINs: PINs containing only one digit (1111), PINs whose digits are increasing by 1 (1234), PINs whose digits are decreasing by 1 (4321), and PINs which are commonly used.
+
+          By default, users will get a warning, not error, if the PIN is considered weak.''',
         },
       ],
     },
@@ -9518,6 +9554,48 @@
       If the device wallpaper policy is set, the Chrome OS device will download and use the wallpaper image on the login screen if no user has yet signed in to the device. Once the user logs in, the user's wallpaper policy kicks in.
 
       If the device wallpaper policy is left not set, it's the user's wallpaper policy to decide what to show if the user's wallpaper policy is set.''',
+    },
+    {
+      'name': 'DeviceLoginScreenLocales',
+      'type': 'list',
+      'schema': {
+        'type': 'array',
+        'items': { 'type': 'string' },
+      },
+      'supported_on': ['chrome_os:58-'],
+      'device_only': True,
+      'features': {
+        'dynamic_refresh': False,
+      },
+      'example_value': [ "en-US" ],
+      'max_size': 16777216,
+      'id': 364,
+      'caption': '''Device sign-in screen locale''',
+      'tags': [],
+      'desc': '''Configures the locale which is enforced on the <ph name="PRODUCT_OS_NAME">$2<ex>Google Chrome OS</ex></ph> sign-in screen.
+
+      If this policy is set, the sign-in screen will always be displayed in the locale which is given by the first value of this policy (the policy is defined as a list for forward compatibility).  If this policy is not set or is set to an empty list, the sign-in screen will be displayed in the locale of the last user session.  If this policy is set to a value which is not a valid locale, the sign-in screen will be displayed in a fallback locale (currently, en-US).'''
+    },
+    {
+      'name': 'DeviceLoginScreenInputMethods',
+      'type': 'list',
+      'schema': {
+        'type': 'array',
+        'items': { 'type': 'string' },
+      },
+      'supported_on': ['chrome_os:58-'],
+      'device_only': True,
+      'features': {
+        'dynamic_refresh': True,
+      },
+      'example_value': [ "xkb:us::en", "xkb:ch::ger" ],
+      'max_size': 16777216,
+      'id': 365,
+      'caption': '''Device sign-in screen keyboard layouts''',
+      'tags': [],
+      'desc': '''Configures which keyboard layouts are allowed on the <ph name="PRODUCT_OS_NAME">$2<ex>Google Chrome OS</ex></ph> sign-in screen.
+
+      If this policy is set to a list of input method identifiers, the given input methods will be available on the sign-in screen. The first given input method will be preselected. While a user pod is focused on the sign-in screen, the user's least recently used input method will be available in addition to the input methods given by this policy.  If this policy is not set, the input methods on the sign-in screen will be derived from the locale in which the sign-in screen is displayed.  Values which are not valid input method identifiers will be ignored.''',
     },
   ],
   'messages': {

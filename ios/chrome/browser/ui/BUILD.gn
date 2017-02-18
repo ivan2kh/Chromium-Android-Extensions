@@ -286,7 +286,6 @@ source_set("ui_internal") {
     "//ios/chrome/browser/ui/first_run",
     "//ios/chrome/browser/ui/history",
     "//ios/chrome/browser/ui/keyboard",
-    "//ios/chrome/browser/ui/no_tabs",
     "//ios/chrome/browser/ui/ntp",
     "//ios/chrome/browser/ui/ntp:ntp_internal",
     "//ios/chrome/browser/ui/ntp/recent_tabs",
@@ -301,6 +300,7 @@ source_set("ui_internal") {
     "//ios/chrome/browser/ui/tab_switcher",
     "//ios/chrome/browser/ui/tabs",
     "//ios/chrome/browser/ui/tools_menu",
+    "//ios/chrome/browser/ui/util",
     "//ios/chrome/browser/ui/voice",
     "//ios/chrome/browser/upgrade",
     "//ios/chrome/browser/web",
@@ -371,6 +371,7 @@ bundle_data("resources_unit_tests") {
 }
 
 source_set("eg_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "browser_view_controller_egtest.mm",

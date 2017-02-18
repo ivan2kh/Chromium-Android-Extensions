@@ -1,6 +1,7 @@
 <link rel="import" href="chrome://resources/html/polymer.html">
 <link rel="import" href="../a11y_page/a11y_page.html">
 <link rel="import" href="../appearance_page/appearance_page.html">
+<link rel="import" href="../controls/settings_idle_render.html">
 <link rel="import" href="../downloads_page/downloads_page.html">
 <link rel="import" href="../languages_page/languages_page.html">
 <link rel="import" href="../on_startup_page/on_startup_page.html">
@@ -48,6 +49,25 @@
         padding: 0 12px;
       }
 
+      #secondaryUserBanner {
+        @apply(--shadow-elevation-2dp);
+        background-color: white;
+        border-radius: 2px;
+        margin: 21px 0;
+      }
+
+      #secondaryUserIcon {
+        /* TODO(stevenjb): Replace this with the correct variable or color once
+         * established by UX, see crbug.com/687749. */
+        background-color : rgb(210, 210, 212);
+        background-image: url(chrome://theme/IDR_SECONDARY_USER_SETTINGS);
+        background-position: center;
+        background-repeat: no-repeat;
+        height: 55px;
+        margin: 18px;
+        width: 58px;
+      }
+
       #toggleContainer {
         align-items: center;
         display: flex;
@@ -68,10 +88,17 @@
     <template is="dom-if" if="[[showBasicPage_(
         currentRoute_, inSearchMode, hasExpandedSection_)]]">
       <div id="basicPage">
-        <template is="dom-if" if="[[showResetProfileBanner_]]">
-          <settings-reset-profile-banner on-reset-done="onResetDone_">
+        <template is="dom-if" if="[[showResetProfileBanner_]]" restamp>
+          <settings-reset-profile-banner on-close="onResetProfileBannerClosed_">
           </settings-reset-profile-banner>
         </template>
+<if expr="chromeos">
+        <div id="secondaryUserBanner" class="layout horizontal center"
+            hidden="[[!showSecondaryUserBanner_]]">
+          <div id="secondaryUserIcon"></div>
+          <div class="flex">$i18n{secondaryUserBannerText}</div>
+        </div>
+</if>
 <if expr="chromeos">
         <template is="dom-if" if="[[showPage(pageVisibility.internet)]]"
             restamp>
@@ -114,7 +141,8 @@
         </template>
 </if>
         <template is="dom-if" if="[[showPage(pageVisibility.search)]]" restamp>
-          <settings-section page-title="$i18n{searchPageTitle}" section="search">
+          <settings-section page-title="$i18n{searchPageTitle}"
+              section="search">
             <settings-search-page prefs="{{prefs}}"></settings-search-page>
           </settings-section>
         </template>
@@ -148,8 +176,7 @@
       </div>
     </template>
 
-    <template is="dom-if"
-        if="[[showAdvancedSettings_(pageVisibility.advancedSettings)]]">
+    <template is="dom-if" if="[[showAdvancedSettings_(pageVisibility.advancedSettings)]]">
       <template is="dom-if" if="[[showAdvancedToggle_(
           inSearchMode, hasExpandedSection_)]]">
         <div id="toggleSpacer"></div>
@@ -163,10 +190,10 @@
         </h2>
       </template>
 
-      <template is="dom-if" if="[[showAdvancedPage_(
-          currentRoute_, inSearchMode, hasExpandedSection_,
-          advancedToggleExpanded)]]">
-        <div id="advancedPage">
+      <template is="settings-idle-render" id="advancedPageTemplate">
+        <div id="advancedPage" hidden$="[[!showAdvancedPage_(
+            currentRoute_, inSearchMode, hasExpandedSection_,
+            advancedToggleExpanded)]]">
 <if expr="chromeos">
           <template is="dom-if" if="[[showPage(pageVisibility.dateTime)]]"
               restamp>

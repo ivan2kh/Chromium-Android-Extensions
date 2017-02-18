@@ -76,6 +76,11 @@ void FakeAuthPolicyClient::JoinAdDomain(const std::string& machine_name,
                                         const std::string& user_principal_name,
                                         int password_fd,
                                         const JoinCallback& callback) {
+  if (!started_) {
+    LOG(ERROR) << "authpolicyd not started";
+    callback.Run(authpolicy::ERROR_DBUS_FAILURE);
+    return;
+  }
   if (machine_name.size() > kMaxMachineNameLength) {
     callback.Run(authpolicy::ERROR_MACHINE_NAME_TOO_LONG);
     return;
@@ -102,11 +107,23 @@ void FakeAuthPolicyClient::AuthenticateUser(
     const std::string& user_principal_name,
     int password_fd,
     const AuthCallback& callback) {
-  callback.Run(authpolicy::ERROR_NONE, base::MD5String(user_principal_name));
+  authpolicy::ActiveDirectoryAccountData account_data;
+  if (!started_) {
+    LOG(ERROR) << "authpolicyd not started";
+    callback.Run(authpolicy::ERROR_DBUS_FAILURE, account_data);
+    return;
+  }
+  account_data.set_account_id(base::MD5String(user_principal_name));
+  callback.Run(authpolicy::ERROR_NONE, account_data);
 }
 
 void FakeAuthPolicyClient::RefreshDevicePolicy(
     const RefreshPolicyCallback& callback) {
+  if (!started_) {
+    LOG(ERROR) << "authpolicyd not started";
+    callback.Run(false);
+    return;
+  }
   base::FilePath policy_path;
   if (!PathService::Get(chromeos::FILE_OWNER_KEY, &policy_path)) {
     callback.Run(false);
@@ -132,6 +149,11 @@ void FakeAuthPolicyClient::RefreshDevicePolicy(
 void FakeAuthPolicyClient::RefreshUserPolicy(
     const AccountId& account_id,
     const RefreshPolicyCallback& callback) {
+  if (!started_) {
+    LOG(ERROR) << "authpolicyd not started";
+    callback.Run(false);
+    return;
+  }
   base::FilePath policy_path;
   if (!PathService::Get(chromeos::DIR_USER_POLICY_KEYS, &policy_path)) {
     callback.Run(false);

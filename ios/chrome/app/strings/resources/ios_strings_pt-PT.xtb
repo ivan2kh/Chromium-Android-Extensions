@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Abrir tudo</translation>
 <translation id="1430915738399379752">Imprimir</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> itens</translation>
+<translation id="1491277525950327607">Toque duas vezes para ativar ou desativar a definição</translation>
 <translation id="1540800554400757039">Morada 1</translation>
 <translation id="1545749641540134597">Ler código QR</translation>
 <translation id="1580783302095112590">Correio enviado.</translation>
@@ -65,7 +66,6 @@ Por exemplo, alguns Websites poderão mostrar anúncios que não sejam baseados 
 <translation id="2068952045031577364">Semana passada</translation>
 <translation id="2079545284768500474">Anular</translation>
 <translation id="209018056901015185">Pedir site para computador</translation>
-<translation id="2100215774115172756">A sua lista de leitura está disponível offline.</translation>
 <translation id="2103075008456228677">Abrir history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> itens movidos</translation>
 <translation id="2149973817440762519">Editar marcador</translation>
@@ -120,7 +120,6 @@ Por exemplo, alguns Websites poderão mostrar anúncios que não sejam baseados 
 <translation id="3175081911749765310">Serviços Web</translation>
 <translation id="3207960819495026254">Adicionado aos marcadores</translation>
 <translation id="3210163015918861891">A sincronização está desativada</translation>
-<translation id="3237561509210981547">Para adicionar uma página à sua lista de leitura, toque em <ph name="BEGIN_BOLD_FONT" />Partilhar &gt; Ler mais tarde<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Link copiado</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> de <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Por exemplo, alguns Websites poderão mostrar anúncios que não sejam baseados 
 <translation id="3414292259312108062">O Chrome armazena esta informação nas suas <ph name="BEGIN_LINK" />palavras-passe guardadas do Google<ph name="END_LINK" /> e preenche-a automaticamente por si para que não a tenha de memorizar.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min.</translation>
 <translation id="3448016392200048164">Vista dividida</translation>
-<translation id="3474068797193663261">Para adicionar uma página à sua lista de leitura, toque em <ph name="BEGIN_BOLD_FONT" />Menu &gt; Partilhar &gt; Ler mais tarde<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Formulários preenchidos.</translation>
 <translation id="3478058380795961209">Mês de validade</translation>
 <translation id="3482959374254649722">A sincronizar os seus separadores...</translation>
@@ -171,6 +169,7 @@ Para ajustar o termo de pesquisa, prima continuamente para selecionar. Para refi
 <translation id="4121993058175073134">P/enviar dados exp. da Int., config. a conta de email na ap. Definiç.</translation>
 <translation id="4124987746317609294">Intervalo de Tempo</translation>
 <translation id="4172051516777682613">Mostrar sempre</translation>
+<translation id="418156467088430727">Ver versão offline num novo separador</translation>
 <translation id="424315890655130736">Introduzir frase de acesso</translation>
 <translation id="4272631900155121838">Para ler um código QR, ative a câmara nas definições</translation>
 <translation id="4281844954008187215">Termos de Utilização</translation>
@@ -178,7 +177,6 @@ Para ajustar o termo de pesquisa, prima continuamente para selecionar. Para refi
 <translation id="4359125752503270327">Esta página abre noutra aplicação.</translation>
 <translation id="4378154925671717803">Telefone</translation>
 <translation id="441868831736628555">Aviso de Privacidade</translation>
-<translation id="4426508677408162512">Todos os marcadores</translation>
 <translation id="4473991315115669931">Entrar no modo de navegação anónima</translation>
 <translation id="4526249700380860531">Ver e gerir as palavras-passe guardadas em <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Experimente iniciar sessão novamente.</translation>
@@ -218,6 +216,7 @@ Os dados estão encriptados com a sua frase de acesso de sincronização. Introd
 <translation id="5300589172476337783">Mostrar</translation>
 <translation id="5317780077021120954">Guardar</translation>
 <translation id="5327248766486351172">Nome</translation>
+<translation id="5332219387342487447">Método de envio</translation>
 <translation id="5388358297987318779">Abrir Imagem</translation>
 <translation id="5409365236829784218">Não existem aplicações instaladas que possam abrir este ficheiro.</translation>
 <translation id="54401264925851789">Informações de Segurança da Página</translation>
@@ -256,6 +255,7 @@ A Entrega também tem de estar ativada na secção Geral das Definições e os s
 <translation id="6042308850641462728">Mais</translation>
 <translation id="605721222689873409">AA</translation>
 <translation id="6066301408025741299">Toque para cancelar.</translation>
+<translation id="60851516108411750">A sua lista de leitura está disponível offline. Para adicionar uma página à mesma, toque em <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Item removido</translation>
 <translation id="6136914049981179737">Há segundos</translation>
@@ -270,6 +270,7 @@ A Entrega também tem de estar ativada na secção Geral das Definições e os s
 <translation id="6255097610484507482">Editar cartão de crédito</translation>
 <translation id="6308436439357671616">Isto permite-lhe tirar e carregar fotos.</translation>
 <translation id="6314335155547195432">Gerar palavra-passe</translation>
+<translation id="6324528485781869530">Mudar conta de sincronização</translation>
 <translation id="6324669097367352121">Definições de início de sessão</translation>
 <translation id="6337234675334993532">Encriptação</translation>
 <translation id="633809752005859102">Algo correu muito mal. Estamos a tratar do assunto.</translation>

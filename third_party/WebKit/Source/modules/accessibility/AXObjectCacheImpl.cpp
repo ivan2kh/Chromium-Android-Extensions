@@ -558,7 +558,7 @@ void AXObjectCacheImpl::removeAXID(AXObject* object) {
   ASSERT(!HashTraits<AXID>::isDeletedValue(objID));
   ASSERT(m_idsInUse.contains(objID));
   object->setAXObjectID(0);
-  m_idsInUse.remove(objID);
+  m_idsInUse.erase(objID);
 
   if (m_ariaOwnerToChildrenMapping.contains(objID)) {
     Vector<AXID> childAXIDs = m_ariaOwnerToChildrenMapping.get(objID);
@@ -665,8 +665,6 @@ void AXObjectCacheImpl::postNotification(LayoutObject* layoutObject,
                                          AXNotification notification) {
   if (!layoutObject)
     return;
-
-  m_modificationCount++;
   postNotification(get(layoutObject), notification);
 }
 
@@ -674,17 +672,15 @@ void AXObjectCacheImpl::postNotification(Node* node,
                                          AXNotification notification) {
   if (!node)
     return;
-
-  m_modificationCount++;
   postNotification(get(node), notification);
 }
 
 void AXObjectCacheImpl::postNotification(AXObject* object,
                                          AXNotification notification) {
-  m_modificationCount++;
   if (!object)
     return;
 
+  m_modificationCount++;
   m_notificationsToPost.push_back(std::make_pair(object, notification));
   if (!m_notificationPostTimer.isActive())
     m_notificationPostTimer.startOneShot(0, BLINK_FROM_HERE);
@@ -728,7 +724,7 @@ void AXObjectCacheImpl::updateAriaOwns(
       idsChanged = true;
       HashSet<AXID>* owners = m_idToAriaOwnersMapping.get(id);
       if (owners) {
-        owners->remove(owner->axObjectID());
+        owners->erase(owner->axObjectID());
         if (owners->isEmpty())
           m_idToAriaOwnersMapping.erase(id);
       }

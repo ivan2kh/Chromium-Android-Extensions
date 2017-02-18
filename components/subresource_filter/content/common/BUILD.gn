@@ -4,7 +4,6 @@
 
 static_library("common") {
   sources = [
-    "document_load_statistics.h",
     "ruleset_dealer.cc",
     "ruleset_dealer.h",
     "subresource_filter_message_generator.cc",
@@ -15,6 +14,7 @@ static_library("common") {
     "//components/subresource_filter/core/common",
     "//content/public/common",
     "//ipc",
+    "//url",
   ]
 }
 
@@ -30,6 +30,5 @@ source_set("unit_tests") {
     "//components/subresource_filter/core/common:test_support",
     "//testing/gmock",
     "//testing/gtest",
-    "//url",
   ]
 }

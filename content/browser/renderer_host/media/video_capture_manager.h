@@ -1,4 +1,4 @@
-  // Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,15 +50,13 @@ class CONTENT_EXPORT VideoCaptureManager : public MediaStreamProvider {
   using DoneCB =
       base::Callback<void(const base::WeakPtr<VideoCaptureController>&)>;
 
-  explicit VideoCaptureManager(
-      std::unique_ptr<media::VideoCaptureDeviceFactory> factory);
-
-  void Unregister();
+  VideoCaptureManager(
+      std::unique_ptr<media::VideoCaptureDeviceFactory> factory,
+      scoped_refptr<base::SingleThreadTaskRunner> device_task_runner);
 
   // Implements MediaStreamProvider.
-  void Register(MediaStreamProviderListener* listener,
-                const scoped_refptr<base::SingleThreadTaskRunner>&
-                    device_task_runner) override;
+  void RegisterListener(MediaStreamProviderListener* listener) override;
+  void UnregisterListener() override;
   int Open(const StreamDeviceInfo& device) override;
   void Close(int capture_session_id) override;
 
@@ -184,6 +182,13 @@ class CONTENT_EXPORT VideoCaptureManager : public MediaStreamProvider {
   using EnumerationCallback =
       base::Callback<void(const media::VideoCaptureDeviceDescriptors&)>;
   void EnumerateDevices(const EnumerationCallback& client_callback);
+
+  // Retrieves camera calibration information for a particular device. Returns
+  // nullopt_t if the |device_id| is not found or camera calibration information
+  // is not available for the device.  Camera calibration is cached during
+  // device(s) enumeration.
+  base::Optional<CameraCalibration> GetCameraCalibration(
+      const std::string& device_id);
 
  private:
   class CaptureDeviceStartRequest;

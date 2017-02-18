@@ -116,17 +116,15 @@ BaseArena::~BaseArena() {
   ASSERT(!m_firstUnsweptPage);
 }
 
-void BaseArena::cleanupPages() {
+void BaseArena::removeAllPages() {
   clearFreeLists();
 
   ASSERT(!m_firstUnsweptPage);
-  // Add the BaseArena's pages to the orphanedPagePool.
-  for (BasePage* page = m_firstPage; page; page = page->next()) {
-    getThreadState()->heap().heapStats().decreaseAllocatedSpace(page->size());
-    getThreadState()->heap().getOrphanedPagePool()->addOrphanedPage(
-        arenaIndex(), page);
+  while (m_firstPage) {
+    BasePage* page = m_firstPage;
+    page->unlink(&m_firstPage);
+    page->removeFromHeap();
   }
-  m_firstPage = nullptr;
 }
 
 void BaseArena::takeSnapshot(const String& dumpBaseName,
@@ -179,27 +177,8 @@ void BaseArena::makeConsistentForGC() {
     page->invalidateObjectStartBitmap();
   }
 
-  // If a new GC is requested before this thread got around to sweep,
-  // ie. due to the thread doing a long running operation, we clear
-  // the mark bits and mark any of the dead objects as dead. The latter
-  // is used to ensure the next GC marking does not trace already dead
-  // objects. If we trace a dead object we could end up tracing into
-  // garbage or the middle of another object via the newly conservatively
-  // found object.
-  BasePage* previousPage = nullptr;
-  for (BasePage *page = m_firstUnsweptPage; page;
-       previousPage = page, page = page->next()) {
-    page->makeConsistentForGC();
-    ASSERT(!page->hasBeenSwept());
-    page->invalidateObjectStartBitmap();
-  }
-  if (previousPage) {
-    ASSERT(m_firstUnsweptPage);
-    previousPage->m_next = m_firstPage;
-    m_firstPage = m_firstUnsweptPage;
-    m_firstUnsweptPage = nullptr;
-  }
-  ASSERT(!m_firstUnsweptPage);
+  // We should not start a new GC until we finish sweeping in the current GC.
+  CHECK(!m_firstUnsweptPage);
 
   HeapCompact* heapCompactor = getThreadState()->heap().compaction();
   if (!heapCompactor->isCompactingArena(arenaIndex()))
@@ -244,13 +223,6 @@ size_t BaseArena::objectPayloadSizeForTesting() {
   for (BasePage* page = m_firstPage; page; page = page->next())
     objectPayloadSize += page->objectPayloadSizeForTesting();
   return objectPayloadSize;
-}
-
-void BaseArena::prepareHeapForTermination() {
-  ASSERT(!m_firstUnsweptPage);
-  for (BasePage* page = m_firstPage; page; page = page->next()) {
-    page->setTerminating();
-  }
 }
 
 void BaseArena::prepareForSweep() {
@@ -626,7 +598,7 @@ void NormalPageArena::takeFreelistSnapshot(const String& dumpName) {
 void NormalPageArena::allocatePage() {
   getThreadState()->shouldFlushHeapDoesNotContainCache();
   PageMemory* pageMemory =
-      getThreadState()->heap().getFreePagePool()->takeFreePage(arenaIndex());
+      getThreadState()->heap().getFreePagePool()->take(arenaIndex());
 
   if (!pageMemory) {
     // Allocate a memory region for blinkPagesPerRegion pages that
@@ -651,8 +623,7 @@ void NormalPageArena::allocatePage() {
         RELEASE_ASSERT(result);
         pageMemory = memory;
       } else {
-        getThreadState()->heap().getFreePagePool()->addFreePage(arenaIndex(),
-                                                                memory);
+        getThreadState()->heap().getFreePagePool()->add(arenaIndex(), memory);
       }
     }
   }
@@ -676,23 +647,9 @@ void NormalPageArena::allocatePage() {
 void NormalPageArena::freePage(NormalPage* page) {
   getThreadState()->heap().heapStats().decreaseAllocatedSpace(page->size());
 
-  if (page->terminating()) {
-    // The thread is shutting down and this page is being removed as a part
-    // of the thread local GC.  In that case the object could be traced in
-    // the next global GC if there is a dangling pointer from a live thread
-    // heap to this dead thread heap.  To guard against this, we put the
-    // page into the orphaned page pool and zap the page memory.  This
-    // ensures that tracing the dangling pointer in the next global GC just
-    // crashes instead of causing use-after-frees.  After the next global
-    // GC, the orphaned pages are removed.
-    getThreadState()->heap().getOrphanedPagePool()->addOrphanedPage(
-        arenaIndex(), page);
-  } else {
-    PageMemory* memory = page->storage();
-    page->~NormalPage();
-    getThreadState()->heap().getFreePagePool()->addFreePage(arenaIndex(),
-                                                            memory);
-  }
+  PageMemory* memory = page->storage();
+  page->~NormalPage();
+  getThreadState()->heap().getFreePagePool()->add(arenaIndex(), memory);
 }
 
 bool NormalPageArena::coalesce() {
@@ -1074,24 +1031,9 @@ void LargeObjectArena::freeLargeObjectPage(LargeObjectPage* object) {
   ASAN_UNPOISON_MEMORY_REGION(object->getAddress() + object->size(),
                               allocationGranularity);
 
-  if (object->terminating()) {
-    ASSERT(ThreadState::current()->isTerminating());
-    // The thread is shutting down and this page is being removed as a part
-    // of the thread local GC.  In that case the object could be traced in
-    // the next global GC if there is a dangling pointer from a live thread
-    // heap to this dead thread heap.  To guard against this, we put the
-    // page into the orphaned page pool and zap the page memory.  This
-    // ensures that tracing the dangling pointer in the next global GC just
-    // crashes instead of causing use-after-frees.  After the next global
-    // GC, the orphaned pages are removed.
-    getThreadState()->heap().getOrphanedPagePool()->addOrphanedPage(
-        arenaIndex(), object);
-  } else {
-    ASSERT(!ThreadState::current()->isTerminating());
-    PageMemory* memory = object->storage();
-    object->~LargeObjectPage();
-    delete memory;
-  }
+  PageMemory* memory = object->storage();
+  object->~LargeObjectPage();
+  delete memory;
 }
 
 Address LargeObjectArena::lazySweepPages(size_t allocationSize,
@@ -1292,17 +1234,8 @@ BasePage::BasePage(PageMemory* storage, BaseArena* arena)
     : m_storage(storage),
       m_arena(arena),
       m_next(nullptr),
-      m_terminating(false),
       m_swept(true) {
   ASSERT(isPageHeaderAddress(reinterpret_cast<Address>(this)));
-}
-
-void BasePage::markOrphaned() {
-  m_arena = nullptr;
-  m_terminating = false;
-  // Since we zap the page payload for orphaned pages we need to mark it as
-  // unused so a conservative pointer won't interpret the object headers.
-  storage()->markUnused();
 }
 
 NormalPage::NormalPage(PageMemory* storage, BaseArena* arena)
@@ -1525,31 +1458,6 @@ void NormalPage::sweepAndCompact(CompactionContext& context) {
 #endif
 }
 
-void NormalPage::makeConsistentForGC() {
-  size_t markedObjectSize = 0;
-  for (Address headerAddress = payload(); headerAddress < payloadEnd();) {
-    HeapObjectHeader* header =
-        reinterpret_cast<HeapObjectHeader*>(headerAddress);
-    ASSERT(header->size() < blinkPagePayloadSize());
-    // Check if a free list entry first since we cannot call
-    // isMarked on a free list entry.
-    if (header->isFree()) {
-      headerAddress += header->size();
-      continue;
-    }
-    if (header->isMarked()) {
-      header->unmark();
-      markedObjectSize += header->size();
-    } else {
-      header->markDead();
-    }
-    headerAddress += header->size();
-  }
-  if (markedObjectSize)
-    arenaForNormalPage()->getThreadState()->increaseMarkedObjectSize(
-        markedObjectSize);
-}
-
 void NormalPage::makeConsistentForMutator() {
   Address startOfGap = payload();
   NormalPageArena* normalArena = arenaForNormalPage();
@@ -1703,7 +1611,7 @@ void NormalPage::checkAndMarkPointer(Visitor* visitor, Address address) {
   DCHECK(contains(address));
 #endif
   HeapObjectHeader* header = findHeaderFromAddress(address);
-  if (!header || header->isDead())
+  if (!header)
     return;
   markPointer(visitor, header);
 }
@@ -1714,25 +1622,12 @@ void NormalPage::checkAndMarkPointer(Visitor* visitor,
                                      MarkedPointerCallbackForTesting callback) {
   DCHECK(contains(address));
   HeapObjectHeader* header = findHeaderFromAddress(address);
-  if (!header || header->isDead())
+  if (!header)
     return;
   if (!callback(header))
     markPointer(visitor, header);
 }
 #endif
-
-void NormalPage::markOrphaned() {
-// Zap the payload with a recognizable value to detect any incorrect
-// cross thread pointer usage.
-#if defined(ADDRESS_SANITIZER)
-  // This needs to zap poisoned memory as well.
-  // Force unpoison memory before memset.
-  ASAN_UNPOISON_MEMORY_REGION(payload(), payloadSize());
-#endif
-  OrphanedPagePool::asanDisabledMemset(
-      payload(), OrphanedPagePool::orphanedZapValue, payloadSize());
-  BasePage::markOrphaned();
-}
 
 void NormalPage::takeSnapshot(base::trace_event::MemoryAllocatorDump* pageDump,
                               ThreadState::GCSnapshotInfo& info,
@@ -1816,16 +1711,6 @@ void LargeObjectPage::sweep() {
   arena()->getThreadState()->increaseMarkedObjectSize(size());
 }
 
-void LargeObjectPage::makeConsistentForGC() {
-  HeapObjectHeader* header = heapObjectHeader();
-  if (header->isMarked()) {
-    header->unmark();
-    arena()->getThreadState()->increaseMarkedObjectSize(size());
-  } else {
-    header->markDead();
-  }
-}
-
 void LargeObjectPage::makeConsistentForMutator() {
   HeapObjectHeader* header = heapObjectHeader();
   if (header->isMarked())
@@ -1844,7 +1729,7 @@ void LargeObjectPage::checkAndMarkPointer(Visitor* visitor, Address address) {
 #if DCHECK_IS_ON()
   DCHECK(contains(address));
 #endif
-  if (!containedInObjectPayload(address) || heapObjectHeader()->isDead())
+  if (!containedInObjectPayload(address))
     return;
   markPointer(visitor, heapObjectHeader());
 }
@@ -1855,20 +1740,12 @@ void LargeObjectPage::checkAndMarkPointer(
     Address address,
     MarkedPointerCallbackForTesting callback) {
   DCHECK(contains(address));
-  if (!containedInObjectPayload(address) || heapObjectHeader()->isDead())
+  if (!containedInObjectPayload(address))
     return;
   if (!callback(heapObjectHeader()))
     markPointer(visitor, heapObjectHeader());
 }
 #endif
-
-void LargeObjectPage::markOrphaned() {
-  // Zap the payload with a recognizable value to detect any incorrect
-  // cross thread pointer usage.
-  OrphanedPagePool::asanDisabledMemset(
-      payload(), OrphanedPagePool::orphanedZapValue, payloadSize());
-  BasePage::markOrphaned();
-}
 
 void LargeObjectPage::takeSnapshot(
     base::trace_event::MemoryAllocatorDump* pageDump,

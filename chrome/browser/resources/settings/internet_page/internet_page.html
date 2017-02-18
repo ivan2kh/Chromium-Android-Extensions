@@ -52,13 +52,15 @@
             <div actionable class="settings-box continuation center"
                 on-tap="onAddWiFiTap_">
               <div class="start add-no-icon">$i18n{internetAddWiFi}</div>
-              <button class="icon-external" is="paper-icon-button-light">
+              <button class="icon-external" is="paper-icon-button-light"
+                  aria-label="$i18n{internetAddWiFi}">
               </button>
             </div>
             <div actionable class="settings-box continuation center"
                 on-tap="onAddVPNTap_">
               <div class="start add-no-icon">$i18n{internetAddVPN}</div>
-              <button class="icon-external" is="paper-icon-button-light">
+              <button class="icon-external" is="paper-icon-button-light"
+                  aria-label="$i18n{internetAddVPN}">
               </button>
             </div>
             <template is="dom-repeat" items="[[thirdPartyVpnProviders_]]">
@@ -73,7 +75,7 @@
         </template>
         <template is="dom-if" if="[[!allowAddConnection_(globalPolicy_)]]">
           <div class="settings-box">
-            <iron-icon class="policy" icon="cr:domain"></iron-icon>
+            <iron-icon class="policy" icon="cr20:domain"></iron-icon>
             <div>$i18n{internetAddConnectionNotAllowed}</div>
           </div>
         </template>

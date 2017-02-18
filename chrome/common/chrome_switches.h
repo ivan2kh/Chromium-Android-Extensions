@@ -9,6 +9,7 @@
 #define CHROME_COMMON_CHROME_SWITCHES_H_
 
 #include "build/build_config.h"
+#include "chrome/common/features.h"
 #include "ppapi/features/features.h"
 #include "printing/features/features.h"
 
@@ -101,6 +102,7 @@ extern const char kDumpBrowserHistograms[];
 extern const char kEasyUnlockAppPath[];
 extern const char kEnableAddToShelf[];
 extern const char kEnableAudioDebugRecordingsFromExtension[];
+extern const char kEnableAutomation[];
 extern const char kEnableBenchmarking[];
 extern const char kEnableBookmarkUndo[];
 extern const char kEnableClearBrowsingDataCounters[];
@@ -328,6 +330,10 @@ extern const char kWatcherProcess[];
 extern const char kWindows10CustomTitlebar[];
 extern const char kWindows8Search[];
 #endif  // defined(OS_WIN)
+
+#if BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
+extern const char kMash[];
+#endif
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW) && !defined(OFFICIAL_BUILD)
 extern const char kDebugPrint[];

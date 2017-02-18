@@ -8,7 +8,7 @@
 #include <cmath>
 #include <vector>
 
-#include "ash/common/material_design/material_design_controller.h"
+#include "ash/animation/animation_change_type.h"
 #include "ash/common/session/session_controller.h"
 #include "ash/common/session/session_state_delegate.h"
 #include "ash/common/shelf/shelf_constants.h"
@@ -96,7 +96,7 @@ class ShelfLayoutManager::UpdateShelfObserver
 
   void OnImplicitAnimationsCompleted() override {
     if (shelf_)
-      shelf_->MaybeUpdateShelfBackground(BACKGROUND_CHANGE_ANIMATE);
+      shelf_->MaybeUpdateShelfBackground(AnimationChangeType::ANIMATE);
     delete this;
   }
 
@@ -325,7 +325,7 @@ void ShelfLayoutManager::UpdateAutoHideForGestureEvent(ui::GestureEvent* event,
 
 void ShelfLayoutManager::SetWindowOverlapsShelf(bool value) {
   window_overlaps_shelf_ = value;
-  MaybeUpdateShelfBackground(BACKGROUND_CHANGE_ANIMATE);
+  MaybeUpdateShelfBackground(AnimationChangeType::ANIMATE);
 }
 
 void ShelfLayoutManager::AddObserver(ShelfLayoutManagerObserver* observer) {
@@ -500,7 +500,7 @@ void ShelfLayoutManager::SetState(ShelfVisibilityState visibility_state) {
   State old_state = state_;
   state_ = state;
 
-  BackgroundAnimatorChangeType change_type = BACKGROUND_CHANGE_ANIMATE;
+  AnimationChangeType change_type = AnimationChangeType::ANIMATE;
   bool delay_background_change = false;
 
   // Do not animate the background when:
@@ -511,7 +511,7 @@ void ShelfLayoutManager::SetState(ShelfVisibilityState visibility_state) {
   if (state.visibility_state == SHELF_VISIBLE &&
       state.window_state == wm::WORKSPACE_WINDOW_STATE_MAXIMIZED &&
       old_state.visibility_state != SHELF_VISIBLE) {
-    change_type = BACKGROUND_CHANGE_IMMEDIATE;
+    change_type = AnimationChangeType::IMMEDIATE;
   } else {
     // Delay the animation when the shelf was hidden, and has just been made
     // visible (e.g. using a gesture-drag).
@@ -814,8 +814,7 @@ void ShelfLayoutManager::UpdateTargetBoundsForGesture(
   }
 }
 
-void ShelfLayoutManager::MaybeUpdateShelfBackground(
-    BackgroundAnimatorChangeType type) {
+void ShelfLayoutManager::MaybeUpdateShelfBackground(AnimationChangeType type) {
   const ShelfBackgroundType new_background_type(GetShelfBackgroundType());
 
   if (new_background_type == shelf_background_type_)
@@ -981,7 +980,7 @@ void ShelfLayoutManager::OnDockBoundsChanging(
     dock_bounds_ = dock_bounds;
     OnWindowResized();
     UpdateVisibilityState();
-    MaybeUpdateShelfBackground(BACKGROUND_CHANGE_ANIMATE);
+    MaybeUpdateShelfBackground(AnimationChangeType::ANIMATE);
   }
 }
 
@@ -994,7 +993,7 @@ void ShelfLayoutManager::OnLockStateEvent(LockStateObserver::EventType event) {
   } else {
     state_.pre_lock_screen_animation_active = false;
   }
-  MaybeUpdateShelfBackground(BACKGROUND_CHANGE_ANIMATE);
+  MaybeUpdateShelfBackground(AnimationChangeType::ANIMATE);
 }
 
 void ShelfLayoutManager::SessionStateChanged(
@@ -1004,7 +1003,7 @@ void ShelfLayoutManager::SessionStateChanged(
   const bool was_adding_user = state_.IsAddingSecondaryUser();
   const bool was_locked = state_.IsScreenLocked();
   state_.session_state = state;
-  MaybeUpdateShelfBackground(BACKGROUND_CHANGE_ANIMATE);
+  MaybeUpdateShelfBackground(AnimationChangeType::ANIMATE);
   if (was_adding_user != state_.IsAddingSecondaryUser()) {
     UpdateShelfVisibilityAfterLoginUIChange();
     return;
@@ -1035,13 +1034,10 @@ float ShelfLayoutManager::ComputeTargetOpacity(const State& state) {
   // In Chrome OS Material Design, when shelf is hidden during auto hide state,
   // target bounds are also hidden. So the window can extend to the edge of
   // screen.
-  if (ash::MaterialDesignController::IsImmersiveModeMaterial()) {
-    return (state.visibility_state == SHELF_AUTO_HIDE &&
-            state.auto_hide_state == SHELF_AUTO_HIDE_SHOWN)
-               ? 1.0f
-               : 0.0f;
-  }
-  return (state.visibility_state == SHELF_AUTO_HIDE) ? 1.0f : 0.0f;
+  return (state.visibility_state == SHELF_AUTO_HIDE &&
+          state.auto_hide_state == SHELF_AUTO_HIDE_SHOWN)
+             ? 1.0f
+             : 0.0f;
 }
 
 bool ShelfLayoutManager::IsShelfHiddenForFullscreen() const {
@@ -1060,7 +1056,7 @@ void ShelfLayoutManager::StartGestureDrag(const ui::GestureEvent& gesture) {
   gesture_drag_auto_hide_state_ = visibility_state() == SHELF_AUTO_HIDE
                                       ? auto_hide_state()
                                       : SHELF_AUTO_HIDE_SHOWN;
-  MaybeUpdateShelfBackground(BACKGROUND_CHANGE_ANIMATE);
+  MaybeUpdateShelfBackground(AnimationChangeType::ANIMATE);
 }
 
 void ShelfLayoutManager::UpdateGestureDrag(const ui::GestureEvent& gesture) {

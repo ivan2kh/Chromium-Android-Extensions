@@ -123,6 +123,7 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
   void didInitializeWorkerContext(v8::Local<v8::Context> context) override;
   void willDestroyWorkerContext(v8::Local<v8::Context> context) override;
   void workerContextDestroyed() override;
+  void countFeature(uint32_t feature) override;
   void reportException(const blink::WebString& error_message,
                        int line_number,
                        int column_number,
@@ -170,16 +171,18 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
   void didHandleSyncEvent(int request_id,
                           blink::WebServiceWorkerEventResult result,
                           double dispatch_event_time) override;
+  void didHandlePaymentRequestEvent(int request_id,
+                                    blink::WebServiceWorkerEventResult result,
+                                    double dispatch_event_time) override;
 
   // Called on the main thread.
   blink::WebServiceWorkerNetworkProvider* createServiceWorkerNetworkProvider(
       blink::WebDataSource* data_source) override;
   blink::WebServiceWorkerProvider* createServiceWorkerProvider() override;
 
-  void postMessageToClient(
-      const blink::WebString& uuid,
-      const blink::WebString& message,
-      blink::WebMessagePortChannelArray* channels) override;
+  void postMessageToClient(const blink::WebString& uuid,
+                           const blink::WebString& message,
+                           blink::WebMessagePortChannelArray channels) override;
   void focus(const blink::WebString& uuid,
              std::unique_ptr<blink::WebServiceWorkerClientCallbacks>) override;
   void navigate(
@@ -216,6 +219,16 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
                           const ServiceWorkerFetchRequest& request,
                           mojom::FetchEventPreloadHandlePtr preload_handle,
                           const DispatchFetchEventCallback& callback) override;
+  void DispatchNotificationClickEvent(
+      const std::string& notification_id,
+      const PlatformNotificationData& notification_data,
+      int action_index,
+      const base::Optional<base::string16>& reply,
+      const DispatchNotificationClickEventCallback& callback) override;
+  void DispatchNotificationCloseEvent(
+      const std::string& notification_id,
+      const PlatformNotificationData& notification_data,
+      const DispatchNotificationCloseEventCallback& callback) override;
   void DispatchPushEvent(const PushEventPayload& payload,
                          const DispatchPushEventCallback& callback) override;
   void DispatchSyncEvent(
@@ -290,7 +303,8 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
   // This is bound on the worker thread.
   mojom::ServiceWorkerEventDispatcherRequest pending_dispatcher_request_;
 
-  // Renderer-side object corresponding to WebEmbeddedWorkerInstance
+  // Renderer-side object corresponding to WebEmbeddedWorkerInstance.
+  // This is valid from the ctor to workerContextDestroyed.
   std::unique_ptr<EmbeddedWorkerInstanceClientImpl> embedded_worker_client_;
 
   // Initialized on the worker thread in workerContextStarted and

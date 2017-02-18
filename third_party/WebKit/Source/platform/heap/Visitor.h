@@ -94,28 +94,6 @@ struct TraceMethodDelegate {
 #define DEFINE_INLINE_TRACE() DEFINE_INLINE_TRACE_IMPL(EMPTY_MACRO_ARGUMENT)
 #define DEFINE_INLINE_VIRTUAL_TRACE() DEFINE_INLINE_TRACE_IMPL(virtual)
 
-enum class VisitorMarkingMode {
-  // This is a default visitor. This is used for GCType=GCWithSweep
-  // and GCType=GCWithoutSweep.
-  GlobalMarking,
-  // This visitor does not trace objects outside the heap of the
-  // GCing thread. This is used for GCType=ThreadTerminationGC.
-  ThreadLocalMarking,
-  // This visitor just marks objects and ignores weak processing.
-  // This is used for GCType=TakeSnapshot.
-  SnapshotMarking,
-  // This visitor is used to trace objects during weak processing.
-  // This visitor is allowed to trace only already marked objects.
-  WeakProcessing,
-  // Perform global marking along with preparing for additional sweep
-  // compaction of heap arenas afterwards. Compared to the GlobalMarking
-  // visitor, this visitor will also register references to objects
-  // that might be moved during arena compaction -- the compaction
-  // pass will then fix up those references when the object move goes
-  // ahead.
-  GlobalMarkingWithCompaction,
-};
-
 // Visitor is used to traverse the Blink object graph. Used for the
 // marking phase of the mark-sweep garbage collector.
 //
@@ -127,9 +105,28 @@ enum class VisitorMarkingMode {
 // contained pointers and push them on the marking stack.
 class PLATFORM_EXPORT Visitor {
  public:
-  static std::unique_ptr<Visitor> create(ThreadState*, VisitorMarkingMode);
+  enum MarkingMode {
+    // This is a default visitor. This is used for GCType=GCWithSweep
+    // and GCType=GCWithoutSweep.
+    GlobalMarking,
+    // This visitor just marks objects and ignores weak processing.
+    // This is used for GCType=TakeSnapshot.
+    SnapshotMarking,
+    // This visitor is used to trace objects during weak processing.
+    // This visitor is allowed to trace only already marked objects.
+    WeakProcessing,
+    // Perform global marking along with preparing for additional sweep
+    // compaction of heap arenas afterwards. Compared to the GlobalMarking
+    // visitor, this visitor will also register references to objects
+    // that might be moved during arena compaction -- the compaction
+    // pass will then fix up those references when the object move goes
+    // ahead.
+    GlobalMarkingWithCompaction,
+  };
 
-  Visitor(ThreadState*, VisitorMarkingMode);
+  static std::unique_ptr<Visitor> create(ThreadState*, MarkingMode);
+
+  Visitor(ThreadState*, MarkingMode);
   virtual ~Visitor();
 
   // One-argument templated mark method. This uses the static type of
@@ -223,7 +220,7 @@ class PLATFORM_EXPORT Visitor {
   // threads are stopped during weak cell callbacks.
   template <typename T>
   void registerWeakCell(T** cell) {
-    registerWeakCellWithCallback(
+    registerWeakCallback(
         reinterpret_cast<void**>(
             const_cast<typename std::remove_const<T>::type**>(cell)),
         &handleWeakCell<T>);
@@ -231,12 +228,10 @@ class PLATFORM_EXPORT Visitor {
 
   template <typename T, void (T::*method)(Visitor*)>
   void registerWeakMembers(const T* obj) {
-    registerWeakMembers(obj, &TraceMethodDelegate<T, method>::trampoline);
+    registerWeakCallback(const_cast<T*>(obj),
+                         &TraceMethodDelegate<T, method>::trampoline);
   }
 
-  void registerWeakMembers(const void* object, WeakCallback callback) {
-    registerWeakMembers(object, object, callback);
-  }
 
   inline void registerBackingStoreReference(void* slot);
 
@@ -273,17 +268,7 @@ class PLATFORM_EXPORT Visitor {
   // that even removing things from HeapHashSet or HeapHashMap can cause
   // an allocation if the backing store resizes, but these collections know
   // how to remove WeakMember elements safely.
-  //
-  // The weak pointer callbacks are run on the thread that owns the
-  // object and other threads are not stopped during the
-  // callbacks. Since isAlive is used in the callback to determine
-  // if objects pointed to are alive it is crucial that the object
-  // pointed to belong to the same thread as the object receiving
-  // the weak callback. Since other threads have been resumed the
-  // mark bits are not valid for objects from other threads.
-  inline void registerWeakMembers(const void* closure,
-                                  const void* pointer,
-                                  WeakCallback);
+  inline void registerWeakCallback(void* closure, WeakCallback);
 
   inline void registerWeakTable(const void* closure,
                                 EphemeronCallback iterationCallback,
@@ -294,8 +279,6 @@ class PLATFORM_EXPORT Visitor {
 #endif
 
   inline bool ensureMarked(const void* pointer);
-
-  inline void registerWeakCellWithCallback(void** cell, WeakCallback);
 
   inline void markNoTracing(const void* pointer) {
     mark(pointer, reinterpret_cast<TraceCallback>(0));
@@ -313,7 +296,7 @@ class PLATFORM_EXPORT Visitor {
   inline ThreadState* state() const { return m_state; }
   inline ThreadHeap& heap() const { return state()->heap(); }
 
-  inline VisitorMarkingMode getMarkingMode() const { return m_markingMode; }
+  inline MarkingMode getMarkingMode() const { return m_markingMode; }
 
  private:
   template <typename T>
@@ -322,7 +305,7 @@ class PLATFORM_EXPORT Visitor {
   static void markNoTracingCallback(Visitor*, void*);
 
   ThreadState* const m_state;
-  const VisitorMarkingMode m_markingMode;
+  const MarkingMode m_markingMode;
 };
 
 }  // namespace blink

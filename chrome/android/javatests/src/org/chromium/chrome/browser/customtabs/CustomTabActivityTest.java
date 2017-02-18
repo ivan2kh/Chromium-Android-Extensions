@@ -159,10 +159,19 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
         PathUtils.setPrivateDataDirectorySuffix(PRIVATE_DATA_DIRECTORY_SUFFIX);
         LibraryLoader.get(LibraryProcessType.PROCESS_BROWSER).ensureInitialized();
         mWebServer = TestWebServer.start();
+
+        CustomTabsConnection connection =
+                CustomTabsConnection.getInstance((Application) appContext);
+        connection.setForcePrerender(true);
     }
 
     @Override
     protected void tearDown() throws Exception {
+        Context appContext = getInstrumentation().getTargetContext().getApplicationContext();
+        CustomTabsConnection connection =
+                CustomTabsConnection.getInstance((Application) appContext);
+        connection.setForcePrerender(false);
+
         ThreadUtils.runOnUiThreadBlocking(new Runnable() {
             @Override
             public void run() {
@@ -1502,8 +1511,10 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
      * ChromeTabbedActivity, and no tablets to have the tab switcher button.
      *
      * Non-regression test for crbug.com/547121.
+     * @SmallTest
+     * Disabled for flake: https://crbug.com/692025.
      */
-    @SmallTest
+    @DisabledTest
     @Restriction(ChromeRestriction.RESTRICTION_TYPE_PHONE)
     @CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
     public void testWarmupAndLaunchRegularChrome() {

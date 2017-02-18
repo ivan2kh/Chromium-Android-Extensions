@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Otwórz wszystkie</translation>
 <translation id="1430915738399379752">Drukuj</translation>
 <translation id="145015347812617860">Elementy: <ph name="COUNT" /></translation>
+<translation id="1491277525950327607">Kliknij dwukrotnie, by zmienić ustawienie</translation>
 <translation id="1540800554400757039">Adres 1</translation>
 <translation id="1545749641540134597">Zeskanuj kod QR</translation>
 <translation id="1580783302095112590">E-mail wysłany.</translation>
@@ -65,7 +66,6 @@ Na przykład niektóre strony mogą na nie zareagować, wyświetlając reklamy b
 <translation id="2068952045031577364">Ostatni tydzień</translation>
 <translation id="2079545284768500474">Cofnij</translation>
 <translation id="209018056901015185">Pobierz witrynę dla komputera</translation>
-<translation id="2100215774115172756">Twoja lista Do przeczytania jest dostępna offline.</translation>
 <translation id="2103075008456228677">Otwórz history.google.com</translation>
 <translation id="2116625576999540962">Przeniesione elementy: <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /></translation>
 <translation id="2149973817440762519">Edytuj zakładkę</translation>
@@ -120,7 +120,6 @@ Na przykład niektóre strony mogą na nie zareagować, wyświetlając reklamy b
 <translation id="3175081911749765310">Usługi internetowe</translation>
 <translation id="3207960819495026254">Dodano do zakładek</translation>
 <translation id="3210163015918861891">Synchronizacja jest wyłączona</translation>
-<translation id="3237561509210981547">Aby dodać stronę do listy Do przeczytania, dotknij opcji <ph name="BEGIN_BOLD_FONT" />Udostępnij &gt; Przeczytaj później<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Link skopiowany</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> z <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Na przykład niektóre strony mogą na nie zareagować, wyświetlając reklamy b
 <translation id="3414292259312108062">Chrome umieści to hasło w <ph name="BEGIN_LINK" />zapisanych hasłach Google<ph name="END_LINK" /> i będzie je automatycznie wstawiać, więc nie musisz go zapamiętywać.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Widok dzielony</translation>
-<translation id="3474068797193663261">Aby dodać stronę do listy Do przeczytania, dotknij <ph name="BEGIN_BOLD_FONT" />Menu &gt; Udostępnij &gt; Przeczytaj później<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Formularze wypełnione.</translation>
 <translation id="3478058380795961209">Miesiąc utraty ważności</translation>
 <translation id="3482959374254649722">Synchronizuję karty...</translation>
@@ -171,6 +169,7 @@ Aby dostosować wyszukiwane hasło, naciśnij je i przytrzymaj, by je zaznaczyć
 <translation id="4121993058175073134">Aby wysłać dane net-export, skonfiguruj konto e-mail w aplikacji Ustawienia.</translation>
 <translation id="4124987746317609294">Zakres czasowy</translation>
 <translation id="4172051516777682613">Zawsze pokazuj</translation>
+<translation id="418156467088430727">Wyświetl wersję offline w nowej karcie</translation>
 <translation id="424315890655130736">Wpisz hasło</translation>
 <translation id="4272631900155121838">Aby zeskanować kod QR, włącz aparat w ustawieniach</translation>
 <translation id="4281844954008187215">Warunki korzystania z usługi</translation>
@@ -178,7 +177,6 @@ Aby dostosować wyszukiwane hasło, naciśnij je i przytrzymaj, by je zaznaczyć
 <translation id="4359125752503270327">Strona zostanie otwarta w innej aplikacji.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Informacje na temat ochrony prywatności</translation>
-<translation id="4426508677408162512">Wszystkie zakładki</translation>
 <translation id="4473991315115669931">Włącz tryb incognito</translation>
 <translation id="4526249700380860531">Wyświetlaj zapisane hasła i zarządzaj nimi na <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Spróbuj zalogować się jeszcze raz.</translation>
@@ -218,6 +216,7 @@ Dane zostały zaszyfrowane z użyciem Twojego hasła synchronizacji. Wpisz je, 
 <translation id="5300589172476337783">Pokaż</translation>
 <translation id="5317780077021120954">Zapisz</translation>
 <translation id="5327248766486351172">Nazwa</translation>
+<translation id="5332219387342487447">Metoda wysyłki</translation>
 <translation id="5388358297987318779">Otwórz obraz</translation>
 <translation id="5409365236829784218">Nie masz aplikacji, w których można otworzyć ten plik.</translation>
 <translation id="54401264925851789">Informacje o bezpieczeństwie strony</translation>
@@ -256,6 +255,7 @@ Funkcja Handoff musi być też włączona w sekcji Ogólne w Ustawieniach, a urz
 <translation id="6042308850641462728">Więcej</translation>
 <translation id="605721222689873409">RR</translation>
 <translation id="6066301408025741299">Kliknij, by anulować.</translation>
+<translation id="60851516108411750">Twoja lista „Do przeczytania” jest dostępna offline. Aby dodać do niej stronę, kliknij <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Element został usunięty</translation>
 <translation id="6136914049981179737">Przed chwilą</translation>
@@ -270,6 +270,7 @@ Funkcja Handoff musi być też włączona w sekcji Ogólne w Ustawieniach, a urz
 <translation id="6255097610484507482">Edytuj kartę kredytową</translation>
 <translation id="6308436439357671616">Umożliwia robienie i przesyłanie zdjęć.</translation>
 <translation id="6314335155547195432">Wygeneruj hasło</translation>
+<translation id="6324528485781869530">Zmień konto synchronizacji</translation>
 <translation id="6324669097367352121">Ustawienia logowania</translation>
 <translation id="6337234675334993532">Szyfrowanie</translation>
 <translation id="633809752005859102">Coś poszło nie tak. Zajmiemy się tym.</translation>

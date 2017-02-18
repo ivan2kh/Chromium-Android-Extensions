@@ -265,8 +265,9 @@ void HTMLImageElement::parseAttribute(
   } else if (name == referrerpolicyAttr) {
     m_referrerPolicy = ReferrerPolicyDefault;
     if (!params.newValue.isNull()) {
-      SecurityPolicy::referrerPolicyFromStringWithLegacyKeywords(
-          params.newValue, &m_referrerPolicy);
+      SecurityPolicy::referrerPolicyFromString(
+          params.newValue, SupportReferrerPolicyLegacyKeywords,
+          &m_referrerPolicy);
       UseCounter::count(document(),
                         UseCounter::HTMLImageElementReferrerPolicyAttribute);
     }
@@ -333,11 +334,6 @@ ImageCandidate HTMLImageElement::findBestFitImageFromPictureParent() {
   return ImageCandidate();
 }
 
-bool HTMLImageElement::layoutObjectIsNeeded(const ComputedStyle& style) {
-  return m_layoutDisposition != LayoutDisposition::Collapsed &&
-         HTMLElement::layoutObjectIsNeeded(style);
-}
-
 LayoutObject* HTMLImageElement::createLayoutObject(const ComputedStyle& style) {
   const ContentData* contentData = style.contentData();
   if (contentData && contentData->isImage()) {
@@ -366,7 +362,6 @@ LayoutObject* HTMLImageElement::createLayoutObject(const ComputedStyle& style) {
 
 void HTMLImageElement::attachLayoutTree(const AttachContext& context) {
   HTMLElement::attachLayoutTree(context);
-
   if (layoutObject() && layoutObject()->isImage()) {
     LayoutImage* layoutImage = toLayoutImage(layoutObject());
     LayoutImageResource* layoutImageResource = layoutImage->imageResource();
@@ -850,6 +845,10 @@ void HTMLImageElement::ensureCollapsedOrFallbackContent() {
 
 void HTMLImageElement::ensurePrimaryContent() {
   setLayoutDisposition(LayoutDisposition::PrimaryContent);
+}
+
+bool HTMLImageElement::isCollapsed() const {
+  return m_layoutDisposition == LayoutDisposition::Collapsed;
 }
 
 void HTMLImageElement::setLayoutDisposition(LayoutDisposition layoutDisposition,

@@ -43,7 +43,6 @@ source_set("common") {
     "android/sync_compositor_messages.h",
     "android/sync_compositor_statics.cc",
     "android/sync_compositor_statics.h",
-    "app_web_message_port_messages.h",
     "appcache_interfaces.cc",
     "appcache_interfaces.h",
     "appcache_messages.h",
@@ -64,11 +63,9 @@ source_set("common") {
     "child_process_host_impl.cc",
     "child_process_host_impl.h",
     "child_process_messages.h",
-    "child_process_sandbox_support_impl_linux.cc",
-    "child_process_sandbox_support_impl_linux.h",
-    "child_process_sandbox_support_impl_shm_linux.cc",
     "clipboard_format.h",
     "clipboard_messages.h",
+    "common_sandbox_support_linux.cc",
     "content_constants_internal.cc",
     "content_constants_internal.h",
     "content_export.h",
@@ -146,7 +143,6 @@ source_set("common") {
     "indexed_db/indexed_db_metadata.h",
     "indexed_db/indexed_db_struct_traits.cc",
     "indexed_db/indexed_db_struct_traits.h",
-    "input/event_with_latency_info.cc",
     "input/event_with_latency_info.h",
     "input/gesture_event_stream_validator.cc",
     "input/gesture_event_stream_validator.h",
@@ -213,7 +209,8 @@ source_set("common") {
     "media/surface_view_manager_messages_android.h",
     "media/video_capture.h",
     "memory_messages.h",
-    "message_port_messages.h",
+    "message_port.cc",
+    "message_port.h",
     "navigation_gesture.h",
     "navigation_params.cc",
     "navigation_params.h",
@@ -303,8 +300,6 @@ source_set("common") {
     "service_worker/service_worker_messages.h",
     "service_worker/service_worker_status_code.cc",
     "service_worker/service_worker_status_code.h",
-    "service_worker/service_worker_type_converters.cc",
-    "service_worker/service_worker_type_converters.h",
     "service_worker/service_worker_types.cc",
     "service_worker/service_worker_types.h",
     "service_worker/service_worker_utils.cc",
@@ -372,7 +367,6 @@ source_set("common") {
     "//gpu/ipc/common",
     "//gpu/skia_bindings",
     "//ipc",
-    "//ipc:mojom",
     "//media",
     "//media:shared_memory_support",
     "//media/base/ipc",
@@ -396,7 +390,6 @@ source_set("common") {
     "//services/video_capture/public/interfaces",
     "//skia",
     "//storage/common",
-    "//third_party/WebKit/public:blink_minimal",
     "//third_party/boringssl",
     "//third_party/icu",
     "//third_party/libjingle",
@@ -601,7 +594,6 @@ mojom("mojo_bindings") {
   public_deps = [
     "//components/leveldb/public/interfaces",
     "//content/public/common:interfaces",
-    "//device/power_monitor/public/interfaces",
 
     # TODO(mcasas): remove the following dep after https://crbug.com/653994
     "//gpu/ipc/common:interfaces",
@@ -620,6 +612,9 @@ mojom("mojo_bindings") {
     "//url/mojo:url_mojom_gurl",
     "//url/mojo:url_mojom_origin",
   ]
+
+  overridden_deps = [ "//ipc:mojom" ]
+  component_deps = [ "//ipc" ]
 
   export_class_attribute = "CONTENT_EXPORT"
   export_define = "CONTENT_IMPLEMENTATION=1"

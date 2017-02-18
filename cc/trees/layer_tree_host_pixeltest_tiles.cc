@@ -50,12 +50,10 @@ class LayerTreeHostTilesPixelTest : public LayerTreePixelTest {
         settings->use_partial_raster = false;
         break;
       case PARTIAL_GPU:
-        settings->gpu_rasterization_enabled = true;
         settings->gpu_rasterization_forced = true;
         settings->use_partial_raster = true;
         break;
       case FULL_GPU:
-        settings->gpu_rasterization_enabled = true;
         settings->gpu_rasterization_forced = true;
         settings->use_partial_raster = false;
         break;
@@ -122,13 +120,13 @@ class BlueYellowClient : public ContentLayerClient {
     gfx::Rect blue_rect = blue_top_ ? top : bottom;
     gfx::Rect yellow_rect = blue_top_ ? bottom : top;
 
-    PaintFlags paint;
-    paint.setStyle(PaintFlags::kFill_Style);
+    PaintFlags flags;
+    flags.setStyle(PaintFlags::kFill_Style);
 
-    paint.setColor(SK_ColorBLUE);
-    canvas->drawRect(gfx::RectToSkRect(blue_rect), paint);
-    paint.setColor(SK_ColorYELLOW);
-    canvas->drawRect(gfx::RectToSkRect(yellow_rect), paint);
+    flags.setColor(SK_ColorBLUE);
+    canvas->drawRect(gfx::RectToSkRect(blue_rect), flags);
+    flags.setColor(SK_ColorYELLOW);
+    canvas->drawRect(gfx::RectToSkRect(yellow_rect), flags);
 
     display_list->CreateAndAppendDrawingItem<DrawingDisplayItem>(
         PaintableRegion(), recorder.finishRecordingAsPicture());

@@ -33,6 +33,7 @@ cast_test_group("cast_tests") {
     "//chromecast/base:cast_base_unittests",
     "//chromecast/base/component:cast_component_unittests",
     "//chromecast/crypto:cast_crypto_unittests",
+    "//chromecast/media:cast_media_unittests",
     "//chromecast/system/reboot:cast_reboot_unittests",
     "//content/test:content_unittests",
     "//crypto:crypto_unittests",
@@ -66,7 +67,6 @@ cast_test_group("cast_tests") {
     tests += [
       ":cast_shell_browsertests",
       ":cast_shell_unittests",
-      "//chromecast/media:cast_media_unittests",
       "//ipc:ipc_tests",
       "//jingle:jingle_unittests",
       "//url:url_unittests",
@@ -136,11 +136,13 @@ cast_test_group("cast_tests") {
       # Disable ProcessUtilTest.* (need to define OS_ANDROID)
       # Disable StackContainer.BufferAlignment (don't support 16-byte alignment)
       # Disable SystemMetrics2Test.GetSystemMemoryInfo (buffers>0 can't be guaranteed)
+      # Disable TimeFormattingTest.TimeFormat* for flakiness on devices (crbug/671429)
       gtest_excludes = [
         "ProcessMetricsTest.GetNumberOfThreads",
         "ProcessUtilTest.*",
         "StackContainer.BufferAlignment",
         "SystemMetrics2Test.GetSystemMemoryInfo",
+        "TimeFormattingTest.TimeFormat*",
       ]
 
       if (is_cast_audio_only) {

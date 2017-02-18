@@ -36,6 +36,7 @@
 
 #include "core/loader/FrameLoader.h"
 
+#include <memory>
 #include "bindings/core/v8/DOMWrapperWorld.h"
 #include "bindings/core/v8/ScriptController.h"
 #include "bindings/core/v8/SerializedScriptValue.h"
@@ -102,7 +103,6 @@
 #include "wtf/AutoReset.h"
 #include "wtf/text/CString.h"
 #include "wtf/text/WTFString.h"
-#include <memory>
 
 using blink::WebURLRequest;
 
@@ -421,6 +421,8 @@ void FrameLoader::setHistoryItemStateForCommit(
     return;
   m_currentItem->setDocumentSequenceNumber(oldItem->documentSequenceNumber());
   m_currentItem->setScrollOffset(oldItem->getScrollOffset());
+  m_currentItem->setDidSaveScrollOrScaleState(
+      oldItem->didSaveScrollOrScaleState());
   m_currentItem->setVisualViewportScrollOffset(
       oldItem->visualViewportScrollOffset());
   m_currentItem->setPageScaleFactor(oldItem->pageScaleFactor());
@@ -1195,6 +1197,14 @@ void FrameLoader::load(const FrameLoadRequest& passedRequest,
     return;
   }
 
+  // PlzNavigate
+  // If the loader classifies this navigation as a different document navigation
+  // while the browser intended the navigation to be same-document, it means
+  // that a different navigation must have committed while the IPC was sent.
+  // This navigation is no more same-document. The navigation is simply dropped.
+  if (request.resourceRequest().isSameDocumentNavigation())
+    return;
+
   startLoad(request, newLoadType, policy);
 }
 
@@ -1231,7 +1241,12 @@ void FrameLoader::stopAllLoaders() {
 
   m_inStopAllLoaders = true;
 
-  m_isNavigationHandledByClient = false;
+  if (m_isNavigationHandledByClient) {
+    client()->dispatchDidFailProvisionalLoad(
+        ResourceError::cancelledError(String()), StandardCommit);
+  }
+
+  clearNavigationHandledByClient();
 
   for (Frame* child = m_frame->tree().firstChild(); child;
        child = child->tree().nextSibling()) {
@@ -1400,6 +1415,8 @@ void FrameLoader::restoreScrollPositionAndViewStateForLoadType(
     return;
   }
   if (!needsHistoryItemRestore(loadType))
+    return;
+  if (!m_currentItem->didSaveScrollOrScaleState())
     return;
 
   bool shouldRestoreScroll =
@@ -1657,7 +1674,7 @@ bool FrameLoader::shouldContinueForNavigationPolicy(
   if (policy == NavigationPolicyIgnore)
     return false;
   if (policy == NavigationPolicyHandledByClient) {
-    m_isNavigationHandledByClient = true;
+    setNavigationHandledByClient();
     // Mark the frame as loading since the embedder is handling the navigation.
     m_progressTracker->progressStarted(frameLoadType);
 
@@ -1730,26 +1747,44 @@ void FrameLoader::startLoad(FrameLoadRequest& frameLoadRequest,
 
   if (!checkLoadCanStart(frameLoadRequest, type, navigationPolicy,
                          navigationType)) {
-    // PlzNavigate: if the navigation is a commit of a client-handled
-    // navigation, record that there is no longer a navigation handled by the
-    // client.
-    if (m_isNavigationHandledByClient &&
-        !frameLoadRequest.resourceRequest().checkForBrowserSideNavigation()) {
-      m_isNavigationHandledByClient = false;
+    if (m_isNavigationHandledByClient) {
+      // PlzNavigate: if the navigation is a commit of a client-handled
+      // navigation, record that there is no longer a navigation handled by the
+      // client.
+      if (!frameLoadRequest.resourceRequest().checkForBrowserSideNavigation()) {
+        clearNavigationHandledByClient();
+      } else {
+        DocumentLoader* loader = createDocumentLoader(
+            resourceRequest, frameLoadRequest, type, navigationType);
+        // PlzNavigate: If the navigation is handled by the client, then the
+        // didFinishDocumentLoad() event occurs before the
+        // didStartProvisionalLoad() notification which occurs after the
+        // navigation
+        // is committed. This causes a number of layout tests to fail. We
+        // workaround this by invoking the didStartProvisionalLoad()
+        // notification
+        // here. Consumers of the didStartProvisionalLoad() notification rely on
+        // the provisional loader and save navigation state in it. We want to
+        // avoid
+        // this dependency on the provisional loader. For now we create a
+        // temporary
+        // loader and pass it to the didStartProvisionalLoad() function.
+        // TODO(ananta)
+        // We should get rid of the dependency on the DocumentLoader in
+        // consumers
+        // of
+        // the didStartProvisionalLoad() notification.
+        client()->dispatchDidStartProvisionalLoad(loader);
+        DCHECK(loader);
+        loader->setSentDidFinishLoad();
+        loader->detachFromFrame();
+      }
     }
     return;
   }
 
-  m_provisionalDocumentLoader = client()->createDocumentLoader(
-      m_frame, resourceRequest,
-      frameLoadRequest.substituteData().isValid()
-          ? frameLoadRequest.substituteData()
-          : defaultSubstituteDataForURL(resourceRequest.url()),
-      frameLoadRequest.clientRedirect());
-  m_provisionalDocumentLoader->setLoadType(type);
-  m_provisionalDocumentLoader->setNavigationType(navigationType);
-  m_provisionalDocumentLoader->setReplacesCurrentHistoryItem(
-      type == FrameLoadTypeReplaceCurrentItem);
+  m_provisionalDocumentLoader = createDocumentLoader(
+      resourceRequest, frameLoadRequest, type, navigationType);
 
   // PlzNavigate: We need to ensure that script initiated navigations are
   // honored.
@@ -1761,6 +1796,7 @@ void FrameLoader::startLoad(FrameLoadRequest& frameLoadRequest,
   if (frameLoadRequest.form())
     client()->dispatchWillSubmitForm(frameLoadRequest.form());
 
+  bool isNavigationHandledByClient = m_isNavigationHandledByClient;
   // If the loader wasn't waiting for the client to handle a navigation, update
   // the progress tracker. Otherwise don't, as it was already notified before
   // sending the navigation to teh client.
@@ -1771,9 +1807,18 @@ void FrameLoader::startLoad(FrameLoadRequest& frameLoadRequest,
 
   m_provisionalDocumentLoader->appendRedirect(
       m_provisionalDocumentLoader->getRequest().url());
-  client()->dispatchDidStartProvisionalLoad();
+  // TODO(ananta)
+  // We should get rid of the dependency on the DocumentLoader in consumers of
+  // the didStartProvisionalLoad() notification.
+  client()->dispatchDidStartProvisionalLoad(m_provisionalDocumentLoader);
   DCHECK(m_provisionalDocumentLoader);
+
   m_provisionalDocumentLoader->startLoadingMainResource();
+
+  // This should happen after the request is sent, so we don't use
+  // clearNavigationHandledByClient() above.
+  if (isNavigationHandledByClient)
+    InspectorInstrumentation::frameClearedScheduledClientNavigation(m_frame);
 
   takeObjectSnapshot();
 }
@@ -1961,6 +2006,34 @@ std::unique_ptr<TracedValue> FrameLoader::toTracedValue() const {
 inline void FrameLoader::takeObjectSnapshot() const {
   TRACE_EVENT_OBJECT_SNAPSHOT_WITH_ID("loading", "FrameLoader", this,
                                       toTracedValue());
+}
+
+DocumentLoader* FrameLoader::createDocumentLoader(
+    const ResourceRequest& request,
+    const FrameLoadRequest& frameLoadRequest,
+    FrameLoadType loadType,
+    NavigationType navigationType) {
+  DocumentLoader* loader = client()->createDocumentLoader(
+      m_frame, request, frameLoadRequest.substituteData().isValid()
+                            ? frameLoadRequest.substituteData()
+                            : defaultSubstituteDataForURL(request.url()),
+      frameLoadRequest.clientRedirect());
+
+  loader->setLoadType(loadType);
+  loader->setNavigationType(navigationType);
+  loader->setReplacesCurrentHistoryItem(loadType ==
+                                        FrameLoadTypeReplaceCurrentItem);
+  return loader;
+}
+
+void FrameLoader::setNavigationHandledByClient() {
+  m_isNavigationHandledByClient = true;
+  InspectorInstrumentation::frameScheduledClientNavigation(m_frame);
+}
+
+void FrameLoader::clearNavigationHandledByClient() {
+  m_isNavigationHandledByClient = false;
+  InspectorInstrumentation::frameClearedScheduledClientNavigation(m_frame);
 }
 
 }  // namespace blink

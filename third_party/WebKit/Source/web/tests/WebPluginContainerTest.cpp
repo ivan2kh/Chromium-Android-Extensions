@@ -30,13 +30,14 @@
 
 #include "public/web/WebPluginContainer.h"
 
+#include <memory>
+#include <string>
 #include "core/dom/Element.h"
 #include "core/events/KeyboardEvent.h"
 #include "core/frame/EventHandlerRegistry.h"
 #include "core/frame/FrameHost.h"
 #include "core/layout/LayoutObject.h"
 #include "core/page/Page.h"
-#include "platform/PlatformEvent.h"
 #include "platform/graphics/GraphicsContext.h"
 #include "platform/graphics/paint/CullRect.h"
 #include "platform/graphics/paint/ForeignLayerDisplayItem.h"
@@ -52,7 +53,6 @@
 #include "public/platform/WebMouseWheelEvent.h"
 #include "public/platform/WebThread.h"
 #include "public/platform/WebURLLoaderMockFactory.h"
-#include "public/web/WebCache.h"
 #include "public/web/WebDocument.h"
 #include "public/web/WebElement.h"
 #include "public/web/WebFrame.h"
@@ -67,7 +67,6 @@
 #include "web/WebViewImpl.h"
 #include "web/tests/FakeWebPlugin.h"
 #include "web/tests/FrameTestHelpers.h"
-#include <memory>
 
 using blink::testing::runPendingTasks;
 
@@ -78,8 +77,9 @@ class WebPluginContainerTest : public ::testing::Test {
   WebPluginContainerTest() : m_baseURL("http://www.test.com/") {}
 
   void TearDown() override {
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
-    WebCache::clear();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
   }
 
   void calculateGeometry(WebPluginContainerImpl* pluginContainerImpl,
@@ -89,6 +89,14 @@ class WebPluginContainerTest : public ::testing::Test {
                          Vector<IntRect>& cutOutRects) {
     pluginContainerImpl->calculateGeometry(windowRect, clipRect, unobscuredRect,
                                            cutOutRects);
+  }
+
+  void registerMockedURL(
+      const std::string& fileName,
+      const std::string& mimeType = std::string("text/html")) {
+    URLTestHelpers::registerMockedURLLoadFromBase(
+        WebString::fromUTF8(m_baseURL), testing::webTestDataPath(),
+        WebString::fromUTF8(fileName), WebString::fromUTF8(mimeType));
   }
 
  protected:
@@ -161,9 +169,7 @@ WebPluginContainer* getWebPluginContainer(WebView* webView,
 }  // namespace
 
 TEST_F(WebPluginContainerTest, WindowToLocalPointTest) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(
@@ -198,9 +204,7 @@ TEST_F(WebPluginContainerTest, WindowToLocalPointTest) {
 }
 
 TEST_F(WebPluginContainerTest, PluginDocumentPluginIsFocused) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("test.pdf"),
-      WebString::fromUTF8("application/pdf"));
+  registerMockedURL("test.pdf", "application/pdf");
 
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -217,12 +221,8 @@ TEST_F(WebPluginContainerTest, PluginDocumentPluginIsFocused) {
 }
 
 TEST_F(WebPluginContainerTest, IFramePluginDocumentNotFocused) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("test.pdf"),
-      WebString::fromUTF8("application/pdf"));
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("iframe_pdf.html"), WebString::fromUTF8("text/html"));
+  registerMockedURL("test.pdf", "application/pdf");
+  registerMockedURL("iframe_pdf.html", "text/html");
 
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -241,9 +241,7 @@ TEST_F(WebPluginContainerTest, IFramePluginDocumentNotFocused) {
 }
 
 TEST_F(WebPluginContainerTest, PrintOnePage) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("test.pdf"),
-      WebString::fromUTF8("application/pdf"));
+  registerMockedURL("test.pdf", "application/pdf");
 
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -266,9 +264,7 @@ TEST_F(WebPluginContainerTest, PrintOnePage) {
 }
 
 TEST_F(WebPluginContainerTest, PrintAllPages) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("test.pdf"),
-      WebString::fromUTF8("application/pdf"));
+  registerMockedURL("test.pdf", "application/pdf");
 
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -292,9 +288,7 @@ TEST_F(WebPluginContainerTest, PrintAllPages) {
 }
 
 TEST_F(WebPluginContainerTest, LocalToWindowPointTest) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(
@@ -328,9 +322,7 @@ TEST_F(WebPluginContainerTest, LocalToWindowPointTest) {
 
 // Verifies executing the command 'Copy' results in copying to the clipboard.
 TEST_F(WebPluginContainerTest, Copy) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(
@@ -353,9 +345,7 @@ TEST_F(WebPluginContainerTest, Copy) {
 }
 
 TEST_F(WebPluginContainerTest, CopyFromContextMenu) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(
@@ -397,9 +387,7 @@ TEST_F(WebPluginContainerTest, CopyFromContextMenu) {
 // Verifies |Ctrl-C| and |Ctrl-Insert| keyboard events, results in copying to
 // the clipboard.
 TEST_F(WebPluginContainerTest, CopyInsertKeyboardEventsTest) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(
@@ -476,9 +464,7 @@ class EventTestPlugin : public FakeWebPlugin {
 };
 
 TEST_F(WebPluginContainerTest, GestureLongPressReachesPlugin) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   CustomPluginWebFrameClient<EventTestPlugin>
       pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -527,9 +513,7 @@ TEST_F(WebPluginContainerTest, GestureLongPressReachesPlugin) {
 }
 
 TEST_F(WebPluginContainerTest, MouseWheelEventTranslated) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   CustomPluginWebFrameClient<EventTestPlugin>
       pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -567,9 +551,7 @@ TEST_F(WebPluginContainerTest, MouseWheelEventTranslated) {
 
 // Verify that isRectTopmost returns false when the document is detached.
 TEST_F(WebPluginContainerTest, IsRectTopmostTest) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(
@@ -603,12 +585,8 @@ TEST_F(WebPluginContainerTest, IsRectTopmostTest) {
   } while (false)
 
 TEST_F(WebPluginContainerTest, ClippedRectsForIframedElement) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_containing_page.html"));
+  registerMockedURL("plugin_container.html");
+  registerMockedURL("plugin_containing_page.html");
 
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -641,9 +619,7 @@ TEST_F(WebPluginContainerTest, ClippedRectsForIframedElement) {
 }
 
 TEST_F(WebPluginContainerTest, ClippedRectsForSubpixelPositionedPlugin) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
 
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -693,9 +669,7 @@ TEST_F(WebPluginContainerTest, TopmostAfterDetachTest) {
     }
   };
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   CustomPluginWebFrameClient<TopmostPlugin>
       pluginWebFrameClient;  // Must outlive webViewHelper.
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -755,9 +729,7 @@ class CompositedPlugin : public FakeWebPlugin {
 
 TEST_F(WebPluginContainerTest, CompositedPluginSPv2) {
   ScopedSlimmingPaintV2ForTest enableSPv2(true);
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin.html"));
+  registerMockedURL("plugin.html");
   CustomPluginWebFrameClient<CompositedPlugin> webFrameClient;
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebView* webView = webViewHelper.initializeAndLoad(m_baseURL + "plugin.html",
@@ -797,9 +769,7 @@ TEST_F(WebPluginContainerTest, CompositedPluginSPv2) {
 }
 
 TEST_F(WebPluginContainerTest, NeedsWheelEvents) {
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(m_baseURL.c_str()),
-      WebString::fromUTF8("plugin_container.html"));
+  registerMockedURL("plugin_container.html");
   TestPluginWebFrameClient pluginWebFrameClient;  // Must outlive webViewHelper
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webView = webViewHelper.initializeAndLoad(

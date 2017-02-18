@@ -32,16 +32,18 @@ AppListShelfItemDelegate::AppListShelfItemDelegate() {}
 
 AppListShelfItemDelegate::~AppListShelfItemDelegate() {}
 
-ShelfItemDelegate::PerformedAction AppListShelfItemDelegate::ItemSelected(
-    const ui::Event& event) {
+ShelfAction AppListShelfItemDelegate::ItemSelected(ui::EventType event_type,
+                                                   int event_flags,
+                                                   int64_t display_id,
+                                                   ShelfLaunchSource source) {
   WmShell::Get()->ToggleAppList();
-  return ShelfItemDelegate::kAppListMenuShown;
+  return SHELF_ACTION_APP_LIST_SHOWN;
 }
 
-ui::SimpleMenuModel* AppListShelfItemDelegate::CreateApplicationMenu(
+ShelfAppMenuItemList AppListShelfItemDelegate::GetAppMenuItems(
     int event_flags) {
   // AppList does not show an application menu.
-  return nullptr;
+  return ShelfAppMenuItemList();
 }
 
 void AppListShelfItemDelegate::Close() {}

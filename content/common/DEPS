@@ -2,6 +2,7 @@ include_rules = [
   "-storage/browser",
 
   "+components/discardable_memory/common",
+  "+components/payments",
   "+device/base/synchronization",
   "+services/service_manager/public/cpp",
   "+services/video_capture/public/interfaces",
@@ -10,8 +11,6 @@ include_rules = [
   # header-only types, and some selected common code.
   "-third_party/WebKit",
   "+third_party/WebKit/public/platform/WebAddressSpace.h",
-  "+third_party/WebKit/public/platform/WebCoalescedInputEvent.h",
-  "+third_party/WebKit/public/platform/WebCString.h",
   "+third_party/WebKit/public/platform/WebDisplayMode.h",
   "+third_party/WebKit/public/platform/WebDragOperation.h",
   "+third_party/WebKit/public/platform/WebFeaturePolicy.h",
@@ -36,13 +35,12 @@ include_rules = [
   "+third_party/WebKit/public/platform/WebStorageArea.h",
   "+third_party/WebKit/public/platform/WebTouchEvent.h",
   "+third_party/WebKit/public/platform/linux/WebFallbackFont.h",
-  "+third_party/WebKit/public/platform/linux/WebFontRenderStyle.h",
   "+third_party/WebKit/public/platform/modules/bluetooth/web_bluetooth.mojom.h",
   "+third_party/WebKit/public/platform/modules/device_orientation/WebDeviceMotionData.h",
   "+third_party/WebKit/public/platform/modules/device_orientation/WebDeviceOrientationData.h",
   "+third_party/WebKit/public/platform/modules/indexeddb/WebIDBTypes.h",
   "+third_party/WebKit/public/platform/modules/mediasession/media_session.mojom.h",
-  "+third_party/WebKit/public/platform/modules/permissions/WebPermissionType.h",
+  "+third_party/WebKit/public/platform/modules/permissions/permission.mojom.h",
   "+third_party/WebKit/public/platform/modules/permissions/permission_status.mojom.h",
   "+third_party/WebKit/public/platform/modules/presentation/presentation.mojom.h",
   "+third_party/WebKit/public/platform/modules/push_messaging/WebPushError.h",
@@ -51,6 +49,7 @@ include_rules = [
   "+third_party/WebKit/public/platform/modules/screen_orientation/WebLockOrientationError.h",
   "+third_party/WebKit/public/platform/modules/screen_orientation/WebScreenOrientationLockType.h",
   "+third_party/WebKit/public/platform/modules/screen_orientation/WebScreenOrientationType.h",
+  "+third_party/WebKit/public/platform/modules/payments/WebPaymentAppRequest.h",
   "+third_party/WebKit/public/platform/modules/serviceworker/WebServiceWorkerCacheError.h",
   "+third_party/WebKit/public/platform/modules/serviceworker/WebServiceWorkerClientType.h",
   "+third_party/WebKit/public/platform/modules/serviceworker/WebServiceWorkerError.h",
@@ -75,7 +74,6 @@ include_rules = [
   "+third_party/WebKit/public/web/WebSharedWorkerCreationErrors.h",
   "+third_party/WebKit/public/web/WebTextDirection.h",
   "+third_party/WebKit/public/web/WebTreeScopeType.h",
-  "+third_party/WebKit/public/web/WebWindowFeatures.h",
   "+third_party/WebKit/public/web/mac/WebScrollbarTheme.h",
   "+third_party/WebKit/public/web/win/WebFontRendering.h"
 ]

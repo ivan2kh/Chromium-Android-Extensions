@@ -12,32 +12,25 @@
 
 namespace {
 
-#define RECTANGULAR_TEXTURE_BUFFER(left, right, bottom, top) \
-  { left, bottom, left, top, right, bottom, left, top, right, top, right, \
-    bottom }
-
-static constexpr float kHalfHeight = 0.5f;
-static constexpr float kHalfWidth = 0.5f;
-static constexpr float kTextureQuadPosition[18] = {
-    -kHalfWidth, kHalfHeight,  0.0f, -kHalfWidth, -kHalfHeight, 0.0f,
-    kHalfWidth,  kHalfHeight,  0.0f, -kHalfWidth, -kHalfHeight, 0.0f,
-    kHalfWidth,  -kHalfHeight, 0.0f, kHalfWidth,  kHalfHeight,  0.0f};
+static constexpr float kHalfSize = 0.5f;
+/* clang-format off */
+static constexpr float kTextureQuadVertices[30] = {
+    //       x           y     z,    u,    v
+    -kHalfSize,  kHalfSize, 0.0f, 0.0f, 0.0f,
+    -kHalfSize, -kHalfSize, 0.0f, 0.0f, 1.0f,
+     kHalfSize,  kHalfSize, 0.0f, 1.0f, 0.0f,
+    -kHalfSize, -kHalfSize, 0.0f, 0.0f, 1.0f,
+     kHalfSize, -kHalfSize, 0.0f, 1.0f, 1.0f,
+     kHalfSize,  kHalfSize, 0.0f, 1.0f, 0.0f };
+/* clang-format on */
+static constexpr size_t kTextureQuadVerticesSize = sizeof(float) * 30;
+static constexpr size_t kTextureQuadDataStride = sizeof(float) * 5;
 static constexpr int kPositionDataSize = 3;
+static constexpr size_t kPositionDataOffset = 0;
+static constexpr int kTextureCoordinateDataSize = 2;
+static constexpr size_t kTextureCoordinateDataOffset = sizeof(float) * 3;
 // Number of vertices passed to glDrawArrays().
 static constexpr int kVerticesNumber = 6;
-
-static constexpr float kTexturedQuadTextureCoordinates[12] =
-    RECTANGULAR_TEXTURE_BUFFER(0.0f, 1.0f, 0.0f, 1.0f);
-
-static constexpr int kTextureCoordinateDataSize = 2;
-
-static constexpr float kWebVrVertices[16] = {
-  //   x     y    u,   v
-    -1.f,  1.f, 0.f, 0.f,
-    -1.f, -1.f, 0.f, 1.f,
-     1.f, -1.f, 1.f, 1.f,
-     1.f,  1.f, 1.f, 0.f };
-static constexpr int kWebVrVerticesSize = sizeof(float) * 16;
 
 // Reticle constants
 static constexpr float kRingDiameter = 1.0f;
@@ -54,11 +47,6 @@ static constexpr float kFadePoint = 0.5335;
 static constexpr float kLaserColor[] = {1.0f, 1.0f, 1.0f, 0.5f};
 static constexpr int kLaserDataWidth = 48;
 static constexpr int kLaserDataHeight = 1;
-
-// Background constants.
-static constexpr float kGroundTileSize = 2.5f;
-static constexpr float kGroundMaxSize = 25.0f;
-static constexpr float kGroundYPosition = -2.0f;
 
 // Laser texture data, 48x1 RGBA.
 // TODO(mthiesse): As we add more resources for VR Shell, we should put them
@@ -97,7 +85,8 @@ const char* GetShaderSource(vr_shell::ShaderID shader) {
             gl_Position = u_ModelViewProjMatrix * a_Position;
           }
           /* clang-format on */);
-    case vr_shell::ShaderID::BACKGROUND_VERTEX_SHADER:
+    case vr_shell::ShaderID::GRADIENT_QUAD_VERTEX_SHADER:
+    case vr_shell::ShaderID::GRADIENT_GRID_VERTEX_SHADER:
       return SHADER(
           /* clang-format off */
           uniform mat4 u_ModelViewProjMatrix;
@@ -106,7 +95,7 @@ const char* GetShaderSource(vr_shell::ShaderID shader) {
           varying vec2 v_GridPosition;
 
           void main() {
-            v_GridPosition = a_Position.xz / u_SceneRadius;
+            v_GridPosition = a_Position.xy / u_SceneRadius;
             gl_Position = u_ModelViewProjMatrix * a_Position;
           }
           /* clang-format on */);
@@ -131,13 +120,13 @@ const char* GetShaderSource(vr_shell::ShaderID shader) {
     case vr_shell::ShaderID::WEBVR_VERTEX_SHADER:
       return SHADER(
           /* clang-format off */
-          attribute vec4 a_Position;
+          attribute vec3 a_Position;
+          attribute vec2 a_TexCoordinate;
           varying vec2 v_TexCoordinate;
 
           void main() {
-            // Pack the texcoord into the position to avoid state changes.
-            v_TexCoordinate = a_Position.zw;
-            gl_Position = vec4(a_Position.xy, 0.0, 1.0);
+            v_TexCoordinate = a_TexCoordinate;
+            gl_Position = vec4(a_Position * 2.0, 1.0);
           }
           /* clang-format on */);
     case vr_shell::ShaderID::WEBVR_FRAGMENT_SHADER:
@@ -207,19 +196,21 @@ const char* GetShaderSource(vr_shell::ShaderID shader) {
             gl_FragColor = vec4(final_color.xyz, final_color.w * total_fade);
           }
           /* clang-format on */);
-    case vr_shell::ShaderID::BACKGROUND_FRAGMENT_SHADER:
-      return SHADER(
+    case vr_shell::ShaderID::GRADIENT_QUAD_FRAGMENT_SHADER:
+    case vr_shell::ShaderID::GRADIENT_GRID_FRAGMENT_SHADER:
+      return OEIE_SHADER(
           /* clang-format off */
           precision highp float;
           varying vec2 v_GridPosition;
           uniform vec4 u_CenterColor;
           uniform vec4 u_EdgeColor;
+          uniform mediump float u_Opacity;
 
           void main() {
             float edgeColorWeight = clamp(length(v_GridPosition), 0.0, 1.0);
             float centerColorWeight = 1.0 - edgeColorWeight;
-            gl_FragColor = u_CenterColor * centerColorWeight +
-                u_EdgeColor * edgeColorWeight;
+            gl_FragColor = (u_CenterColor * centerColorWeight +
+                u_EdgeColor * edgeColorWeight) * vec4(1.0, 1.0, 1.0, u_Opacity);
           }
           /* clang-format on */);
     default:
@@ -228,12 +219,13 @@ const char* GetShaderSource(vr_shell::ShaderID shader) {
   }
 }
 
-#undef RECTANGULAR_TEXTURE_BUFFER
 }  // namespace
 
 namespace vr_shell {
 
-BaseRenderer::BaseRenderer(ShaderID vertex_id, ShaderID fragment_id) {
+BaseRenderer::BaseRenderer(ShaderID vertex_id,
+                           ShaderID fragment_id,
+                           bool setup_vertex_buffer = true) {
   std::string error;
   GLuint vertex_shader_handle = CompileShader(
       GL_VERTEX_SHADER, GetShaderSource(vertex_id), error);
@@ -253,6 +245,16 @@ BaseRenderer::BaseRenderer(ShaderID vertex_id, ShaderID fragment_id) {
 
   position_handle_ = glGetAttribLocation(program_handle_, "a_Position");
   tex_coord_handle_ = glGetAttribLocation(program_handle_, "a_TexCoordinate");
+
+  if (setup_vertex_buffer) {
+    // Generate the vertex buffer
+    glGenBuffersARB(1, &vertex_buffer_);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
+    glBufferData(GL_ARRAY_BUFFER, kTextureQuadVerticesSize,
+                 kTextureQuadVertices, GL_STATIC_DRAW);
+  } else {
+    vertex_buffer_ = 0;
+  }
 }
 
 BaseRenderer::~BaseRenderer() = default;
@@ -265,14 +267,19 @@ void BaseRenderer::PrepareToDraw(GLuint view_proj_matrix_handle,
   glUniformMatrix4fv(view_proj_matrix_handle, 1, false,
                      MatrixToGLArray(view_proj_matrix).data());
 
-  // Pass in texture coordinate.
-  glVertexAttribPointer(tex_coord_handle_, kTextureCoordinateDataSize,
-                        GL_FLOAT, false, 0, kTexturedQuadTextureCoordinates);
-  glEnableVertexAttribArray(tex_coord_handle_);
+  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
 
-  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false, 0,
-                        kTextureQuadPosition);
+  // Set up position attribute.
+  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false,
+                        kTextureQuadDataStride,
+                        VOID_OFFSET(kPositionDataOffset));
   glEnableVertexAttribArray(position_handle_);
+
+  // Set up texture coordinate attribute.
+  glVertexAttribPointer(tex_coord_handle_, kTextureCoordinateDataSize, GL_FLOAT,
+                        false, kTextureQuadDataStride,
+                        VOID_OFFSET(kTextureCoordinateDataOffset));
+  glEnableVertexAttribArray(tex_coord_handle_);
 
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -288,25 +295,86 @@ TexturedQuadRenderer::TexturedQuadRenderer()
   opacity_handle_ = glGetUniformLocation(program_handle_, "opacity");
 }
 
-void TexturedQuadRenderer::Draw(int texture_data_handle,
-                                const gvr::Mat4f& view_proj_matrix,
-                                const Rectf& copy_rect,
-                                float opacity) {
-  PrepareToDraw(model_view_proj_matrix_handle_, view_proj_matrix);
+void TexturedQuadRenderer::AddQuad(int texture_data_handle,
+                                   const gvr::Mat4f& view_proj_matrix,
+                                   const Rectf& copy_rect,
+                                   float opacity) {
+  TexturedQuad quad;
+  quad.texture_data_handle = texture_data_handle;
+  quad.view_proj_matrix = view_proj_matrix;
+  quad.copy_rect = copy_rect;
+  quad.opacity = opacity;
+  quad_queue_.push(quad);
+}
+
+void TexturedQuadRenderer::Flush() {
+  if (quad_queue_.empty())
+    return;
+
+  int last_texture = 0;
+  float last_opacity = -1.0f;
+
+  // Set up GL state that doesn't change between draw calls.
+  glUseProgram(program_handle_);
+
+  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
+
+  // Set up position attribute.
+  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false,
+                        kTextureQuadDataStride,
+                        VOID_OFFSET(kPositionDataOffset));
+  glEnableVertexAttribArray(position_handle_);
+
+  // Set up texture coordinate attribute.
+  glVertexAttribPointer(tex_coord_handle_, kTextureCoordinateDataSize, GL_FLOAT,
+                        false, kTextureQuadDataStride,
+                        VOID_OFFSET(kTextureCoordinateDataOffset));
+  glEnableVertexAttribArray(tex_coord_handle_);
+
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   // Link texture data with texture unit.
   glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_data_handle);
-  glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
   glUniform1i(tex_uniform_handle_, 0);
-  glUniform4fv(copy_rect_uniform_handle_, 1, (float*)(&copy_rect));
-  glUniform1f(opacity_handle_, opacity);
 
-  glDrawArrays(GL_TRIANGLES, 0, kVerticesNumber);
+  // TODO(bajones): This should eventually be changed to use instancing so that
+  // the entire queue can be processed in one draw call. For now this still
+  // significantly reduces the amount of state changes made per draw.
+  while (!quad_queue_.empty()) {
+    const TexturedQuad& quad = quad_queue_.front();
+
+    // Only change texture ID or opacity when they differ between quads.
+    if (last_texture != quad.texture_data_handle) {
+      last_texture = quad.texture_data_handle;
+      glBindTexture(GL_TEXTURE_EXTERNAL_OES, last_texture);
+      glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S,
+                      GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T,
+                      GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER,
+                      GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER,
+                      GL_NEAREST);
+    }
+
+    if (last_opacity != quad.opacity) {
+      last_opacity = quad.opacity;
+      glUniform1f(opacity_handle_, last_opacity);
+    }
+
+    // Pass in model view project matrix.
+    glUniformMatrix4fv(model_view_proj_matrix_handle_, 1, false,
+                       MatrixToGLArray(quad.view_proj_matrix).data());
+
+    // Pass in the copy rect.
+    glUniform4fv(copy_rect_uniform_handle_, 1,
+                 reinterpret_cast<const float*>(&quad.copy_rect));
+
+    glDrawArrays(GL_TRIANGLES, 0, kVerticesNumber);
+
+    quad_queue_.pop();
+  }
 
   glDisableVertexAttribArray(position_handle_);
   glDisableVertexAttribArray(tex_coord_handle_);
@@ -314,37 +382,29 @@ void TexturedQuadRenderer::Draw(int texture_data_handle,
 
 TexturedQuadRenderer::~TexturedQuadRenderer() = default;
 
-WebVrRenderer::WebVrRenderer() :
-    BaseRenderer(WEBVR_VERTEX_SHADER, WEBVR_FRAGMENT_SHADER) {
+WebVrRenderer::WebVrRenderer()
+    : BaseRenderer(WEBVR_VERTEX_SHADER, WEBVR_FRAGMENT_SHADER) {
   tex_uniform_handle_ = glGetUniformLocation(program_handle_, "u_Texture");
-
-  // TODO(bajones): Figure out why this need to be restored.
-  GLint old_buffer;
-  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &old_buffer);
-
-  glGenBuffersARB(1, &vertex_buffer_);
-  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
-  glBufferData(GL_ARRAY_BUFFER, kWebVrVerticesSize, kWebVrVertices,
-      GL_STATIC_DRAW);
-
-  glBindBuffer(GL_ARRAY_BUFFER, old_buffer);
 }
 
 // Draw the stereo WebVR frame
 void WebVrRenderer::Draw(int texture_handle) {
-  // TODO(bajones): Figure out why this need to be restored.
-  GLint old_buffer;
-  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &old_buffer);
-
   glUseProgram(program_handle_);
 
   // Bind vertex attributes
   glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
 
+  // Set up position attribute.
+  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false,
+                        kTextureQuadDataStride,
+                        VOID_OFFSET(kPositionDataOffset));
   glEnableVertexAttribArray(position_handle_);
 
-  glVertexAttribPointer(position_handle_, VERTEX_ELEMENTS, GL_FLOAT, false,
-      VERTEX_STRIDE, VOID_OFFSET(VERTEX_OFFSET));
+  // Set up texture coordinate attribute.
+  glVertexAttribPointer(tex_coord_handle_, kTextureCoordinateDataSize, GL_FLOAT,
+                        false, kTextureQuadDataStride,
+                        VOID_OFFSET(kTextureCoordinateDataOffset));
+  glEnableVertexAttribArray(tex_coord_handle_);
 
   // Bind texture. Ideally this should be a 1:1 pixel copy. (Or even more
   // ideally, a zero copy reuse of the texture.) For now, we're using an
@@ -360,11 +420,10 @@ void WebVrRenderer::Draw(int texture_handle) {
   glUniform1i(tex_uniform_handle_, 0);
 
   // Blit texture to buffer
-  glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+  glDrawArrays(GL_TRIANGLES, 0, kVerticesNumber);
 
   glDisableVertexAttribArray(position_handle_);
-
-  glBindBuffer(GL_ARRAY_BUFFER, old_buffer);
+  glDisableVertexAttribArray(tex_coord_handle_);
 }
 
 // Note that we don't explicitly delete gl objects here, they're deleted
@@ -453,70 +512,62 @@ void LaserRenderer::Draw(const gvr::Mat4f& view_proj_matrix) {
 
 LaserRenderer::~LaserRenderer() = default;
 
-BackgroundRenderer::BackgroundRenderer()
-    : BaseRenderer(BACKGROUND_VERTEX_SHADER, BACKGROUND_FRAGMENT_SHADER) {
+GradientQuadRenderer::GradientQuadRenderer()
+    : BaseRenderer(GRADIENT_QUAD_VERTEX_SHADER, GRADIENT_QUAD_FRAGMENT_SHADER) {
   model_view_proj_matrix_handle_ =
       glGetUniformLocation(program_handle_, "u_ModelViewProjMatrix");
   scene_radius_handle_ = glGetUniformLocation(program_handle_, "u_SceneRadius");
   center_color_handle_ = glGetUniformLocation(program_handle_, "u_CenterColor");
   edge_color_handle_ = glGetUniformLocation(program_handle_, "u_EdgeColor");
-
-  // Make ground grid.
-  int groundTilesNumber = kGroundMaxSize / kGroundTileSize;
-  scene_radius_ = groundTilesNumber * kGroundTileSize * 0.5f;
-  int groundLinesNumber = 2 * (groundTilesNumber + 1);
-  ground_grid_lines_.resize(groundLinesNumber);
-
-  for (int i = 0; i < groundLinesNumber - 1; i += 2) {
-    float position =
-        -scene_radius_ + (i / 2) * scene_radius_ * 2.0f / groundTilesNumber;
-
-    // Line parallel to the z axis.
-    Line3d& zLine = ground_grid_lines_[i];
-    // Line parallel to the x axis.
-    Line3d& xLine = ground_grid_lines_[i + 1];
-
-    zLine.start.x = position;
-    zLine.start.y = kGroundYPosition;
-    zLine.start.z = -scene_radius_;
-    zLine.end.x = position;
-    zLine.end.y = kGroundYPosition;
-    zLine.end.z = scene_radius_;
-    xLine.start.x = -scene_radius_;
-    xLine.start.y = kGroundYPosition;
-    xLine.start.z = position;
-    xLine.end.x = scene_radius_;
-    xLine.end.y = kGroundYPosition;
-    xLine.end.z = position;
-  }
-
-  // Make plane for ground and ceilings.
-  // clang-format off
-  ground_ceiling_plane_positions_ = {
-      // First triangle.
-      -scene_radius_, 0.0f,  scene_radius_,
-       scene_radius_, 0.0f,  scene_radius_,
-      -scene_radius_, 0.0f, -scene_radius_,
-      // Second triangle.
-      -scene_radius_, 0.0f, -scene_radius_,
-       scene_radius_, 0.0f,  scene_radius_,
-       scene_radius_, 0.0f, -scene_radius_};
-  // clang-format on
-
-  // Make the transform to draw the plane either on the ground or the ceiling.
-  SetIdentityM(ground_plane_transform_mat_);
-  TranslateMRight(ground_plane_transform_mat_, ground_plane_transform_mat_,
-                  0.0f, kGroundYPosition - 0.1f, 0.0f);
-
-  SetIdentityM(ceiling_plane_transform_mat_);
-  gvr::Quatf rotation_quat = QuatFromAxisAngle({1.0f, 0.0f, 0.0f}, M_PI);
-  ceiling_plane_transform_mat_ =
-      MatrixMul(ceiling_plane_transform_mat_, QuatToMatrix(rotation_quat));
-  TranslateMRight(ceiling_plane_transform_mat_, ceiling_plane_transform_mat_,
-                  0.0f, kGroundYPosition - 0.1f, 0.0f);
+  opacity_handle_ = glGetUniformLocation(program_handle_, "u_Opacity");
 }
 
-void BackgroundRenderer::Draw(const gvr::Mat4f& view_proj_matrix) {
+void GradientQuadRenderer::Draw(const gvr::Mat4f& view_proj_matrix,
+                                const Colorf& edge_color,
+                                const Colorf& center_color,
+                                float opacity) {
+  PrepareToDraw(model_view_proj_matrix_handle_, view_proj_matrix);
+
+  // Tell shader the grid size so that it can calculate the fading.
+  glUniform1f(scene_radius_handle_, kHalfSize);
+
+  // Set the edge color to the fog color so that it seems to fade out.
+  glUniform4f(edge_color_handle_, edge_color.r, edge_color.g, edge_color.b,
+              edge_color.a);
+  glUniform4f(center_color_handle_, center_color.r, center_color.g,
+              center_color.b, center_color.a);
+  glUniform1f(opacity_handle_, opacity);
+
+  glDrawArrays(GL_TRIANGLES, 0, kVerticesNumber);
+
+  glDisableVertexAttribArray(position_handle_);
+  glDisableVertexAttribArray(tex_coord_handle_);
+}
+
+GradientQuadRenderer::~GradientQuadRenderer() = default;
+
+GradientGridRenderer::GradientGridRenderer()
+    : BaseRenderer(GRADIENT_QUAD_VERTEX_SHADER,
+                   GRADIENT_QUAD_FRAGMENT_SHADER,
+                   false) {
+  model_view_proj_matrix_handle_ =
+      glGetUniformLocation(program_handle_, "u_ModelViewProjMatrix");
+  scene_radius_handle_ = glGetUniformLocation(program_handle_, "u_SceneRadius");
+  center_color_handle_ = glGetUniformLocation(program_handle_, "u_CenterColor");
+  edge_color_handle_ = glGetUniformLocation(program_handle_, "u_EdgeColor");
+  opacity_handle_ = glGetUniformLocation(program_handle_, "u_Opacity");
+}
+
+void GradientGridRenderer::Draw(const gvr::Mat4f& view_proj_matrix,
+                                const Colorf& edge_color,
+                                const Colorf& center_color,
+                                int gridline_count,
+                                float opacity) {
+  // In case the tile number changed we have to regenerate the grid lines.
+  if (grid_lines_.size() != static_cast<size_t>(2 * (gridline_count + 1))) {
+    MakeGridLines(gridline_count);
+  }
+
   glUseProgram(program_handle_);
 
   // Pass in model view project matrix.
@@ -524,51 +575,72 @@ void BackgroundRenderer::Draw(const gvr::Mat4f& view_proj_matrix) {
                      MatrixToGLArray(view_proj_matrix).data());
 
   // Tell shader the grid size so that it can calculate the fading.
-  int groundTilesNumber = kGroundMaxSize / kGroundTileSize;
-  glUniform1f(scene_radius_handle_, scene_radius_);
+  glUniform1f(scene_radius_handle_, kHalfSize);
 
   // Set the edge color to the fog color so that it seems to fade out.
-  glUniform4f(edge_color_handle_, kFogBrightness, kFogBrightness,
-              kFogBrightness, 1.0f);
+  glUniform4f(edge_color_handle_, edge_color.r, edge_color.g, edge_color.b,
+              edge_color.a);
+  glUniform4f(center_color_handle_, center_color.r, center_color.g,
+              center_color.b, center_color.a);
+  glUniform1f(opacity_handle_, opacity);
 
-  // Draw the ground grid.
+  // Draw the grid.
+  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
+
+  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false, 0,
+                        VOID_OFFSET(0));
   glEnableVertexAttribArray(position_handle_);
-  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false, 0,
-                        (float*)ground_grid_lines_.data());
-  glUniform4f(center_color_handle_, kGridBrightness, kGridBrightness,
-              kGridBrightness, 1.0f);
-  int groundVerticesNumber = 4 * (groundTilesNumber + 1);
-  glDrawArrays(GL_LINES, 0, groundVerticesNumber);
-
-  // Draw the ground plane.
-  gvr::Mat4f transformed_matrix =
-      MatrixMul(view_proj_matrix, ground_plane_transform_mat_);
-  glUniformMatrix4fv(model_view_proj_matrix_handle_, 1, false,
-                     MatrixToGLArray(transformed_matrix).data());
-  glUniform4f(center_color_handle_, kGroundCeilingBrightness,
-              kGroundCeilingBrightness, kGroundCeilingBrightness, 1.0f);
-  glVertexAttribPointer(position_handle_, kPositionDataSize, GL_FLOAT, false, 0,
-                        ground_ceiling_plane_positions_.data());
-  glDrawArrays(GL_TRIANGLES, 0, kVerticesNumber);
-
-  // Draw the ceiling plane.
-  transformed_matrix =
-      MatrixMul(view_proj_matrix, ceiling_plane_transform_mat_);
-  glUniformMatrix4fv(model_view_proj_matrix_handle_, 1, false,
-                     MatrixToGLArray(transformed_matrix).data());
-  glDrawArrays(GL_TRIANGLES, 0, kVerticesNumber);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  int verticesNumber = 4 * (gridline_count + 1);
+  glDrawArrays(GL_LINES, 0, verticesNumber);
 
   glDisableVertexAttribArray(position_handle_);
 }
 
-BackgroundRenderer::~BackgroundRenderer() = default;
+GradientGridRenderer::~GradientGridRenderer() = default;
+
+void GradientGridRenderer::MakeGridLines(int gridline_count) {
+  int linesNumber = 2 * (gridline_count + 1);
+  grid_lines_.resize(linesNumber);
+
+  for (int i = 0; i < linesNumber - 1; i += 2) {
+    float position = -kHalfSize + (i / 2) * kHalfSize * 2.0f / gridline_count;
+
+    // Line parallel to the z axis.
+    Line3d& zLine = grid_lines_[i];
+    // Line parallel to the x axis.
+    Line3d& xLine = grid_lines_[i + 1];
+
+    zLine.start.x = position;
+    zLine.start.y = kHalfSize;
+    zLine.start.z = 0.0f;
+    zLine.end.x = position;
+    zLine.end.y = -kHalfSize;
+    zLine.end.z = 0.0f;
+    xLine.start.x = -kHalfSize;
+    xLine.start.y = -position;
+    xLine.start.z = 0.0f;
+    xLine.end.x = kHalfSize;
+    xLine.end.y = -position;
+    xLine.end.z = 0.0f;
+  }
+
+  size_t vertex_buffer_size = sizeof(Line3d) * linesNumber;
+
+  glGenBuffersARB(1, &vertex_buffer_);
+  glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
+  glBufferData(GL_ARRAY_BUFFER, vertex_buffer_size, grid_lines_.data(),
+               GL_STATIC_DRAW);
+}
 
 VrShellRenderer::VrShellRenderer()
     : textured_quad_renderer_(new TexturedQuadRenderer),
       webvr_renderer_(new WebVrRenderer),
       reticle_renderer_(new ReticleRenderer),
       laser_renderer_(new LaserRenderer),
-      background_renderer_(new BackgroundRenderer) {}
+      gradient_quad_renderer_(new GradientQuadRenderer),
+      gradient_grid_renderer_(new GradientGridRenderer) {}
 
 VrShellRenderer::~VrShellRenderer() = default;
 

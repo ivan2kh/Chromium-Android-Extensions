@@ -48,16 +48,15 @@ found in the LICENSE file.
     </div>
     <div id="omnibox-ui-element" class="ui-element">
       <div id="suggestions">
-        <div id="suggestion-4" class="omnibox-suggestion"></div>
-        <div id="suggestion-3" class="omnibox-suggestion"></div>
-        <div id="suggestion-2" class="omnibox-suggestion"></div>
-        <div id="suggestion-1" class="omnibox-suggestion"></div>
-        <div id="suggestion-0" class="omnibox-suggestion"></div>
+        <div id="suggestion-4" class="suggestion"></div>
+        <div id="suggestion-3" class="suggestion"></div>
+        <div id="suggestion-2" class="suggestion"></div>
+        <div id="suggestion-1" class="suggestion"></div>
+        <div id="suggestion-0" class="suggestion"></div>
       </div>
-      <div id="omnibox-url-divider"></div>
       <div id="omnibox-url-element">
-        <input id="omnibox-input-field" type="url"></input>
         <div id="omnibox-clear-button"></div>
+        <input id="omnibox-input-field" type="url"></input>
       </div>
     </div>
     <div id="back" class="round-button ui-element">
@@ -73,6 +72,16 @@ found in the LICENSE file.
       <div class="caption">$i18n{forward}</div>
     </div>
     <div id="reload-ui-button" class="ui-element">Reload UI</div>
+    <div id="tab-template" class="tab"></div>
+    <!--The tab container element behaves like a scroll view (in conjunction
+        with the clip view). -->
+    <div id="tab-container" class="ui-element">
+      <!--The tab clip element's width will be programmatically set to the total
+          width of all it's children (the tabs). By doing so, the tabs can be
+          scrolled horizontally in the tab container element.-->
+      <div id="tab-clip">
+      </div>
+    </div>
   </div>
 </body>
 

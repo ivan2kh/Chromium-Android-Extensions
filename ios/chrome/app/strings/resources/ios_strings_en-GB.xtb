@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Open all</translation>
 <translation id="1430915738399379752">Print</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> items</translation>
+<translation id="1491277525950327607">Double tap to toggle setting</translation>
 <translation id="1540800554400757039">Address 1</translation>
 <translation id="1545749641540134597">Scan QR Code</translation>
 <translation id="1580783302095112590">Mail sent.</translation>
@@ -65,7 +66,6 @@ For example, some websites may respond to this request by showing you ads that a
 <translation id="2068952045031577364">Past Week</translation>
 <translation id="2079545284768500474">Undo</translation>
 <translation id="209018056901015185">Request Desktop Site</translation>
-<translation id="2100215774115172756">Your reading list is available offline.</translation>
 <translation id="2103075008456228677">Open history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> items moved</translation>
 <translation id="2149973817440762519">Edit Bookmark</translation>
@@ -120,7 +120,6 @@ For example, some websites may respond to this request by showing you ads that a
 <translation id="3175081911749765310">Web Services</translation>
 <translation id="3207960819495026254">Bookmarked</translation>
 <translation id="3210163015918861891">Sync is Off</translation>
-<translation id="3237561509210981547">To add a page to your reading list, tap <ph name="BEGIN_BOLD_FONT" />Share &gt; Read Later<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Link copied</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> of <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ For example, some websites may respond to this request by showing you ads that a
 <translation id="3414292259312108062">Chrome will store this in your <ph name="BEGIN_LINK" />Google saved passwords<ph name="END_LINK" /> and autofill it for you so that you don't have to remember it yourself.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Split View</translation>
-<translation id="3474068797193663261">To add a page to your reading list, tap <ph name="BEGIN_BOLD_FONT" />Menu &gt; Share &gt; Read Later<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Forms filled.</translation>
 <translation id="3478058380795961209">Month of Expiry</translation>
 <translation id="3482959374254649722">Syncing your tabs...</translation>
@@ -171,6 +169,7 @@ To adjust your search term, long press to select. To refine your search, slide t
 <translation id="4121993058175073134">To send net-export data, please configure your email account in the Settings app.</translation>
 <translation id="4124987746317609294">Time Range</translation>
 <translation id="4172051516777682613">Always show</translation>
+<translation id="418156467088430727">View Offline Version in New Tab</translation>
 <translation id="424315890655130736">Enter Passphrase</translation>
 <translation id="4272631900155121838">To scan a QR code, enable the camera from settings</translation>
 <translation id="4281844954008187215">Terms of Service</translation>
@@ -178,7 +177,6 @@ To adjust your search term, long press to select. To refine your search, slide t
 <translation id="4359125752503270327">This page will open in another application.</translation>
 <translation id="4378154925671717803">Phone</translation>
 <translation id="441868831736628555">Privacy Notice</translation>
-<translation id="4426508677408162512">All Bookmarks</translation>
 <translation id="4473991315115669931">Enter incognito mode</translation>
 <translation id="4526249700380860531">View and manage saved passwords at <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Try signing in again.</translation>
@@ -218,6 +216,7 @@ Your data is encrypted with your sync passphrase. Enter it to start sync.</trans
 <translation id="5300589172476337783">Show</translation>
 <translation id="5317780077021120954">Save</translation>
 <translation id="5327248766486351172">Name</translation>
+<translation id="5332219387342487447">Delivery Method</translation>
 <translation id="5388358297987318779">Open Image</translation>
 <translation id="5409365236829784218">There are no applications installed that can open this file.</translation>
 <translation id="54401264925851789">Page Security Info</translation>
@@ -256,6 +255,7 @@ Handoff must also be enabled in the General section of Settings, and your device
 <translation id="6042308850641462728">More</translation>
 <translation id="605721222689873409">YY</translation>
 <translation id="6066301408025741299">Tap to cancel.</translation>
+<translation id="60851516108411750">Your reading list is available offline. To add a page to your reading list, tap<ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Item removed</translation>
 <translation id="6136914049981179737">Seconds ago</translation>
@@ -270,6 +270,7 @@ Handoff must also be enabled in the General section of Settings, and your device
 <translation id="6255097610484507482">Edit Credit Card</translation>
 <translation id="6308436439357671616">This lets you take and upload photos.</translation>
 <translation id="6314335155547195432">Generate Password</translation>
+<translation id="6324528485781869530">Switch Sync Account</translation>
 <translation id="6324669097367352121">Sign in settings</translation>
 <translation id="6337234675334993532">Encryption</translation>
 <translation id="633809752005859102">Something went really wrong. We'll work on that.</translation>

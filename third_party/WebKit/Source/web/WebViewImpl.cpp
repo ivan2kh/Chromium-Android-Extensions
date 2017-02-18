@@ -57,7 +57,6 @@
 #include "core/frame/PageScaleConstraintsSet.h"
 #include "core/frame/RemoteFrame.h"
 #include "core/frame/Settings.h"
-#include "core/frame/SmartClip.h"
 #include "core/frame/UseCounter.h"
 #include "core/frame/VisualViewport.h"
 #include "core/html/HTMLMediaElement.h"
@@ -148,9 +147,10 @@
 #include "public/web/WebSelection.h"
 #include "public/web/WebViewClient.h"
 #include "public/web/WebWindowFeatures.h"
+#include "web/AnimationWorkletProxyClientImpl.h"
 #include "web/CompositionUnderlineVectorBuilder.h"
 #include "web/CompositorMutatorImpl.h"
-#include "web/CompositorProxyClientImpl.h"
+#include "web/CompositorWorkerProxyClientImpl.h"
 #include "web/ContextFeaturesClientImpl.h"
 #include "web/ContextMenuAllowedScope.h"
 #include "web/DatabaseClientImpl.h"
@@ -372,6 +372,7 @@ WebViewImpl::WebViewImpl(WebViewClient* client,
       m_flingSourceDevice(WebGestureDeviceUninitialized),
       m_fullscreenController(FullscreenController::create(this)),
       m_baseBackgroundColor(Color::white),
+      m_baseBackgroundColorOverride(Color::transparent),
       m_backgroundColorOverride(Color::transparent),
       m_zoomFactorOverride(0),
       m_userGestureObserved(false),
@@ -630,6 +631,8 @@ bool WebViewImpl::scrollBy(const WebFloatSize& delta,
     return false;
 
   if (m_flingSourceDevice == WebGestureDeviceTouchpad) {
+    bool enableTouchpadScrollLatching =
+        RuntimeEnabledFeatures::touchpadAndWheelScrollLatchingEnabled();
     WebMouseWheelEvent syntheticWheel(WebInputEvent::MouseWheel,
                                       m_flingModifier,
                                       WTF::monotonicallyIncreasingTime());
@@ -649,15 +652,15 @@ bool WebViewImpl::scrollBy(const WebFloatSize& delta,
         WebInputEventResult::NotHandled)
       return true;
 
-    // TODO(dtapuska): Remove these GSB/GSE sequences when trackpad latching is
-    // implemented; see crbug.com/526463.
-    WebGestureEvent syntheticScrollBegin = createGestureScrollEventFromFling(
-        WebInputEvent::GestureScrollBegin, WebGestureDeviceTouchpad);
-    syntheticScrollBegin.data.scrollBegin.deltaXHint = delta.width;
-    syntheticScrollBegin.data.scrollBegin.deltaYHint = delta.height;
-    syntheticScrollBegin.data.scrollBegin.inertialPhase =
-        WebGestureEvent::MomentumPhase;
-    handleGestureEvent(syntheticScrollBegin);
+    if (!enableTouchpadScrollLatching) {
+      WebGestureEvent syntheticScrollBegin = createGestureScrollEventFromFling(
+          WebInputEvent::GestureScrollBegin, WebGestureDeviceTouchpad);
+      syntheticScrollBegin.data.scrollBegin.deltaXHint = delta.width;
+      syntheticScrollBegin.data.scrollBegin.deltaYHint = delta.height;
+      syntheticScrollBegin.data.scrollBegin.inertialPhase =
+          WebGestureEvent::MomentumPhase;
+      handleGestureEvent(syntheticScrollBegin);
+    }
 
     WebGestureEvent syntheticScrollUpdate = createGestureScrollEventFromFling(
         WebInputEvent::GestureScrollUpdate, WebGestureDeviceTouchpad);
@@ -670,11 +673,14 @@ bool WebViewImpl::scrollBy(const WebFloatSize& delta,
     bool scrollUpdateHandled = handleGestureEvent(syntheticScrollUpdate) !=
                                WebInputEventResult::NotHandled;
 
-    WebGestureEvent syntheticScrollEnd = createGestureScrollEventFromFling(
-        WebInputEvent::GestureScrollEnd, WebGestureDeviceTouchpad);
-    syntheticScrollEnd.data.scrollEnd.inertialPhase =
-        WebGestureEvent::MomentumPhase;
-    handleGestureEvent(syntheticScrollEnd);
+    if (!enableTouchpadScrollLatching) {
+      WebGestureEvent syntheticScrollEnd = createGestureScrollEventFromFling(
+          WebInputEvent::GestureScrollEnd, WebGestureDeviceTouchpad);
+      syntheticScrollEnd.data.scrollEnd.inertialPhase =
+          WebGestureEvent::MomentumPhase;
+      handleGestureEvent(syntheticScrollEnd);
+    }
+
     return scrollUpdateHandled;
   } else {
     WebGestureEvent syntheticGestureEvent = createGestureScrollEventFromFling(
@@ -1743,7 +1749,7 @@ WebViewImpl* WebViewImpl::fromPage(Page* page) {
 
 void WebViewImpl::close() {
   DCHECK(allInstances().contains(this));
-  allInstances().remove(this);
+  allInstances().erase(this);
 
   if (m_page) {
     // Initiate shutdown for the entire frameset.  This will cause a lot of
@@ -2164,7 +2170,7 @@ WebInputEventResult WebViewImpl::handleInputEvent(
   }
 
   if (isPointerLocked && WebInputEvent::isMouseEventType(inputEvent.type())) {
-    pointerLockMouseEvent(inputEvent);
+    mainFrameImpl()->frameWidget()->pointerLockMouseEvent(inputEvent);
     return WebInputEventResult::HandledSystem;
   }
 
@@ -2298,12 +2304,6 @@ void WebViewImpl::setFocus(bool enable) {
     if (focusedFrame) {
       // Finish an ongoing composition to delete the composition node.
       if (focusedFrame->inputMethodController().hasComposition()) {
-        WebAutofillClient* autofillClient =
-            WebLocalFrameImpl::fromFrame(focusedFrame)->autofillClient();
-
-        if (autofillClient)
-          autofillClient->setIgnoreTextChanges(true);
-
         // TODO(xiaochengh): The use of
         // updateStyleAndLayoutIgnorePendingStylesheets
         // needs to be audited.  See http://crbug.com/590369 for more details.
@@ -2312,9 +2312,6 @@ void WebViewImpl::setFocus(bool enable) {
 
         focusedFrame->inputMethodController().finishComposingText(
             InputMethodController::KeepSelection);
-
-        if (autofillClient)
-          autofillClient->setIgnoreTextChanges(false);
       }
       m_imeAcceptEvents = false;
     }
@@ -2526,19 +2523,15 @@ void WebViewImpl::willCloseLayerTreeView() {
 }
 
 void WebViewImpl::didAcquirePointerLock() {
-  if (page())
-    page()->pointerLockController().didAcquirePointerLock();
+  mainFrameImpl()->frameWidget()->didAcquirePointerLock();
 }
 
 void WebViewImpl::didNotAcquirePointerLock() {
-  if (page())
-    page()->pointerLockController().didNotAcquirePointerLock();
+  mainFrameImpl()->frameWidget()->didNotAcquirePointerLock();
 }
 
 void WebViewImpl::didLosePointerLock() {
-  m_pointerLockGestureToken.clear();
-  if (page())
-    page()->pointerLockController().didLosePointerLock();
+  mainFrameImpl()->frameWidget()->didLosePointerLock();
 }
 
 // TODO(ekaramad):This method is almost duplicated in WebFrameWidgetImpl as
@@ -2569,13 +2562,6 @@ bool WebViewImpl::getCompositionCharacterBounds(WebVector<WebRect>& bounds) {
   }
   bounds.swap(result);
   return true;
-}
-
-// TODO(ekaramad):This method is almost duplicated in WebFrameWidgetImpl as
-// well. This code needs to be refactored  (http://crbug.com/629721).
-void WebViewImpl::applyReplacementRange(const WebRange& range) {
-  if (WebLocalFrame* frame = focusedFrame())
-    frame->selectRange(range);
 }
 
 // WebView --------------------------------------------------------------------
@@ -3508,46 +3494,6 @@ void WebViewImpl::didCloseContextMenu() {
     frame->selection().setCaretBlinkingSuspended(false);
 }
 
-void WebViewImpl::extractSmartClipData(WebRect rectInViewport,
-                                       WebString& clipText,
-                                       WebString& clipHtml,
-                                       WebRect& clipRectInViewport) {
-  LocalFrame* localFrame = toLocalFrame(focusedCoreFrame());
-  if (!localFrame)
-    return;
-  SmartClipData clipData = SmartClip(localFrame).dataForRect(rectInViewport);
-  clipText = clipData.clipData();
-  clipRectInViewport = clipData.rectInViewport();
-
-  WebLocalFrameImpl* frame = mainFrameImpl();
-  if (!frame)
-    return;
-  WebPoint startPoint(rectInViewport.x, rectInViewport.y);
-  WebPoint endPoint(rectInViewport.x + rectInViewport.width,
-                    rectInViewport.y + rectInViewport.height);
-  VisiblePosition startVisiblePosition =
-      frame->visiblePositionForViewportPoint(startPoint);
-  VisiblePosition endVisiblePosition =
-      frame->visiblePositionForViewportPoint(endPoint);
-
-  Position startPosition = startVisiblePosition.deepEquivalent();
-  Position endPosition = endVisiblePosition.deepEquivalent();
-
-  // document() will return null if -webkit-user-select is set to none.
-  if (!startPosition.document() || !endPosition.document())
-    return;
-
-  if (startPosition.compareTo(endPosition) <= 0) {
-    clipHtml =
-        createMarkup(startPosition, endPosition, AnnotateForInterchange,
-                     ConvertBlocksToInlines::NotConvert, ResolveNonLocalURLs);
-  } else {
-    clipHtml =
-        createMarkup(endPosition, startPosition, AnnotateForInterchange,
-                     ConvertBlocksToInlines::NotConvert, ResolveNonLocalURLs);
-  }
-}
-
 void WebViewImpl::hidePopups() {
   cancelPagePopup();
 }
@@ -3577,12 +3523,35 @@ WebInputMethodControllerImpl* WebViewImpl::getActiveWebInputMethodController()
   return WebInputMethodControllerImpl::fromFrame(focusedLocalFrameInWidget());
 }
 
+Color WebViewImpl::baseBackgroundColor() const {
+  return alphaChannel(m_baseBackgroundColorOverride)
+             ? m_baseBackgroundColorOverride
+             : m_baseBackgroundColor;
+}
+
 void WebViewImpl::setBaseBackgroundColor(WebColor color) {
   if (m_baseBackgroundColor == color)
     return;
 
   m_baseBackgroundColor = color;
+  updateBaseBackgroundColor();
+}
 
+void WebViewImpl::setBaseBackgroundColorOverride(WebColor color) {
+  m_baseBackgroundColorOverride = color;
+  if (mainFrameImpl()) {
+    // Force lifecycle update to ensure we're good to call
+    // FrameView::setBaseBackgroundColor().
+    mainFrameImpl()
+        ->frame()
+        ->view()
+        ->updateLifecycleToCompositingCleanPlusScrolling();
+  }
+  updateBaseBackgroundColor();
+}
+
+void WebViewImpl::updateBaseBackgroundColor() {
+  Color color = baseBackgroundColor();
   if (m_page->mainFrame() && m_page->mainFrame()->isLocalFrame())
     m_page->deprecatedLocalMainFrame()->view()->setBaseBackgroundColor(color);
 }
@@ -4112,42 +4081,6 @@ void WebViewImpl::setCompositorVisibility(bool isVisible) {
     m_layerTreeView->setVisible(isVisible);
 }
 
-void WebViewImpl::pointerLockMouseEvent(const WebInputEvent& event) {
-  std::unique_ptr<UserGestureIndicator> gestureIndicator;
-  AtomicString eventType;
-  switch (event.type()) {
-    case WebInputEvent::MouseDown:
-      eventType = EventTypeNames::mousedown;
-      if (!page() || !page()->pointerLockController().element())
-        break;
-      gestureIndicator = WTF::wrapUnique(
-          new UserGestureIndicator(DocumentUserGestureToken::create(
-              &page()->pointerLockController().element()->document(),
-              UserGestureToken::NewGesture)));
-      m_pointerLockGestureToken = gestureIndicator->currentToken();
-      break;
-    case WebInputEvent::MouseUp:
-      eventType = EventTypeNames::mouseup;
-      gestureIndicator = WTF::wrapUnique(
-          new UserGestureIndicator(m_pointerLockGestureToken.release()));
-      break;
-    case WebInputEvent::MouseMove:
-      eventType = EventTypeNames::mousemove;
-      break;
-    default:
-      NOTREACHED();
-  }
-
-  const WebMouseEvent& mouseEvent = static_cast<const WebMouseEvent&>(event);
-
-  if (page()) {
-    WebMouseEvent transformedEvent =
-        TransformWebMouseEvent(mainFrameImpl()->frameView(), mouseEvent);
-    page()->pointerLockController().dispatchLockedMouseEvent(transformedEvent,
-                                                             eventType);
-  }
-}
-
 void WebViewImpl::forceNextWebGLContextCreationToFail() {
   WebGLRenderingContext::forceNextWebGLContextCreationToFail();
 }
@@ -4156,14 +4089,23 @@ void WebViewImpl::forceNextDrawingBufferCreationToFail() {
   DrawingBuffer::forceNextDrawingBufferCreationToFail();
 }
 
-CompositorProxyClient* WebViewImpl::createCompositorProxyClient() {
+CompositorMutatorImpl& WebViewImpl::mutator() {
   if (!m_mutator) {
     std::unique_ptr<CompositorMutatorClient> mutatorClient =
         CompositorMutatorImpl::createClient();
     m_mutator = static_cast<CompositorMutatorImpl*>(mutatorClient->mutator());
     m_layerTreeView->setMutatorClient(std::move(mutatorClient));
   }
-  return new CompositorProxyClientImpl(m_mutator);
+
+  return *m_mutator;
+}
+
+CompositorWorkerProxyClient* WebViewImpl::createCompositorWorkerProxyClient() {
+  return new CompositorWorkerProxyClientImpl(&mutator());
+}
+
+AnimationWorkletProxyClient* WebViewImpl::createAnimationWorkletProxyClient() {
+  return new AnimationWorkletProxyClientImpl(&mutator());
 }
 
 void WebViewImpl::updatePageOverlays() {

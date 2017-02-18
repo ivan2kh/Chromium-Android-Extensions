@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Odpri vse</translation>
 <translation id="1430915738399379752">Natisni</translation>
 <translation id="145015347812617860">Št. elementov: <ph name="COUNT" /></translation>
+<translation id="1491277525950327607">Dvakrat se dotaknite, da preklopite nastavitev</translation>
 <translation id="1540800554400757039">Naslov 1</translation>
 <translation id="1545749641540134597">Scan QR Code</translation>
 <translation id="1580783302095112590">Pošta je poslana.</translation>
@@ -65,7 +66,6 @@ Nekatera spletna mesta se bodo na primer odzvala na to zahtevo s prikazom oglaso
 <translation id="2068952045031577364">Past Week</translation>
 <translation id="2079545284768500474">Razveljavi</translation>
 <translation id="209018056901015185">Zahtevaj spletno mesto za nam. računalnik</translation>
-<translation id="2100215774115172756">Bralni seznam je na voljo brez povezave.</translation>
 <translation id="2103075008456228677">Odpri history.google.com</translation>
 <translation id="2116625576999540962">Št. premaknjenih elementov: <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /></translation>
 <translation id="2149973817440762519">Uredi zaznamek</translation>
@@ -120,7 +120,6 @@ Nekatera spletna mesta se bodo na primer odzvala na to zahtevo s prikazom oglaso
 <translation id="3175081911749765310">Spletne storitve</translation>
 <translation id="3207960819495026254">Zaznamovano</translation>
 <translation id="3210163015918861891">Sync is Off</translation>
-<translation id="3237561509210981547">Če želite stran dodati na bralni seznam, se dotaknite <ph name="BEGIN_BOLD_FONT" />Skupna raba &gt; Poznejše branje<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Povezava kopirana</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> od <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Nekatera spletna mesta se bodo na primer odzvala na to zahtevo s prikazom oglaso
 <translation id="3414292259312108062">Chrome will store this in your <ph name="BEGIN_LINK" />Google saved passwords<ph name="END_LINK" /> and autofill it for you so you don't have to remember it yourself.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Razdeljeni pogled</translation>
-<translation id="3474068797193663261">Če želite stran dodati na bralni seznam, se dotaknite <ph name="BEGIN_BOLD_FONT" />Meni &gt; Skupna raba &gt; Poznejše branje<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Forms filled.</translation>
 <translation id="3478058380795961209">Expiration Month</translation>
 <translation id="3482959374254649722">Syncing your tabs...</translation>
@@ -171,6 +169,7 @@ Nekatera spletna mesta se bodo na primer odzvala na to zahtevo s prikazom oglaso
 <translation id="4121993058175073134">Če želite pošiljati podatke net-export, v aplikaciji Nastavitve konfigurirajte e-poštni račun.</translation>
 <translation id="4124987746317609294">Časovno obdobje</translation>
 <translation id="4172051516777682613">Vedno pokaži</translation>
+<translation id="418156467088430727">Ogled različice brez povezave na novem zavihku</translation>
 <translation id="424315890655130736">Vnos gesla</translation>
 <translation id="4272631900155121838">Če želite optično prebrati kodo QR, v nastavitvah omogočite fotoaparat</translation>
 <translation id="4281844954008187215">Pogoji storitve</translation>
@@ -178,7 +177,6 @@ Nekatera spletna mesta se bodo na primer odzvala na to zahtevo s prikazom oglaso
 <translation id="4359125752503270327">This page will open in another application.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Obvestilo o zasebnosti</translation>
-<translation id="4426508677408162512">Vsi zaznamki</translation>
 <translation id="4473991315115669931">Enter Incognito Mode</translation>
 <translation id="4526249700380860531">Ogled in upravljanje shranjenih gesel na <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Try signing in again.</translation>
@@ -218,6 +216,7 @@ Podatki so šifrirani z vašim geslom za sinhronizacijo. Vnesite ga, če želite
 <translation id="5300589172476337783">Pokaži</translation>
 <translation id="5317780077021120954">Shrani</translation>
 <translation id="5327248766486351172">Ime</translation>
+<translation id="5332219387342487447">Način pošiljanja</translation>
 <translation id="5388358297987318779">Odpri sliko</translation>
 <translation id="5409365236829784218">Nameščena ni nobena apl. za odpiranje te datoteke.</translation>
 <translation id="54401264925851789">Informacije o varnosti strani</translation>
@@ -270,6 +269,7 @@ Handoff must also be enabled in the General section of Settings, and your device
 <translation id="6255097610484507482">Urejanje kreditne kartice</translation>
 <translation id="6308436439357671616">S tem je mogoče fotografirati in nalagati fotografije.</translation>
 <translation id="6314335155547195432">Generate Password</translation>
+<translation id="6324528485781869530">Preklop med računi za sinhronizacijo</translation>
 <translation id="6324669097367352121">Nastavitve za prijavo</translation>
 <translation id="6337234675334993532">Šifriranje</translation>
 <translation id="633809752005859102">Prišlo je do resne napake. Poskusili jo bomo odpraviti.</translation>

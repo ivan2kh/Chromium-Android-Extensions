@@ -937,7 +937,8 @@ bool PrintWebViewHelper::IsScriptInitiatedPrintAllowed(
          scripting_throttler_.IsAllowed(frame);
 }
 
-void PrintWebViewHelper::DidStartProvisionalLoad() {
+void PrintWebViewHelper::DidStartProvisionalLoad(
+    blink::WebDataSource* data_source) {
   is_loading_ = true;
 }
 
@@ -1888,12 +1889,12 @@ void PrintWebViewHelper::PrintPageInternal(
   float scale_factor = css_scale_factor;
 #endif
 
-  SkCanvas* canvas = metafile->GetVectorCanvasForNewPage(
-      page_size, canvas_area, scale_factor);
+  cc::PaintCanvas* canvas =
+      metafile->GetVectorCanvasForNewPage(page_size, canvas_area, scale_factor);
   if (!canvas)
     return;
 
-  MetafileSkiaWrapper::SetMetafileOnCanvas(*canvas, metafile);
+  MetafileSkiaWrapper::SetMetafileOnCanvas(canvas, metafile);
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   if (params.params.display_header_footer) {

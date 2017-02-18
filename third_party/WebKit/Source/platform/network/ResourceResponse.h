@@ -138,8 +138,7 @@ class PLATFORM_EXPORT ResourceResponse final {
   ResourceResponse(const KURL&,
                    const AtomicString& mimeType,
                    long long expectedLength,
-                   const AtomicString& textEncodingName,
-                   const String& filename);
+                   const AtomicString& textEncodingName);
   ResourceResponse(const ResourceResponse&);
   ResourceResponse& operator=(const ResourceResponse&);
 
@@ -173,13 +172,6 @@ class PLATFORM_EXPORT ResourceResponse final {
   const AtomicString& textEncodingName() const;
   void setTextEncodingName(const AtomicString&);
 
-  // FIXME: Should compute this on the fly.
-  // There should not be a setter exposed, as suggested file name is determined
-  // based on other headers in a manner that WebCore does not necessarily know
-  // about.
-  const String& suggestedFilename() const;
-  void setSuggestedFilename(const String&);
-
   int httpStatusCode() const;
   void setHTTPStatusCode(int);
 
@@ -195,6 +187,8 @@ class PLATFORM_EXPORT ResourceResponse final {
   bool isMultipart() const { return mimeType() == "multipart/x-mixed-replace"; }
 
   bool isAttachment() const;
+
+  AtomicString httpContentType() const;
 
   // FIXME: These are used by PluginStream on some platforms. Calculations may
   // differ from just returning plain Last-Modified header.
@@ -338,6 +332,13 @@ class PLATFORM_EXPORT ResourceResponse final {
     m_corsExposedHeaderNames = headerNames;
   }
 
+  bool didServiceWorkerNavigationPreload() const {
+    return m_didServiceWorkerNavigationPreload;
+  }
+  void setDidServiceWorkerNavigationPreload(bool value) {
+    m_didServiceWorkerNavigationPreload = value;
+  }
+
   int64_t responseTime() const { return m_responseTime; }
   void setResponseTime(int64_t responseTime) { m_responseTime = responseTime; }
 
@@ -390,7 +391,6 @@ class PLATFORM_EXPORT ResourceResponse final {
   AtomicString m_mimeType;
   long long m_expectedContentLength;
   AtomicString m_textEncodingName;
-  String m_suggestedFilename;
   int m_httpStatusCode;
   AtomicString m_httpStatusText;
   HTTPHeaderMap m_httpHeaderFields;
@@ -482,6 +482,10 @@ class PLATFORM_EXPORT ResourceResponse final {
   // to be set if the response was fetched by a ServiceWorker.
   Vector<String> m_corsExposedHeaderNames;
 
+  // True if service worker navigation preload was performed due to
+  // the request for this resource.
+  bool m_didServiceWorkerNavigationPreload;
+
   // The time at which the response headers were received.  For cached
   // responses, this time could be "far" in the past.
   int64_t m_responseTime;
@@ -534,7 +538,6 @@ struct CrossThreadResourceResponseData {
   String m_mimeType;
   long long m_expectedContentLength;
   String m_textEncodingName;
-  String m_suggestedFilename;
   int m_httpStatusCode;
   String m_httpStatusText;
   std::unique_ptr<CrossThreadHTTPHeaderMapData> m_httpHeaders;
@@ -560,6 +563,7 @@ struct CrossThreadResourceResponseData {
   WebServiceWorkerResponseType m_serviceWorkerResponseType;
   Vector<KURL> m_urlListViaServiceWorker;
   String m_cacheStorageCacheName;
+  bool m_didServiceWorkerNavigationPreload;
   int64_t m_responseTime;
   String m_remoteIPAddress;
   unsigned short m_remotePort;

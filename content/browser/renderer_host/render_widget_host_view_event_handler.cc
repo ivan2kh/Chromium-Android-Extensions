@@ -469,7 +469,8 @@ void RenderWidgetHostViewEventHandler::OnTouchEvent(ui::TouchEvent* event) {
 
   // Set unchanged touch point to StateStationary for touchmove and
   // touchcancel to make sure only send one ack per WebTouchEvent.
-  MarkUnchangedTouchPointsAsStationary(&touch_event, event->touch_id());
+  MarkUnchangedTouchPointsAsStationary(&touch_event,
+                                       event->pointer_details().id);
   if (ShouldRouteEvent(event)) {
     host_->delegate()->GetInputEventRouter()->RouteTouchEvent(
         host_view_, &touch_event, *event->latency());
@@ -690,8 +691,14 @@ void RenderWidgetHostViewEventHandler::HandleMouseEventWhileLocked(
     blink::WebMouseWheelEvent mouse_wheel_event =
         ui::MakeWebMouseWheelEvent(static_cast<ui::MouseWheelEvent&>(*event),
                                    base::Bind(&GetScreenLocationFromEvent));
-    if (mouse_wheel_event.deltaX != 0 || mouse_wheel_event.deltaY != 0)
-      host_->ForwardWheelEvent(mouse_wheel_event);
+    if (mouse_wheel_event.deltaX != 0 || mouse_wheel_event.deltaY != 0) {
+      if (ShouldRouteEvent(event)) {
+        host_->delegate()->GetInputEventRouter()->RouteMouseWheelEvent(
+            host_view_, &mouse_wheel_event, *event->latency());
+      } else {
+        ProcessMouseWheelEvent(mouse_wheel_event, *event->latency());
+      }
+    }
     return;
   }
 
@@ -749,7 +756,12 @@ void RenderWidgetHostViewEventHandler::HandleMouseEventWhileLocked(
     // Forward event to renderer.
     if (CanRendererHandleEvent(event, mouse_locked_, is_selection_popup) &&
         !(event->flags() & ui::EF_FROM_TOUCH)) {
-      host_->ForwardMouseEvent(mouse_event);
+      if (ShouldRouteEvent(event)) {
+        host_->delegate()->GetInputEventRouter()->RouteMouseEvent(
+            host_view_, &mouse_event, *event->latency());
+      } else {
+        ProcessMouseEvent(mouse_event, *event->latency());
+      }
       // Ensure that we get keyboard focus on mouse down as a plugin window
       // may have grabbed keyboard focus.
       if (event->type() == ui::ET_MOUSE_PRESSED)

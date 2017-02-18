@@ -23,6 +23,8 @@ source_set("content_suggestions") {
     "content_suggestions_item.h",
     "content_suggestions_item.mm",
     "content_suggestions_item_actions.h",
+    "content_suggestions_section_information.h",
+    "content_suggestions_section_information.mm",
     "content_suggestions_stack_item.h",
     "content_suggestions_stack_item.mm",
     "content_suggestions_stack_item_actions.h",
@@ -36,6 +38,7 @@ source_set("content_suggestions") {
     "//ios/chrome/browser/ui/collection_view",
     "//ios/third_party/material_roboto_font_loader_ios",
     "//ui/base",
+    "//url",
   ]
   public_deps = [
     "//ios/third_party/material_components_ios",
@@ -58,5 +61,6 @@ source_set("unit_tests") {
     "//ios/chrome/browser/ui/collection_view",
     "//testing/gtest",
     "//third_party/ocmock",
+    "//url",
   ]
 }

@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Obre-les totes</translation>
 <translation id="1430915738399379752">Impressió</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> elements</translation>
+<translation id="1491277525950327607">Fes doble toc per canviar la configuració</translation>
 <translation id="1540800554400757039">Adreça 1</translation>
 <translation id="1545749641540134597">Escaneja el codi QR</translation>
 <translation id="1580783302095112590">Correu enviat.</translation>
@@ -65,7 +66,6 @@ Per exemple, pot ser que, per respondre a aquesta sol·licitud, alguns llocs web
 <translation id="2068952045031577364">La darrera setmana</translation>
 <translation id="2079545284768500474">Desfés</translation>
 <translation id="209018056901015185">Mostra com a ordinador</translation>
-<translation id="2100215774115172756">La teva llista de lectura està disponible sense connexió.</translation>
 <translation id="2103075008456228677">Obre history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> elements desplaçats</translation>
 <translation id="2149973817440762519">Edició de l'adreça d'interès</translation>
@@ -120,7 +120,6 @@ Per exemple, pot ser que, per respondre a aquesta sol·licitud, alguns llocs web
 <translation id="3175081911749765310">Serveis web</translation>
 <translation id="3207960819495026254">S'ha afegit a les adreces d'interès.</translation>
 <translation id="3210163015918861891">La sincronització està desactivada.</translation>
-<translation id="3237561509210981547">Per afegir una pàgina a la teva llista de lectura, toca <ph name="BEGIN_BOLD_FONT" />Comparteix &gt; Ho vull llegir més tard<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">S'ha copiat l'enllaç.</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> de <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Per exemple, pot ser que, per respondre a aquesta sol·licitud, alguns llocs web
 <translation id="3414292259312108062">Chrome l'emmagatzemarà a les <ph name="BEGIN_LINK" />contrasenyes desades a Google<ph name="END_LINK" /> i l'emplenarà automàticament perquè no us calgui recordar-la.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Visualització dividida</translation>
-<translation id="3474068797193663261">Per afegir una pàgina a la teva llista de lectura, toca <ph name="BEGIN_BOLD_FONT" />Menú &gt; Comparteix &gt; Ho vull llegir més tard<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">S'han emplenat els formularis.</translation>
 <translation id="3478058380795961209">Mes de caducitat</translation>
 <translation id="3482959374254649722">S'estan sincronitzant les pestanyes...</translation>
@@ -171,6 +169,7 @@ Per ajustar el terme de la cerca, manteniu-lo premut per seleccionar-lo. Per def
 <translation id="4121993058175073134">Definiu el vostre compte de correu electrònic a l'aplicació Configuració per enviar dades d'exportació de xarxa.</translation>
 <translation id="4124987746317609294">Interval de temps</translation>
 <translation id="4172051516777682613">Mostra sempre</translation>
+<translation id="418156467088430727">Mostra la versió sense connexió en una pestanya nova</translation>
 <translation id="424315890655130736">Introduïu la frase de contrasenya</translation>
 <translation id="4272631900155121838">Per poder escanejar un codi QR, activa la càmera a la configuració</translation>
 <translation id="4281844954008187215">Termes i condicions</translation>
@@ -178,7 +177,6 @@ Per ajustar el terme de la cerca, manteniu-lo premut per seleccionar-lo. Per def
 <translation id="4359125752503270327">Aquesta pàgina s'obrirà en una altra aplicació.</translation>
 <translation id="4378154925671717803">Telèfon</translation>
 <translation id="441868831736628555">Avís de privadesa</translation>
-<translation id="4426508677408162512">Totes les adreces d'interès</translation>
 <translation id="4473991315115669931">Entra al mode d'incògnit</translation>
 <translation id="4526249700380860531">Consulta i gestiona les contrasenyes desades a <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Torna a iniciar la sessió.</translation>
@@ -218,6 +216,7 @@ Les vostres dades estan encriptades amb la vostra frase de contrasenya de sincro
 <translation id="5300589172476337783">Mostra</translation>
 <translation id="5317780077021120954">Desa</translation>
 <translation id="5327248766486351172">Nom</translation>
+<translation id="5332219387342487447">Mètode d'enviament</translation>
 <translation id="5388358297987318779">Obre una imatge</translation>
 <translation id="5409365236829784218">Cap aplicació instal·lada no pot obrir el fitxer.</translation>
 <translation id="54401264925851789">Informació de seguretat de la pàgina</translation>
@@ -270,6 +269,7 @@ Handoff també ha d'estar activat a la secció General de Configuració, i els v
 <translation id="6255097610484507482">Edita la targeta de crèdit</translation>
 <translation id="6308436439357671616">Això et permet fer i penjar fotos.</translation>
 <translation id="6314335155547195432">Genera una contrasenya</translation>
+<translation id="6324528485781869530">Canvia de compte de sincronització</translation>
 <translation id="6324669097367352121">Configuració d'inici de sessió</translation>
 <translation id="6337234675334993532">Encriptació</translation>
 <translation id="633809752005859102">S'ha produït un error. Estem treballant per solucionar-lo.</translation>
@@ -373,7 +373,7 @@ Les vostres dades es van encriptar el dia <ph name="TIME" /> amb la vostra frase
 <translation id="8428213095426709021">Configuració</translation>
 <translation id="8433678324664858900">Mostra suggeriments</translation>
 <translation id="8458397775385147834">1 element suprimit</translation>
-<translation id="8487700953926739672">Disponible fora de línia</translation>
+<translation id="8487700953926739672">Disponible sense connexió</translation>
 <translation id="8503813439785031346">Nom d'usuari</translation>
 <translation id="8517375800490286174">Llicències de codi obert</translation>
 <translation id="8524799873541103884">Pestanyes <ph name="INCOGNITO" />: de <ph name="FIRST_VISIBLE_TAB" /> a <ph name="LAST_VISIBLE_TAB" /> d'un total de <ph name="NUMBER_OF_OPEN_TABS" /></translation>

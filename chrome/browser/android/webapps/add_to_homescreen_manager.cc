@@ -11,6 +11,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "chrome/browser/android/banners/app_banner_infobar_delegate_android.h"
 #include "chrome/browser/android/shortcut_helper.h"
 #include "chrome/browser/android/webapk/chrome_webapk_host.h"
@@ -76,7 +77,7 @@ void AddToHomescreenManager::AddShortcut(
 
 void AddToHomescreenManager::Start(content::WebContents* web_contents) {
   bool check_webapk_compatible = false;
-  if (ChromeWebApkHost::AreWebApkEnabled() &&
+  if (ChromeWebApkHost::CanInstallWebApk() &&
       InstallableManager::IsContentSecure(web_contents)) {
     check_webapk_compatible = true;
   } else {

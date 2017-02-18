@@ -39,6 +39,16 @@
 
 namespace blink {
 
+// static
+const Document* StyleSheetContents::singleOwnerDocument(
+    const StyleSheetContents* styleSheetContents) {
+  // TODO(https://crbug.com/242125): We may want to handle stylesheets that have
+  // multiple owners when this is used for UseCounter.
+  if (styleSheetContents && styleSheetContents->hasSingleOwnerNode())
+    return styleSheetContents->singleOwnerDocument();
+  return nullptr;
+}
+
 // Rough size estimate for the memory cache.
 unsigned StyleSheetContents::estimatedSizeInBytes() const {
   // Note that this does not take into account size of the strings hanging from
@@ -569,8 +579,8 @@ void StyleSheetContents::registerClient(CSSStyleSheet* sheet) {
 }
 
 void StyleSheetContents::unregisterClient(CSSStyleSheet* sheet) {
-  m_loadingClients.remove(sheet);
-  m_completedClients.remove(sheet);
+  m_loadingClients.erase(sheet);
+  m_completedClients.erase(sheet);
 
   if (!sheet->ownerDocument() || !m_loadingClients.isEmpty() ||
       !m_completedClients.isEmpty())
@@ -581,7 +591,7 @@ void StyleSheetContents::unregisterClient(CSSStyleSheet* sheet) {
 
 void StyleSheetContents::clientLoadCompleted(CSSStyleSheet* sheet) {
   ASSERT(m_loadingClients.contains(sheet) || !sheet->ownerDocument());
-  m_loadingClients.remove(sheet);
+  m_loadingClients.erase(sheet);
   // In m_ownerNode->sheetLoaded, the CSSStyleSheet might be detached.
   // (i.e. clearOwnerNode was invoked.)
   // In this case, we don't need to add the stylesheet to completed clients.
@@ -592,7 +602,7 @@ void StyleSheetContents::clientLoadCompleted(CSSStyleSheet* sheet) {
 
 void StyleSheetContents::clientLoadStarted(CSSStyleSheet* sheet) {
   ASSERT(m_completedClients.contains(sheet));
-  m_completedClients.remove(sheet);
+  m_completedClients.erase(sheet);
   m_loadingClients.insert(sheet);
 }
 

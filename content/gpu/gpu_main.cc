@@ -23,7 +23,6 @@
 #include "content/child/child_process.h"
 #include "content/common/content_constants_internal.h"
 #include "content/common/gpu_host_messages.h"
-#include "content/common/sandbox_linux/sandbox_linux.h"
 #include "content/gpu/gpu_child_thread.h"
 #include "content/gpu/gpu_process.h"
 #include "content/public/common/content_client.h"
@@ -73,12 +72,17 @@
 #endif
 
 #if defined(OS_LINUX)
+#include "content/common/sandbox_linux/sandbox_linux.h"
 #include "content/public/common/sandbox_init.h"
 #endif
 
 #if defined(OS_MACOSX)
 #include "base/message_loop/message_pump_mac.h"
 #include "content/common/sandbox_mac.h"
+#endif
+
+#if defined(USE_OZONE)
+#include "ui/ozone/public/ozone_platform.h"
 #endif
 
 #if defined(OS_CHROMEOS) && defined(ARCH_CPU_X86_FAMILY)
@@ -218,13 +222,11 @@ int GpuMain(const MainFunctionParams& parameters) {
     // and https://crbug.com/326995.
     main_message_loop.reset(new base::MessageLoop(base::MessageLoop::TYPE_UI));
     event_source = ui::PlatformEventSource::CreateDefault();
-#elif defined(USE_OZONE) && defined(OZONE_X11)
-    // If we might be running Ozone X11 we need a UI loop to grab Expose events.
-    // See GLSurfaceGLX and https://crbug.com/326995.
-    main_message_loop.reset(new base::MessageLoop(base::MessageLoop::TYPE_UI));
 #elif defined(USE_OZONE)
-    main_message_loop.reset(
-        new base::MessageLoop(base::MessageLoop::TYPE_DEFAULT));
+    // The MessageLoop type required depends on the Ozone platform selected at
+    // runtime.
+    main_message_loop.reset(new base::MessageLoop(
+        ui::OzonePlatform::EnsureInstance()->GetMessageLoopTypeForGpu()));
 #elif defined(OS_LINUX)
 #error "Unsupported Linux platform."
 #elif defined(OS_MACOSX)
@@ -283,7 +285,8 @@ int GpuMain(const MainFunctionParams& parameters) {
   GpuProcess gpu_process(io_thread_priority);
   GpuChildThread* child_thread = new GpuChildThread(
       gpu_init.TakeWatchdogThread(), dead_on_arrival, gpu_init.gpu_info(),
-      deferred_messages.Get(), gpu_memory_buffer_factory.get());
+      gpu_init.gpu_feature_info(), deferred_messages.Get(),
+      gpu_memory_buffer_factory.get());
   while (!deferred_messages.Get().empty())
     deferred_messages.Get().pop();
 

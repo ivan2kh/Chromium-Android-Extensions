@@ -221,7 +221,7 @@
         <include name="IDR_SNIPPETS_INTERNALS_HTML" file="resources\snippets_internals.html" allowexternalscript="true" compress="gzip" type="BINDATA" />
         <include name="IDR_SNIPPETS_INTERNALS_CSS" file="resources\snippets_internals.css" compress="gzip" type="BINDATA" />
         <include name="IDR_SNIPPETS_INTERNALS_JS" file="resources\snippets_internals.js" compress="gzip" type="BINDATA" />
-        <if expr="enable_vr_shell or enable_webvr">
+        <if expr="enable_webvr">
           <include name="IDR_VR_SHELL_UI_HTML" file="resources\vr_shell\vr_shell_ui.html" allowexternalscript="true" flattenhtml="true" compress="gzip" type="BINDATA" />
           <include name="IDR_VR_SHELL_UI_CSS" file="resources\vr_shell\vr_shell_ui.css" compress="gzip" type="BINDATA" />
           <include name="IDR_VR_SHELL_UI_JS" file="resources\vr_shell\vr_shell_ui.js" compress="gzip" type="BINDATA" />
@@ -283,18 +283,16 @@
         <include name="IDR_MD_HISTORY_IMAGES_200_SIGN_IN_PROMO_JPG" file="resources\md_history\images\200\sign_in_promo.jpg" type="BINDATA" />
         <if expr="use_vulcanize">
           <then>
-            <include name="IDR_MD_HISTORY_APP_VULCANIZED_HTML" file="resources\md_history\app.vulcanized.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" compress="gzip" />
-            <include name="IDR_MD_HISTORY_APP_CRISPER_JS" file="resources\md_history\app.crisper.js" flattenhtml="true" allowexternalscript="true" type="BINDATA" compress="gzip" />
-            <include name="IDR_MD_HISTORY_LAZY_LOAD_VULCANIZED_HTML" file="resources\md_history\lazy_load.vulcanized.html" allowexternalscript="true" type="BINDATA" compress="gzip" />
-            <include name="IDR_MD_HISTORY_LAZY_LOAD_CRISPER_JS" file="resources\md_history\lazy_load.crisper.js" allowexternalscript="true" type="BINDATA" compress="gzip" />
+            <include name="IDR_MD_HISTORY_APP_VULCANIZED_HTML" file="${root_gen_dir}\chrome\browser\resources\md_history\app.vulcanized.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" compress="gzip" use_base_dir="false" />
+            <include name="IDR_MD_HISTORY_APP_CRISPER_JS" file="${root_gen_dir}\chrome\browser\resources\md_history\app.crisper.js" flattenhtml="true" allowexternalscript="true" type="BINDATA" compress="gzip" use_base_dir="false" />
+            <include name="IDR_MD_HISTORY_LAZY_LOAD_VULCANIZED_HTML" file="${root_gen_dir}\chrome\browser\resources\md_history\lazy_load.vulcanized.html" allowexternalscript="true" type="BINDATA" compress="gzip" use_base_dir="false" />
+            <include name="IDR_MD_HISTORY_LAZY_LOAD_CRISPER_JS" file="${root_gen_dir}\chrome\browser\resources\md_history\lazy_load.crisper.js" allowexternalscript="true" type="BINDATA" compress="gzip" use_base_dir="false" />
           </then>
           <else>
             <include name="IDR_MD_HISTORY_APP_HTML" file="resources\md_history\app.html" type="BINDATA" />
             <include name="IDR_MD_HISTORY_APP_JS" file="resources\md_history\app.js" type="BINDATA" />
             <include name="IDR_MD_HISTORY_BROWSER_SERVICE_HTML" file="resources\md_history\browser_service.html" type="BINDATA" />
             <include name="IDR_MD_HISTORY_BROWSER_SERVICE_JS" file="resources\md_history\browser_service.js" type="BINDATA" />
-            <include name="IDR_MD_HISTORY_GROUPED_LIST_HTML" file="resources\md_history\grouped_list.html" type="BINDATA" />
-            <include name="IDR_MD_HISTORY_GROUPED_LIST_JS" file="resources\md_history\grouped_list.js" type="BINDATA" />
             <include name="IDR_MD_HISTORY_HISTORY_ITEM_HTML" file="resources\md_history\history_item.html" type="BINDATA" />
             <include name="IDR_MD_HISTORY_HISTORY_ITEM_JS" file="resources\md_history\history_item.js" type="BINDATA" />
             <include name="IDR_MD_HISTORY_HISTORY_LIST_BEHAVIOR_HTML" file="resources\md_history\history_list_behavior.html" type="BINDATA" />
@@ -326,7 +324,6 @@
       </if>
 
       <include name="IDR_IDENTITY_API_SCOPE_APPROVAL_MANIFEST" file="resources\identity_scope_approval_dialog\manifest.json" type="BINDATA" />
-      <include name="IDR_NEW_INLINE_LOGIN_HTML" file="resources\inline_login\new_inline_login.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
       <include name="IDR_INLINE_LOGIN_HTML" file="resources\inline_login\inline_login.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
       <include name="IDR_INLINE_LOGIN_CSS" file="resources\inline_login\inline_login.css" flattenhtml="true" type="BINDATA" />
       <include name="IDR_INLINE_LOGIN_JS" file="resources\inline_login\inline_login.js" flattenhtml="true" type="BINDATA" />
@@ -630,6 +627,7 @@
       <include name="IDR_CHROME_CONTENT_BROWSER_MANIFEST_OVERLAY" file="${root_gen_dir}\chrome\app\chrome_content_browser_manifest_overlay.json" use_base_dir="false" type="BINDATA" />
       <include name="IDR_CHROME_CONTENT_GPU_MANIFEST_OVERLAY" file="${root_gen_dir}\chrome\app\chrome_content_gpu_manifest_overlay.json" type="BINDATA" use_base_dir="false" />
       <include name="IDR_CHROME_CONTENT_PLUGIN_MANIFEST_OVERLAY" file="${root_gen_dir}\chrome\app\chrome_content_plugin_manifest_overlay.json" type="BINDATA" use_base_dir="false" />
+      <include name="IDR_CHROME_CONTENT_PACKAGED_SERVICES_MANIFEST_OVERLAY" file="${root_gen_dir}\chrome\app\chrome_content_packaged_services_manifest_overlay.json" type="BINDATA" use_base_dir="false"/>
       <include name="IDR_CHROME_CONTENT_RENDERER_MANIFEST_OVERLAY" file="${root_gen_dir}\chrome\app\chrome_content_renderer_manifest_overlay.json" type="BINDATA" use_base_dir="false" />
       <include name="IDR_CHROME_CONTENT_UTILITY_MANIFEST_OVERLAY" file="${root_gen_dir}\chrome\app\chrome_content_utility_manifest_overlay.json" type="BINDATA" use_base_dir="false" />
       <include name="IDR_NACL_LOADER_MANIFEST" file="../../components/nacl/loader/nacl_loader_manifest.json" type="BINDATA" />
@@ -641,6 +639,9 @@
         <include name="IDR_WELCOME_WIN10_DEFAULT_SMALL_WEBP" file="resources\welcome\win10\default-small.webp" type="BINDATA" />
         <include name="IDR_WELCOME_WIN10_PIN_LARGE_WEBP" file="resources\welcome\win10\pin-large.webp" type="BINDATA" />
         <include name="IDR_WELCOME_WIN10_PIN_SMALL_WEBP" file="resources\welcome\win10\pin-small.webp" type="BINDATA" />
+      </if>
+      <if expr="not is_android and not is_ios">
+        <include name="IDR_SSL_ERROR_ASSISTANT_PB" file="${root_gen_dir}/chrome/browser/resources/ssl/ssl_error_assistant/ssl_error_assistant.pb" use_base_dir="false" type="BINDATA" />
       </if>
     </includes>
   </release>

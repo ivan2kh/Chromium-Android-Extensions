@@ -15,7 +15,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "content/browser/message_port_message_filter.h"
 #include "content/browser/service_worker/embedded_worker_instance.h"
 #include "content/browser/service_worker/embedded_worker_registry.h"
 #include "content/browser/service_worker/embedded_worker_status.h"
@@ -36,28 +35,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace content {
-
-namespace {
-
-class MockMessagePortMessageFilter : public MessagePortMessageFilter {
- public:
-  MockMessagePortMessageFilter()
-      : MessagePortMessageFilter(
-            base::Bind(&base::AtomicSequenceNumber::GetNext,
-                       base::Unretained(&next_routing_id_))) {}
-
-  bool Send(IPC::Message* message) override {
-    message_queue_.push_back(base::WrapUnique(message));
-    return true;
-  }
-
- private:
-  ~MockMessagePortMessageFilter() override {}
-  base::AtomicSequenceNumber next_routing_id_;
-  std::vector<std::unique_ptr<IPC::Message>> message_queue_;
-};
-
-}  // namespace
 
 EmbeddedWorkerTestHelper::MockEmbeddedWorkerInstanceClient::
     MockEmbeddedWorkerInstanceClient(
@@ -159,6 +136,28 @@ class EmbeddedWorkerTestHelper::MockServiceWorkerEventDispatcher
                               std::move(preload_handle), callback);
   }
 
+  void DispatchNotificationClickEvent(
+      const std::string& notification_id,
+      const PlatformNotificationData& notification_data,
+      int action_index,
+      const base::Optional<base::string16>& reply,
+      const DispatchNotificationClickEventCallback& callback) override {
+    if (!helper_)
+      return;
+    helper_->OnNotificationClickEventStub(notification_id, notification_data,
+                                          action_index, reply, callback);
+  }
+
+  void DispatchNotificationCloseEvent(
+      const std::string& notification_id,
+      const PlatformNotificationData& notification_data,
+      const DispatchNotificationCloseEventCallback& callback) override {
+    if (!helper_)
+      return;
+    helper_->OnNotificationCloseEventStub(notification_id, notification_data,
+                                          callback);
+  }
+
   void DispatchPushEvent(const PushEventPayload& payload,
                          const DispatchPushEventCallback& callback) override {
     if (!helper_)
@@ -213,8 +212,7 @@ EmbeddedWorkerTestHelper::EmbeddedWorkerTestHelper(
                          base::ThreadTaskRunnerHandle::Get(), nullptr, nullptr);
   wrapper_->process_manager()->SetProcessIdForTest(mock_render_process_id());
   wrapper_->process_manager()->SetNewProcessIdForTest(new_render_process_id());
-  registry()->AddChildProcessSender(mock_render_process_id_, this,
-                                    NewMessagePortMessageFilter());
+  registry()->AddChildProcessSender(mock_render_process_id_, this);
 
   // Setup process level interface registry.
   render_process_interface_registry_ =
@@ -230,8 +228,7 @@ EmbeddedWorkerTestHelper::~EmbeddedWorkerTestHelper() {
 
 void EmbeddedWorkerTestHelper::SimulateAddProcessToPattern(const GURL& pattern,
                                                            int process_id) {
-  registry()->AddChildProcessSender(process_id, this,
-                                    NewMessagePortMessageFilter());
+  registry()->AddChildProcessSender(process_id, this);
   wrapper_->process_manager()->AddProcessReferenceToPattern(pattern,
                                                             process_id);
 }
@@ -381,6 +378,24 @@ void EmbeddedWorkerTestHelper::OnPushEvent(
     const PushEventPayload& payload,
     const mojom::ServiceWorkerEventDispatcher::DispatchPushEventCallback&
         callback) {
+  callback.Run(SERVICE_WORKER_OK, base::Time::Now());
+}
+
+void EmbeddedWorkerTestHelper::OnNotificationClickEvent(
+    const std::string& notification_id,
+    const PlatformNotificationData& notification_data,
+    int action_index,
+    const base::Optional<base::string16>& reply,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchNotificationClickEventCallback& callback) {
+  callback.Run(SERVICE_WORKER_OK, base::Time::Now());
+}
+
+void EmbeddedWorkerTestHelper::OnNotificationCloseEvent(
+    const std::string& notification_id,
+    const PlatformNotificationData& notification_data,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchNotificationCloseEventCallback& callback) {
   callback.Run(SERVICE_WORKER_OK, base::Time::Now());
 }
 
@@ -540,6 +555,30 @@ void EmbeddedWorkerTestHelper::OnFetchEventStub(
                  request, base::Passed(&preload_handle), callback));
 }
 
+void EmbeddedWorkerTestHelper::OnNotificationClickEventStub(
+    const std::string& notification_id,
+    const PlatformNotificationData& notification_data,
+    int action_index,
+    const base::Optional<base::string16>& reply,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchNotificationClickEventCallback& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::Bind(&EmbeddedWorkerTestHelper::OnNotificationClickEvent,
+                            AsWeakPtr(), notification_id, notification_data,
+                            action_index, reply, callback));
+}
+
+void EmbeddedWorkerTestHelper::OnNotificationCloseEventStub(
+    const std::string& notification_id,
+    const PlatformNotificationData& notification_data,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchNotificationCloseEventCallback& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE,
+      base::Bind(&EmbeddedWorkerTestHelper::OnNotificationCloseEvent,
+                 AsWeakPtr(), notification_id, notification_data, callback));
+}
+
 void EmbeddedWorkerTestHelper::OnPushEventStub(
     const PushEventPayload& payload,
     const mojom::ServiceWorkerEventDispatcher::DispatchPushEventCallback&
@@ -562,14 +601,6 @@ void EmbeddedWorkerTestHelper::OnPaymentRequestEventStub(
 EmbeddedWorkerRegistry* EmbeddedWorkerTestHelper::registry() {
   DCHECK(context());
   return context()->embedded_worker_registry();
-}
-
-MessagePortMessageFilter*
-EmbeddedWorkerTestHelper::NewMessagePortMessageFilter() {
-  scoped_refptr<MessagePortMessageFilter> filter(
-      new MockMessagePortMessageFilter);
-  message_port_message_filters_.push_back(filter);
-  return filter.get();
 }
 
 std::unique_ptr<service_manager::InterfaceRegistry>

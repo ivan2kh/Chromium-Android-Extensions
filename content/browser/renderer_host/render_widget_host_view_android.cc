@@ -482,8 +482,6 @@ bool RenderWidgetHostViewAndroid::OnMessageReceived(
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(RenderWidgetHostViewAndroid, message)
     IPC_MESSAGE_HANDLER(ViewHostMsg_StartContentIntent, OnStartContentIntent)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_SmartClipDataExtracted,
-                        OnSmartClipDataExtracted)
     IPC_MESSAGE_HANDLER(ViewHostMsg_ShowUnhandledTapUIIfNeeded,
                         OnShowUnhandledTapUIIfNeeded)
     IPC_MESSAGE_UNHANDLED(handled = false)
@@ -809,14 +807,6 @@ void RenderWidgetHostViewAndroid::OnStartContentIntent(
     const GURL& content_url, bool is_main_frame) {
   if (content_view_core_)
     content_view_core_->StartContentIntent(content_url, is_main_frame);
-}
-
-void RenderWidgetHostViewAndroid::OnSmartClipDataExtracted(
-    const base::string16& text,
-    const base::string16& html,
-    const gfx::Rect rect) {
-  if (content_view_core_)
-    content_view_core_->OnSmartClipDataExtracted(text, html, rect);
 }
 
 bool RenderWidgetHostViewAndroid::OnTouchEvent(
@@ -1413,8 +1403,7 @@ void RenderWidgetHostViewAndroid::StartObservingRootWindow() {
   ui::WindowAndroidCompositor* compositor =
       view_.GetWindowAndroid()->GetCompositor();
   if (compositor) {
-    delegated_frame_host_->RegisterFrameSinkHierarchy(
-        compositor->GetFrameSinkId());
+    delegated_frame_host_->AttachToCompositor(compositor);
   }
 }
 
@@ -1439,7 +1428,7 @@ void RenderWidgetHostViewAndroid::StopObservingRootWindow() {
   // If the DFH has already been destroyed, it will have cleaned itself up.
   // This happens in some WebView cases.
   if (delegated_frame_host_)
-    delegated_frame_host_->UnregisterFrameSinkHierarchy();
+    delegated_frame_host_->DetachFromCompositor();
   DCHECK(!begin_frame_source_);
 }
 
@@ -1824,8 +1813,7 @@ void RenderWidgetHostViewAndroid::OnAttachCompositor() {
   if (observing_root_window_) {
     ui::WindowAndroidCompositor* compositor =
         view_.GetWindowAndroid()->GetCompositor();
-    delegated_frame_host_->RegisterFrameSinkHierarchy(
-        compositor->GetFrameSinkId());
+    delegated_frame_host_->AttachToCompositor(compositor);
   }
 }
 
@@ -1834,7 +1822,7 @@ void RenderWidgetHostViewAndroid::OnDetachCompositor() {
   DCHECK(using_browser_compositor_);
   RunAckCallbacks();
   overscroll_controller_.reset();
-  delegated_frame_host_->UnregisterFrameSinkHierarchy();
+  delegated_frame_host_->DetachFromCompositor();
 }
 
 void RenderWidgetHostViewAndroid::OnBeginFrame(const cc::BeginFrameArgs& args) {

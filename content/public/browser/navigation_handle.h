@@ -156,6 +156,7 @@ class CONTENT_EXPORT NavigationHandle {
   // navigations are:
   // * reference fragment navigations
   // * pushState/replaceState
+  // * same page history navigation
   virtual bool IsSamePage() = 0;
 
   // Whether the navigation has encountered a server redirect or not.
@@ -166,16 +167,30 @@ class CONTENT_EXPORT NavigationHandle {
   // there will be one entry in the list).
   virtual const std::vector<GURL>& GetRedirectChain() = 0;
 
-  // Whether the navigation has committed. This returns true for either
-  // successful commits or error pages that replace the previous page
-  // (distinguished by |IsErrorPage|), and false for errors that leave the user
-  // on the previous page.
+  // Whether the navigation has committed. Navigations that end up being
+  // downloads or return 204/205 response codes do not commit (i.e. the
+  // WebContents stays at the existing URL).
+  // This returns true for either successful commits or error pages that
+  // replace the previous page (distinguished by |IsErrorPage|), and false for
+  // errors that leave the user on the previous page.
   virtual bool HasCommitted() = 0;
 
   // Whether the navigation resulted in an error page.
   // Note that if an error page reloads, this will return true even though
   // GetNetErrorCode will be net::OK.
   virtual bool IsErrorPage() = 0;
+
+  // True if the committed entry has replaced the existing one. A non-user
+  // initiated redirect causes such replacement.
+  virtual bool DidReplaceEntry() = 0;
+
+  // Returns true if the browser history should be updated. Otherwise only
+  // the session history will be updated. E.g., on unreachable urls.
+  virtual bool ShouldUpdateHistory() = 0;
+
+  // The previous main frame URL that the user was on. This may be empty if
+  // there was no last committed entry.
+  virtual const GURL& GetPreviousURL() = 0;
 
   // Returns the remote address of the socket which fetched this resource.
   virtual net::HostPortPair GetSocketAddress() = 0;

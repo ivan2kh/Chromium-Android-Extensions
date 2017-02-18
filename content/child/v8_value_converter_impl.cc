@@ -11,15 +11,13 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/bind_helpers.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/values.h"
-#include "third_party/WebKit/public/web/WebArrayBuffer.h"
-#include "third_party/WebKit/public/web/WebArrayBufferConverter.h"
-#include "third_party/WebKit/public/web/WebArrayBufferView.h"
 #include "v8/include/v8.h"
 
 namespace content {
@@ -271,9 +269,7 @@ v8::Local<v8::Value> V8ValueConverterImpl::ToV8ValueImpl(
                         static_cast<const base::DictionaryValue*>(value));
 
     case base::Value::Type::BINARY:
-      return ToArrayBuffer(isolate,
-                           creation_context,
-                           static_cast<const base::BinaryValue*>(value));
+      return ToArrayBuffer(isolate, creation_context, value);
 
     default:
       LOG(ERROR) << "Unexpected value type: " << value->GetType();
@@ -339,11 +335,11 @@ v8::Local<v8::Value> V8ValueConverterImpl::ToArrayBuffer(
     v8::Isolate* isolate,
     v8::Local<v8::Object> creation_context,
     const base::BinaryValue* value) const {
-  blink::WebArrayBuffer buffer =
-      blink::WebArrayBuffer::create(value->GetSize(), 1);
-  memcpy(buffer.data(), value->GetBuffer(), value->GetSize());
-  return blink::WebArrayBufferConverter::toV8Value(
-      &buffer, creation_context, isolate);
+  DCHECK(creation_context->CreationContext() == isolate->GetCurrentContext());
+  v8::Local<v8::ArrayBuffer> buffer =
+      v8::ArrayBuffer::New(isolate, value->GetSize());
+  memcpy(buffer->GetContents().Data(), value->GetBuffer(), value->GetSize());
+  return buffer;
 }
 
 std::unique_ptr<base::Value> V8ValueConverterImpl::FromV8ValueImpl(
@@ -497,27 +493,20 @@ std::unique_ptr<base::Value> V8ValueConverterImpl::FromV8ArrayBuffer(
       return out;
   }
 
-  char* data = NULL;
-  size_t length = 0;
-
-  std::unique_ptr<blink::WebArrayBuffer> array_buffer(
-      blink::WebArrayBufferConverter::createFromV8Value(val, isolate));
-  std::unique_ptr<blink::WebArrayBufferView> view;
-  if (array_buffer) {
-    data = reinterpret_cast<char*>(array_buffer->data());
-    length = array_buffer->byteLength();
+  if (val->IsArrayBuffer()) {
+    auto contents = val.As<v8::ArrayBuffer>()->GetContents();
+    return base::BinaryValue::CreateWithCopiedBuffer(
+        static_cast<const char*>(contents.Data()), contents.ByteLength());
+  } else if (val->IsArrayBufferView()) {
+    v8::Local<v8::ArrayBufferView> view = val.As<v8::ArrayBufferView>();
+    size_t byte_length = view->ByteLength();
+    std::vector<char> buffer(byte_length);
+    view->CopyContents(buffer.data(), buffer.size());
+    return base::MakeUnique<base::BinaryValue>(std::move(buffer));
   } else {
-    view.reset(blink::WebArrayBufferView::createFromV8Value(val));
-    if (view) {
-      data = reinterpret_cast<char*>(view->baseAddress()) + view->byteOffset();
-      length = view->byteLength();
-    }
-  }
-
-  if (data)
-    return base::BinaryValue::CreateWithCopiedBuffer(data, length);
-  else
+    NOTREACHED() << "Only ArrayBuffer and ArrayBufferView should get here.";
     return nullptr;
+  }
 }
 
 std::unique_ptr<base::Value> V8ValueConverterImpl::FromV8Object(

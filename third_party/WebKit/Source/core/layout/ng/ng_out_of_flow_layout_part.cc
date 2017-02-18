@@ -27,8 +27,8 @@ bool IsContainingBlockForAbsoluteDescendant(
   bool contains_absolute =
       container_style.canContainAbsolutePositionObjects() || contains_fixed;
 
-  return (contains_absolute && position == AbsolutePosition) ||
-         (contains_fixed && position == FixedPosition);
+  return (contains_absolute && position == EPosition::kAbsolute) ||
+         (contains_fixed && position == EPosition::kFixed);
 }
 
 }  // namespace
@@ -59,35 +59,43 @@ NGOutOfFlowLayoutPart::NGOutOfFlowLayoutPart(
   space_builder.SetPercentageResolutionSize(space_size);
   space_builder.SetIsNewFormattingContext(true);
   space_builder.SetTextDirection(container_style_.direction());
-  container_space_ = space_builder.ToConstraintSpace();
+  container_space_ = space_builder.ToConstraintSpace(writing_mode);
 }
 
 void NGOutOfFlowLayoutPart::Run() {
-  HeapLinkedHashSet<WeakMember<NGBlockNode>> out_of_flow_candidates;
+  PersistentHeapLinkedHashSet<WeakMember<NGBlockNode>> out_of_flow_candidates;
   Vector<NGStaticPosition> out_of_flow_candidate_positions;
   container_builder_->GetAndClearOutOfFlowDescendantCandidates(
       &out_of_flow_candidates, &out_of_flow_candidate_positions);
 
-  size_t position_index = 0;
+  while (out_of_flow_candidates.size() > 0) {
+    size_t position_index = 0;
 
-  for (auto& descendant : out_of_flow_candidates) {
-    NGStaticPosition static_position =
-        out_of_flow_candidate_positions[position_index++];
+    for (auto& descendant : out_of_flow_candidates) {
+      NGStaticPosition static_position =
+          out_of_flow_candidate_positions[position_index++];
 
-    if (IsContainingBlockForAbsoluteDescendant(container_style_,
-                                               descendant->Style())) {
-      NGLogicalOffset offset;
-      NGFragment* fragment =
-          LayoutDescendant(*descendant, static_position, &offset);
-      // TODO(atotic) Need to adjust size of overflow rect per spec.
-      container_builder_->AddChild(fragment, offset);
-    } else {
-      container_builder_->AddOutOfFlowDescendant(descendant, static_position);
+      if (IsContainingBlockForAbsoluteDescendant(container_style_,
+                                                 descendant->Style())) {
+        NGLogicalOffset offset;
+        RefPtr<NGPhysicalFragment> physical_fragment =
+            LayoutDescendant(*descendant, static_position, &offset);
+        // TODO(atotic) Need to adjust size of overflow rect per spec.
+        container_builder_->AddChild(std::move(physical_fragment), offset);
+      } else {
+        container_builder_->AddOutOfFlowDescendant(descendant, static_position);
+      }
     }
+    // Sweep any descendants that might have been added.
+    // This happens when an absolute container has a fixed child.
+    out_of_flow_candidates.clear();
+    out_of_flow_candidate_positions.clear();
+    container_builder_->GetAndClearOutOfFlowDescendantCandidates(
+        &out_of_flow_candidates, &out_of_flow_candidate_positions);
   }
 }
 
-NGFragment* NGOutOfFlowLayoutPart::LayoutDescendant(
+RefPtr<NGPhysicalFragment> NGOutOfFlowLayoutPart::LayoutDescendant(
     NGBlockNode& descendant,
     NGStaticPosition static_position,
     NGLogicalOffset* offset) {
@@ -96,7 +104,7 @@ NGFragment* NGOutOfFlowLayoutPart::LayoutDescendant(
   // relative to the container's padding box.
   static_position.offset -= container_border_physical_offset_;
 
-  NGFragment* fragment = nullptr;
+  RefPtr<NGPhysicalFragment> physical_fragment = nullptr;
   Optional<MinAndMaxContentSizes> inline_estimate;
   Optional<LayoutUnit> block_estimate;
 
@@ -110,8 +118,14 @@ NGFragment* NGOutOfFlowLayoutPart::LayoutDescendant(
           inline_estimate);
 
   if (AbsoluteNeedsChildBlockSize(descendant.Style())) {
-    fragment = GenerateFragment(descendant, block_estimate, node_position);
-    block_estimate = fragment->BlockSize();
+    physical_fragment =
+        GenerateFragment(descendant, block_estimate, node_position);
+
+    // TODO(ikilpatrick): the writing mode switching here looks wrong.
+    NGBoxFragment fragment(container_space_->WritingMode(),
+                           toNGPhysicalBoxFragment(physical_fragment.get()));
+
+    block_estimate = fragment.BlockSize();
   }
 
   ComputeFullAbsoluteWithChildBlockSize(*container_space_, descendant.Style(),
@@ -119,11 +133,12 @@ NGFragment* NGOutOfFlowLayoutPart::LayoutDescendant(
                                         &node_position);
 
   // Skip this step if we produced a fragment when estimating the block size.
-  if (!fragment) {
+  if (!physical_fragment) {
     block_estimate =
         node_position.size.ConvertToLogical(container_space_->WritingMode())
             .block_size;
-    fragment = GenerateFragment(descendant, block_estimate, node_position);
+    physical_fragment =
+        GenerateFragment(descendant, block_estimate, node_position);
   }
 
   // Compute logical offset, NGAbsolutePhysicalPosition is calculated relative
@@ -135,10 +150,10 @@ NGFragment* NGOutOfFlowLayoutPart::LayoutDescendant(
   offset->block_offset =
       inset.block_start + container_border_offset_.block_offset;
 
-  return fragment;
+  return physical_fragment;
 }
 
-NGFragment* NGOutOfFlowLayoutPart::GenerateFragment(
+RefPtr<NGPhysicalFragment> NGOutOfFlowLayoutPart::GenerateFragment(
     NGBlockNode& descendant,
     const Optional<LayoutUnit>& block_estimate,
     const NGAbsolutePhysicalPosition node_position) {
@@ -163,14 +178,10 @@ NGFragment* NGOutOfFlowLayoutPart::GenerateFragment(
     builder.SetIsFixedSizeBlock(true);
   builder.SetIsFixedSizeInline(true);
   builder.SetIsNewFormattingContext(true);
-  NGConstraintSpace* space = builder.ToConstraintSpace();
+  NGConstraintSpace* space =
+      builder.ToConstraintSpace(container_space_->WritingMode());
 
-  NGPhysicalFragment* fragment = descendant.Layout(space);
-
-  // TODO(ikilpatrick): the writing mode switching here looks wrong.
-  return new NGBoxFragment(container_space_->WritingMode(),
-                           container_space_->Direction(),
-                           toNGPhysicalBoxFragment(fragment));
+  return descendant.Layout(space);
 }
 
 }  // namespace blink

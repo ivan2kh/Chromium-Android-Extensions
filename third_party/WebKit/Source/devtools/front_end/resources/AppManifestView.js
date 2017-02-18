@@ -10,8 +10,14 @@ Resources.AppManifestView = class extends UI.VBox {
     super(true);
     this.registerRequiredCSS('resources/appManifestView.css');
 
+    this._emptyView = new UI.EmptyWidget(Common.UIString('No web app manifest'));
+
+    this._emptyView.show(this.contentElement);
+    this._emptyView.hideWidget();
+
     this._reportView = new UI.ReportView(Common.UIString('App Manifest'));
     this._reportView.show(this.contentElement);
+    this._reportView.hideWidget();
 
     this._errorsSection = this._reportView.appendSection(Common.UIString('Errors and warnings'));
     this._identitySection = this._reportView.appendSection(Common.UIString('Identity'));
@@ -21,6 +27,14 @@ Resources.AppManifestView = class extends UI.VBox {
         new UI.ToolbarButton(Common.UIString('Add to homescreen'), undefined, Common.UIString('Add to homescreen'));
     addToHomeScreen.addEventListener(UI.ToolbarButton.Events.Click, this._addToHomescreen, this);
     toolbar.appendToolbarItem(addToHomeScreen);
+
+    this._manifestlessSection = this._reportView.appendSection(Common.UIString('No manifest detected'));
+    var p = createElement('p');
+    p.textContent = 'A web manifest allows you to control how your app behaves when launched and displayed to the user. ';
+    p.appendChild(UI.createExternalLink('https://developers.google.com/web/progressive-web-apps/?utm_source=devtools',
+        Common.UIString('Read more on developers.google.com')));
+    this._manifestlessSection.element.appendChild(p);
+    this._manifestlessSection.element.classList.add('hidden');
 
     this._presentationSection = this._reportView.appendSection(Common.UIString('Presentation'));
     this._iconsSection = this._reportView.appendSection(Common.UIString('Icons'));
@@ -81,6 +95,14 @@ Resources.AppManifestView = class extends UI.VBox {
    * @param {!Array<!Protocol.Page.AppManifestError>} errors
    */
   _renderManifest(url, data, errors) {
+    if (!data && !errors.length) {
+      this._emptyView.showWidget();
+      this._reportView.hideWidget();
+      return;
+    }
+    this._emptyView.hideWidget();
+    this._reportView.showWidget();
+
     this._reportView.setURL(Components.Linkifier.linkifyURL(url));
     this._errorsSection.clearContent();
     this._errorsSection.element.classList.toggle('hidden', !errors.length);
@@ -89,8 +111,12 @@ Resources.AppManifestView = class extends UI.VBox {
           UI.createLabel(error.message, error.critical ? 'smallicon-error' : 'smallicon-warning'));
     }
 
-    if (!data)
-      data = '{}';
+    var manifestDataFound = !!data;
+    this._manifestlessSection.element.classList.toggle('hidden', manifestDataFound);
+    this._presentationSection.element.classList.toggle('hidden', !manifestDataFound);
+    this._iconsSection.element.classList.toggle('hidden', !manifestDataFound);
+    this._identitySection.element.classList.toggle('hidden', !manifestDataFound);
+    if (!data) return;
 
     var parsedManifest = JSON.parse(data);
     this._nameField.textContent = stringProperty('name');

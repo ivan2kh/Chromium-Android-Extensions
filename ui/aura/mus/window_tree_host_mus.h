@@ -73,6 +73,9 @@ class AURA_EXPORT WindowTreeHostMus : public aura::WindowTreeHostPlatform {
   // clear.
   void SetHitTestMask(const base::Optional<gfx::Rect>& rect);
 
+  // Sets the opacity of the underlying mus window.
+  void SetOpacity(float value);
+
   // Requests that the window manager change the activation to the next window.
   void DeactivateWindow();
 
@@ -107,6 +110,8 @@ class AURA_EXPORT WindowTreeHostMus : public aura::WindowTreeHostPlatform {
   void OnActivationChanged(bool active) override;
   void OnCloseRequest() override;
   gfx::ICCProfile GetICCProfileForCurrentDisplay() override;
+  void MoveCursorToScreenLocationInPixels(
+      const gfx::Point& location_in_pixels) override;
 
  private:
   int64_t display_id_;

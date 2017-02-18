@@ -24,6 +24,10 @@ int LayoutDelegate::GetMetric(Metric metric) const {
   switch (metric) {
     case Metric::DIALOG_BUTTON_MARGIN:
       return views::kButtonHEdgeMarginNew;
+    case Metric::DIALOG_BUTTON_TOP_SPACING:
+      return 0;
+    case Metric::DIALOG_CLOSE_BUTTON_MARGIN:
+      return views::kCloseButtonMargin;
     case Metric::PANEL_CONTENT_MARGIN:
       return views::kPanelHorizMargin;
     case Metric::RELATED_BUTTON_HORIZONTAL_SPACING:

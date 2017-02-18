@@ -51,7 +51,6 @@
 #include "core/dom/StyleChangeReason.h"
 #include "core/events/EventFactory.h"
 #include "core/html/canvas/CanvasRenderingContextFactory.h"
-#include "core/html/parser/HTMLParserThread.h"
 #include "core/workers/WorkerThread.h"
 #include "platform/FontFamilyNames.h"
 #include "platform/HTTPNames.h"
@@ -60,6 +59,7 @@
 #include "platform/weborigin/KURL.h"
 #include "platform/weborigin/SchemeRegistry.h"
 #include "platform/weborigin/SecurityPolicy.h"
+#include "public/platform/Platform.h"
 #include "wtf/allocator/Partitions.h"
 #include "wtf/text/AtomicStringTable.h"
 
@@ -142,16 +142,6 @@ void CoreInitializer::initialize() {
   StringImpl::freezeStaticStrings();
 
   ScriptStreamerThread::init();
-}
-
-void CoreInitializer::shutdown() {
-  // Shutdown V8-related background threads before V8 is ramped down. Note
-  // that this will wait the thread to stop its operations.
-  ScriptStreamerThread::shutdown();
-
-  ASSERT(Platform::current());
-
-  WorkerThread::terminateAndWaitForAllWorkers();
 }
 
 }  // namespace blink

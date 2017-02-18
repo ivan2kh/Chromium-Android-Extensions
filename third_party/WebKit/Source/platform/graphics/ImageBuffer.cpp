@@ -81,10 +81,8 @@ std::unique_ptr<ImageBuffer> ImageBuffer::create(
     ImageInitializationMode initializationMode,
     sk_sp<SkColorSpace> colorSpace) {
   SkColorType colorType = kN32_SkColorType;
-  if (colorSpace &&
-      SkColorSpace::Equals(
-          colorSpace.get(),
-          SkColorSpace::MakeNamed(SkColorSpace::kSRGBLinear_Named).get()))
+  if (colorSpace && SkColorSpace::Equals(colorSpace.get(),
+                                         SkColorSpace::MakeSRGBLinear().get()))
     colorType = kRGBA_F16_SkColorType;
 
   std::unique_ptr<ImageBufferSurface> surface(WTF::wrapUnique(
@@ -150,18 +148,12 @@ bool ImageBuffer::isSurfaceValid() const {
   return m_surface->isValid();
 }
 
-bool ImageBuffer::isDirty() {
-  return m_client ? m_client->isDirty() : false;
+void ImageBuffer::finalizeFrame() {
+  m_surface->finalizeFrame();
 }
 
-void ImageBuffer::didFinalizeFrame() {
-  if (m_client)
-    m_client->didFinalizeFrame();
-}
-
-void ImageBuffer::finalizeFrame(const FloatRect& dirtyRect) {
-  m_surface->finalizeFrame(dirtyRect);
-  didFinalizeFrame();
+void ImageBuffer::doPaintInvalidation(const FloatRect& dirtyRect) {
+  m_surface->doPaintInvalidation(dirtyRect);
 }
 
 bool ImageBuffer::restoreSurface() const {
@@ -404,9 +396,16 @@ bool ImageBuffer::getImageData(Multiply multiplied,
   // use N32 at this time.
   SkColorType colorType =
       useF16Workaround ? kN32_SkColorType : kRGBA_8888_SkColorType;
-  SkImageInfo info =
-      SkImageInfo::Make(rect.width(), rect.height(), colorType, alphaType,
-                        SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named));
+
+  // Only use sRGB when the surface has a color space.  Converting untagged
+  // pixels to a particular color space is not well-defined in Skia.
+  sk_sp<SkColorSpace> colorSpace = nullptr;
+  if (m_surface->colorSpace()) {
+    colorSpace = SkColorSpace::MakeSRGB();
+  }
+
+  SkImageInfo info = SkImageInfo::Make(rect.width(), rect.height(), colorType,
+                                       alphaType, std::move(colorSpace));
 
   snapshot->readPixels(info, result.data(), bytesPerPixel * rect.width(),
                        rect.x(), rect.y());
@@ -467,17 +466,29 @@ void ImageBuffer::putByteArray(Multiply multiplied,
   const size_t srcBytesPerRow = bytesPerPixel * sourceSize.width();
   const void* srcAddr =
       source + originY * srcBytesPerRow + originX * bytesPerPixel;
-  SkAlphaType alphaType = (multiplied == Premultiplied) ? kPremul_SkAlphaType
-                                                        : kUnpremul_SkAlphaType;
+
+  SkAlphaType alphaType;
+  if (Opaque == m_surface->getOpacityMode()) {
+    // If the surface is opaque, tell it that we are writing opaque
+    // pixels.  Writing non-opaque pixels to opaque is undefined in
+    // Skia.  There is some discussion about whether it should be
+    // defined in skbug.com/6157.  For now, we can get the desired
+    // behavior (memcpy) by pretending the write is opaque.
+    alphaType = kOpaque_SkAlphaType;
+  } else {
+    alphaType = (multiplied == Premultiplied) ? kPremul_SkAlphaType
+                                              : kUnpremul_SkAlphaType;
+  }
+
   SkImageInfo info;
   if (m_surface->colorSpace()) {
     info = SkImageInfo::Make(sourceRect.width(), sourceRect.height(),
                              m_surface->colorType(), alphaType,
                              m_surface->colorSpace());
   } else {
-    info = SkImageInfo::Make(
-        sourceRect.width(), sourceRect.height(), kRGBA_8888_SkColorType,
-        alphaType, SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named));
+    info = SkImageInfo::Make(sourceRect.width(), sourceRect.height(),
+                             kRGBA_8888_SkColorType, alphaType,
+                             SkColorSpace::MakeSRGB());
   }
   m_surface->writePixels(info, srcAddr, srcBytesPerRow, destX, destY);
 }

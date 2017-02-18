@@ -132,19 +132,15 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
         }
 
         @Override
-        public void didFailLoad(boolean isProvisionalLoad, boolean isMainFrame, int errorCode,
-                String description, String failingUrl, boolean wasIgnoredByHandler) {
-            // Navigation that fails the provisional load will have the strong binding removed
-            // here. One for which the provisional load is commited will have the strong binding
-            // removed in navigationEntryCommitted() below.
-            if (isProvisionalLoad) determinedProcessVisibility();
-        }
+        public void didFinishNavigation(String url, boolean isInMainFrame, boolean isErrorPage,
+                boolean hasCommitted, boolean isSamePage, boolean isFragmentNavigation,
+                Integer pageTransition, int errorCode, String errorDescription,
+                int httpStatusCode) {
+            determinedProcessVisibility();
 
-        @Override
-        public void didNavigateMainFrame(String url, String baseUrl,
-                boolean isNavigationToDifferentPage, boolean isFragmentNavigation, int statusCode) {
-            if (!isNavigationToDifferentPage) return;
-            resetPopupsAndInput();
+            if (hasCommitted && isInMainFrame && !isSamePage) {
+                resetPopupsAndInput();
+            }
         }
 
         @Override
@@ -153,11 +149,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
             ContentViewCore contentViewCore = mWeakContentViewCore.get();
             if (contentViewCore == null) return;
             contentViewCore.mImeAdapter.resetAndHideKeyboard();
-        }
-
-        @Override
-        public void navigationEntryCommitted() {
-            determinedProcessVisibility();
         }
 
         private void resetPopupsAndInput() {
@@ -263,14 +254,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
         boolean super_awakenScrollBars(int startDelay, boolean invalidate);
     }
 
-    /**
-     * An interface that allows the embedder to be notified when the results of
-     * extractSmartClipData are available.
-     */
-    public interface SmartClipDataListener {
-        public void onSmartClipDataExtracted(String text, String html, Rect clipRect);
-    }
-
     private final Context mContext;
     private final String mProductVersion;
     private ViewGroup mContainerView;
@@ -359,8 +342,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
     // onNativeFlingStopped() is called asynchronously.
     private int mPotentiallyActiveFlingCount;
 
-    private SmartClipDataListener mSmartClipDataListener;
-
     /**
      * PID used to indicate an invalid render process.
      */
@@ -371,10 +352,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
     // Offsets for the events that passes through this ContentViewCore.
     private float mCurrentTouchOffsetX;
     private float mCurrentTouchOffsetY;
-
-    // Offsets for smart clip
-    private int mSmartClipOffsetX;
-    private int mSmartClipOffsetY;
 
     // Whether the ContentViewCore requires the WebContents to be fullscreen in order to lock the
     // screen orientation.
@@ -792,7 +769,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
         }
         mWebContentsObserver.destroy();
         mWebContentsObserver = null;
-        setSmartClipDataListener(null);
         mImeAdapter.resetAndHideKeyboard();
         // TODO(igsolla): address TODO in ContentViewClient because ContentViewClient is not
         // currently a real Null Object.
@@ -1921,10 +1897,9 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
             boolean focusedNodeIsPassword = (textInputType == TextInputType.PASSWORD);
 
             mImeAdapter.attach(nativeImeAdapterAndroid);
-            mImeAdapter.updateKeyboardVisibility(
-                    textInputType, textInputFlags, textInputMode, showImeIfNeeded);
-            mImeAdapter.updateState(text, selectionStart, selectionEnd, compositionStart,
-                    compositionEnd, replyToRequest);
+            mImeAdapter.updateState(textInputType, textInputFlags, textInputMode, showImeIfNeeded,
+                    text, selectionStart, selectionEnd, compositionStart, compositionEnd,
+                    replyToRequest);
 
             boolean editableToggled = (focusedNodeEditable != isFocusedNodeEditable());
             mSelectionPopupController.updateSelectionState(focusedNodeEditable,
@@ -2565,52 +2540,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
         return new Rect(x, y, right, bottom);
     }
 
-    public void extractSmartClipData(int x, int y, int width, int height) {
-        if (mNativeContentViewCore != 0) {
-            x += mSmartClipOffsetX;
-            y += mSmartClipOffsetY;
-            nativeExtractSmartClipData(mNativeContentViewCore, x, y, width, height);
-        }
-    }
-
-    /**
-     * Set offsets for smart clip.
-     *
-     * <p>This should be called if there is a viewport change introduced by,
-     * e.g., show and hide of a location bar.
-     *
-     * @param offsetX Offset for X position.
-     * @param offsetY Offset for Y position.
-     */
-    public void setSmartClipOffsets(int offsetX, int offsetY) {
-        mSmartClipOffsetX = offsetX;
-        mSmartClipOffsetY = offsetY;
-    }
-
-    @CalledByNative
-    private void onSmartClipDataExtracted(String text, String html, Rect clipRect) {
-        // Translate the positions by the offsets introduced by location bar. Note that the
-        // coordinates are in dp scale, and that this definitely has the potential to be
-        // different from the offsets when extractSmartClipData() was called. However,
-        // as long as OEM has a UI that consumes all the inputs and waits until the
-        // callback is called, then there shouldn't be any difference.
-        // TODO(changwan): once crbug.com/416432 is resolved, try to pass offsets as
-        // separate params for extractSmartClipData(), and apply them not the new offset
-        // values in the callback.
-        final float deviceScale = mRenderCoordinates.getDeviceScaleFactor();
-        final int offsetXInDp = (int) (mSmartClipOffsetX / deviceScale);
-        final int offsetYInDp = (int) (mSmartClipOffsetY / deviceScale);
-        clipRect.offset(-offsetXInDp, -offsetYInDp);
-
-        if (mSmartClipDataListener != null) {
-            mSmartClipDataListener.onSmartClipDataExtracted(text, html, clipRect);
-        }
-    }
-
-    public void setSmartClipDataListener(SmartClipDataListener listener) {
-        mSmartClipDataListener = listener;
-    }
-
     public void setBackgroundOpaque(boolean opaque) {
         if (mNativeContentViewCore != 0) {
             nativeSetBackgroundOpaque(mNativeContentViewCore, opaque);
@@ -2906,9 +2835,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Displa
             boolean textTracksEnabled, String textTrackBackgroundColor, String textTrackFontFamily,
             String textTrackFontStyle, String textTrackFontVariant, String textTrackTextColor,
             String textTrackTextShadow, String textTrackTextSize);
-
-    private native void nativeExtractSmartClipData(long nativeContentViewCoreImpl,
-            int x, int y, int w, int h);
 
     private native void nativeSetBackgroundOpaque(long nativeContentViewCoreImpl, boolean opaque);
     private native boolean nativeIsTouchDragDropEnabled(long nativeContentViewCoreImpl);

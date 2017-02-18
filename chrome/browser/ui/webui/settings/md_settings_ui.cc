@@ -58,6 +58,7 @@
 #include "chrome/browser/ui/webui/settings/chromeos/device_pointer_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/device_power_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/device_storage_handler.h"
+#include "chrome/browser/ui/webui/settings/chromeos/device_stylus_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/easy_unlock_settings_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/fingerprint_handler.h"
 #include "chrome/browser/ui/webui/settings/chromeos/internet_handler.h"
@@ -130,6 +131,8 @@ MdSettingsUI::MdSettingsUI(content::WebUI* web_ui, const GURL& url)
   AddSettingsPageUIHandler(
       base::MakeUnique<chromeos::settings::StorageHandler>());
   AddSettingsPageUIHandler(
+      base::MakeUnique<chromeos::settings::StylusHandler>());
+  AddSettingsPageUIHandler(
       base::MakeUnique<chromeos::settings::InternetHandler>());
 #else
   AddSettingsPageUIHandler(base::MakeUnique<DefaultBrowserHandler>(web_ui));
@@ -156,7 +159,8 @@ MdSettingsUI::MdSettingsUI(content::WebUI* web_ui, const GURL& url)
   AddSettingsPageUIHandler(base::WrapUnique(
       chromeos::settings::DateTimeHandler::Create(html_source)));
 
-  html_source->AddBoolean("stylusAllowed", ash::IsPaletteFeatureEnabled());
+  AddSettingsPageUIHandler(
+      base::MakeUnique<chromeos::settings::StylusHandler>());
   html_source->AddBoolean("pinUnlockEnabled",
                           chromeos::IsPinUnlockEnabled(profile->GetPrefs()));
   html_source->AddBoolean("fingerprintUnlockEnabled",
@@ -186,14 +190,20 @@ MdSettingsUI::MdSettingsUI(content::WebUI* web_ui, const GURL& url)
   // Add the metrics handler to write uma stats.
   web_ui->AddMessageHandler(base::MakeUnique<MetricsHandler>());
 
+#if BUILDFLAG(USE_VULCANIZE)
+  html_source->AddResourcePath("crisper.js", IDR_MD_SETTINGS_CRISPER_JS);
+  html_source->SetDefaultResource(IDR_MD_SETTINGS_VULCANIZED_HTML);
+  html_source->UseGzip(std::unordered_set<std::string>());
+#else
   // Add all settings resources.
   for (size_t i = 0; i < kSettingsResourcesSize; ++i) {
     html_source->AddResourcePath(kSettingsResources[i].name,
                                  kSettingsResources[i].value);
   }
+  html_source->SetDefaultResource(IDR_SETTINGS_SETTINGS_HTML);
+#endif
 
   AddLocalizedStrings(html_source, profile);
-  html_source->SetDefaultResource(IDR_SETTINGS_SETTINGS_HTML);
 
   content::WebUIDataSource::Add(web_ui->GetWebContents()->GetBrowserContext(),
                                 html_source);

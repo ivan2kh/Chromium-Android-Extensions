@@ -34,7 +34,6 @@
 #include "bindings/core/v8/DOMWrapperWorld.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/ScriptState.h"
-#include "bindings/core/v8/ScriptValueSerializer.h"
 #include "bindings/core/v8/SerializedScriptValueFactory.h"
 #include "bindings/core/v8/Transferables.h"
 #include "bindings/core/v8/V8ArrayBuffer.h"
@@ -68,11 +67,6 @@ PassRefPtr<SerializedScriptValue> SerializedScriptValue::serialize(
     ExceptionState& exception) {
   return SerializedScriptValueFactory::instance().create(
       isolate, value, transferables, blobInfo, exception);
-}
-
-PassRefPtr<SerializedScriptValue> SerializedScriptValue::serialize(
-    const String& str) {
-  return create(ScriptValueSerializer::serializeWTFString(str));
 }
 
 PassRefPtr<SerializedScriptValue>
@@ -132,7 +126,9 @@ SerializedScriptValue::~SerializedScriptValue() {
 }
 
 PassRefPtr<SerializedScriptValue> SerializedScriptValue::nullValue() {
-  return create(ScriptValueSerializer::serializeNullValue());
+  // UChar rather than uint8_t here to get host endian behavior.
+  static const UChar kNullData[] = {0xff09, 0x3000};
+  return create(reinterpret_cast<const char*>(kNullData), sizeof(kNullData));
 }
 
 String SerializedScriptValue::toWireString() const {
@@ -208,7 +204,7 @@ static void accumulateArrayBuffersForAllWorlds(
   }
 }
 
-std::unique_ptr<ImageBitmapContentsArray>
+std::unique_ptr<SerializedScriptValue::ImageBitmapContentsArray>
 SerializedScriptValue::transferImageBitmapContents(
     v8::Isolate* isolate,
     const ImageBitmapArray& imageBitmaps,
@@ -394,7 +390,7 @@ bool SerializedScriptValue::extractTransferables(
   return true;
 }
 
-std::unique_ptr<ArrayBufferContentsArray>
+std::unique_ptr<SerializedScriptValue::ArrayBufferContentsArray>
 SerializedScriptValue::transferArrayBufferContents(
     v8::Isolate* isolate,
     const ArrayBufferArray& arrayBuffers,

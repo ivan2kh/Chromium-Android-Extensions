@@ -41,7 +41,6 @@ import org.chromium.chrome.browser.ntp.snippets.SuggestionsSource;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlService;
 import org.chromium.chrome.browser.search_engines.TemplateUrlService.TemplateUrlServiceObserver;
-import org.chromium.chrome.browser.snackbar.SnackbarManager.SnackbarController;
 import org.chromium.chrome.browser.suggestions.SuggestionsMetricsReporter;
 import org.chromium.chrome.browser.suggestions.SuggestionsNavigationDelegate;
 import org.chromium.chrome.browser.suggestions.SuggestionsNavigationDelegateImpl;
@@ -56,6 +55,7 @@ import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
+import org.chromium.chrome.browser.util.FeatureUtilities;
 import org.chromium.chrome.browser.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationController;
@@ -102,7 +102,6 @@ public class NewTabPage
     private final TileGroup.Delegate mTileGroupDelegate;
 
     private TabObserver mTabObserver;
-    private SnackbarController mMostVisitedItemRemovedController;
     private LogoBridge mLogoBridge;
     private boolean mSearchProviderHasLogo;
     private String mOnLogoClickUrl;
@@ -329,10 +328,10 @@ public class NewTabPage
      * {@link NewTabPage}.
      */
     private class NewTabPageTileGroupDelegate extends TileGroupDelegateImpl {
-        private NewTabPageTileGroupDelegate(Context context, Tab tab,
+        private NewTabPageTileGroupDelegate(ChromeActivity activity, Profile profile,
                 TabModelSelector tabModelSelector,
                 SuggestionsNavigationDelegate navigationDelegate) {
-            super(context, tab, tabModelSelector, navigationDelegate);
+            super(activity, profile, tabModelSelector, navigationDelegate);
         }
 
         @Override
@@ -396,7 +395,7 @@ public class NewTabPage
         mNewTabPageManager = new NewTabPageManagerImpl(
                 mSnippetsBridge, mSnippetsBridge, navigationDelegate, profile, tab);
         mTileGroupDelegate = new NewTabPageTileGroupDelegate(
-                activity, tab, tabModelSelector, navigationDelegate);
+                activity, profile, tabModelSelector, navigationDelegate);
 
         mTitle = activity.getResources().getString(R.string.button_new_tab);
         mBackgroundColor = ApiCompatibilityUtils.getColor(activity.getResources(), R.color.ntp_bg);
@@ -477,7 +476,7 @@ public class NewTabPage
 
     private boolean isInSingleUrlBarMode(Context context) {
         if (DeviceFormFactor.isTablet(context)) return false;
-
+        if (FeatureUtilities.isChromeHomeEnabled()) return false;
         return mSearchProviderHasLogo;
     }
 
@@ -628,11 +627,8 @@ public class NewTabPage
             mLogoBridge = null;
         }
         if (mSnippetsBridge != null) {
-            mSnippetsBridge.destroy();
+            mSnippetsBridge.onDestroy();
             mSnippetsBridge = null;
-        }
-        if (mMostVisitedItemRemovedController != null) {
-            mTab.getSnackbarManager().dismissSnackbars(mMostVisitedItemRemovedController);
         }
         mNewTabPageManager.onDestroy();
         mTileGroupDelegate.destroy();

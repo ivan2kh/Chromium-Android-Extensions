@@ -41,6 +41,7 @@
 #include "gpu/command_buffer/service/service_utils.h"
 #include "gpu/command_buffer/service/sync_point_manager.h"
 #include "gpu/command_buffer/service/transfer_buffer_manager.h"
+#include "gpu/config/gpu_feature_info.h"
 #include "gpu/ipc/gpu_in_process_thread_service.h"
 #include "gpu/ipc/service/image_transport_surface.h"
 #include "ui/gfx/geometry/size.h"
@@ -124,9 +125,6 @@ scoped_refptr<InProcessCommandBuffer::Service> GetInitialService(
 }
 
 }  // anonyous namespace
-
-InProcessCommandBuffer::Service::Service()
-    : gpu_driver_bug_workarounds_(base::CommandLine::ForCurrentProcess()) {}
 
 InProcessCommandBuffer::Service::Service(const GpuPreferences& gpu_preferences)
     : gpu_preferences_(gpu_preferences),
@@ -317,7 +315,7 @@ bool InProcessCommandBuffer::InitializeOnGpuThread(
                 service_->gpu_preferences(), service_->mailbox_manager(), NULL,
                 service_->shader_translator_cache(),
                 service_->framebuffer_completeness_cache(), feature_info,
-                bind_generates_resource, nullptr, nullptr);
+                bind_generates_resource, nullptr, nullptr, GpuFeatureInfo());
 
   decoder_.reset(gles2::GLES2Decoder::Create(context_group_.get()));
 
@@ -467,6 +465,7 @@ bool InProcessCommandBuffer::DestroyOnGpuThread() {
     sync_point_order_data_ = nullptr;
   }
   gl_share_group_ = nullptr;
+  context_group_ = nullptr;
 
   base::AutoLock lock(task_queue_lock_);
   std::queue<std::unique_ptr<GpuTask>> empty;
@@ -828,26 +827,6 @@ void InProcessCommandBuffer::DestroyImageOnGpuThread(int32_t id) {
   image_manager->RemoveImage(id);
 }
 
-int32_t InProcessCommandBuffer::CreateGpuMemoryBufferImage(
-    size_t width,
-    size_t height,
-    unsigned internalformat,
-    unsigned usage) {
-  CheckSequencedThread();
-
-  DCHECK(gpu_memory_buffer_manager_);
-  std::unique_ptr<gfx::GpuMemoryBuffer> buffer(
-      gpu_memory_buffer_manager_->CreateGpuMemoryBuffer(
-          gfx::Size(base::checked_cast<int>(width),
-                    base::checked_cast<int>(height)),
-          gpu::DefaultBufferFormatForImageFormat(internalformat),
-          gfx::BufferUsage::SCANOUT, gpu::kNullSurfaceHandle));
-  if (!buffer)
-    return -1;
-
-  return CreateImage(buffer->AsClientBuffer(), width, height, internalformat);
-}
-
 void InProcessCommandBuffer::FenceSyncReleaseOnGpuThread(uint64_t release) {
   DCHECK(!sync_point_client_->client_state()->IsFenceSyncReleased(release));
   gles2::MailboxManager* mailbox_manager =
@@ -1048,7 +1027,7 @@ bool InProcessCommandBuffer::CanWaitUnverifiedSyncToken(
 void InProcessCommandBuffer::DidCreateAcceleratedSurfaceChildWindow(
     SurfaceHandle parent_window,
     SurfaceHandle child_window) {
-  // TODO(fsamuel): Implement this.
+  ::SetParent(child_window, parent_window);
 }
 #endif
 
@@ -1083,6 +1062,15 @@ void InProcessCommandBuffer::UpdateVSyncParameters(base::TimeTicks timebase,
       FROM_HERE,
       base::Bind(&InProcessCommandBuffer::UpdateVSyncParametersOnOriginThread,
                  client_thread_weak_ptr_, timebase, interval));
+}
+
+void InProcessCommandBuffer::AddFilter(IPC::MessageFilter* message_filter) {
+  NOTREACHED();
+}
+
+int32_t InProcessCommandBuffer::GetRouteID() const {
+  NOTREACHED();
+  return 0;
 }
 
 void InProcessCommandBuffer::DidSwapBuffersCompleteOnOriginThread(

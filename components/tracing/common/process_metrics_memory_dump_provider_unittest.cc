@@ -288,7 +288,8 @@ TEST(ProcessMetricsMemoryDumpProviderTest, TestMachOReading) {
   ASSERT_EQ(0, result);
   std::string name = basename(full_path);
 
-  bool found_components_unittests = false;
+  uint64_t components_unittests_resident_pages = 0;
+  bool found_appkit = false;
   for (const VMRegion& region : dump.process_mmaps()->vm_regions()) {
     EXPECT_NE(0u, region.start_address);
     EXPECT_NE(0u, region.size_in_bytes);
@@ -298,11 +299,44 @@ TEST(ProcessMetricsMemoryDumpProviderTest, TestMachOReading) {
         VMRegion::kProtectionFlagsRead | VMRegion::kProtectionFlagsExec;
     if (region.mapped_file.find(name) != std::string::npos &&
         region.protection_flags == required_protection_flags) {
-      found_components_unittests = true;
+      components_unittests_resident_pages +=
+          region.byte_stats_private_dirty_resident +
+          region.byte_stats_shared_dirty_resident +
+          region.byte_stats_private_clean_resident +
+          region.byte_stats_shared_clean_resident;
+    }
+
+    if (region.mapped_file.find("AppKit") != std::string::npos) {
+      found_appkit = true;
     }
   }
-  EXPECT_TRUE(found_components_unittests);
+  EXPECT_GT(components_unittests_resident_pages, 0u);
+  EXPECT_TRUE(found_appkit);
 }
+
+TEST(ProcessMetricsMemoryDumpProviderTest, NoDuplicateRegions) {
+  using VMRegion = base::trace_event::ProcessMemoryMaps::VMRegion;
+  ProcessMetricsMemoryDumpProvider mdp(base::kNullProcessId);
+  base::trace_event::MemoryDumpArgs args;
+  base::trace_event::ProcessMemoryDump dump(nullptr, args);
+  ASSERT_TRUE(mdp.DumpProcessMemoryMaps(args, &dump));
+  ASSERT_TRUE(dump.has_process_mmaps());
+
+  std::vector<VMRegion> regions;
+  regions.reserve(dump.process_mmaps()->vm_regions().size());
+  for (const VMRegion& region : dump.process_mmaps()->vm_regions())
+    regions.push_back(region);
+  std::sort(regions.begin(), regions.end(),
+            [](const VMRegion& a, const VMRegion& b) -> bool {
+              return a.start_address < b.start_address;
+            });
+  uint64_t last_address = 0;
+  for (const VMRegion& region : regions) {
+    EXPECT_GE(region.start_address, last_address);
+    last_address = region.start_address + region.size_in_bytes;
+  }
+}
+
 #endif  // defined(OS_MACOSX)
 
 }  // namespace tracing

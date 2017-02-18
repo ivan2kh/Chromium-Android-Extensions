@@ -299,6 +299,10 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
     return m_backgroundPaintsOntoScrollingContentsLayer;
   }
 
+  bool drawsBackgroundOntoContentLayer() {
+    return m_drawsBackgroundOntoContentLayer;
+  }
+
  private:
   IntRect recomputeInterestRect(const GraphicsLayer*) const;
   static bool interestRectChangedEnoughToRepaint(
@@ -372,7 +376,7 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
                                     bool needsLayer,
                                     CompositingReasons);
 
-  LayoutBoxModelObject* layoutObject() const {
+  LayoutBoxModelObject& layoutObject() const {
     return m_owningLayer.layoutObject();
   }
   PaintLayerCompositor* compositor() const {
@@ -485,8 +489,9 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
   // the child is not clipped. We accept the approximation because most border
   // radii are small and the outcome is used to reduce the number of layers,
   // not influence correctness.
-  bool ancestorRoundedCornersWontClip(const LayoutObject* child,
-                                      const LayoutObject* clippingAncestor);
+  bool ancestorRoundedCornersWontClip(
+      const LayoutBoxModelObject& child,
+      const LayoutBoxModelObject& clippingAncestor);
 
   // Return true in |owningLayerIsClipped| iff |m_owningLayer|'s compositing
   // ancestor is not a descendant (inclusive) of the clipping container for
@@ -695,6 +700,8 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
   // layer and the graphics layer because the scrolling contents layer is
   // clipped by the padding box.
   unsigned m_backgroundPaintsOntoGraphicsLayer : 1;
+
+  bool m_drawsBackgroundOntoContentLayer;
 
   friend class CompositedLayerMappingTest;
 };

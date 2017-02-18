@@ -7,9 +7,9 @@
 
 #include "core/CoreExport.h"
 #include "core/layout/ng/ng_block_node.h"
-#include "core/layout/ng/ng_box_fragment.h"
 #include "core/layout/ng/ng_break_token.h"
 #include "core/layout/ng/ng_column_mapper.h"
+#include "core/layout/ng/ng_fragment_builder.h"
 #include "core/layout/ng/ng_layout_algorithm.h"
 #include "core/layout/ng/ng_units.h"
 #include "wtf/RefPtr.h"
@@ -20,8 +20,7 @@ class ComputedStyle;
 class NGBlockBreakToken;
 class NGConstraintSpace;
 class NGConstraintSpaceBuilder;
-class NGFragment;
-class NGFragmentBuilder;
+class NGInlineNode;
 class NGPhysicalFragment;
 
 // A class for general block layout (e.g. a <div> with no special style).
@@ -29,20 +28,16 @@ class NGPhysicalFragment;
 class CORE_EXPORT NGBlockLayoutAlgorithm : public NGLayoutAlgorithm {
  public:
   // Default constructor.
-  // @param layout_object The layout object associated with this block.
-  // @param style Style reference of the block that is being laid out.
-  // @param first_child Our first child; the algorithm will use its NextSibling
-  //                    method to access all the children.
+  // @param node The input node to perform layout upon.
   // @param space The constraint space which the algorithm should generate a
   //              fragment within.
-  NGBlockLayoutAlgorithm(LayoutObject* layout_object,
-                         PassRefPtr<const ComputedStyle> style,
-                         NGBlockNode* first_child,
+  // @param break_token The break token from which the layout should start.
+  NGBlockLayoutAlgorithm(NGBlockNode* node,
                          NGConstraintSpace* space,
                          NGBreakToken* break_token = nullptr);
 
-  bool ComputeMinAndMaxContentSizes(MinAndMaxContentSizes*) const override;
-  NGPhysicalFragment* Layout() override;
+  Optional<MinAndMaxContentSizes> ComputeMinAndMaxContentSizes() const override;
+  RefPtr<NGPhysicalFragment> Layout() override;
 
  private:
   NGBoxStrut CalculateMargins(const NGConstraintSpace& space,
@@ -50,7 +45,10 @@ class CORE_EXPORT NGBlockLayoutAlgorithm : public NGLayoutAlgorithm {
 
   // Creates a new constraint space for the current child.
   NGConstraintSpace* CreateConstraintSpaceForCurrentChild();
-  void FinishCurrentChildLayout(NGFragment* fragment);
+  void FinishCurrentChildLayout(RefPtr<NGPhysicalBoxFragment>);
+
+  // Layout inline children.
+  void LayoutInlineChildren(NGInlineNode*);
 
   // Proceed to the next sibling that still needs layout.
   //
@@ -95,9 +93,12 @@ class CORE_EXPORT NGBlockLayoutAlgorithm : public NGLayoutAlgorithm {
     return content_size_;
   }
 
-  // Calculates offset for the provided fragment which is relative to the
-  // fragment's parent.
-  NGLogicalOffset CalculateRelativeOffset(const NGBoxFragment& fragment);
+  // Calculates logical offset for the current fragment using either
+  // {@code content_size_} when the fragment doesn't know it's offset
+  // or {@code known_fragment_offset} if the fragment knows it's offset
+  // @return Fragment's offset relative to the fragment's parent.
+  NGLogicalOffset CalculateLogicalOffset(
+      const WTF::Optional<NGLogicalOffset>& known_fragment_offset);
 
   NGLogicalOffset GetChildSpaceOffset() const {
     return NGLogicalOffset(border_and_padding_.inline_start, content_size_);
@@ -106,7 +107,7 @@ class CORE_EXPORT NGBlockLayoutAlgorithm : public NGLayoutAlgorithm {
   // Read-only Getters.
   const ComputedStyle& CurrentChildStyle() const {
     DCHECK(current_child_);
-    return current_child_->Style();
+    return toNGBlockNode(current_child_)->Style();
   }
 
   const NGConstraintSpace& ConstraintSpace() const {
@@ -117,20 +118,18 @@ class CORE_EXPORT NGBlockLayoutAlgorithm : public NGLayoutAlgorithm {
     return *space_for_current_child_.get();
   }
 
-  const ComputedStyle& Style() const { return *style_; }
+  const ComputedStyle& Style() const { return node_->Style(); }
 
-  RefPtr<const ComputedStyle> style_;
-
-  Persistent<NGBlockNode> first_child_;
+  Persistent<NGBlockNode> node_;
   Persistent<NGConstraintSpace> constraint_space_;
 
   // The break token from which we are currently resuming layout.
   Persistent<NGBreakToken> break_token_;
 
-  Persistent<NGFragmentBuilder> builder_;
+  std::unique_ptr<NGFragmentBuilder> builder_;
   Persistent<NGConstraintSpaceBuilder> space_builder_;
   Persistent<NGConstraintSpace> space_for_current_child_;
-  Persistent<NGBlockNode> current_child_;
+  Persistent<NGLayoutInputNode> current_child_;
 
   // Mapper from the fragmented flow coordinate space coordinates to visual
   // coordinates. Only set on fragmentation context roots, such as multicol

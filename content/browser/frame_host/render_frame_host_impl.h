@@ -37,7 +37,7 @@
 #include "content/common/image_downloader/image_downloader.mojom.h"
 #include "content/common/navigation_params.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/common/javascript_message_type.h"
+#include "content/public/common/javascript_dialog_type.h"
 #include "content/public/common/previews_state.h"
 #include "media/mojo/interfaces/interface_factory.mojom.h"
 #include "net/http/http_response_headers.h"
@@ -48,6 +48,7 @@
 #include "third_party/WebKit/public/web/WebTextDirection.h"
 #include "third_party/WebKit/public/web/WebTreeScopeType.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/base/mojo/window_open_disposition.mojom.h"
 #include "ui/base/page_transition_types.h"
 
 class GURL;
@@ -77,9 +78,9 @@ class Range;
 }
 
 namespace content {
-class AppWebMessagePortMessageFilter;
 class AssociatedInterfaceProviderImpl;
 class CrossProcessFrameConnector;
+class FeaturePolicy;
 class FrameTree;
 class FrameTreeNode;
 class MediaInterfaceProxy;
@@ -119,6 +120,8 @@ class CONTENT_EXPORT RenderFrameHostImpl
   using AXTreeSnapshotCallback =
       base::Callback<void(
           const ui::AXTreeUpdate&)>;
+  using SmartClipCallback = base::Callback<void(const base::string16& text,
+                                                const base::string16& html)>;
 
   // An accessibility reset is only allowed to prevent very rare corner cases
   // or race conditions where the browser and renderer get out of sync. If
@@ -309,11 +312,6 @@ class CONTENT_EXPORT RenderFrameHostImpl
 
   GlobalFrameRoutingId GetGlobalFrameRoutingId();
 
-#if defined(OS_ANDROID)
-  scoped_refptr<AppWebMessagePortMessageFilter>
-  GetAppWebMessagePortMessageFilter(int routing_id);
-#endif
-
   // This function is called when this is a swapped out RenderFrameHost that
   // lives in the same process as the parent frame. The
   // |cross_process_frame_connector| allows the non-swapped-out
@@ -474,6 +472,9 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // renderer process to change the accessibility mode.
   void UpdateAccessibilityMode();
 
+  // Samsung Galaxy Note-specific "smart clip" stylus text getter.
+  void RequestSmartClipExtract(SmartClipCallback callback, gfx::Rect rect);
+
   // Request a one-time snapshot of the accessibility tree without changing
   // the accessibility mode.
   void RequestAXTreeSnapshot(AXTreeSnapshotCallback callback);
@@ -589,6 +590,13 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // in a non-loading state.
   void ResetLoadingState();
 
+  // Returns the feature policy which should be enforced on this RenderFrame.
+  FeaturePolicy* get_feature_policy() { return feature_policy_.get(); }
+
+  // Clears any existing policy and constructs a new policy for this frame,
+  // based on its parent frame.
+  void ResetFeaturePolicy();
+
   // Tells the renderer that this RenderFrame will soon be swapped out, and thus
   // not to create any new modal dialogs until it happens.  This must be done
   // separately so that the ScopedPageLoadDeferrers of any current dialogs are
@@ -669,6 +677,7 @@ class CONTENT_EXPORT RenderFrameHostImpl
       base::TimeTicks ui_timestamp);
   void OnDidStartProvisionalLoad(
       const GURL& url,
+      const std::vector<GURL>& redirect_chain,
       const base::TimeTicks& navigation_start);
   void OnDidFailProvisionalLoadWithError(
       const FrameHostMsg_DidFailProvisionalLoadWithError_Params& params);
@@ -688,11 +697,11 @@ class CONTENT_EXPORT RenderFrameHostImpl
   void OnContextMenu(const ContextMenuParams& params);
   void OnJavaScriptExecuteResponse(int id, const base::ListValue& result);
   void OnVisualStateResponse(uint64_t id);
-  void OnRunJavaScriptMessage(const base::string16& message,
-                              const base::string16& default_prompt,
-                              const GURL& frame_url,
-                              JavaScriptMessageType type,
-                              IPC::Message* reply_msg);
+  void OnRunJavaScriptDialog(const base::string16& message,
+                             const base::string16& default_prompt,
+                             const GURL& frame_url,
+                             JavaScriptDialogType dialog_type,
+                             IPC::Message* reply_msg);
   void OnRunBeforeUnloadConfirm(const GURL& frame_url,
                                 bool is_reload,
                                 IPC::Message* reply_msg);
@@ -733,6 +742,9 @@ class CONTENT_EXPORT RenderFrameHostImpl
   void OnAccessibilitySnapshotResponse(
       int callback_id,
       const AXContentTreeUpdate& snapshot);
+  void OnSmartClipDataExtracted(uint32_t id,
+                                base::string16 text,
+                                base::string16 html);
   void OnToggleFullscreen(bool enter_fullscreen);
   void OnDidStartLoading(bool to_different_document);
   void OnDidStopLoading();
@@ -1027,12 +1039,6 @@ class CONTENT_EXPORT RenderFrameHostImpl
 
   int on_connect_handler_id_ = 0;
 
-#if defined(OS_ANDROID)
-  // The filter for MessagePort messages between an Android apps and web.
-  scoped_refptr<AppWebMessagePortMessageFilter>
-      app_web_message_port_message_filter_;
-#endif
-
   std::list<std::unique_ptr<WebBluetoothServiceImpl>> web_bluetooth_services_;
 
   // The object managing the accessibility tree for this frame.
@@ -1056,6 +1062,9 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // The mapping from callback id to corresponding callback for pending
   // accessibility tree snapshot calls created by RequestAXTreeSnapshot.
   std::map<int, AXTreeSnapshotCallback> ax_tree_snapshot_callbacks_;
+
+  // Samsung Galaxy Note-specific "smart clip" stylus text getter.
+  std::map<uint32_t, SmartClipCallback> smart_clip_callbacks_;
 
   // Callback when an event is received, for testing.
   base::Callback<void(RenderFrameHostImpl*, ui::AXEvent, int)>
@@ -1141,6 +1150,9 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // A bitwise OR of bindings types that have been enabled for this RenderFrame.
   // See BindingsPolicy for details.
   int enabled_bindings_ = 0;
+
+  // Tracks the feature policy which has been set on this frame.
+  std::unique_ptr<FeaturePolicy> feature_policy_;
 
   // NOTE: This must be the last member.
   base::WeakPtrFactory<RenderFrameHostImpl> weak_ptr_factory_;

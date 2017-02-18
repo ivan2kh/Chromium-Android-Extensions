@@ -788,15 +788,16 @@ void LayoutTable::addOverflowFromChildren() {
   // descendant objects, but since tables don't support overflow:auto, this
   // works out fine.
   if (collapseBorders()) {
-    int rightBorderOverflow =
-        (size().width() + outerBorderRight() - borderRight()).toInt();
-    int leftBorderOverflow = borderLeft() - outerBorderLeft();
-    int bottomBorderOverflow =
-        (size().height() + outerBorderBottom() - borderBottom()).toInt();
-    int topBorderOverflow = borderTop() - outerBorderTop();
-    IntRect borderOverflowRect(leftBorderOverflow, topBorderOverflow,
-                               rightBorderOverflow - leftBorderOverflow,
-                               bottomBorderOverflow - topBorderOverflow);
+    LayoutUnit rightBorderOverflow =
+        size().width() + outerBorderRight() - borderRight();
+    LayoutUnit leftBorderOverflow = borderLeft() - outerBorderLeft();
+    LayoutUnit bottomBorderOverflow =
+        size().height() + outerBorderBottom() - borderBottom();
+    LayoutUnit topBorderOverflow = borderTop() - outerBorderTop();
+    IntRect borderOverflowRect(
+        leftBorderOverflow.toInt(), topBorderOverflow.toInt(),
+        (rightBorderOverflow - leftBorderOverflow).toInt(),
+        (bottomBorderOverflow - topBorderOverflow).toInt());
     if (borderOverflowRect != pixelSnappedBorderBoxRect()) {
       LayoutRect borderLayoutRect(borderOverflowRect);
       addLayoutOverflow(borderLayoutRect);
@@ -1125,7 +1126,7 @@ void LayoutTable::recalcSections() const {
 
 int LayoutTable::calcBorderStart() const {
   if (!collapseBorders())
-    return LayoutBlock::borderStart();
+    return LayoutBlock::borderStart().toInt();
 
   // Determined by the first cell of the first row. See the CSS 2.1 spec,
   // section 17.6.2.
@@ -1149,7 +1150,7 @@ int LayoutTable::calcBorderStart() const {
     if (columnAdjoiningBorder.style() == BorderStyleHidden)
       return 0;
     if (columnAdjoiningBorder.style() > BorderStyleHidden)
-      borderWidth = std::max(borderWidth, columnAdjoiningBorder.width());
+      borderWidth = std::max<int>(borderWidth, columnAdjoiningBorder.width());
   }
 
   if (const LayoutTableSection* topNonEmptySection =
@@ -1160,7 +1161,7 @@ int LayoutTable::calcBorderStart() const {
       return 0;
 
     if (sectionAdjoiningBorder.style() > BorderStyleHidden)
-      borderWidth = std::max(borderWidth, sectionAdjoiningBorder.width());
+      borderWidth = std::max<int>(borderWidth, sectionAdjoiningBorder.width());
 
     if (const LayoutTableCell* adjoiningStartCell =
             topNonEmptySection->firstRowCellAdjoiningTableStart()) {
@@ -1175,10 +1176,14 @@ int LayoutTable::calcBorderStart() const {
       if (firstRowAdjoiningBorder.style() == BorderStyleHidden)
         return 0;
 
-      if (startCellAdjoiningBorder.style() > BorderStyleHidden)
-        borderWidth = std::max(borderWidth, startCellAdjoiningBorder.width());
-      if (firstRowAdjoiningBorder.style() > BorderStyleHidden)
-        borderWidth = std::max(borderWidth, firstRowAdjoiningBorder.width());
+      if (startCellAdjoiningBorder.style() > BorderStyleHidden) {
+        borderWidth =
+            std::max<int>(borderWidth, startCellAdjoiningBorder.width());
+      }
+      if (firstRowAdjoiningBorder.style() > BorderStyleHidden) {
+        borderWidth =
+            std::max<int>(borderWidth, firstRowAdjoiningBorder.width());
+      }
     }
   }
   return (borderWidth + (style()->isLeftToRightDirection() ? 0 : 1)) / 2;
@@ -1186,7 +1191,7 @@ int LayoutTable::calcBorderStart() const {
 
 int LayoutTable::calcBorderEnd() const {
   if (!collapseBorders())
-    return LayoutBlock::borderEnd();
+    return LayoutBlock::borderEnd().toInt();
 
   // Determined by the last cell of the first row. See the CSS 2.1 spec, section
   // 17.6.2.
@@ -1212,7 +1217,7 @@ int LayoutTable::calcBorderEnd() const {
     if (columnAdjoiningBorder.style() == BorderStyleHidden)
       return 0;
     if (columnAdjoiningBorder.style() > BorderStyleHidden)
-      borderWidth = std::max(borderWidth, columnAdjoiningBorder.width());
+      borderWidth = std::max<int>(borderWidth, columnAdjoiningBorder.width());
   }
 
   if (const LayoutTableSection* topNonEmptySection =
@@ -1223,7 +1228,7 @@ int LayoutTable::calcBorderEnd() const {
       return 0;
 
     if (sectionAdjoiningBorder.style() > BorderStyleHidden)
-      borderWidth = std::max(borderWidth, sectionAdjoiningBorder.width());
+      borderWidth = std::max<int>(borderWidth, sectionAdjoiningBorder.width());
 
     if (const LayoutTableCell* adjoiningEndCell =
             topNonEmptySection->firstRowCellAdjoiningTableEnd()) {
@@ -1238,10 +1243,14 @@ int LayoutTable::calcBorderEnd() const {
       if (firstRowAdjoiningBorder.style() == BorderStyleHidden)
         return 0;
 
-      if (endCellAdjoiningBorder.style() > BorderStyleHidden)
-        borderWidth = std::max(borderWidth, endCellAdjoiningBorder.width());
-      if (firstRowAdjoiningBorder.style() > BorderStyleHidden)
-        borderWidth = std::max(borderWidth, firstRowAdjoiningBorder.width());
+      if (endCellAdjoiningBorder.style() > BorderStyleHidden) {
+        borderWidth =
+            std::max<int>(borderWidth, endCellAdjoiningBorder.width());
+      }
+      if (firstRowAdjoiningBorder.style() > BorderStyleHidden) {
+        borderWidth =
+            std::max<int>(borderWidth, firstRowAdjoiningBorder.width());
+      }
     }
   }
   return (borderWidth + (style()->isLeftToRightDirection() ? 1 : 0)) / 2;
@@ -1254,18 +1263,18 @@ void LayoutTable::recalcBordersInRowDirection() {
   m_borderEnd = calcBorderEnd();
 }
 
-int LayoutTable::borderBefore() const {
+LayoutUnit LayoutTable::borderBefore() const {
   if (collapseBorders()) {
     recalcSectionsIfNeeded();
-    return outerBorderBefore();
+    return LayoutUnit(outerBorderBefore());
   }
   return LayoutBlock::borderBefore();
 }
 
-int LayoutTable::borderAfter() const {
+LayoutUnit LayoutTable::borderAfter() const {
   if (collapseBorders()) {
     recalcSectionsIfNeeded();
-    return outerBorderAfter();
+    return LayoutUnit(outerBorderAfter());
   }
   return LayoutBlock::borderAfter();
 }

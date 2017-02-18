@@ -30,6 +30,7 @@
 
 #include "core/layout/TextAutosizer.h"
 
+#include <memory>
 #include "core/dom/Document.h"
 #include "core/frame/FrameHost.h"
 #include "core/frame/FrameView.h"
@@ -41,6 +42,7 @@
 #include "core/layout/LayoutInline.h"
 #include "core/layout/LayoutListItem.h"
 #include "core/layout/LayoutListMarker.h"
+#include "core/layout/LayoutRubyRun.h"
 #include "core/layout/LayoutTable.h"
 #include "core/layout/LayoutTableCell.h"
 #include "core/layout/LayoutView.h"
@@ -48,7 +50,6 @@
 #include "core/layout/api/LayoutViewItem.h"
 #include "core/page/Page.h"
 #include "wtf/PtrUtil.h"
-#include <memory>
 
 #ifdef AUTOSIZING_DOM_DEBUG_INFO
 #include "core/dom/ExecutionContextTask.h"
@@ -400,6 +401,10 @@ void TextAutosizer::beginLayout(LayoutBlock* block,
   if (prepareForLayout(block) == StopLayout)
     return;
 
+  // Skip ruby's inner blocks, because these blocks already are inflated.
+  if (block->isRubyRun() || block->isRubyBase() || block->isRubyText())
+    return;
+
   ASSERT(!m_clusterStack.isEmpty() || block->isLayoutView());
 
   if (Cluster* cluster = maybeCreateCluster(block))
@@ -470,11 +475,20 @@ float TextAutosizer::inflate(LayoutObject* parent,
   bool hasTextChild = false;
 
   LayoutObject* child = nullptr;
-  if (parent->isLayoutBlock() &&
-      (parent->childrenInline() || behavior == DescendToInnerBlocks))
+  if (parent->isRuby()) {
+    // Skip layoutRubyRun which is inline-block.
+    // Inflate rubyRun's inner blocks.
+    LayoutObject* run = parent->slowFirstChild();
+    if (run && run->isRubyRun()) {
+      child = toLayoutRubyRun(run)->firstChild();
+      behavior = DescendToInnerBlocks;
+    }
+  } else if (parent->isLayoutBlock() &&
+             (parent->childrenInline() || behavior == DescendToInnerBlocks)) {
     child = toLayoutBlock(parent)->firstChild();
-  else if (parent->isLayoutInline())
+  } else if (parent->isLayoutInline()) {
     child = toLayoutInline(parent)->firstChild();
+  }
 
   while (child) {
     if (child->isText()) {
@@ -486,9 +500,14 @@ float TextAutosizer::inflate(LayoutObject* parent,
             cluster->m_flags & SUPPRESSING ? 1.0f : clusterMultiplier(cluster);
       applyMultiplier(child, multiplier, layouter);
 
-      // FIXME: Investigate why MarkOnlyThis is sufficient.
-      if (parent->isLayoutInline())
+      if (behavior == DescendToInnerBlocks) {
+        // The ancestor nodes might be inline-blocks. We should
+        // setPreferredLogicalWidthsDirty for ancestor nodes here.
+        child->setPreferredLogicalWidthsDirty();
+      } else if (parent->isLayoutInline()) {
+        // FIXME: Investigate why MarkOnlyThis is sufficient.
         child->setPreferredLogicalWidthsDirty(MarkOnlyThis);
+      }
     } else if (child->isLayoutInline()) {
       multiplier = inflate(child, layouter, behavior, multiplier);
     } else if (child->isLayoutBlock() && behavior == DescendToInnerBlocks &&
@@ -821,7 +840,8 @@ TextAutosizer::Fingerprint TextAutosizer::computeFingerprint(
 
   if (const ComputedStyle* style = layoutObject->style()) {
     data.m_packedStyleProperties = static_cast<unsigned>(style->direction());
-    data.m_packedStyleProperties |= (style->position() << 1);
+    data.m_packedStyleProperties |=
+        (static_cast<unsigned>(style->position()) << 1);
     data.m_packedStyleProperties |=
         (static_cast<unsigned>(style->floating()) << 4);
     data.m_packedStyleProperties |=
@@ -1173,6 +1193,8 @@ void TextAutosizer::applyMultiplier(LayoutObject* layoutObject,
       m_stylesRetainedDuringLayout.push_back(&currentStyle);
 
       layoutObject->setStyleInternal(std::move(style));
+      if (layoutObject->isText())
+        toLayoutText(layoutObject)->autosizingMultiplerChanged();
       DCHECK(!layouter || layoutObject->isDescendantOf(&layouter->root()));
       layoutObject->setNeedsLayoutAndFullPaintInvalidation(
           LayoutInvalidationReason::TextAutosizing, MarkContainerChain,
@@ -1295,7 +1317,7 @@ bool TextAutosizer::FingerprintMapper::remove(LayoutObject* layoutObject) {
     return false;
 
   BlockSet& blocks = *blocksIter->value;
-  blocks.remove(toLayoutBlock(layoutObject));
+  blocks.erase(toLayoutBlock(layoutObject));
   if (blocks.isEmpty()) {
     m_blocksForFingerprint.remove(blocksIter);
 
@@ -1304,7 +1326,7 @@ bool TextAutosizer::FingerprintMapper::remove(LayoutObject* layoutObject) {
 
     if (superclusterIter != m_superclusters.end()) {
       Supercluster* supercluster = superclusterIter->value.get();
-      m_potentiallyInconsistentSuperclusters.remove(supercluster);
+      m_potentiallyInconsistentSuperclusters.erase(supercluster);
       m_superclusters.remove(superclusterIter);
     }
   }

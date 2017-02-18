@@ -27,6 +27,9 @@
 
 #include "core/html/HTMLCanvasElement.h"
 
+#include <math.h>
+#include <v8.h>
+#include <memory>
 #include "bindings/core/v8/ExceptionMessages.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/ScriptController.h"
@@ -53,6 +56,7 @@
 #include "core/html/canvas/CanvasRenderingContext.h"
 #include "core/html/canvas/CanvasRenderingContextFactory.h"
 #include "core/imagebitmap/ImageBitmapOptions.h"
+#include "core/inspector/InspectorInstrumentation.h"
 #include "core/layout/HitTestCanvasResult.h"
 #include "core/layout/LayoutHTMLCanvas.h"
 #include "core/layout/api/LayoutViewItem.h"
@@ -77,9 +81,6 @@
 #include "public/platform/WebTraceLocation.h"
 #include "wtf/CheckedNumeric.h"
 #include "wtf/PtrUtil.h"
-#include <math.h>
-#include <memory>
-#include <v8.h>
 
 namespace blink {
 
@@ -271,6 +272,8 @@ CanvasRenderingContext* HTMLCanvasElement::getCanvasRenderingContext(
   if (!m_context)
     return nullptr;
 
+  InspectorInstrumentation::didCreateCanvasContext(&document());
+
   if (m_context->is3d()) {
     updateExternallyAllocatedMemory();
   }
@@ -322,8 +325,47 @@ void HTMLCanvasElement::didDraw(const FloatRect& rect) {
     buffer()->didDraw(rect);
 }
 
-void HTMLCanvasElement::didFinalizeFrame() {
+void HTMLCanvasElement::finalizeFrame() {
+  if (hasImageBuffer())
+    m_imageBuffer->finalizeFrame();
+  m_context->incrementFrameCount();
   notifyListenersCanvasChanged();
+}
+
+void HTMLCanvasElement::didDisableAcceleration() {
+  // We must force a paint invalidation on the canvas even if it's
+  // content did not change because it layer was destroyed.
+  didDraw(FloatRect(0, 0, size().width(), size().height()));
+}
+
+void HTMLCanvasElement::restoreCanvasMatrixClipStack(SkCanvas* canvas) const {
+  if (m_context)
+    m_context->restoreCanvasMatrixClipStack(canvas);
+}
+
+void HTMLCanvasElement::doDeferredPaintInvalidation() {
+  DCHECK(!m_dirtyRect.isEmpty());
+  if (m_context->is2d()) {
+    FloatRect srcRect(0, 0, size().width(), size().height());
+    m_dirtyRect.intersect(srcRect);
+    LayoutBox* lb = layoutBox();
+    FloatRect invalidationRect;
+    if (lb) {
+      FloatRect mappedDirtyRect =
+          mapRect(m_dirtyRect, srcRect, FloatRect(lb->contentBoxRect()));
+      if (m_context->isAccelerated()) {
+        // Accelerated 2D canvases need the dirty rect to be expressed relative
+        // to the content box, as opposed to the layout box.
+        mappedDirtyRect.move(-lb->contentBoxOffset());
+      }
+      invalidationRect = mappedDirtyRect;
+    } else {
+      invalidationRect = m_dirtyRect;
+    }
+    if (hasImageBuffer()) {
+      m_imageBuffer->doPaintInvalidation(invalidationRect);
+    }
+  }
 
   if (m_dirtyRect.isEmpty())
     return;
@@ -385,48 +427,6 @@ void HTMLCanvasElement::didFinalizeFrame() {
     m_pendingRenderingModeSwitch = false;
   }
 
-  m_context->incrementFrameCount();
-}
-
-void HTMLCanvasElement::didDisableAcceleration() {
-  // We must force a paint invalidation on the canvas even if it's
-  // content did not change because it layer was destroyed.
-  didDraw(FloatRect(0, 0, size().width(), size().height()));
-}
-
-void HTMLCanvasElement::restoreCanvasMatrixClipStack(
-    PaintCanvas* canvas) const {
-  if (m_context)
-    m_context->restoreCanvasMatrixClipStack(canvas);
-}
-
-void HTMLCanvasElement::doDeferredPaintInvalidation() {
-  DCHECK(!m_dirtyRect.isEmpty());
-  if (!m_context->is2d()) {
-    didFinalizeFrame();
-  } else {
-    FloatRect srcRect(0, 0, size().width(), size().height());
-    m_dirtyRect.intersect(srcRect);
-    LayoutBox* lb = layoutBox();
-    FloatRect invalidationRect;
-    if (lb) {
-      FloatRect mappedDirtyRect =
-          mapRect(m_dirtyRect, srcRect, FloatRect(lb->contentBoxRect()));
-      if (m_context->isAccelerated()) {
-        // Accelerated 2D canvases need the dirty rect to be expressed relative
-        // to the content box, as opposed to the layout box.
-        mappedDirtyRect.move(-lb->contentBoxOffset());
-      }
-      invalidationRect = mappedDirtyRect;
-    } else {
-      invalidationRect = m_dirtyRect;
-    }
-    if (hasImageBuffer()) {
-      m_imageBuffer->finalizeFrame(invalidationRect);
-    } else {
-      didFinalizeFrame();
-    }
-  }
   DCHECK(m_dirtyRect.isEmpty());
 }
 
@@ -781,7 +781,7 @@ void HTMLCanvasElement::addListener(CanvasDrawListener* listener) {
 }
 
 void HTMLCanvasElement::removeListener(CanvasDrawListener* listener) {
-  m_listeners.remove(listener);
+  m_listeners.erase(listener);
 }
 
 SecurityOrigin* HTMLCanvasElement::getSecurityOrigin() const {

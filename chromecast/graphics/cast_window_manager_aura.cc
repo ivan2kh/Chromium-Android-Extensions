@@ -125,7 +125,41 @@ void CastLayoutManager::OnWindowRemovedFromLayout(aura::Window* child) {
 
 void CastLayoutManager::OnChildWindowVisibilityChanged(aura::Window* child,
                                                        bool visible) {
-  // Note: this is invoked for child windows of the root window.
+  aura::Window* parent = child->parent();
+  if (!visible || !parent->IsRootWindow()) {
+    return;
+  }
+
+  // We set z-order here, because the window's ID could be set after the window
+  // is added to the layout, particularly when using views::Widget to create the
+  // window.  The window ID must be set prior to showing the window.  Since we
+  // only process z-order on visibility changes for top-level windows, this
+  // logic will execute infrequently.
+
+  // Determine z-order relative to existing windows.
+  aura::Window::Windows windows = parent->children();
+  aura::Window* above = nullptr;
+  aura::Window* below = nullptr;
+  for (auto* other : windows) {
+    if (other == child) {
+      continue;
+    }
+    if ((other->id() < child->id()) && (!below || other->id() > below->id())) {
+      below = other;
+    } else if ((other->id() > child->id()) &&
+               (!above || other->id() < above->id())) {
+      above = other;
+    }
+  }
+
+  // Adjust the z-order of the new child window.
+  if (above) {
+    parent->StackChildBelow(child, above);
+  } else if (below) {
+    parent->StackChildAbove(child, below);
+  } else {
+    parent->StackChildAtBottom(child);
+  }
 }
 
 void CastLayoutManager::SetChildBounds(aura::Window* child,
@@ -171,6 +205,9 @@ void CastWindowManagerAura::Setup() {
   focus_client_.reset(new CastFocusClientAura());
   aura::client::SetFocusClient(window_tree_host_->window(),
                                focus_client_.get());
+  aura::client::SetActivationClient(window_tree_host_->window(),
+                                    focus_client_.get());
+  aura::client::SetWindowParentingClient(window_tree_host_->window(), this);
   capture_client_.reset(
       new aura::client::DefaultCaptureClient(window_tree_host_->window()));
 
@@ -187,9 +224,28 @@ void CastWindowManagerAura::TearDown() {
   }
   CastVSyncSettings::GetInstance()->RemoveObserver(this);
   capture_client_.reset();
+  aura::client::SetWindowParentingClient(window_tree_host_->window(), nullptr);
+  aura::client::SetActivationClient(window_tree_host_->window(), nullptr);
   aura::client::SetFocusClient(window_tree_host_->window(), nullptr);
   focus_client_.reset();
   window_tree_host_.reset();
+}
+
+void CastWindowManagerAura::SetWindowId(gfx::NativeView window,
+                                        WindowId window_id) {
+  window->set_id(window_id);
+}
+
+gfx::NativeView CastWindowManagerAura::GetRootWindow() {
+  Setup();
+  return window_tree_host_->window();
+}
+
+aura::Window* CastWindowManagerAura::GetDefaultParent(aura::Window* context,
+                                                      aura::Window* window,
+                                                      const gfx::Rect& bounds) {
+  DCHECK(window_tree_host_);
+  return window_tree_host_->window();
 }
 
 void CastWindowManagerAura::AddWindow(gfx::NativeView child) {
@@ -200,31 +256,6 @@ void CastWindowManagerAura::AddWindow(gfx::NativeView child) {
   aura::Window* parent = window_tree_host_->window();
   if (!parent->Contains(child)) {
     parent->AddChild(child);
-  }
-
-  // Determine z-order relative to existing windows.
-  aura::Window::Windows windows = parent->children();
-  aura::Window* above = nullptr;
-  aura::Window* below = nullptr;
-  for (auto* other : windows) {
-    if (other == child) {
-      continue;
-    }
-    if ((other->id() < child->id()) && (!below || other->id() > below->id())) {
-      below = other;
-    } else if ((other->id() > child->id()) &&
-               (!above || other->id() < above->id())) {
-      above = other;
-    }
-  }
-
-  // Adjust the z-order of the new child window.
-  if (above) {
-    parent->StackChildBelow(child, above);
-  } else if (below) {
-    parent->StackChildAbove(child, below);
-  } else {
-    parent->StackChildAtBottom(child);
   }
 }
 

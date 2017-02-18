@@ -304,6 +304,9 @@ const char kEnableAddToShelf[] = "enable-add-to-shelf";
 const char kEnableAudioDebugRecordingsFromExtension[] =
     "enable-audio-debug-recordings-from-extension";
 
+// Inform users that their browser is being controlled by an automated test.
+const char kEnableAutomation[] = "enable-automation";
+
 // Enables the benchmarking extensions.
 const char kEnableBenchmarking[]            = "enable-benchmarking";
 
@@ -1098,6 +1101,11 @@ const char kWindows10CustomTitlebar[]       = "windows10-custom-titlebar";
 // Indicates that chrome was launched to service a search request in Windows 8.
 const char kWindows8Search[]                = "windows8-search";
 #endif  // defined(OS_WIN)
+
+#if BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
+// Used to enable Mus+ash.
+const char kMash[]                          = "mash";
+#endif
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW) && !defined(OFFICIAL_BUILD)
 // Enables support to debug printing subsystem.

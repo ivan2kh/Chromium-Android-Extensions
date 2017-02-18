@@ -16,6 +16,7 @@ NGConstraintSpace::NGConstraintSpace(
     TextDirection direction,
     NGLogicalSize available_size,
     NGLogicalSize percentage_resolution_size,
+    NGPhysicalSize initial_containing_block_size,
     LayoutUnit fragmentainer_space_available,
     bool is_fixed_size_inline,
     bool is_fixed_size_block,
@@ -29,6 +30,7 @@ NGConstraintSpace::NGConstraintSpace(
     const std::shared_ptr<NGExclusions>& exclusions)
     : available_size_(available_size),
       percentage_resolution_size_(percentage_resolution_size),
+      initial_containing_block_size_(initial_containing_block_size),
       fragmentainer_space_available_(fragmentainer_space_available),
       is_fixed_size_inline_(is_fixed_size_inline),
       is_fixed_size_block_(is_fixed_size_block),
@@ -47,16 +49,31 @@ NGConstraintSpace::NGConstraintSpace(
 
 NGConstraintSpace* NGConstraintSpace::CreateFromLayoutObject(
     const LayoutBox& box) {
+  auto writing_mode = FromPlatformWritingMode(box.styleRef().getWritingMode());
+  bool parallel_containing_block = IsParallelWritingMode(
+      FromPlatformWritingMode(
+          box.containingBlock()->styleRef().getWritingMode()),
+      writing_mode);
   bool fixed_inline = false, fixed_block = false;
-  // XXX for orthogonal writing mode this is not right
-  LayoutUnit available_logical_width =
-      std::max(LayoutUnit(), box.containingBlockLogicalWidthForContent());
+
+  LayoutUnit available_logical_width;
+  if (parallel_containing_block)
+    available_logical_width = box.containingBlockLogicalWidthForContent();
+  else
+    available_logical_width = box.perpendicularContainingBlockLogicalHeight();
+  available_logical_width = std::max(LayoutUnit(), available_logical_width);
+
   LayoutUnit available_logical_height;
   if (!box.parent()) {
     available_logical_height = box.view()->viewLogicalHeightForPercentages();
   } else if (box.containingBlock()) {
-    available_logical_height =
-        box.containingBlock()->availableLogicalHeightForPercentageComputation();
+    if (parallel_containing_block) {
+      available_logical_height =
+          box.containingBlock()
+              ->availableLogicalHeightForPercentageComputation();
+    } else {
+      available_logical_height = box.containingBlockLogicalWidthForContent();
+    }
   }
   NGLogicalSize percentage_size = {available_logical_width,
                                    available_logical_height};
@@ -78,10 +95,14 @@ NGConstraintSpace* NGConstraintSpace::CreateFromLayoutObject(
   bool is_new_fc =
       box.isLayoutBlock() && toLayoutBlock(box).createsNewFormattingContext();
 
-  auto writing_mode = FromPlatformWritingMode(box.styleRef().getWritingMode());
+  FloatSize icb_float_size = box.view()->viewportSizeForViewportUnits();
+  NGPhysicalSize initial_containing_block_size{
+      LayoutUnit(icb_float_size.width()), LayoutUnit(icb_float_size.height())};
+
   return NGConstraintSpaceBuilder(writing_mode)
       .SetAvailableSize(available_size)
       .SetPercentageResolutionSize(percentage_size)
+      .SetInitialContainingBlockSize(initial_containing_block_size)
       .SetIsInlineDirectionTriggersScrollbar(
           box.styleRef().overflowInlineDirection() == EOverflow::kAuto)
       .SetIsBlockDirectionTriggersScrollbar(
@@ -92,7 +113,7 @@ NGConstraintSpace* NGConstraintSpace::CreateFromLayoutObject(
           box.sizesLogicalWidthToFitContent(box.styleRef().logicalWidth()))
       .SetIsNewFormattingContext(is_new_fc)
       .SetTextDirection(box.styleRef().direction())
-      .ToConstraintSpace();
+      .ToConstraintSpace(writing_mode);
 }
 
 void NGConstraintSpace::AddExclusion(const NGExclusion& exclusion) {

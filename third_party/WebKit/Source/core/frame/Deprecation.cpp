@@ -19,6 +19,7 @@ enum Milestone {
   M57,
   M58,
   M59,
+  M60,
 };
 
 const char* milestoneString(Milestone milestone) {
@@ -34,6 +35,8 @@ const char* milestoneString(Milestone milestone) {
       return "M58, around April 2017";
     case M59:
       return "M59, around June 2017";
+    case M60:
+      return "M60, around August 2017";
   }
 
   ASSERT_NOT_REACHED();
@@ -321,14 +324,6 @@ String Deprecation::deprecationMessage(UseCounter::Feature feature) {
              "secure origin, such as HTTPS. See https://goo.gl/rStTGz for more "
              "details.";
 
-    case UseCounter::EncryptedMediaInsecureOrigin:
-      return String::format(
-          "Using requestMediaKeySystemAccess() on insecure origins is "
-          "deprecated and will be removed in %s. You should consider "
-          "switching your application to a secure origin, such as HTTPS. See "
-          "https://goo.gl/rStTGz for more details.",
-          milestoneString(M58));
-
     case UseCounter::MediaSourceAbortRemove:
       return "Using SourceBuffer.abort() to abort remove()'s asynchronous "
              "range removal is deprecated due to specification change. Support "
@@ -354,6 +349,16 @@ String Deprecation::deprecationMessage(UseCounter::Feature feature) {
              "switching your application to a secure origin, such as HTTPS. "
              "See https://goo.gl/rStTGz for more details.";
 
+    case UseCounter::NotificationInsecureOrigin:
+    case UseCounter::NotificationAPIInsecureOriginIframe:
+    case UseCounter::NotificationPermissionRequestedInsecureOrigin:
+      return String::format(
+          "Using the Notification API on insecure origins is "
+          "deprecated and will be removed in %s. You should consider "
+          "switching your application to a secure origin, such as HTTPS. See "
+          "https://goo.gl/rStTGz for more details.",
+          milestoneString(M60));
+
     case UseCounter::ElementCreateShadowRootMultiple:
       return "Calling Element.createShadowRoot() for an element which already "
              "hosts a shadow root is deprecated. See "
@@ -370,22 +375,6 @@ String Deprecation::deprecationMessage(UseCounter::Feature feature) {
              "https://www.chromestatus.com/features/6750456638341120 for more "
              "details.";
 
-    case UseCounter::EncryptedMediaAllSelectedContentTypesMissingCodecs:
-      return String::format(
-          "EME requires that contentType strings accepted by "
-          "requestMediaKeySystemAccess() include codecs. Non-standard support "
-          "for contentType strings without codecs will be removed in %s. "
-          "Please specify the desired codec(s) as part of the contentType.",
-          milestoneString(M58));
-
-    case UseCounter::EncryptedMediaCapabilityNotProvided:
-      return String::format(
-          "EME requires that one of 'audioCapabilities' and "
-          "'videoCapabilities' must be non-empty. Non-standard support for "
-          "this will be removed in %s. Please specify at least one valid "
-          "capability for 'audioCapabilities' or 'videoCapabilities'.",
-          milestoneString(M58));
-
     case UseCounter::VRDeprecatedFieldOfView:
       return replacedBy("VREyeParameters.fieldOfView",
                         "projection matrices provided by VRFrameData");
@@ -393,13 +382,6 @@ String Deprecation::deprecationMessage(UseCounter::Feature feature) {
     case UseCounter::VRDeprecatedGetPose:
       return replacedBy("VRDisplay.getPose()", "VRDisplay.getFrameData()");
 
-    case UseCounter::HTMLEmbedElementLegacyCall:
-      return willBeRemoved("HTMLEmbedElement legacy caller", M58,
-                           "5715026367217664");
-
-    case UseCounter::HTMLObjectElementLegacyCall:
-      return willBeRemoved("HTMLObjectElement legacy caller", M58,
-                           "5715026367217664");
     case UseCounter::
         ServiceWorkerRespondToNavigationRequestWithRedirectedResponse:
       return String::format(
@@ -424,6 +406,22 @@ String Deprecation::deprecationMessage(UseCounter::Feature feature) {
       return willBeRemoved(
           "-internal-media-controls-text-track-list* selectors", M59,
           "5661431349379072");
+
+    case UseCounter::FileReaderSyncInServiceWorker:
+      return willBeRemoved("FileReaderSync in service workers", M59,
+                           "5739144722513920");
+
+    case UseCounter::CSSZoomReset:
+      return willBeRemoved("\"zoom: reset\"", M59, "4997605029314560");
+
+    case UseCounter::CSSZoomDocument:
+      return willBeRemoved("\"zoom: document\"", M59, "4997605029314560");
+
+    case UseCounter::SelectionAddRangeIntersect:
+      return willBeRemoved(
+          "The behavior that Selection.addRange() merges existing Range and "
+          "the specified Range",
+          M58, "6680566019653632");
 
     // Features that aren't deprecated don't have a deprecation message.
     default:

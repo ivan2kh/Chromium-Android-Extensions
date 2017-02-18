@@ -13,11 +13,11 @@
 #include "ios/chrome/browser/application_context.h"
 #import "ios/chrome/browser/payments/cells/payments_text_item.h"
 #import "ios/chrome/browser/payments/cells/shipping_address_item.h"
-#import "ios/chrome/browser/payments/payment_request_utils.h"
+#import "ios/chrome/browser/payments/payment_request_util.h"
 #import "ios/chrome/browser/ui/autofill/cells/status_item.h"
+#import "ios/chrome/browser/ui/collection_view/cells/MDCCollectionViewCell+Chrome.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_item.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_text_item.h"
-#import "ios/chrome/browser/ui/collection_view/cells/MDCCollectionViewCell+Chrome.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_model.h"
 #import "ios/chrome/browser/ui/colors/MDCPalette+CrAdditions.h"
 #import "ios/chrome/browser/ui/icons/chrome_icon.h"
@@ -26,9 +26,9 @@
 #include "ios/chrome/grit/ios_theme_resources.h"
 #include "ui/base/l10n/l10n_util.h"
 
-using payment_request_utils::NameLabelFromAutofillProfile;
-using payment_request_utils::AddressLabelFromAutofillProfile;
-using payment_request_utils::PhoneNumberLabelFromAutofillProfile;
+using payment_request_util::NameLabelFromAutofillProfile;
+using payment_request_util::AddressLabelFromAutofillProfile;
+using payment_request_util::PhoneNumberLabelFromAutofillProfile;
 
 NSString* const kShippingAddressSelectionCollectionViewId =
     @"kShippingAddressSelectionCollectionViewId";
@@ -54,6 +54,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
   base::WeakNSProtocol<id<ShippingAddressSelectionViewControllerDelegate>>
       _delegate;
 
+  // The PaymentRequest object owning an instance of web::PaymentRequest as
+  // provided by the page invoking the Payment Request API. This is a weak
+  // pointer and should outlive this class.
+  PaymentRequest* _paymentRequest;
+
+  // The currently selected item. May be nil.
   ShippingAddressItem* _selectedItem;
 }
 
@@ -64,12 +70,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 @implementation ShippingAddressSelectionViewController
 
-@synthesize selectedShippingAddress = _selectedShippingAddress;
-@synthesize shippingAddresses = _shippingAddresses;
 @synthesize isLoading = _isLoading;
 @synthesize errorMessage = _errorMessage;
 
-- (instancetype)init {
+- (instancetype)initWithPaymentRequest:(PaymentRequest*)paymentRequest {
+  DCHECK(paymentRequest);
   if ((self = [super initWithStyle:CollectionViewControllerStyleAppBar])) {
     self.title = l10n_util::GetNSString(
         IDS_IOS_PAYMENT_REQUEST_SHIPPING_ADDRESS_SELECTION_TITLE);
@@ -80,6 +85,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
                                             action:@selector(onReturn)];
     returnButton.accessibilityLabel = l10n_util::GetNSString(IDS_ACCNAME_BACK);
     self.navigationItem.leftBarButtonItem = returnButton;
+
+    _paymentRequest = paymentRequest;
   }
   return self;
 }
@@ -128,15 +135,14 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [model addItem:messageItem
       toSectionWithIdentifier:SectionIdentifierShippingAddress];
 
-  for (size_t i = 0; i < _shippingAddresses.size(); ++i) {
-    autofill::AutofillProfile* shippingAddress = _shippingAddresses[i];
+  for (const auto& shippingAddress : _paymentRequest->shipping_profiles()) {
     ShippingAddressItem* item = [[[ShippingAddressItem alloc]
         initWithType:ItemTypeShippingAddress] autorelease];
     item.accessibilityTraits |= UIAccessibilityTraitButton;
     item.name = NameLabelFromAutofillProfile(shippingAddress);
     item.address = AddressLabelFromAutofillProfile(shippingAddress);
     item.phoneNumber = PhoneNumberLabelFromAutofillProfile(shippingAddress);
-    if (shippingAddress == _selectedShippingAddress) {
+    if (_paymentRequest->selected_shipping_profile() == shippingAddress) {
       item.accessoryType = MDCCollectionViewCellAccessoryCheckmark;
       _selectedItem = item;
     }
@@ -219,16 +225,15 @@ typedef NS_ENUM(NSInteger, ItemType) {
     [self reconfigureCellsForItems:@[ newlySelectedItem ]
            inSectionWithIdentifier:SectionIdentifierShippingAddress];
 
-    // Update the selected shipping address and its respective item.
-    NSInteger index = [model indexInItemTypeForIndexPath:indexPath];
-    DCHECK(index < (NSInteger)_shippingAddresses.size());
-    self.selectedShippingAddress = _shippingAddresses[index];
+    // Update the reference to the selected item.
     _selectedItem = newlySelectedItem;
 
     // Notify the delegate of the selection.
-    [_delegate
-        shippingAddressSelectionViewController:self
-                       selectedShippingAddress:self.selectedShippingAddress];
+    NSInteger index = [model indexInItemTypeForIndexPath:indexPath];
+    DCHECK(index < (NSInteger)_paymentRequest->shipping_profiles().size());
+    [_delegate shippingAddressSelectionViewController:self
+                             didSelectShippingAddress:
+                                 _paymentRequest->shipping_profiles()[index]];
   }
   // TODO(crbug.com/602666): Present a shipping address addition UI when
   // itemType == ItemTypeAddShippingAddress.

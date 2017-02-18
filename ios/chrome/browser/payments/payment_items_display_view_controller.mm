@@ -8,10 +8,11 @@
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "components/autofill/core/browser/credit_card.h"
+#include "components/payments/currency_formatter.h"
 #include "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/payments/cells/price_item.h"
-#import "ios/chrome/browser/payments/payment_request_utils.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_item.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_model.h"
 #import "ios/chrome/browser/ui/colors/MDCPalette+CrAdditions.h"
@@ -45,6 +46,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 @interface PaymentItemsDisplayViewController () {
   base::WeakNSProtocol<id<PaymentItemsDisplayViewControllerDelegate>> _delegate;
   base::scoped_nsobject<MDCFlatButton> _payButton;
+
+  // The PaymentRequest object owning an instance of web::PaymentRequest as
+  // provided by the page invoking the Payment Request API. This is a weak
+  // pointer and should outlive this class.
+  PaymentRequest* _paymentRequest;
 }
 
 // Called when the user presses the return button.
@@ -57,10 +63,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 @implementation PaymentItemsDisplayViewController
 
-@synthesize total = _total;
-@synthesize paymentItems = _paymentItems;
-
-- (instancetype)initWithPayButtonEnabled:(BOOL)payButtonEnabled {
+- (instancetype)initWithPaymentRequest:(PaymentRequest*)paymentRequest
+                      payButtonEnabled:(BOOL)payButtonEnabled {
+  DCHECK(paymentRequest);
   if ((self = [super initWithStyle:CollectionViewControllerStyleAppBar])) {
     [self setTitle:l10n_util::GetNSString(
                        IDS_IOS_PAYMENT_REQUEST_PAYMENT_ITEMS_TITLE)];
@@ -112,6 +117,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     UIBarButtonItem* payButtonItem =
         [[[UIBarButtonItem alloc] initWithCustomView:buttonView] autorelease];
     [self navigationItem].rightBarButtonItem = payButtonItem;
+
+    _paymentRequest = paymentRequest;
   }
   return self;
 }
@@ -145,30 +152,29 @@ typedef NS_ENUM(NSInteger, ItemType) {
   PriceItem* totalItem =
       [[[PriceItem alloc] initWithType:ItemTypePaymentItemTotal] autorelease];
   totalItem.accessibilityIdentifier = kPaymentItemsDisplayItemId;
-  totalItem.item = base::SysUTF16ToNSString(_total.label);
-
-  NSString* currencyCode = base::SysUTF16ToNSString(_total.amount.currency);
-  NSDecimalNumber* value = [NSDecimalNumber
-      decimalNumberWithString:SysUTF16ToNSString(_total.amount.value)];
-  totalItem.price =
-      payment_request_utils::FormattedCurrencyString(value, currencyCode);
+  totalItem.item =
+      base::SysUTF16ToNSString(_paymentRequest->payment_details().total.label);
+  payments::CurrencyFormatter* currencyFormatter =
+      _paymentRequest->GetOrCreateCurrencyFormatter();
+  totalItem.price = SysUTF16ToNSString(l10n_util::GetStringFUTF16(
+      IDS_IOS_PAYMENT_REQUEST_PAYMENT_ITEMS_TOTAL_FORMAT,
+      base::UTF8ToUTF16(currencyFormatter->formatted_currency_code()),
+      currencyFormatter->Format(base::UTF16ToASCII(
+          _paymentRequest->payment_details().total.amount.value))));
 
   [model addItem:totalItem toSectionWithIdentifier:SectionIdentifierPayment];
 
   // Add the line item entries.
-  for (size_t i = 0; i < _paymentItems.size(); ++i) {
-    web::PaymentItem paymentItem = _paymentItems[i];
+  for (const auto& paymentItem :
+       _paymentRequest->payment_details().display_items) {
     PriceItem* paymentItemItem =
         [[[PriceItem alloc] initWithType:ItemTypePaymentItem] autorelease];
     paymentItemItem.accessibilityIdentifier = kPaymentItemsDisplayItemId;
     paymentItemItem.item = base::SysUTF16ToNSString(paymentItem.label);
-
-    NSString* currencyCode =
-        base::SysUTF16ToNSString(paymentItem.amount.currency);
-    NSDecimalNumber* value = [NSDecimalNumber
-        decimalNumberWithString:SysUTF16ToNSString(paymentItem.amount.value)];
-    paymentItemItem.price =
-        payment_request_utils::FormattedCurrencyString(value, currencyCode);
+    payments::CurrencyFormatter* currencyFormatter =
+        _paymentRequest->GetOrCreateCurrencyFormatter();
+    paymentItemItem.price = SysUTF16ToNSString(currencyFormatter->Format(
+        base::UTF16ToASCII(paymentItem.amount.value)));
     [model addItem:paymentItemItem
         toSectionWithIdentifier:SectionIdentifierPayment];
   }

@@ -138,12 +138,7 @@ class CONTENT_EXPORT WebContentsAndroid
       const base::android::JavaParamRef<jstring>& jmessage,
       const base::android::JavaParamRef<jstring>& jsource_origin,
       const base::android::JavaParamRef<jstring>& jtarget_origin,
-      const base::android::JavaParamRef<jintArray>& jsent_ports);
-
-  void CreateMessageChannel(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobjectArray>& ports);
+      const base::android::JavaParamRef<jobjectArray>& jports);
 
   jboolean HasAccessedInitialDocument(
       JNIEnv* env,
@@ -151,6 +146,15 @@ class CONTENT_EXPORT WebContentsAndroid
 
   jint GetThemeColor(JNIEnv* env,
                      const base::android::JavaParamRef<jobject>& obj);
+
+  void RequestSmartClipExtract(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& obj,
+      const base::android::JavaParamRef<jobject>& callback,
+      jint x,
+      jint y,
+      jint width,
+      jint height);
 
   void RequestAccessibilitySnapshot(
       JNIEnv* env,
@@ -189,6 +193,9 @@ class CONTENT_EXPORT WebContentsAndroid
                     const base::android::JavaParamRef<jobject>& jcallback);
   void DismissTextHandles(JNIEnv* env,
                           const base::android::JavaParamRef<jobject>& obj);
+  void SetHasPersistentVideo(JNIEnv* env,
+                             const base::android::JavaParamRef<jobject>& obj,
+                             jboolean value);
 
   void SetMediaSession(
       const base::android::ScopedJavaLocalRef<jobject>& j_media_session);

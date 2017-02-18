@@ -115,7 +115,8 @@
 #include "chrome/browser/ui/webui/offline/offline_internals_ui.h"
 #include "chrome/browser/ui/webui/popular_sites_internals_ui.h"
 #include "chrome/browser/ui/webui/snippets_internals_ui.h"
-#if defined(ENABLE_VR_SHELL) || defined(ENABLE_WEBVR)
+#include "chrome/browser/ui/webui/webapks_ui.h"
+#if defined(ENABLE_WEBVR)
 #include "chrome/browser/ui/webui/vr_shell/vr_shell_ui_ui.h"
 #endif
 #else
@@ -434,7 +435,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<extensions::ExtensionsUI>;
   }
   // Material Design history is on its own host, rather than on an Uber page.
-  if (MdHistoryUI::IsEnabled(profile) &&
+  if (base::FeatureList::IsEnabled(features::kMaterialDesignHistory) &&
       url.host_piece() == chrome::kChromeUIHistoryHost) {
     return &NewWebUI<MdHistoryUI>;
   }
@@ -519,7 +520,9 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUISnippetsInternalsHost &&
       !profile->IsOffTheRecord())
     return &NewWebUI<SnippetsInternalsUI>;
-#if defined(ENABLE_VR_SHELL) || defined(ENABLE_WEBVR)
+  if (url.host_piece() == chrome::kChromeUIWebApksHost)
+    return &NewWebUI<WebApksUI>;
+#if defined(ENABLE_WEBVR)
   if (url.host_piece() == chrome::kChromeUIVrShellUIHost)
     return &NewWebUI<VrShellUIUI>;
 #endif

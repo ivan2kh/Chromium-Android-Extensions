@@ -61,6 +61,7 @@
 <translation id="2910007522516064972">Mengenai &amp;Chromium</translation>
 <translation id="3032787606318309379">Menambah ke Chromium...</translation>
 <translation id="3046695367536568084">Anda perlu log masuk ke Chromium untuk menggunakan apl. Tindakan ini membolehkan Chromium menyegerakkan apl, penanda halaman, sejarah, kata laluan dan tetapan anda yang lain pada semua peranti.</translation>
+<translation id="3064346599913645280">Anda sedang melihat halaman Chromium yang selamat</translation>
 <translation id="3068515742935458733">Bantu jadikan Chromium lebih baik dengan menghantar laporan ranap dan <ph name="UMA_LINK" /> kepada Google.</translation>
 <translation id="3103660991484857065">Pemasang gagal untuk menyahmampat arkib. Sila muat turun Chromium sekali lagi.</translation>
 <translation id="3130323860337406239">Chromium menggunakan mikrofon anda.</translation>
@@ -82,7 +83,6 @@
 <translation id="358997566136285270">Logo Chromium</translation>
 <translation id="3645040538872234961">Tindakan ini akan memadamkan data semakan imbas anda daripada peranti ini selama-lamanya. Untuk mendapatkan semula data anda kemudian, log masuk ke Chromium sebagai $2.</translation>
 <translation id="3738139272394829648">Sentuh untuk Cari</translation>
-<translation id="3748537968684000502">Anda melihat halaman Chromium yang selamat.</translation>
 <translation id="378917192836375108">Chromium membolehkan anda mengklik nombor telefon pada web dan menghubunginya dengan Skype!</translation>
 <translation id="3848258323044014972"><ph name="PAGE_TITLE" /> - Chromium</translation>
 <translation id="3849925841547750267">Malangnya, tetapan Mozilla Firefox anda tidak tersedia semasa penyemak imbas tersebut dijalankan. Untuk mengimport tetapan tersebut ke Chromium, simpan kerja anda dan tutup semua tetingkap Firefox. Kemudian klik Teruskan.</translation>
@@ -136,6 +136,7 @@
 <translation id="5620765574781326016">Ketahui tentang topik di tapak web tanpa meninggalkan halaman.</translation>
 <translation id="5634636535844844681">Chromium memerlukan Windows 7 atau lebih tinggi.</translation>
 <translation id="5680901439334282664">log masuk ke Chromium</translation>
+<translation id="5684733627009686897">Chromium ialah penyemak imbas lalai anda. Bergembiralah!</translation>
 <translation id="5698481217667032250">Paparkan Chromium dalam bahasa ini</translation>
 <translation id="5726838626470692954">Pengurus anda mesti mengalih keluar dan menambahkan anda kembali pada Chromium.</translation>
 <translation id="5768914737813585044">Paparkan OS Chromium dalam bahasa ini</translation>

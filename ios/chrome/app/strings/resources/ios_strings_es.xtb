@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Abrir todas</translation>
 <translation id="1430915738399379752">Imprimir</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> elementos</translation>
+<translation id="1491277525950327607">Toca dos veces para activar o desactivar esta opción</translation>
 <translation id="1540800554400757039">Dirección 1</translation>
 <translation id="1545749641540134597">Escanea el código QR</translation>
 <translation id="1580783302095112590">Correo enviado</translation>
@@ -65,7 +66,6 @@ Por ejemplo, algunos sitios web pueden responder a la solicitud mostrándote anu
 <translation id="2068952045031577364">La semana pasada</translation>
 <translation id="2079545284768500474">Deshacer</translation>
 <translation id="209018056901015185">Ver como ordenador</translation>
-<translation id="2100215774115172756">Tu lista de lectura está disponible sin conexión.</translation>
 <translation id="2103075008456228677">Abrir history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> elementos eliminados</translation>
 <translation id="2149973817440762519">Editar marcador</translation>
@@ -120,7 +120,6 @@ Por ejemplo, algunos sitios web pueden responder a la solicitud mostrándote anu
 <translation id="3175081911749765310">Servicios web</translation>
 <translation id="3207960819495026254">Añadido a marcadores</translation>
 <translation id="3210163015918861891">La sincronización está desactivada</translation>
-<translation id="3237561509210981547">Para añadir una página a la lista de lectura, toca <ph name="BEGIN_BOLD_FONT" />Compartir &gt; Leer más adelante<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Enlace copiado</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> de <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Por ejemplo, algunos sitios web pueden responder a la solicitud mostrándote anu
 <translation id="3414292259312108062">Chrome almacenará esta contraseña en las <ph name="BEGIN_LINK" />contraseñas guardadas de Google<ph name="END_LINK" /> y utilizará la función Autocompletar para que no tengas que memorizarla.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Vista dividida</translation>
-<translation id="3474068797193663261">Para añadir una página a la lista de lectura, toca <ph name="BEGIN_BOLD_FONT" />Menú &gt; Compartir &gt; Leer más adelante<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Se han rellenado formularios.</translation>
 <translation id="3478058380795961209">Mes de caducidad</translation>
 <translation id="3482959374254649722">Sincronizando tus pestañas...</translation>
@@ -171,6 +169,7 @@ Para ajustar el término de búsqueda, mantén pulsado el texto para seleccionar
 <translation id="4121993058175073134">Configura tu correo en Ajustes para enviar datos de exportaciones netas.</translation>
 <translation id="4124987746317609294">Intervalo de tiempo</translation>
 <translation id="4172051516777682613">Mostrar siempre</translation>
+<translation id="418156467088430727">Ver versión sin conexión en una nueva pestaña</translation>
 <translation id="424315890655130736">Introduce tu frase de contraseña</translation>
 <translation id="4272631900155121838">Para escanear un código QR, habilita la cámara en Ajustes</translation>
 <translation id="4281844954008187215">Condiciones del servicio</translation>
@@ -178,7 +177,6 @@ Para ajustar el término de búsqueda, mantén pulsado el texto para seleccionar
 <translation id="4359125752503270327">Esta página se abrirá en otra aplicación.</translation>
 <translation id="4378154925671717803">Teléfono</translation>
 <translation id="441868831736628555">Aviso de privacidad</translation>
-<translation id="4426508677408162512">Todos los marcadores</translation>
 <translation id="4473991315115669931">Navegar en modo incógnito</translation>
 <translation id="4526249700380860531">Consulta y administra contraseñas guardadas en la página <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Prueba a iniciar sesión de nuevo.</translation>
@@ -218,6 +216,7 @@ Tus datos se han cifrado con tu frase de contraseña de sincronización. Introd�
 <translation id="5300589172476337783">Mostrar</translation>
 <translation id="5317780077021120954">Guardar</translation>
 <translation id="5327248766486351172">Nombre</translation>
+<translation id="5332219387342487447">Método de envío</translation>
 <translation id="5388358297987318779">Abrir imagen</translation>
 <translation id="5409365236829784218">Ninguna aplicación instalada puede abrir este archivo.</translation>
 <translation id="54401264925851789">Información de seguridad de la página</translation>
@@ -256,6 +255,7 @@ Handoff también debe estar habilitado en la sección General de Ajustes, y los 
 <translation id="6042308850641462728">Más</translation>
 <translation id="605721222689873409">AA</translation>
 <translation id="6066301408025741299">Toca para cancelar.</translation>
+<translation id="60851516108411750">Tu lista de lectura está disponible sin conexión. Para añadir una página a la lista, toca <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Elemento quitado</translation>
 <translation id="6136914049981179737">Hace segundos</translation>
@@ -270,6 +270,7 @@ Handoff también debe estar habilitado en la sección General de Ajustes, y los 
 <translation id="6255097610484507482">Editar tarjeta de crédito</translation>
 <translation id="6308436439357671616">Esto te permite hacer fotos y subirlas.</translation>
 <translation id="6314335155547195432">Generar contraseña</translation>
+<translation id="6324528485781869530">Cambiar cuenta de sincronización</translation>
 <translation id="6324669097367352121">Ajustes de inicio de sesión</translation>
 <translation id="6337234675334993532">Cifrado</translation>
 <translation id="633809752005859102">Se ha producido un problema grave. Lo investigaremos para solucionarlo.</translation>

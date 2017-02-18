@@ -8,33 +8,39 @@ import android.graphics.drawable.Drawable;
 import android.support.annotation.Nullable;
 
 import org.chromium.chrome.browser.ntp.MostVisitedTileType;
+import org.chromium.chrome.browser.ntp.MostVisitedTileType.MostVisitedTileTypeEnum;
+import org.chromium.chrome.browser.ntp.NTPTileSource.NTPTileSourceEnum;
 
 /**
- * Holds the details of a site tile.
+ * Holds the details to populate a site suggestion tile.
  */
 public class Tile {
     private final String mTitle;
     private final String mUrl;
     private final String mWhitelistIconPath;
     private final boolean mOfflineAvailable;
-    private int mIndex;
-    private int mTileType = MostVisitedTileType.NONE;
+    private final int mIndex;
+
+    @NTPTileSourceEnum
     private final int mSource;
+
+    @MostVisitedTileTypeEnum
+    private int mType = MostVisitedTileType.NONE;
 
     @Nullable
     private Drawable mIcon;
 
     /**
-     * @param title The title of the page.
-     * @param url The URL of the page.
+     * @param title The tile title.
+     * @param url The site URL.
      * @param whitelistIconPath The path to the icon image file, if this is a whitelisted tile.
      * Empty otherwise.
      * @param offlineAvailable Whether there is an offline copy of the URL available.
      * @param index The index of this tile in the list of tiles.
-     * @param source The {@code MostVisitedSource} that generated this tile.
+     * @param source The {@code NTPTileSource} that generated this tile.
      */
     public Tile(String title, String url, String whitelistIconPath, boolean offlineAvailable,
-            int index, int source) {
+            int index, @NTPTileSourceEnum int source) {
         mTitle = title;
         mUrl = url;
         mWhitelistIconPath = whitelistIconPath;
@@ -44,7 +50,7 @@ public class Tile {
     }
 
     /**
-     * @return The URL of this tile.
+     * @return The site URL of this tile.
      */
     public String getUrl() {
         return mUrl;
@@ -79,34 +85,29 @@ public class Tile {
     }
 
     /**
-     * Updates this tile's index in the list of tiles.
+     * @return The source of this tile. Used for metrics tracking. Valid values are listed in
+     * {@code NTPTileSource}.
      */
-    public void setIndex(int index) {
-        mIndex = index;
+    @NTPTileSourceEnum
+    public int getSource() {
+        return mSource;
     }
 
     /**
      * @return The visual type of this tile. Valid values are listed in
      *         {@link MostVisitedTileType}.
      */
-    public int getTileType() {
-        return mTileType;
+    @MostVisitedTileTypeEnum
+    public int getType() {
+        return mType;
     }
 
     /**
      * Sets the visual type of this tile. Valid values are listed in
      * {@link MostVisitedTileType}.
      */
-    public void setTileType(int type) {
-        mTileType = type;
-    }
-
-    /**
-     * @return The source of this tile.  Used for metrics tracking. Valid values are listed in
-     * {@code MostVisitedSource}.
-     */
-    public int getSource() {
-        return mSource;
+    public void setType(@MostVisitedTileTypeEnum int type) {
+        mType = type;
     }
 
     /**

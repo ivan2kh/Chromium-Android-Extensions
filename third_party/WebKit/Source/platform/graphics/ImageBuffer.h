@@ -115,10 +115,8 @@ class PLATFORM_EXPORT ImageBuffer {
   void disableDeferral(DisableDeferralReason) const;
 
   // Called at the end of a task that rendered a whole frame
-  void finalizeFrame(const FloatRect& dirtyRect);
-  void didFinalizeFrame();
-
-  bool isDirty();
+  void finalizeFrame();
+  void doPaintInvalidation(const FloatRect& dirtyRect);
 
   bool writePixels(const SkImageInfo&,
                    const void* pixels,
@@ -169,7 +167,7 @@ class PLATFORM_EXPORT ImageBuffer {
       AccelerationHint = PreferNoAcceleration,
       SnapshotReason = SnapshotReasonUnknown) const;
 
-  sk_sp<PaintRecord> getPicture() { return m_surface->getPicture(); }
+  sk_sp<PaintRecord> getRecord() { return m_surface->getRecord(); }
 
   void draw(GraphicsContext&, const FloatRect&, const FloatRect*, SkBlendMode);
 

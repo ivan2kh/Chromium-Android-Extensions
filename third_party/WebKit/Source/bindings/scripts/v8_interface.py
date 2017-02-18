@@ -50,6 +50,7 @@ from v8_utilities import (cpp_name_or_partial, cpp_name, has_extended_attribute_
 
 
 INTERFACE_H_INCLUDES = frozenset([
+    'bindings/core/v8/GeneratedCodeHelper.h',
     'bindings/core/v8/ScriptWrappable.h',
     'bindings/core/v8/ToV8.h',
     'bindings/core/v8/V8Binding.h',
@@ -59,7 +60,6 @@ INTERFACE_H_INCLUDES = frozenset([
 ])
 INTERFACE_CPP_INCLUDES = frozenset([
     'bindings/core/v8/ExceptionState.h',
-    'bindings/core/v8/GeneratedCodeHelper.h',
     'bindings/core/v8/V8DOMConfiguration.h',
     'bindings/core/v8/V8ObjectConstructor.h',
     'core/dom/Document.h',
@@ -213,30 +213,6 @@ def interface_context(interface, interfaces):
     # as in the WebIDL spec?
     is_immutable_prototype = is_global or 'ImmutablePrototype' in extended_attributes
 
-    # [SetWrapperReferenceFrom]
-    set_wrapper_reference_from = extended_attributes.get('SetWrapperReferenceFrom')
-    if set_wrapper_reference_from:
-        includes.update(['bindings/core/v8/V8GCController.h',
-                         'core/dom/Element.h'])
-
-    # [SetWrapperReferenceTo]
-    set_wrapper_reference_to_argument = extended_attributes.get('SetWrapperReferenceTo')
-    set_wrapper_reference_to = None
-    if set_wrapper_reference_to_argument:
-        set_wrapper_reference_to = {
-            'name': set_wrapper_reference_to_argument.name,
-            # FIXME: properly should be:
-            # 'cpp_type': set_wrapper_reference_to_argument.idl_type.cpp_type_args(raw_type=True),
-            # (if type is non-wrapper type like NodeFilter, normally RefPtr)
-            # Raw pointers faster though, and NodeFilter hacky anyway.
-            'cpp_type': set_wrapper_reference_to_argument.idl_type.implemented_as + '*',
-            'idl_type': set_wrapper_reference_to_argument.idl_type,
-            'v8_type': v8_types.v8_type(set_wrapper_reference_to_argument.idl_type.name),
-        }
-        set_wrapper_reference_to['idl_type'].add_includes_for_type()
-
-    has_visit_dom_wrapper = (set_wrapper_reference_from or set_wrapper_reference_to)
-
     wrapper_class_id = ('NodeClassId' if inherits_interface(interface.name, 'Node') else 'ObjectClassId')
 
     # [ActiveScriptWrappable] must be accompanied with [DependentLifetime].
@@ -256,14 +232,12 @@ def interface_context(interface, interfaces):
     context = {
         'cpp_class': cpp_class_name,
         'cpp_class_or_partial': cpp_class_name_or_partial,
-        'event_target_inheritance': 'InheritFromEventTarget' if is_event_target else 'NotInheritFromEventTarget',
         'is_gc_type': True,
         # FIXME: Remove 'EventTarget' special handling, http://crbug.com/383699
         'has_access_check_callbacks': (is_check_security and
                                        interface.name != 'EventTarget'),
         'has_custom_legacy_call_as_function': has_extended_attribute_value(interface, 'Custom', 'LegacyCallAsFunction'),  # [Custom=LegacyCallAsFunction]
         'has_partial_interface': len(interface.partial_interfaces) > 0,
-        'has_visit_dom_wrapper': has_visit_dom_wrapper,
         'header_includes': header_includes,
         'interface_name': interface.name,
         'is_array_buffer_or_view': is_array_buffer_or_view,
@@ -275,7 +249,7 @@ def interface_context(interface, interfaces):
         'is_node': inherits_interface(interface.name, 'Node'),
         'is_partial': interface.is_partial,
         'is_typed_array_type': is_typed_array_type,
-        'lifetime': 'Dependent' if (has_visit_dom_wrapper or is_dependent_lifetime) else 'Independent',
+        'lifetime': 'Dependent' if is_dependent_lifetime else 'Independent',
         'measure_as': v8_utilities.measure_as(interface, None),  # [MeasureAs]
         'needs_runtime_enabled_installer': needs_runtime_enabled_installer,
         'origin_trial_enabled_function': v8_utilities.origin_trial_enabled_function_name(interface),
@@ -283,8 +257,6 @@ def interface_context(interface, interfaces):
         'pass_cpp_type': cpp_name(interface) + '*',
         'active_scriptwrappable': active_scriptwrappable,
         'runtime_enabled_feature_name': runtime_enabled_feature_name(interface),  # [RuntimeEnabled]
-        'set_wrapper_reference_from': set_wrapper_reference_from,
-        'set_wrapper_reference_to': set_wrapper_reference_to,
         'v8_class': v8_class_name,
         'v8_class_or_partial': v8_class_name_or_partial,
         'wrapper_class_id': wrapper_class_id,
@@ -406,6 +378,7 @@ def interface_context(interface, interfaces):
                           interface.name != 'Window')
     context.update({
         'has_array_iterator': has_array_iterator,
+        'iterable': interface.iterable,
     })
 
     # Conditionally enabled members
@@ -569,25 +542,33 @@ def methods_context(interface):
             iterator_method = generated_iterator_method('iterator', implemented_as='iterator')
 
         if interface.iterable or interface.maplike or interface.setlike:
-            implicit_methods = [
-                generated_iterator_method('keys'),
-                generated_iterator_method('values'),
-                generated_iterator_method('entries'),
+            non_overridable_methods = []
+            overridable_methods = []
 
-                # void forEach(Function callback, [Default=Undefined] optional any thisArg)
-                generated_method(IdlType('void'), 'forEach',
-                                 arguments=[generated_argument(IdlType('Function'), 'callback'),
-                                            generated_argument(IdlType('any'), 'thisArg',
-                                                               is_optional=True,
-                                                               extended_attributes={'Default': 'Undefined'})],
-                                 extended_attributes=forEach_extended_attributes),
-            ]
+            is_value_iterator = interface.iterable and interface.iterable.key_type is None
+
+            # For value iterators, the |entries|, |forEach|, |keys| and |values| are originally set
+            # to corresponding properties in %ArrayPrototype%.
+            if not is_value_iterator:
+                non_overridable_methods.extend([
+                    generated_iterator_method('keys'),
+                    generated_iterator_method('values'),
+                    generated_iterator_method('entries'),
+
+                    # void forEach(Function callback, [Default=Undefined] optional any thisArg)
+                    generated_method(IdlType('void'), 'forEach',
+                                     arguments=[generated_argument(IdlType('Function'), 'callback'),
+                                                generated_argument(IdlType('any'), 'thisArg',
+                                                                   is_optional=True,
+                                                                   extended_attributes={'Default': 'Undefined'})],
+                                     extended_attributes=forEach_extended_attributes),
+                ])
 
             if interface.maplike:
                 key_argument = generated_argument(interface.maplike.key_type, 'key')
                 value_argument = generated_argument(interface.maplike.value_type, 'value')
 
-                implicit_methods.extend([
+                non_overridable_methods.extend([
                     generated_method(IdlType('boolean'), 'has',
                                      arguments=[key_argument],
                                      extended_attributes=used_extended_attributes),
@@ -597,7 +578,7 @@ def methods_context(interface):
                 ])
 
                 if not interface.maplike.is_read_only:
-                    implicit_methods.extend([
+                    overridable_methods.extend([
                         generated_method(IdlType('void'), 'clear',
                                          extended_attributes=used_extended_attributes),
                         generated_method(IdlType('boolean'), 'delete',
@@ -611,14 +592,14 @@ def methods_context(interface):
             if interface.setlike:
                 value_argument = generated_argument(interface.setlike.value_type, 'value')
 
-                implicit_methods.extend([
+                non_overridable_methods.extend([
                     generated_method(IdlType('boolean'), 'has',
                                      arguments=[value_argument],
                                      extended_attributes=used_extended_attributes),
                 ])
 
                 if not interface.setlike.is_read_only:
-                    implicit_methods.extend([
+                    overridable_methods.extend([
                         generated_method(IdlType(interface.name), 'add',
                                          arguments=[value_argument],
                                          extended_attributes=used_extended_attributes),
@@ -633,11 +614,19 @@ def methods_context(interface):
             for method in methods:
                 methods_by_name.setdefault(method['name'], []).append(method)
 
-            for implicit_method in implicit_methods:
-                if implicit_method['name'] in methods_by_name:
+            for non_overridable_method in non_overridable_methods:
+                if non_overridable_method['name'] in methods_by_name:
+                    raise ValueError(
+                        'An interface cannot define an operation called "%s()", it '
+                        'comes from the iterable, maplike or setlike declaration '
+                        'in the IDL.' % non_overridable_method['name'])
+                methods.append(non_overridable_method)
+
+            for overridable_method in overridable_methods:
+                if overridable_method['name'] in methods_by_name:
                     # FIXME: Check that the existing method is compatible.
                     continue
-                methods.append(implicit_method)
+                methods.append(overridable_method)
 
         # FIXME: maplike<> and setlike<> should also imply the presence of a
         # 'size' attribute.

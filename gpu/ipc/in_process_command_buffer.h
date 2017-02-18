@@ -115,10 +115,6 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
                       size_t height,
                       unsigned internalformat) override;
   void DestroyImage(int32_t id) override;
-  int32_t CreateGpuMemoryBufferImage(size_t width,
-                                     size_t height,
-                                     unsigned internalformat,
-                                     unsigned usage) override;
   void SignalQuery(uint32_t query_id, const base::Closure& callback) override;
   void SetLock(base::Lock*) override;
   void EnsureWorkVisible() override;
@@ -146,6 +142,9 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   void UpdateVSyncParameters(base::TimeTicks timebase,
                              base::TimeDelta interval) override;
 
+  void AddFilter(IPC::MessageFilter* message_filter) override;
+  int32_t GetRouteID() const override;
+
   using SwapBuffersCompletionCallback = base::Callback<void(
       const std::vector<ui::LatencyInfo>& latency_info,
       gfx::SwapResult result,
@@ -165,7 +164,6 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   // The serializer interface to the GPU service (i.e. thread).
   class Service {
    public:
-    Service();
     Service(const gpu::GpuPreferences& gpu_preferences);
     Service(gpu::gles2::MailboxManager* mailbox_manager,
             scoped_refptr<gl::GLShareGroup> share_group);

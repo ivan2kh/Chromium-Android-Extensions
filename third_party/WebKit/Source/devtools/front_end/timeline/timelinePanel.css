@@ -450,13 +450,18 @@
 }
 
 .timeline-flamechart-resizer {
-    height: 7px;
+    height: 8px;
     background-color: #f3f3f3;
-    border-top: #a3a3a3 1px solid;
+    border: 1px #a3a3a3;
+    border-style: solid none;
     display: flex;
     flex-direction: row;
     align-items: flex-end;
     justify-content: center;
+}
+
+.timeline-network-resizer-disabled > .timeline-flamechart-resizer {
+    display: none;
 }
 
 .timeline-flamechart-resizer:after {
@@ -515,7 +520,7 @@
     overflow: hidden;
 }
 
-.timeline-tree-view > .toolbar {
+.timeline-tree-view .toolbar {
     border-bottom: 1px solid #dadada;
 }
 
@@ -653,12 +658,29 @@
 }
 
 .timeline-landing-page > div {
-    max-width: 430px;
+    max-width: 450px;
     margin: 10px;
 }
 
 .timeline-landing-page > div > p {
     flex: none;
+    white-space: pre-line;
+}
+
+.timeline-landing-page button {
+    padding: 0;
+    vertical-align: sub;
+    border: 1px solid #ddd;
+    margin-top: 4px;
+    background-color: #f3f3f3;
+}
+
+.timeline-landing-page button > span {
+    margin: -1px 2px -3px -2px;
+}
+
+.timeline-landing-page button > span:hover {
+    background-color: #333;
 }
 
 .timeline-landing-warning {

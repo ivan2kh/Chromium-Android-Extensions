@@ -38,7 +38,7 @@ class TestWebState : public WebState {
   void Stop() override {}
   const NavigationManager* GetNavigationManager() const override;
   NavigationManager* GetNavigationManager() override;
-  CRWNavigationManagerStorage* BuildSerializedNavigationManager() override;
+  CRWSessionStorage* BuildSessionStorage() override;
   CRWJSInjectionReceiver* GetJSInjectionReceiver() const override;
   void ExecuteJavaScript(const base::string16& javascript) override;
   void ExecuteJavaScript(const base::string16& javascript,
@@ -62,6 +62,7 @@ class TestWebState : public WebState {
   bool IsShowingWebInterstitial() const override;
   WebInterstitial* GetWebInterstitial() const override;
   void OnPasswordInputShownOnHttp() override {}
+  void OnCreditCardInputShownOnHttp() override {}
 
   void AddObserver(WebStateObserver* observer) override;
 
@@ -69,11 +70,6 @@ class TestWebState : public WebState {
 
   void AddPolicyDecider(WebStatePolicyDecider* decider) override {}
   void RemovePolicyDecider(WebStatePolicyDecider* decider) override {}
-  int DownloadImage(const GURL& url,
-                    bool is_favicon,
-                    uint32_t max_bitmap_size,
-                    bool bypass_cache,
-                    const ImageDownloadCallback& callback) override;
   service_manager::InterfaceRegistry* GetMojoInterfaceRegistry() override;
   base::WeakPtr<WebState> AsWeakPtr() override;
 

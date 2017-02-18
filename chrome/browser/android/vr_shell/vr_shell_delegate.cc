@@ -4,6 +4,8 @@
 
 #include "chrome/browser/android/vr_shell/vr_shell_delegate.h"
 
+#include <utility>
+
 #include "base/android/jni_android.h"
 #include "chrome/browser/android/vr_shell/non_presenting_gvr_delegate.h"
 #include "device/vr/android/gvr/gvr_device.h"
@@ -31,8 +33,8 @@ VrShellDelegate::~VrShellDelegate() {
 
 VrShellDelegate* VrShellDelegate::GetNativeVrShellDelegate(
     JNIEnv* env, jobject jdelegate) {
-  long native_delegate = Java_VrShellDelegate_getNativePointer(env, jdelegate);
-  return reinterpret_cast<VrShellDelegate*>(native_delegate);
+  return reinterpret_cast<VrShellDelegate*>(
+      Java_VrShellDelegate_getNativePointer(env, jdelegate));
 }
 
 void VrShellDelegate::SetDelegate(device::GvrDelegate* delegate,
@@ -116,6 +118,11 @@ void VrShellDelegate::OnResume(JNIEnv* env,
   }
 }
 
+void VrShellDelegate::ShowTab(int id) {
+  JNIEnv* env = AttachCurrentThread();
+  Java_VrShellDelegate_showTab(env, j_vr_shell_delegate_.obj(), id);
+}
+
 void VrShellDelegate::SetDeviceProvider(
     device::GvrDeviceProvider* device_provider) {
   CHECK(!device_provider_);
@@ -155,11 +162,6 @@ void VrShellDelegate::ExitWebVRPresent() {
   // being used elsewhere.
   JNIEnv* env = AttachCurrentThread();
   Java_VrShellDelegate_exitWebVR(env, j_vr_shell_delegate_.obj());
-}
-
-void VrShellDelegate::ForceExitVr() {
-  JNIEnv* env = AttachCurrentThread();
-  Java_VrShellDelegate_forceExitVr(env, j_vr_shell_delegate_.obj());
 }
 
 base::WeakPtr<VrShellDelegate> VrShellDelegate::GetWeakPtr() {

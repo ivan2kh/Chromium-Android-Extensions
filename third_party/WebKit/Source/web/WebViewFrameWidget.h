@@ -76,13 +76,9 @@ class WebViewFrameWidget : public WebFrameWidgetBase {
   bool isWebView() const override { return false; }
   bool isPagePopup() const override { return false; }
   void willCloseLayerTreeView() override;
-  void didAcquirePointerLock() override;
-  void didNotAcquirePointerLock() override;
-  void didLosePointerLock() override;
   WebColor backgroundColor() const override;
   WebPagePopup* pagePopup() const override;
   bool getCompositionCharacterBounds(WebVector<WebRect>& bounds) override;
-  void applyReplacementRange(const WebRange&) override;
   void updateBrowserControlsState(WebBrowserControlsState constraints,
                                   WebBrowserControlsState current,
                                   bool animate) override;
@@ -97,7 +93,8 @@ class WebViewFrameWidget : public WebFrameWidgetBase {
   // WebFrameWidgetBase overrides:
   bool forSubframe() const override { return false; }
   void scheduleAnimation() override;
-  CompositorProxyClient* createCompositorProxyClient() override;
+  CompositorWorkerProxyClient* createCompositorWorkerProxyClient() override;
+  AnimationWorkletProxyClient* createAnimationWorkletProxyClient() override;
   void setRootGraphicsLayer(GraphicsLayer*) override;
   void setRootLayer(WebLayer*) override;
   WebLayerTreeView* getLayerTreeView() const override;

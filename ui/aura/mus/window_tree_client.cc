@@ -145,6 +145,21 @@ float ScaleFactorForDisplay(Window* window) {
       .device_scale_factor();
 }
 
+void ConvertEventLocationToDip(int64_t display_id, ui::LocatedEvent* event) {
+  display::Screen* screen = display::Screen::GetScreen();
+  display::Display display;
+  if (!screen->GetDisplayWithDisplayId(display_id, &display) ||
+      display.device_scale_factor() == 1.f) {
+    return;
+  }
+  const gfx::Point host_location =
+      gfx::ConvertPointToDIP(display.device_scale_factor(), event->location());
+  event->set_location(host_location);
+  const gfx::Point root_location = gfx::ConvertPointToDIP(
+      display.device_scale_factor(), event->root_location());
+  event->set_root_location(root_location);
+}
+
 }  // namespace
 
 WindowTreeClient::WindowTreeClient(
@@ -163,6 +178,7 @@ WindowTreeClient::WindowTreeClient(
       tree_(nullptr),
       in_destructor_(false),
       weak_factory_(this) {
+  DCHECK(delegate_);
   // Allow for a null request in tests.
   if (request.is_pending())
     binding_.Bind(std::move(request));
@@ -183,28 +199,8 @@ WindowTreeClient::~WindowTreeClient() {
   for (WindowTreeClientObserver& observer : observers_)
     observer.OnWillDestroyClient(this);
 
-  std::vector<Window*> non_owned;
-  WindowTracker tracker;
-  while (!windows_.empty()) {
-    IdToWindowMap::iterator it = windows_.begin();
-    if (WasCreatedByThisClient(it->second)) {
-      const Id window_id = it->second->server_id();
-      delete it->second->GetWindow();
-      DCHECK_EQ(0u, windows_.count(window_id));
-    } else {
-      tracker.Add(it->second->GetWindow());
-      windows_.erase(it);
-    }
-  }
-
-  // Delete the non-owned windows last. In the typical case these are roots. The
-  // exception is the window manager and embed roots, which may know about
-  // other random windows that it doesn't own.
-  while (!tracker.windows().empty())
-    delete tracker.windows().front();
-
-  for (WindowTreeClientObserver& observer : observers_)
-    observer.OnDidDestroyClient(this);
+  // Clients should properly delete all of their windows before shutdown.
+  CHECK(windows_.empty());
 
   capture_synchronizer_.reset();
 
@@ -453,8 +449,8 @@ void WindowTreeClient::SetWindowTree(ui::mojom::WindowTreePtr window_tree_ptr) {
       &WindowTreeClient::OnConnectionLost, weak_factory_.GetWeakPtr()));
 
   if (window_manager_delegate_) {
-    tree_ptr_->GetWindowManagerClient(MakeRequest(
-        &window_manager_internal_client_, tree_ptr_.associated_group()));
+    tree_ptr_->GetWindowManagerClient(
+        MakeRequest(&window_manager_internal_client_));
   }
 }
 
@@ -842,8 +838,8 @@ void WindowTreeClient::OnEmbed(ClientSpecificId client_id,
   is_from_embed_ = true;
 
   if (window_manager_delegate_) {
-    tree_ptr_->GetWindowManagerClient(MakeRequest(
-        &window_manager_internal_client_, tree_ptr_.associated_group()));
+    tree_ptr_->GetWindowManagerClient(
+        MakeRequest(&window_manager_internal_client_));
   }
 
   OnEmbedImpl(tree_ptr_.get(), client_id, std::move(root_data), display_id,
@@ -1114,6 +1110,7 @@ void WindowTreeClient::OnWindowSharedPropertyChanged(
 
 void WindowTreeClient::OnWindowInputEvent(uint32_t event_id,
                                           Id window_id,
+                                          int64_t display_id,
                                           std::unique_ptr<ui::Event> event,
                                           bool matches_pointer_watcher) {
   DCHECK(event);
@@ -1134,13 +1131,13 @@ void WindowTreeClient::OnWindowInputEvent(uint32_t event_id,
 
   if (matches_pointer_watcher && has_pointer_watcher_) {
     DCHECK(event->IsPointerEvent());
-    delegate_->OnPointerEventObserved(*event->AsPointerEvent(),
+    std::unique_ptr<ui::Event> event_in_dip(ui::Event::Clone(*event));
+    ConvertEventLocationToDip(display_id, event_in_dip->AsLocatedEvent());
+    delegate_->OnPointerEventObserved(*event_in_dip->AsPointerEvent(),
                                       window ? window->GetWindow() : nullptr);
   }
 
-  // TODO: deal with no window or host here. This could happen if during
-  // dispatch a window is deleted or moved. In either case we still need to
-  // dispatch. Most likely need the display id.
+  // TODO: use |display_id| to find host and send there.
   if (!window || !window->GetWindow()->GetHost()) {
     tree_->OnWindowInputEventAck(event_id, ui::mojom::EventResult::UNHANDLED);
     return;
@@ -1179,12 +1176,14 @@ void WindowTreeClient::OnWindowInputEvent(uint32_t event_id,
 }
 
 void WindowTreeClient::OnPointerEventObserved(std::unique_ptr<ui::Event> event,
-                                              uint32_t window_id) {
+                                              uint32_t window_id,
+                                              int64_t display_id) {
   DCHECK(event);
   DCHECK(event->IsPointerEvent());
   if (!has_pointer_watcher_)
     return;
 
+  ConvertEventLocationToDip(display_id, event->AsLocatedEvent());
   WindowMus* target_window = GetWindowByServerId(window_id);
   delegate_->OnPointerEventObserved(
       *event->AsPointerEvent(),
@@ -1603,17 +1602,12 @@ void WindowTreeClient::ActivateNextWindow() {
     window_manager_internal_client_->ActivateNextWindow();
 }
 
-void WindowTreeClient::SetUnderlaySurfaceOffsetAndExtendedHitArea(
-    Window* window,
-    const gfx::Vector2d& offset,
-    const gfx::Insets& hit_area) {
+void WindowTreeClient::SetExtendedHitArea(Window* window,
+                                          const gfx::Insets& hit_area) {
   if (window_manager_internal_client_) {
     float device_scale_factor = ScaleFactorForDisplay(window);
-    gfx::Vector2dF offset_in_pixels =
-        gfx::ScaleVector2d(offset, device_scale_factor);
-    window_manager_internal_client_->SetUnderlaySurfaceOffsetAndExtendedHitArea(
-        WindowMus::Get(window)->server_id(), offset_in_pixels.x(),
-        offset_in_pixels.y(),
+    window_manager_internal_client_->SetExtendedHitArea(
+        WindowMus::Get(window)->server_id(),
         gfx::ConvertInsetsToPixel(device_scale_factor, hit_area));
   }
 }
@@ -1663,6 +1657,15 @@ void WindowTreeClient::OnWindowTreeHostHitTestMaskWillChange(
 
   tree_->SetHitTestMask(WindowMus::Get(window_tree_host->window())->server_id(),
                         out_rect);
+}
+
+void WindowTreeClient::OnWindowTreeHostSetOpacity(
+    WindowTreeHostMus* window_tree_host,
+    float opacity) {
+  WindowMus* window = WindowMus::Get(window_tree_host->window());
+  const uint32_t change_id = ScheduleInFlightChange(
+      base::MakeUnique<CrashInFlightChange>(window, ChangeType::OPACITY));
+  tree_->SetWindowOpacity(change_id, window->server_id(), opacity);
 }
 
 void WindowTreeClient::OnWindowTreeHostDeactivateWindow(

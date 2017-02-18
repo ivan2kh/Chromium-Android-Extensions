@@ -14,14 +14,9 @@
 #include "cc/ipc/mojo_compositor_frame_sink.mojom.h"
 #include "cc/surfaces/compositor_frame_sink_support.h"
 #include "cc/surfaces/compositor_frame_sink_support_client.h"
-#include "cc/surfaces/referenced_surface_tracker.h"
 #include "components/display_compositor/display_compositor_export.h"
 #include "components/display_compositor/gpu_compositor_frame_sink_delegate.h"
 #include "mojo/public/cpp/bindings/binding.h"
-
-namespace cc {
-class Display;
-}
 
 namespace display_compositor {
 
@@ -33,10 +28,7 @@ class DISPLAY_COMPOSITOR_EXPORT GpuCompositorFrameSink
  public:
   GpuCompositorFrameSink(
       GpuCompositorFrameSinkDelegate* delegate,
-      cc::SurfaceManager* surface_manager,
-      const cc::FrameSinkId& frame_sink_id,
-      std::unique_ptr<cc::Display> display,
-      std::unique_ptr<cc::BeginFrameSource> begin_frame_source,
+      std::unique_ptr<cc::CompositorFrameSinkSupport>,
       cc::mojom::MojoCompositorFrameSinkPrivateRequest private_request,
       cc::mojom::MojoCompositorFrameSinkClientPtr client);
 
@@ -55,25 +47,23 @@ class DISPLAY_COMPOSITOR_EXPORT GpuCompositorFrameSink
   void AddChildFrameSink(const cc::FrameSinkId& child_frame_sink_id) override;
   void RemoveChildFrameSink(
       const cc::FrameSinkId& child_frame_sink_id) override;
+  void RequestCopyOfSurface(
+      std::unique_ptr<cc::CopyOutputRequest> request) override;
 
  protected:
   void OnClientConnectionLost();
   void OnPrivateConnectionLost();
 
   GpuCompositorFrameSinkDelegate* const delegate_;
-  cc::CompositorFrameSinkSupport support_;
-  cc::SurfaceManager* const surface_manager_;
+  std::unique_ptr<cc::CompositorFrameSinkSupport> support_;
 
  private:
   // cc::CompositorFrameSinkSupportClient implementation:
   void DidReceiveCompositorFrameAck() override;
   void OnBeginFrame(const cc::BeginFrameArgs& args) override;
   void ReclaimResources(const cc::ReturnedResourceArray& resources) override;
-  void WillDrawSurface() override;
-
-  // Track the surface references for the surface corresponding to this
-  // compositor frame sink.
-  cc::ReferencedSurfaceTracker surface_tracker_;
+  void WillDrawSurface(const cc::LocalSurfaceId& local_surface_id,
+                       const gfx::Rect& damage_rect) override;
 
   bool client_connection_lost_ = false;
   bool private_connection_lost_ = false;

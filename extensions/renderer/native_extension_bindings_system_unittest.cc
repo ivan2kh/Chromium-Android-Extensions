@@ -170,8 +170,8 @@ class NativeExtensionBindingsSystemUnittest : public APIBindingTest {
 };
 
 TEST_F(NativeExtensionBindingsSystemUnittest, Basic) {
-  scoped_refptr<Extension> extension =
-      CreateExtension("foo", ItemType::EXTENSION, {"idle", "power"});
+  scoped_refptr<Extension> extension = CreateExtension(
+      "foo", ItemType::EXTENSION, {"idle", "power", "webRequest"});
   RegisterExtension(extension->id());
 
   v8::HandleScope handle_scope(isolate());
@@ -260,6 +260,15 @@ TEST_F(NativeExtensionBindingsSystemUnittest, Basic) {
       power_api.As<v8::Object>(), context, "requestKeepAwake");
   ASSERT_FALSE(request_keep_awake.IsEmpty());
   EXPECT_TRUE(request_keep_awake->IsFunction());
+
+  // Test properties exposed on the API object itself.
+  v8::Local<v8::Value> web_request =
+      V8ValueFromScriptSource(context, "chrome.webRequest");
+  ASSERT_FALSE(web_request.IsEmpty());
+  ASSERT_TRUE(web_request->IsObject());
+  EXPECT_EQ("20", GetStringPropertyFromObject(
+                      web_request.As<v8::Object>(), context,
+                      "MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES"));
 }
 
 TEST_F(NativeExtensionBindingsSystemUnittest, Events) {
@@ -599,6 +608,49 @@ TEST_F(NativeExtensionBindingsSystemUnittest,
   EXPECT_EQ(extension->id(), last_params().extension_id);
   EXPECT_EQ("system.cpu.getInfo", last_params().name);
   EXPECT_TRUE(last_params().has_callback);
+}
+
+TEST_F(NativeExtensionBindingsSystemUnittest, TestLastError) {
+  scoped_refptr<Extension> extension =
+      CreateExtension("foo", ItemType::EXTENSION, {"idle", "power"});
+  RegisterExtension(extension->id());
+
+  v8::HandleScope handle_scope(isolate());
+  v8::Local<v8::Context> context = ContextLocal();
+
+  ScriptContext* script_context = CreateScriptContext(
+      context, extension.get(), Feature::BLESSED_EXTENSION_CONTEXT);
+  script_context->set_url(extension->url());
+
+  bindings_system()->UpdateBindingsForContext(script_context);
+
+  {
+    // Try calling the function with an invalid invocation - an error should be
+    // thrown.
+    const char kCallFunction[] =
+        "(function() {\n"
+        "  chrome.idle.queryState(30, function(state) {\n"
+        "    if (chrome.runtime.lastError)\n"
+        "      this.lastErrorMessage = chrome.runtime.lastError.message;\n"
+        "  });\n"
+        "});";
+    v8::Local<v8::Function> function =
+        FunctionFromString(context, kCallFunction);
+    ASSERT_FALSE(function.IsEmpty());
+    RunFunctionOnGlobal(function, context, 0, nullptr);
+  }
+
+  // Validate the params that would be sent to the browser.
+  EXPECT_EQ(extension->id(), last_params().extension_id);
+  EXPECT_EQ("idle.queryState", last_params().name);
+
+  // Respond and validate.
+  bindings_system()->HandleResponse(last_params().request_id, true,
+                                    base::ListValue(), "Some API Error");
+
+  EXPECT_EQ("\"Some API Error\"",
+            GetStringPropertyFromObject(context->Global(), context,
+                                        "lastErrorMessage"));
 }
 
 }  // namespace extensions

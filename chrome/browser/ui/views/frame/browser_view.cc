@@ -124,7 +124,6 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
 #include "ui/content_accelerators/accelerator_util.h"
@@ -483,9 +482,9 @@ void BrowserView::Paint1pxHorizontalLine(gfx::Canvas* canvas,
   gfx::RectF rect(gfx::ScaleRect(gfx::RectF(bounds), scale));
   const float inset = rect.height() - 1;
   rect.Inset(0, at_bottom ? inset : 0, 0, at_bottom ? 0 : inset);
-  cc::PaintFlags paint;
-  paint.setColor(color);
-  canvas->sk_canvas()->drawRect(gfx::RectFToSkRect(rect), paint);
+  cc::PaintFlags flags;
+  flags.setColor(color);
+  canvas->sk_canvas()->drawRect(gfx::RectFToSkRect(rect), flags);
 }
 
 void BrowserView::InitStatusBubble() {
@@ -1275,14 +1274,9 @@ void BrowserView::ShowWebsiteSettings(
     content::WebContents* web_contents,
     const GURL& virtual_url,
     const security_state::SecurityInfo& security_info) {
-  views::View* popup_anchor = nullptr;
-  if (ui::MaterialDesignController::IsSecondaryUiMaterial())
-    popup_anchor = toolbar_->location_bar();
-  else
-    popup_anchor = GetLocationBarView()->location_icon_view()->GetImageView();
-
-  WebsiteSettingsPopupView::ShowPopup(popup_anchor, gfx::Rect(), profile,
-                                      web_contents, virtual_url, security_info);
+  WebsiteSettingsPopupView::ShowPopup(
+      GetLocationBarView()->GetSecurityBubbleAnchorView(), gfx::Rect(), profile,
+      web_contents, virtual_url, security_info);
 }
 
 void BrowserView::ShowAppMenu() {
@@ -2018,7 +2012,7 @@ void BrowserView::InfoBarContainerStateChanged(bool is_animating) {
 
 bool BrowserView::DrawInfoBarArrows(int* x) const {
   if (x) {
-    gfx::Point anchor(toolbar_->location_bar()->GetLocationBarAnchorPoint());
+    gfx::Point anchor(toolbar_->location_bar()->GetInfoBarAnchorPoint());
     ConvertPointToTarget(toolbar_->location_bar(), this, &anchor);
     *x = anchor.x();
   }
@@ -2325,6 +2319,7 @@ void BrowserView::ProcessFullscreen(bool fullscreen,
   if (ShouldUseImmersiveFullscreenForUrl(url))
     immersive_mode_controller_->SetEnabled(fullscreen);
 
+  browser_->WindowFullscreenStateWillChange();
   browser_->WindowFullscreenStateChanged();
 
   if (fullscreen && !chrome::IsRunningInAppMode()) {
@@ -2566,8 +2561,7 @@ int BrowserView::GetMaxTopInfoBarArrowHeight() {
   // popup.
   if (!IsFullscreen() &&
       !GetLocationBar()->GetOmniboxView()->model()->popup_model()->IsOpen()) {
-    gfx::Point icon_bottom(
-        toolbar_->location_bar()->GetLocationBarAnchorPoint());
+    gfx::Point icon_bottom(toolbar_->location_bar()->GetInfoBarAnchorPoint());
     ConvertPointToTarget(toolbar_->location_bar(), this, &icon_bottom);
     gfx::Point infobar_top;
     ConvertPointToTarget(infobar_container_, this, &infobar_top);

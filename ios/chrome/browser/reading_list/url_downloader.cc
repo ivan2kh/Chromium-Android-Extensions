@@ -255,9 +255,9 @@ void URLDownloader::DistillerCallback(
     const std::string& title) {
   if (html.empty()) {
     // The page may not be HTML. Check the mime-type to see if another handler
-    // can save offline content
+    // can save offline content.
     if (mime_type_ == "application/pdf") {
-      // PDF handler just downloads the PDF dfile
+      // PDF handler just downloads the PDF file.
       FetchPDFFile();
       return;
     }
@@ -333,8 +333,9 @@ std::string URLDownloader::SaveAndReplaceImagesInHTML(
     // Mixed content is HTTP images on HTTPS pages.
     bool image_is_mixed_content = distilled_url_.SchemeIsCryptographic() &&
                                   !images[i].url.SchemeIsCryptographic();
-    // Only save images if it is not mixed content.
-    if (!image_is_mixed_content) {
+    // Only save images if it is not mixed content and image data is valid.
+    if (!image_is_mixed_content && images[i].url.is_valid() &&
+        !images[i].data.empty()) {
       if (!SaveImage(url, images[i].url, images[i].data, &local_image_name)) {
         return std::string();
       }

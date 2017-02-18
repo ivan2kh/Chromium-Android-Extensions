@@ -63,6 +63,7 @@ source_set("omnibox_internal") {
     "//base",
     "//base:i18n",
     "//components/favicon/ios",
+    "//components/image_fetcher/ios",
     "//components/keyed_service/core",
     "//components/open_from_clipboard",
     "//components/resources",
@@ -110,6 +111,7 @@ source_set("omnibox_internal") {
 }
 
 source_set("unit_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "omnibox_text_field_ios_unittest.mm",

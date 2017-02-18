@@ -15,7 +15,7 @@ class CSSNumberInterpolationType : public CSSInterpolationType {
       : CSSInterpolationType(property) {}
 
   InterpolationValue maybeConvertStandardPropertyUnderlyingValue(
-      const StyleResolverState&) const final;
+      const ComputedStyle&) const final;
   void applyStandardPropertyValue(const InterpolableValue&,
                                   const NonInterpolableValue*,
                                   StyleResolverState&) const final;
@@ -29,7 +29,7 @@ class CSSNumberInterpolationType : public CSSInterpolationType {
   InterpolationValue maybeConvertInherit(const StyleResolverState&,
                                          ConversionCheckers&) const final;
   InterpolationValue maybeConvertValue(const CSSValue&,
-                                       const StyleResolverState&,
+                                       const StyleResolverState*,
                                        ConversionCheckers&) const final;
 };
 

@@ -14,6 +14,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/exclusive_access_bubble_views.h"
 #include "chrome/browser/ui/views/harmony/layout_delegate.h"
 #include "chrome/browser/ui/views/website_settings/permission_selector_row.h"
@@ -232,11 +233,9 @@ PermissionsBubbleDialogDelegateView::PermissionsBubbleDialogDelegateView(
         layout_delegate->GetMetric(
             LayoutDelegate::Metric::RELATED_LABEL_HORIZONTAL_SPACING)));
     views::ImageView* icon = new views::ImageView();
-    gfx::VectorIconId vector_id = requests[index]->GetIconId();
-    if (vector_id != gfx::VectorIconId::VECTOR_ICON_NONE) {
-      icon->SetImage(
-          gfx::CreateVectorIcon(vector_id, kIconSize, gfx::kChromeIconGrey));
-    }
+    const gfx::VectorIcon& vector_id = requests[index]->GetIconId();
+    icon->SetImage(
+        gfx::CreateVectorIcon(vector_id, kIconSize, gfx::kChromeIconGrey));
     icon->SetTooltipText(base::string16());  // Redundant with the text fragment
     label_container->AddChildView(icon);
     views::Label* label =
@@ -422,6 +421,11 @@ void PermissionPromptImpl::Show(const std::vector<PermissionRequest*>& requests,
   // Set |parent_window| because some valid anchors can become hidden.
   bubble_delegate_->set_parent_window(
       platform_util::GetViewForWindow(browser_->window()->GetNativeWindow()));
+
+  // Compensate for vertical padding in the anchor view's image. Note this is
+  // ignored whenever the anchor view is null.
+  bubble_delegate_->set_anchor_view_insets(gfx::Insets(
+      GetLayoutConstant(LOCATION_BAR_BUBBLE_ANCHOR_VERTICAL_INSET), 0));
 
   views::BubbleDialogDelegateView::CreateBubble(bubble_delegate_)->Show();
   bubble_delegate_->SizeToContents();

@@ -9,6 +9,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
@@ -22,6 +23,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.support.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Base64;
 
@@ -34,6 +36,7 @@ import org.chromium.base.annotations.CalledByNative;
 import org.chromium.blink_public.platform.WebDisplayMode;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.webapps.ChromeWebApkHost;
+import org.chromium.chrome.browser.webapps.WebApkInfo;
 import org.chromium.chrome.browser.webapps.WebappActivity;
 import org.chromium.chrome.browser.webapps.WebappAuthenticator;
 import org.chromium.chrome.browser.webapps.WebappDataStorage;
@@ -45,6 +48,7 @@ import org.chromium.ui.widget.Toast;
 import org.chromium.webapk.lib.client.WebApkValidator;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -400,8 +404,17 @@ public class ShortcutHelper {
         ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         int maxInnerSize = Math.round(am.getLauncherLargeIconSize() * MAX_INNER_SIZE_RATIO);
         int innerSize = Math.min(maxInnerSize, Math.max(webIcon.getWidth(), webIcon.getHeight()));
-        int padding = Math.round(ICON_PADDING_RATIO * innerSize);
-        int outerSize = innerSize + 2 * padding;
+
+        int outerSize = innerSize;
+        Rect innerBounds = new Rect(0, 0, innerSize, innerSize);
+
+        // Draw the icon with padding around it if all four corners are not transparent. Otherwise,
+        // don't add padding.
+        if (shouldPadIcon(webIcon)) {
+            int padding = Math.round(ICON_PADDING_RATIO * innerSize);
+            outerSize += 2 * padding;
+            innerBounds.offset(padding, padding);
+        }
 
         Bitmap bitmap = null;
         try {
@@ -414,15 +427,6 @@ public class ShortcutHelper {
         Canvas canvas = new Canvas(bitmap);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setFilterBitmap(true);
-        Rect innerBounds;
-
-        // Draw the icon with padding around it if all four corners are not transparent. Otherwise,
-        // don't add padding.
-        if (shouldPadIcon(webIcon)) {
-            innerBounds = new Rect(padding, padding, outerSize - padding, outerSize - padding);
-        } else {
-            innerBounds = new Rect(0, 0, outerSize, outerSize);
-        }
         canvas.drawBitmap(webIcon, null, innerBounds, paint);
 
         return bitmap;
@@ -658,5 +662,48 @@ public class ShortcutHelper {
         return null;
     }
 
+    /**
+     * Calls the native |callbackPointer| with lists of information on all installed WebAPKs.
+     *
+     * @param callbackPointer Callback to call with the information on the WebAPKs found.
+     */
+    @CalledByNative
+    public static void retrieveWebApks(long callbackPointer) {
+        List<String> shortNames = new ArrayList<>();
+        List<String> packageNames = new ArrayList<>();
+        List<Integer> shellApkVersions = new ArrayList<>();
+        List<Integer> versionCodes = new ArrayList<>();
+
+        Context context = ContextUtils.getApplicationContext();
+        PackageManager packageManager = context.getPackageManager();
+        for (PackageInfo packageInfo : packageManager.getInstalledPackages(0)) {
+            if (WebApkValidator.isValidWebApk(context, packageInfo.packageName)) {
+                // Pass non-null URL parameter so that {@link WebApkInfo#create()}
+                // return value is non-null
+                WebApkInfo webApkInfo =
+                        WebApkInfo.create(packageInfo.packageName, "", ShortcutSource.UNKNOWN);
+                if (webApkInfo != null) {
+                    shortNames.add(webApkInfo.shortName());
+                    packageNames.add(webApkInfo.webApkPackageName());
+                    shellApkVersions.add(webApkInfo.shellApkVersion());
+                    versionCodes.add(packageInfo.versionCode);
+                }
+            }
+        }
+        nativeOnWebApksRetrieved(callbackPointer, shortNames.toArray(new String[0]),
+                packageNames.toArray(new String[0]), integerListToIntArray(shellApkVersions),
+                integerListToIntArray(versionCodes));
+    }
+
+    private static int[] integerListToIntArray(@NonNull List<Integer> list) {
+        int[] array = new int[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            array[i] = list.get(i);
+        }
+        return array;
+    }
+
     private static native void nativeOnWebappDataStored(long callbackPointer);
+    private static native void nativeOnWebApksRetrieved(long callbackPointer, String[] shortNames,
+            String[] packageName, int[] shellApkVersions, int[] versionCodes);
 }

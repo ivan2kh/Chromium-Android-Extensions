@@ -21,7 +21,6 @@
 #include "ash/common/shelf/wm_shelf.h"
 #include "ash/common/shelf/wm_shelf_observer.h"
 #include "ash/common/system/web_notification/web_notification_tray.h"
-#include "ash/common/test/material_design_controller_test_api.h"
 #include "ash/common/test/test_shelf_delegate.h"
 #include "ash/common/test/test_shelf_item_delegate.h"
 #include "ash/common/test/test_system_tray_delegate.h"
@@ -142,15 +141,14 @@ class ShelfItemSelectionTracker : public TestShelfItemDelegate {
   ShelfItemSelectionTracker()
       : TestShelfItemDelegate(NULL),
         selected_(false),
-        item_selected_action_(kNoAction) {}
+        item_selected_action_(SHELF_ACTION_NONE) {}
 
   ~ShelfItemSelectionTracker() override {}
 
   // Resets to the initial state.
   void Reset() { selected_ = false; }
 
-  void set_item_selected_action(
-      ShelfItemDelegate::PerformedAction item_selected_action) {
+  void set_item_selected_action(ShelfAction item_selected_action) {
     item_selected_action_ = item_selected_action;
   }
 
@@ -158,8 +156,10 @@ class ShelfItemSelectionTracker : public TestShelfItemDelegate {
   bool WasSelected() { return selected_; }
 
   // TestShelfItemDelegate:
-  ShelfItemDelegate::PerformedAction ItemSelected(
-      const ui::Event& event) override {
+  ShelfAction ItemSelected(ui::EventType event_type,
+                           int event_flags,
+                           int64_t display_id,
+                           ShelfLaunchSource source) override {
     selected_ = true;
     return item_selected_action_;
   }
@@ -168,7 +168,7 @@ class ShelfItemSelectionTracker : public TestShelfItemDelegate {
   bool selected_;
 
   // The action returned from ItemSelected(const ui::Event&).
-  ShelfItemDelegate::PerformedAction item_selected_action_;
+  ShelfAction item_selected_action_;
 
   DISALLOW_COPY_AND_ASSIGN(ShelfItemSelectionTracker);
 };
@@ -244,7 +244,7 @@ TEST_F(WmShelfObserverIconTest, BoundsChanged) {
 // A ShelfDelegate test double that will always convert between ShelfIDs and app
 // ids. This does not support pinning and unpinning operations and the return
 // value of IsAppPinned(...) is configurable.
-class TestShelfDelegateForShelfView : public ShelfDelegate {
+class TestShelfDelegateForShelfView : public TestShelfDelegate {
  public:
   TestShelfDelegateForShelfView() {}
   ~TestShelfDelegateForShelfView() override {}
@@ -256,11 +256,6 @@ class TestShelfDelegateForShelfView : public ShelfDelegate {
     ShelfID id = 0;
     EXPECT_TRUE(base::StringToInt(app_id, &id));
     return id;
-  }
-
-  ShelfID GetShelfIDForAppIDAndLaunchID(const std::string& app_id,
-                                        const std::string& launch_id) override {
-    return GetShelfIDForAppID(app_id);
   }
 
   bool HasShelfIDToAppIDMapping(ShelfID id) const override { return true; }
@@ -685,6 +680,8 @@ class ShelfViewTest : public AshTestBase {
   }
 
   void ReplaceShelfDelegate() {
+    // Clear the value first to avoid TestShelfDelegate's singleton check.
+    WmShell::Get()->SetShelfDelegateForTesting(nullptr);
     shelf_delegate_ = new TestShelfDelegateForShelfView();
     test_api_->SetShelfDelegate(shelf_delegate_);
     WmShell::Get()->SetShelfDelegateForTesting(
@@ -737,10 +734,6 @@ class ShelfViewTextDirectionTest : public ShelfViewTest,
  public:
   ShelfViewTextDirectionTest() : text_direction_change_(GetParam()) {}
   virtual ~ShelfViewTextDirectionTest() {}
-
-  void SetUp() override { ShelfViewTest::SetUp(); }
-
-  void TearDown() override { ShelfViewTest::TearDown(); }
 
  private:
   ScopedTextDirectionChange text_direction_change_;
@@ -1806,54 +1799,6 @@ TEST_F(ShelfViewTest, CheckOverflowStatusPinOpenedAppToShelf) {
   EXPECT_FALSE(GetButtonByID(platform_app_id)->visible());
 }
 
-// Tests that the AppListButton renders as active in response to touches.
-TEST_F(ShelfViewTest, AppListButtonTouchFeedback) {
-  // Touch feedback is not available in material mode.
-  if (ash::MaterialDesignController::IsShelfMaterial())
-    return;
-
-  AppListButton* app_list_button = shelf_view_->GetAppListButton();
-  EXPECT_FALSE(app_list_button->draw_background_as_active());
-
-  ui::test::EventGenerator& generator = GetEventGenerator();
-  generator.set_current_location(
-      app_list_button->GetBoundsInScreen().CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(app_list_button->draw_background_as_active());
-
-  generator.ReleaseTouch();
-  EXPECT_FALSE(app_list_button->draw_background_as_active());
-  EXPECT_TRUE(WmShell::Get()->GetAppListTargetVisibility());
-}
-
-// Tests that a touch that slides out of the bounds of the AppListButton leads
-// to the end of rendering an active state.
-TEST_F(ShelfViewTest, AppListButtonTouchFeedbackCancellation) {
-  // Touch feedback is not available in material mode.
-  if (ash::MaterialDesignController::IsShelfMaterial())
-    return;
-
-  AppListButton* app_list_button = shelf_view_->GetAppListButton();
-  EXPECT_FALSE(app_list_button->draw_background_as_active());
-
-  ui::test::EventGenerator& generator = GetEventGenerator();
-  generator.set_current_location(
-      app_list_button->GetBoundsInScreen().CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(app_list_button->draw_background_as_active());
-
-  gfx::Point moved_point(
-      app_list_button->GetBoundsInScreen().right() + 1,
-      app_list_button->GetBoundsInScreen().CenterPoint().y());
-  generator.MoveTouch(moved_point);
-  EXPECT_FALSE(app_list_button->draw_background_as_active());
-
-  generator.set_current_location(moved_point);
-  generator.ReleaseTouch();
-  EXPECT_FALSE(app_list_button->draw_background_as_active());
-  EXPECT_FALSE(WmShell::Get()->GetAppListTargetVisibility());
-}
-
 // Verifies that Launcher_ButtonPressed_* UMA user actions are recorded when an
 // item is selected.
 TEST_F(ShelfViewTest,
@@ -1877,8 +1822,7 @@ TEST_F(ShelfViewTest, Launcher_TaskUserActionsRecordedWhenItemSelected) {
 
   ShelfID browser_shelf_id = model_->items()[browser_index_].id;
   ShelfItemSelectionTracker* selection_tracker = new ShelfItemSelectionTracker;
-  selection_tracker->set_item_selected_action(
-      ShelfItemDelegate::kNewWindowCreated);
+  selection_tracker->set_item_selected_action(SHELF_ACTION_NEW_WINDOW_CREATED);
   model_->SetShelfItemDelegate(
       browser_shelf_id, std::unique_ptr<ShelfItemDelegate>(selection_tracker));
 
@@ -1897,12 +1841,10 @@ TEST_F(ShelfViewTest,
   model_->SetShelfItemDelegate(
       browser_shelf_id, std::unique_ptr<ShelfItemDelegate>(selection_tracker));
 
-  selection_tracker->set_item_selected_action(
-      ShelfItemDelegate::kExistingWindowMinimized);
+  selection_tracker->set_item_selected_action(SHELF_ACTION_WINDOW_MINIMIZED);
   SimulateClick(browser_index_);
 
-  selection_tracker->set_item_selected_action(
-      ShelfItemDelegate::kExistingWindowActivated);
+  selection_tracker->set_item_selected_action(SHELF_ACTION_WINDOW_ACTIVATED);
   SimulateClick(browser_index_);
 
   histogram_tester.ExpectTotalCount(
@@ -2004,36 +1946,6 @@ class InkDropSpy : public views::InkDrop {
   DISALLOW_COPY_AND_ASSIGN(InkDropSpy);
 };
 
-// A menu model that contains minimum number of items needed for a menu to be
-// shown on a shelf item.
-class TestShelfMenuModel : public ui::SimpleMenuModel,
-                           public ui::SimpleMenuModel::Delegate {
- public:
-  TestShelfMenuModel() : ui::SimpleMenuModel(this) { Build(); }
-  ~TestShelfMenuModel() override {}
-
- private:
-  void Build() {
-    // A menu is expected to have at least 6 items. Three spacing separators,
-    // one title, and at least two more items.
-    AddSeparator(ui::SPACING_SEPARATOR);
-    AddItem(0, base::ASCIIToUTF16("Title"));
-    AddSeparator(ui::SPACING_SEPARATOR);
-    AddItem(1, base::ASCIIToUTF16("Item 1"));
-    AddItem(2, base::ASCIIToUTF16("Item 2"));
-    AddSeparator(ui::SPACING_SEPARATOR);
-  }
-
-  // ui::SimpleMenuModel::Delegate:
-  bool IsCommandIdChecked(int command_id) const override { return false; }
-  bool IsCommandIdEnabled(int command_id) const override {
-    return command_id != 0;
-  }
-  void ExecuteCommand(int command_id, int event_flags) override {}
-
-  DISALLOW_COPY_AND_ASSIGN(TestShelfMenuModel);
-};
-
 // A ShelfItemDelegate that returns a menu for the shelf item.
 class ListMenuShelfItemDelegate : public TestShelfItemDelegate {
  public:
@@ -2042,8 +1954,12 @@ class ListMenuShelfItemDelegate : public TestShelfItemDelegate {
 
  private:
   // TestShelfItemDelegate:
-  ui::SimpleMenuModel* CreateApplicationMenu(int event_flags) override {
-    return new TestShelfMenuModel;
+  ShelfAppMenuItemList GetAppMenuItems(int event_flags) override {
+    ShelfAppMenuItemList items;
+    base::string16 title = base::ASCIIToUTF16("title");
+    items.push_back(base::MakeUnique<ShelfApplicationMenuItem>(title));
+    items.push_back(base::MakeUnique<ShelfApplicationMenuItem>(title));
+    return items;
   }
 
   DISALLOW_COPY_AND_ASSIGN(ListMenuShelfItemDelegate);
@@ -2051,8 +1967,7 @@ class ListMenuShelfItemDelegate : public TestShelfItemDelegate {
 
 }  // namespace
 
-// Test fixture that forces material design mode in order to test ink drop
-// ripples on shelf.
+// Test fixture for testing material design ink drop ripples on shelf.
 class ShelfViewInkDropTest : public ShelfViewTest {
  public:
   ShelfViewInkDropTest() {}
@@ -2060,8 +1975,6 @@ class ShelfViewInkDropTest : public ShelfViewTest {
 
   void SetUp() override {
     ash_test_helper()->set_test_shell_delegate(CreateTestShellDelegate());
-
-    set_material_mode(ash::MaterialDesignController::MATERIAL_EXPERIMENTAL);
 
     ShelfViewTest::SetUp();
   }

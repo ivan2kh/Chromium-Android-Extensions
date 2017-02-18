@@ -89,6 +89,7 @@ class PaintArtifactCompositor;
 class PaintController;
 class PaintInvalidationState;
 class Page;
+class PrintContext;
 class ScrollingCoordinator;
 class TracedValue;
 class TransformState;
@@ -229,8 +230,8 @@ class CORE_EXPORT FrameView final
 
   // Fixed-position objects.
   typedef HashSet<LayoutObject*> ViewportConstrainedObjectSet;
-  void addViewportConstrainedObject(LayoutObject*);
-  void removeViewportConstrainedObject(LayoutObject*);
+  void addViewportConstrainedObject(LayoutObject&);
+  void removeViewportConstrainedObject(LayoutObject&);
   const ViewportConstrainedObjectSet* viewportConstrainedObjects() const {
     return m_viewportConstrainedObjects.get();
   }
@@ -827,6 +828,17 @@ class CORE_EXPORT FrameView final
   void setAnimationTimeline(std::unique_ptr<CompositorAnimationTimeline>);
   void setAnimationHost(std::unique_ptr<CompositorAnimationHost>);
 
+  // Returns the GeometryMapper associated with the root local frame.
+  GeometryMapper& geometryMapper();
+
+  void crossOriginStatusChanged();
+
+  // The visual viewport can supply scrollbars which affect the existence of
+  // our scrollbars (see: computeScrollbarExistence).
+  void visualViewportScrollbarsChanged();
+
+  LayoutUnit caretWidth() const;
+
  protected:
   // Scroll the content via the compositor.
   bool scrollContentsFastPath(const IntSize& scrollDelta);
@@ -887,6 +899,11 @@ class CORE_EXPORT FrameView final
   void updateScrollOffset(const ScrollOffset&, ScrollType) override;
 
   void updateScrollbarEnabledState();
+
+  void dispatchEventsForPrintingOnAllFrames();
+
+  void setupPrintContext();
+  void clearPrintContext();
 
   void updateLifecyclePhasesInternal(
       DocumentLifecycle::LifecycleState targetState);
@@ -1011,7 +1028,9 @@ class CORE_EXPORT FrameView final
 
   void updateViewportIntersectionsForSubtree(
       DocumentLifecycle::LifecycleState targetState);
-  void updateRenderThrottlingStatus(bool hidden, bool subtreeThrottled);
+  void updateRenderThrottlingStatus(bool hidden,
+                                    bool subtreeThrottled,
+                                    bool forceThrottlingInvalidation = false);
   void notifyResizeObservers();
 
   // PaintInvalidationCapableScrollableArea
@@ -1030,13 +1049,6 @@ class CORE_EXPORT FrameView final
   // Member<Widget> instead.
   HashSet<RefPtr<LayoutPart>> m_parts;
 
-  // The RefPtr cycle between LocalFrame and FrameView is broken
-  // when a LocalFrame is detached by LocalFrame::detach().
-  // It clears the LocalFrame's m_view reference via setView(nullptr).
-  //
-  // For Oilpan, Member reference cycles pose no problem, but
-  // LocalFrame's FrameView is also cleared by that setView(), so as to
-  // keep the observable lifespan of LocalFrame::view() identical.
   Member<LocalFrame> m_frame;
 
   WebDisplayMode m_displayMode;
@@ -1202,6 +1214,10 @@ class CORE_EXPORT FrameView final
   std::unique_ptr<CompositorAnimationHost> m_animationHost;
 
   std::unique_ptr<GeometryMapper> m_geometryMapper;
+
+  Member<PrintContext> m_printContext;
+
+  FRIEND_TEST_ALL_PREFIXES(WebViewTest, DeviceEmulationResetScrollbars);
 };
 
 inline void FrameView::incrementVisuallyNonEmptyCharacterCount(unsigned count) {

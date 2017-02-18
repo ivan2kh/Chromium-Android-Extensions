@@ -90,7 +90,7 @@ class GFX_EXPORT SkiaTextRenderer {
   // lengths and colors; to support text selection appearances.
   class DiagonalStrike {
    public:
-    DiagonalStrike(Canvas* canvas, Point start, const cc::PaintFlags& paint);
+    DiagonalStrike(Canvas* canvas, Point start, const cc::PaintFlags& flags);
     ~DiagonalStrike();
 
     void AddPiece(int length, SkColor color);
@@ -101,7 +101,7 @@ class GFX_EXPORT SkiaTextRenderer {
 
     Canvas* canvas_;
     const Point start_;
-    cc::PaintFlags paint_;
+    cc::PaintFlags flags_;
     int total_length_;
     std::vector<Piece> pieces_;
 
@@ -110,7 +110,7 @@ class GFX_EXPORT SkiaTextRenderer {
 
   Canvas* canvas_;
   cc::PaintCanvas* canvas_skia_;
-  cc::PaintFlags paint_;
+  cc::PaintFlags flags_;
   SkScalar underline_thickness_;
   SkScalar underline_position_;
   std::unique_ptr<DiagonalStrike> diagonal_;
@@ -196,10 +196,10 @@ sk_sp<SkTypeface> CreateSkiaTypeface(const Font& font,
                                      bool italic,
                                      Font::Weight weight);
 
-// Applies the given FontRenderParams to a Skia |paint|.
+// Applies the given FontRenderParams to the PaintFlags.
 void ApplyRenderParams(const FontRenderParams& params,
                        bool subpixel_rendering_suppressed,
-                       cc::PaintFlags* paint);
+                       cc::PaintFlags* flags);
 
 }  // namespace internal
 
@@ -249,12 +249,6 @@ class GFX_EXPORT RenderText {
 
   bool cursor_enabled() const { return cursor_enabled_; }
   void SetCursorEnabled(bool cursor_enabled);
-
-  bool cursor_visible() const { return cursor_visible_; }
-  void set_cursor_visible(bool visible) { cursor_visible_ = visible; }
-
-  SkColor cursor_color() const { return cursor_color_; }
-  void set_cursor_color(SkColor color) { cursor_color_ = color; }
 
   SkColor selection_color() const { return selection_color_; }
   void set_selection_color(SkColor color) { selection_color_ = color; }
@@ -452,9 +446,6 @@ class GFX_EXPORT RenderText {
   int GetBaseline();
 
   void Draw(Canvas* canvas);
-
-  // Draws a cursor at |position|.
-  void DrawCursor(Canvas* canvas, const SelectionModel& position);
 
   // Gets the SelectionModel from a visual point in local coordinates.
   virtual SelectionModel FindCursorPosition(const Point& point) = 0;
@@ -764,12 +755,6 @@ class GFX_EXPORT RenderText {
   // Specifies whether the cursor is enabled. If disabled, no space is reserved
   // for the cursor when positioning text.
   bool cursor_enabled_;
-
-  // The cursor visibility.
-  bool cursor_visible_;
-
-  // The color used for the cursor.
-  SkColor cursor_color_;
 
   // The color used for drawing selected text.
   SkColor selection_color_;

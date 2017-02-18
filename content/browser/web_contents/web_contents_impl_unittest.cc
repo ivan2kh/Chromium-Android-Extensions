@@ -434,6 +434,7 @@ TEST_F(WebContentsImplTest, DirectNavigationToViewSourceWebUI) {
   main_test_rfh()->PrepareForCommit();
   main_test_rfh()->OnMessageReceived(
       FrameHostMsg_DidStartProvisionalLoad(1, kRewrittenURL,
+                                           std::vector<GURL>(),
                                            base::TimeTicks::Now()));
   main_test_rfh()->SendNavigateWithParams(&params);
 
@@ -520,8 +521,9 @@ TEST_F(WebContentsImplTest, CrossSiteBoundaries) {
       url, Referrer(), ui::PAGE_TRANSITION_TYPED, std::string());
   int entry_id = controller().GetPendingEntry()->GetUniqueID();
   orig_rfh->PrepareForCommit();
-  contents()->TestDidNavigate(orig_rfh, entry_id, true, url,
-                              ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      orig_rfh, entry_id, true, url, Referrer(), ui::PAGE_TRANSITION_TYPED,
+      false, 0, 0);
 
   // Keep the number of active frames in orig_rfh's SiteInstance non-zero so
   // that orig_rfh doesn't get deleted when it gets swapped out.
@@ -556,8 +558,9 @@ TEST_F(WebContentsImplTest, CrossSiteBoundaries) {
   }
 
   // DidNavigate from the pending page
-  contents()->TestDidNavigate(pending_rfh, entry_id, true, url2,
-                              ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      pending_rfh, entry_id, true, url2, Referrer(), ui::PAGE_TRANSITION_TYPED,
+      false, 1, 1);
   SiteInstance* instance2 = contents()->GetSiteInstance();
 
   // Keep the number of active frames in pending_rfh's SiteInstance
@@ -594,8 +597,9 @@ TEST_F(WebContentsImplTest, CrossSiteBoundaries) {
   }
 
   // DidNavigate from the back action
-  contents()->TestDidNavigate(goback_rfh, entry_id, false, url2,
-                              ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      goback_rfh, entry_id, false, url2, Referrer(), ui::PAGE_TRANSITION_TYPED,
+      false, 2, 0);
   EXPECT_FALSE(contents()->CrossProcessNavigationPending());
   EXPECT_EQ(goback_rfh, main_test_rfh());
   EXPECT_EQ(instance1, contents()->GetSiteInstance());
@@ -1140,8 +1144,9 @@ TEST_F(WebContentsImplTest, CrossSiteNavigationBackPreempted) {
   int entry_id = controller().GetPendingEntry()->GetUniqueID();
   TestRenderFrameHost* webui_rfh = main_test_rfh();
   webui_rfh->PrepareForCommit();
-  contents()->TestDidNavigate(webui_rfh, entry_id, true, url1,
-                              ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      webui_rfh, entry_id, true, url1, Referrer(), ui::PAGE_TRANSITION_TYPED,
+      false, 0, 0);
   NavigationEntry* entry1 = controller().GetLastCommittedEntry();
   SiteInstance* instance1 = contents()->GetSiteInstance();
 
@@ -1165,8 +1170,9 @@ TEST_F(WebContentsImplTest, CrossSiteNavigationBackPreempted) {
   webui_rfh->PrepareForCommit();
 
   // DidNavigate from the pending page.
-  contents()->TestDidNavigate(google_rfh, entry_id, true, url2,
-                              ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      google_rfh, entry_id, true, url2, Referrer(), ui::PAGE_TRANSITION_TYPED,
+      false, 1, 1);
   NavigationEntry* entry2 = controller().GetLastCommittedEntry();
   SiteInstance* instance2 = contents()->GetSiteInstance();
 
@@ -1186,8 +1192,9 @@ TEST_F(WebContentsImplTest, CrossSiteNavigationBackPreempted) {
   entry_id = controller().GetPendingEntry()->GetUniqueID();
   EXPECT_FALSE(contents()->CrossProcessNavigationPending());
   main_test_rfh()->PrepareForCommit();
-  contents()->TestDidNavigate(google_rfh, entry_id, true, url3,
-                              ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      google_rfh, entry_id, true, url3, Referrer(), ui::PAGE_TRANSITION_TYPED,
+      false, 2, 2);
   NavigationEntry* entry3 = controller().GetLastCommittedEntry();
   SiteInstance* instance3 = contents()->GetSiteInstance();
 
@@ -1219,8 +1226,9 @@ TEST_F(WebContentsImplTest, CrossSiteNavigationBackPreempted) {
       FrameHostMsg_BeforeUnload_ACK(0, true, now, now));
 
   // DidNavigate from the first back. This aborts the second back's pending RFH.
-  contents()->TestDidNavigate(google_rfh, goback_entry->GetUniqueID(), false,
-                              url2, ui::PAGE_TRANSITION_TYPED);
+  contents()->TestDidNavigateWithSequenceNumber(
+      google_rfh, goback_entry->GetUniqueID(), false, url2, Referrer(),
+      ui::PAGE_TRANSITION_TYPED, false, 1, 1);
 
   // We should commit this page and forget about the second back.
   EXPECT_FALSE(contents()->CrossProcessNavigationPending());
@@ -2499,10 +2507,10 @@ TEST_F(WebContentsImplTest, NoJSMessageOnInterstitials) {
   // While the interstitial is showing, let's simulate the hidden page
   // attempting to show a JS message.
   IPC::Message* dummy_message = new IPC::Message;
-  contents()->RunJavaScriptMessage(main_test_rfh(),
-      base::ASCIIToUTF16("This is an informative message"),
-      base::ASCIIToUTF16("OK"),
-      kGURL, JAVASCRIPT_MESSAGE_TYPE_ALERT, dummy_message);
+  contents()->RunJavaScriptDialog(
+      main_test_rfh(), base::ASCIIToUTF16("This is an informative message"),
+      base::ASCIIToUTF16("OK"), kGURL, JAVASCRIPT_DIALOG_TYPE_ALERT,
+      dummy_message);
   EXPECT_TRUE(contents()->last_dialog_suppressed_);
 }
 
@@ -3390,7 +3398,7 @@ class TestJavaScriptDialogManager : public JavaScriptDialogManager {
 
   void RunJavaScriptDialog(WebContents* web_contents,
                            const GURL& origin_url,
-                           JavaScriptMessageType javascript_message_type,
+                           JavaScriptDialogType dialog_type,
                            const base::string16& message_text,
                            const base::string16& default_prompt_text,
                            const DialogClosedCallback& callback,

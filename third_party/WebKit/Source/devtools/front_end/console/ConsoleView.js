@@ -80,21 +80,35 @@ Console.ConsoleView = class extends UI.VBox {
     toolbar.appendSeparator();
     toolbar.appendToolbarItem(this._showSettingsPaneButton);
 
-    this._preserveLogCheckbox = new UI.ToolbarCheckbox(
-        Common.UIString('Preserve log'), Common.UIString('Do not clear log on page reload / navigation'),
-        Common.moduleSetting('preserveConsoleLog'));
-    this._hideNetworkMessagesCheckbox = new UI.ToolbarCheckbox(
-        Common.UIString('Hide network'), Common.UIString('Hide network messages'),
-        this._filter._hideNetworkMessagesSetting);
+    this._preserveLogCheckbox = new UI.ToolbarSettingCheckbox(
+        Common.moduleSetting('preserveConsoleLog'), Common.UIString('Do not clear log on page reload / navigation'),
+        Common.UIString('Preserve log'));
+    this._hideNetworkMessagesCheckbox = new UI.ToolbarSettingCheckbox(
+        this._filter._hideNetworkMessagesSetting, this._filter._hideNetworkMessagesSetting.title(),
+        Common.UIString('Hide network'));
+    var monitoringXHREnabledSetting = Common.moduleSetting('monitoringXHREnabled');
+    this._timestampsSetting = Common.moduleSetting('consoleTimestampsEnabled');
+    this._consoleHistoryAutocompleteSetting = Common.moduleSetting('consoleHistoryAutocomplete');
 
-    var settingsToolbar = new UI.Toolbar('', this._contentsElement);
-    settingsToolbar.appendToolbarItem(this._hideNetworkMessagesCheckbox);
-    settingsToolbar.appendToolbarItem(this._preserveLogCheckbox);
-    settingsToolbar.appendToolbarItem(this._filter._showTargetMessagesCheckbox);
+    var settingsPane = new UI.HBox();
+    settingsPane.show(this._contentsElement);
+    settingsPane.element.classList.add('console-settings-pane');
+
+    var settingsToolbarLeft = new UI.Toolbar('', settingsPane.element);
+    settingsToolbarLeft.makeVertical();
+    settingsToolbarLeft.appendToolbarItem(this._hideNetworkMessagesCheckbox);
+    settingsToolbarLeft.appendToolbarItem(this._preserveLogCheckbox);
+    settingsToolbarLeft.appendToolbarItem(this._filter._showTargetMessagesCheckbox);
+
+    var settingsToolbarRight = new UI.Toolbar('', settingsPane.element);
+    settingsToolbarRight.makeVertical();
+    settingsToolbarRight.appendToolbarItem(new UI.ToolbarSettingCheckbox(monitoringXHREnabledSetting));
+    settingsToolbarRight.appendToolbarItem(new UI.ToolbarSettingCheckbox(this._timestampsSetting));
+    settingsToolbarRight.appendToolbarItem(new UI.ToolbarSettingCheckbox(this._consoleHistoryAutocompleteSetting));
     if (!this._showSettingsPaneSetting.get())
-      settingsToolbar.element.classList.add('hidden');
+      settingsPane.element.classList.add('hidden');
     this._showSettingsPaneSetting.addChangeListener(
-        () => settingsToolbar.element.classList.toggle('hidden', !this._showSettingsPaneSetting.get()));
+        () => settingsPane.element.classList.toggle('hidden', !this._showSettingsPaneSetting.get()));
 
     this._viewport = new Console.ConsoleViewport(this);
     this._viewport.setStickToBottom(true);
@@ -128,7 +142,7 @@ Console.ConsoleView = class extends UI.VBox {
     this._registerShortcuts();
 
     this._messagesElement.addEventListener('contextmenu', this._handleContextMenuEvent.bind(this), false);
-    Common.moduleSetting('monitoringXHREnabled').addChangeListener(this._monitoringXHREnabledSettingChanged, this);
+    monitoringXHREnabledSetting.addChangeListener(this._monitoringXHREnabledSettingChanged, this);
 
     this._linkifier = new Components.Linkifier();
 
@@ -142,7 +156,6 @@ Console.ConsoleView = class extends UI.VBox {
     this._prompt.show(this._promptElement);
     this._prompt.element.addEventListener('keydown', this._promptKeyDown.bind(this), true);
 
-    this._consoleHistoryAutocompleteSetting = Common.moduleSetting('consoleHistoryAutocomplete');
     this._consoleHistoryAutocompleteSetting.addChangeListener(this._consoleHistoryAutocompleteChanged, this);
 
     var historyData = this._consoleHistorySetting.get();
@@ -150,7 +163,7 @@ Console.ConsoleView = class extends UI.VBox {
     this._consoleHistoryAutocompleteChanged();
 
     this._updateFilterStatus();
-    Common.moduleSetting('consoleTimestampFormat').addChangeListener(this._consoleTimestampsSettingChanged, this);
+    this._timestampsSetting.addChangeListener(this._consoleTimestampsSettingChanged, this);
 
     this._registerWithMessageSink();
     SDK.targetManager.observeTargets(this);
@@ -676,8 +689,7 @@ Console.ConsoleView = class extends UI.VBox {
    * @return {boolean}
    */
   _tryToCollapseMessages(lastMessage, viewMessage) {
-    var timestampFormat = Common.moduleSetting('consoleTimestampFormat').get();
-    var timestampsShown = timestampFormat !== Console.ConsoleViewMessage.TimestampFormat.None;
+    var timestampsShown = this._timestampsSetting.get();
     if (!timestampsShown && viewMessage && !lastMessage.consoleMessage().isGroupMessage() &&
         lastMessage.consoleMessage().isEqual(viewMessage.consoleMessage())) {
       viewMessage.incrementRepeatCount();
@@ -1039,8 +1051,10 @@ Console.ConsoleViewFilter = class {
    * @param {function()} filterChangedCallback
    */
   constructor(filterChangedCallback) {
-    this._showTargetMessagesCheckbox =
-        new UI.ToolbarCheckbox(Common.UIString('Selected context only'), undefined, undefined, filterChangedCallback);
+    this._showTargetMessagesCheckbox = new UI.ToolbarCheckbox(
+        Common.UIString('Selected context only'),
+        Common.UIString('Only show messages from the current context (top, iframe, worker, extension)'),
+        filterChangedCallback);
     this._filterChanged = filterChangedCallback;
 
     this._messageURLFiltersSetting = Common.settings.createSetting('messageURLFilters', {});
@@ -1052,7 +1066,7 @@ Console.ConsoleViewFilter = class {
     this._messageLevelFiltersSetting.addChangeListener(this._filterChanged);
     this._hideNetworkMessagesSetting.addChangeListener(this._filterChanged);
 
-    this._textFilterUI = new UI.ToolbarInput(Common.UIString('Filter'), 0.2, 1);
+    this._textFilterUI = new UI.ToolbarInput(Common.UIString('Filter'), 0.2, 1, true);
     this._textFilterUI.addEventListener(UI.ToolbarInput.Event.TextChanged, this._textFilterChanged, this);
 
     var levels = [

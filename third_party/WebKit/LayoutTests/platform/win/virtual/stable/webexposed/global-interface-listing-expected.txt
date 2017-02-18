@@ -106,6 +106,7 @@ interface AudioBufferSourceNode : AudioScheduledSourceNode
     setter loopStart
 interface AudioContext : BaseAudioContext
     attribute @@toStringTag
+    getter baseLatency
     method close
     method constructor
     method getOutputTimestamp
@@ -2197,6 +2198,7 @@ interface HTMLLinkElement : HTMLElement
     getter import
     getter integrity
     getter media
+    getter referrerPolicy
     getter rel
     getter relList
     getter rev
@@ -2213,6 +2215,7 @@ interface HTMLLinkElement : HTMLElement
     setter hreflang
     setter integrity
     setter media
+    setter referrerPolicy
     setter rel
     setter relList
     setter rev
@@ -3045,6 +3048,7 @@ interface IntersectionObserverEntry
     getter boundingClientRect
     getter intersectionRatio
     getter intersectionRect
+    getter isIntersecting
     getter rootBounds
     getter target
     getter time
@@ -3706,6 +3710,10 @@ interface PerformanceEntry
     getter startTime
     method constructor
     method toJSON
+interface PerformanceLongTaskTiming : PerformanceEntry
+    attribute @@toStringTag
+    getter attribution
+    method constructor
 interface PerformanceMark : PerformanceEntry
     attribute @@toStringTag
     method constructor
@@ -3835,6 +3843,7 @@ interface PointerEvent : MouseEvent
     getter twist
     getter width
     method constructor
+    method getCoalescedEvents
 interface PopStateEvent : Event
     attribute @@toStringTag
     getter state
@@ -5326,7 +5335,6 @@ interface ShadowRoot : DocumentFragment
     getter olderShadowRoot
     getter pointerLockElement
     getter styleSheets
-    method cloneNode
     method constructor
     method elementFromPoint
     method elementsFromPoint
@@ -5479,6 +5487,13 @@ interface SyncManager
     method constructor
     method getTags
     method register
+interface TaskAttributionTiming : PerformanceEntry
+    attribute @@toStringTag
+    getter containerId
+    getter containerName
+    getter containerSrc
+    getter containerType
+    method constructor
 interface Text : CharacterData
     attribute @@toStringTag
     getter assignedSlot

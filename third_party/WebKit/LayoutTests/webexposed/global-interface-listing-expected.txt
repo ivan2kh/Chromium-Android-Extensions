@@ -163,6 +163,7 @@ interface AudioBufferSourceNode : AudioScheduledSourceNode
     setter loopStart
 interface AudioContext : BaseAudioContext
     attribute @@toStringTag
+    getter baseLatency
     method close
     method constructor
     method getOutputTimestamp
@@ -681,6 +682,7 @@ interface CSSTransformComponent
     method is2D
 interface CSSTransformValue : CSSStyleValue
     attribute @@toStringTag
+    getter length
     method @@iterator
     method constructor
     method entries
@@ -700,6 +702,7 @@ interface CSSURLImageValue : CSSImageValue
     method constructor
 interface CSSUnparsedValue : CSSStyleValue
     attribute @@toStringTag
+    getter length
     method @@iterator
     method constructor
     method entries
@@ -1149,6 +1152,7 @@ interface DOMQuad
     getter p3
     getter p4
     method constructor
+    method getBounds
     method toJSON
 interface DOMRect : DOMRectReadOnly
     attribute @@toStringTag
@@ -2807,6 +2811,7 @@ interface HTMLLinkElement : HTMLElement
     getter import
     getter integrity
     getter media
+    getter referrerPolicy
     getter rel
     getter relList
     getter rev
@@ -2824,6 +2829,7 @@ interface HTMLLinkElement : HTMLElement
     setter hreflang
     setter integrity
     setter media
+    setter referrerPolicy
     setter rel
     setter relList
     setter rev
@@ -3720,6 +3726,7 @@ interface IntersectionObserverEntry
     getter boundingClientRect
     getter intersectionRatio
     getter intersectionRect
+    getter isIntersecting
     getter rootBounds
     getter target
     getter time
@@ -3820,6 +3827,16 @@ interface Magnetometer : Sensor
     getter x
     getter y
     getter z
+    method constructor
+interface MediaCapabilities
+    attribute @@toStringTag
+    method constructor
+    method query
+interface MediaDecodingAbility
+    attribute @@toStringTag
+    getter powerEfficient
+    getter smooth
+    getter supported
     method constructor
 interface MediaDeviceInfo
     attribute @@toStringTag
@@ -4089,6 +4106,39 @@ interface MimeTypeArray
     method constructor
     method item
     method namedItem
+interface Mojo
+    static method createMessagePipe
+    attribute @@toStringTag
+    attribute RESULT_ABORTED
+    attribute RESULT_ALREADY_EXISTS
+    attribute RESULT_BUSY
+    attribute RESULT_CANCELLED
+    attribute RESULT_DATA_LOSS
+    attribute RESULT_DEADLINE_EXCEEDED
+    attribute RESULT_FAILED_PRECONDITION
+    attribute RESULT_INTERNAL
+    attribute RESULT_INVALID_ARGUMENT
+    attribute RESULT_NOT_FOUND
+    attribute RESULT_OK
+    attribute RESULT_OUT_OF_RANGE
+    attribute RESULT_PERMISSION_DENIED
+    attribute RESULT_RESOURCE_EXHAUSTED
+    attribute RESULT_SHOULD_WAIT
+    attribute RESULT_UNAVAILABLE
+    attribute RESULT_UNIMPLEMENTED
+    attribute RESULT_UNKNOWN
+    method constructor
+interface MojoHandle
+    attribute @@toStringTag
+    method close
+    method constructor
+    method readMessage
+    method watch
+    method writeMessage
+interface MojoWatcher
+    attribute @@toStringTag
+    method cancel
+    method constructor
 interface MouseEvent : UIEvent
     attribute @@toStringTag
     getter altKey
@@ -4185,6 +4235,7 @@ interface Navigator
     getter language
     getter languages
     getter maxTouchPoints
+    getter mediaCapabilities
     getter mediaDevices
     getter mediaSession
     getter mimeTypes
@@ -4198,7 +4249,6 @@ interface Navigator
     getter productSub
     getter serviceWorker
     getter storage
-    getter storageQuota
     getter usb
     getter userAgent
     getter vendor
@@ -6300,7 +6350,6 @@ interface ShadowRoot : DocumentFragment
     getter olderShadowRoot
     getter pointerLockElement
     getter styleSheets
-    method cloneNode
     method constructor
     method elementFromPoint
     method elementsFromPoint
@@ -6548,12 +6597,9 @@ interface TextTrack : EventTarget
     getter language
     getter mode
     getter oncuechange
-    getter regions
     method addCue
-    method addRegion
     method constructor
     method removeCue
-    method removeRegion
     setter mode
     setter oncuechange
 interface TextTrackCue : EventTarget
@@ -6896,7 +6942,7 @@ interface VTTCue : TextTrackCue
     getter align
     getter line
     getter position
-    getter regionId
+    getter region
     getter size
     getter snapToLines
     getter text
@@ -6906,38 +6952,28 @@ interface VTTCue : TextTrackCue
     setter align
     setter line
     setter position
-    setter regionId
+    setter region
     setter size
     setter snapToLines
     setter text
     setter vertical
 interface VTTRegion
     attribute @@toStringTag
-    getter height
-    getter id
+    getter lines
     getter regionAnchorX
     getter regionAnchorY
     getter scroll
-    getter track
     getter viewportAnchorX
     getter viewportAnchorY
     getter width
     method constructor
-    setter height
-    setter id
+    setter lines
     setter regionAnchorX
     setter regionAnchorY
     setter scroll
     setter viewportAnchorX
     setter viewportAnchorY
     setter width
-interface VTTRegionList
-    attribute @@toStringTag
-    getter length
-    method @@iterator
-    method constructor
-    method getRegionById
-    method item
 interface ValidityState
     attribute @@toStringTag
     getter badInput

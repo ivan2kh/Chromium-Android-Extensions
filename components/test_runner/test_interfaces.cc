@@ -18,8 +18,8 @@
 #include "components/test_runner/test_runner.h"
 #include "components/test_runner/text_input_controller.h"
 #include "components/test_runner/web_view_test_proxy.h"
+#include "third_party/WebKit/public/platform/WebCache.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
-#include "third_party/WebKit/public/web/WebCache.h"
 #include "third_party/WebKit/public/web/WebKit.h"
 #include "third_party/WebKit/public/web/WebView.h"
 
@@ -31,7 +31,7 @@ TestInterfaces::TestInterfaces()
       main_view_(nullptr) {
   blink::setLayoutTestMode(true);
   // NOTE: please don't put feature specific enable flags here,
-  // instead add them to RuntimeEnabledFeatures.in
+  // instead add them to RuntimeEnabledFeatures.json5
 
   ResetAll();
 }

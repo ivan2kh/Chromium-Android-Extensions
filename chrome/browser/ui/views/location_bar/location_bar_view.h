@@ -126,10 +126,6 @@ class LocationBarView : public LocationBar,
 
   ~LocationBarView() override;
 
-  // Returns the location bar border color blended with the toolbar color.
-  // It's guaranteed to be opaque.
-  static SkColor GetOpaqueBorderColor(bool incognito);
-
   // Initializes the LocationBarView.
   void Init();
 
@@ -140,6 +136,10 @@ class LocationBarView : public LocationBar,
   // Returns the appropriate color for the desired kind, based on the user's
   // system theme.
   SkColor GetColor(ColorKind kind) const;
+
+  // Returns the location bar border color blended with the toolbar color.
+  // It's guaranteed to be opaque.
+  SkColor GetOpaqueBorderColor(bool incognito) const;
 
   // Returns the color to be used for security text in the context of
   // |security_level|.
@@ -159,14 +159,6 @@ class LocationBarView : public LocationBar,
   ManagePasswordsIconViews* manage_passwords_icon_view() {
     return manage_passwords_icon_view_;
   }
-
-  // Sets |preview_enabled| for the PageAction View associated with this
-  // |page_action|. If |preview_enabled| is true, the view will display the
-  // PageActions icon even though it has not been activated by the extension.
-  // This is used by the ExtensionInstalledBubble to preview what the icon
-  // will look like for the user upon installation of the extension.
-  void SetPreviewEnabledPageAction(ExtensionAction* page_action,
-                                   bool preview_enabled);
 
   // Retrieves the PageAction View which is associated with |page_action|.
   PageActionWithBadgeView* GetPageActionView(ExtensionAction* page_action);
@@ -205,9 +197,13 @@ class LocationBarView : public LocationBar,
 
   LocationIconView* location_icon_view() { return location_icon_view_; }
 
-  // Return the point suitable for anchoring location-bar-anchored bubbles at.
-  // The point will be returned in the coordinates of the LocationBarView.
-  gfx::Point GetLocationBarAnchorPoint() const;
+  // Where InfoBar arrows should point. The point will be returned in the
+  // coordinates of the LocationBarView.
+  gfx::Point GetInfoBarAnchorPoint() const;
+
+  // The anchor view for security-related bubbles. That is, those anchored to
+  // the leading edge of the Omnibox, under the padlock.
+  views::View* GetSecurityBubbleAnchorView();
 
   OmniboxViewViews* omnibox_view() { return omnibox_view_; }
   const OmniboxViewViews* omnibox_view() const { return omnibox_view_; }
@@ -262,6 +258,9 @@ class LocationBarView : public LocationBar,
   // Helper for GetMinimumWidth().  Calculates the incremental minimum width
   // |view| should add to the trailing width after the omnibox.
   int IncrementalMinimumWidth(views::View* view) const;
+
+  // The border color, drawn on top of the toolbar.
+  SkColor GetBorderColor() const;
 
   // Returns the thickness of any visible edge, in pixels.
   int GetHorizontalEdgeThickness() const;
@@ -361,6 +360,7 @@ class LocationBarView : public LocationBar,
   ExtensionAction* GetVisiblePageAction(size_t index) override;
   void TestPageActionPressed(size_t index) override;
   bool GetBookmarkStarVisibility() override;
+  bool TestContentSettingImagePressed(size_t index) override;
 
   // views::View:
   const char* GetClassName() const override;

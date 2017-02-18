@@ -4,7 +4,7 @@
 
 import collections
 
-from webkitpy.common.checkout.scm.git_mock import MockGit
+from webkitpy.common.checkout.git_mock import MockGit
 from webkitpy.common.host_mock import MockHost
 from webkitpy.common.system.executive_mock import MockExecutive
 from webkitpy.common.system.log_testing import LoggingTestCase
@@ -22,13 +22,13 @@ class TestImporterTest(LoggingTestCase):
             MockChromiumCommit(sha='deadbeef', position=123)]
         importer.checkout_is_okay = lambda _: True
         return_code = importer.main(['wpt'])
-        self.assertEqual(return_code, 1)
+        self.assertEqual(return_code, 0)
         self.assertLog([
             'INFO: Cloning repo: https://chromium.googlesource.com/external/w3c/web-platform-tests.git\n',
             'INFO: Local path: /mock-checkout/third_party/WebKit/wpt\n',
-            'ERROR: There were exportable but not-yet-exported commits:\n',
-            'ERROR:   https://chromium.googlesource.com/chromium/src/+/deadbeef\n',
-            'ERROR: Aborting import to prevent clobbering these commits.\n',
+            'INFO: There were exportable but not-yet-exported commits:\n',
+            'INFO:   https://chromium.googlesource.com/chromium/src/+/deadbeef\n',
+            'INFO: Aborting import to prevent clobbering these commits.\n',
             'INFO: Deleting temp repo directory /mock-checkout/third_party/WebKit/wpt.\n',
         ])
 
@@ -76,7 +76,7 @@ class TestImporterTest(LoggingTestCase):
         host = MockHost()
         host.executive = MockExecutive(output='Last commit message\n\n')
         importer = TestImporter(host)
-        description = importer._cl_description()
+        description = importer._cl_description(directory_owners={})
         self.assertEqual(
             description,
             ('Last commit message\n\n'
@@ -91,7 +91,7 @@ class TestImporterTest(LoggingTestCase):
         importer.host.environ['BUILDBOT_MASTERNAME'] = 'my.master'
         importer.host.environ['BUILDBOT_BUILDERNAME'] = 'b'
         importer.host.environ['BUILDBOT_BUILDNUMBER'] = '123'
-        description = importer._cl_description()
+        description = importer._cl_description(directory_owners={})
         self.assertEqual(
             description,
             ('Last commit message\n'
@@ -104,10 +104,30 @@ class TestImporterTest(LoggingTestCase):
         host = MockHost()
         host.executive = MockExecutive(output='Summary\n\nNOEXPORT=true\n\n')
         importer = TestImporter(host)
-        description = importer._cl_description()
+        description = importer._cl_description(directory_owners={})
         self.assertEqual(
             description,
             ('Summary\n\n'
+             'TBR=qyearsley@chromium.org\n'
+             'NOEXPORT=true'))
+
+    def test_cl_description_with_directory_owners(self):
+        host = MockHost()
+        host.executive = MockExecutive(output='Last commit message\n\n')
+        importer = TestImporter(host)
+        description = importer._cl_description(directory_owners={
+            'someone@chromium.org': ['external/wpt/foo', 'external/wpt/bar'],
+            'someone-else@chromium.org': ['external/wpt/baz'],
+        })
+        self.assertEqual(
+            description,
+            ('Last commit message\n\n'
+             'Directory owners for changes in this CL:\n'
+             'someone-else@chromium.org:\n'
+             '  external/wpt/baz\n'
+             'someone@chromium.org:\n'
+             '  external/wpt/foo\n'
+             '  external/wpt/bar\n\n'
              'TBR=qyearsley@chromium.org\n'
              'NOEXPORT=true'))
 
@@ -151,9 +171,9 @@ class TestImporterTest(LoggingTestCase):
             '# external/wpt/foo [ Pass ]\n')
         git = MockGit()
         git.changed_files = lambda: ['third_party/WebKit/LayoutTests/external/wpt/foo/x.html']
-        host.scm = lambda: git
+        host.git = lambda: git
         importer = TestImporter(host)
-        self.assertEqual(importer.get_directory_owners(), {'someone@chromium.org': 'external/wpt/foo'})
+        self.assertEqual(importer.get_directory_owners(), {'someone@chromium.org': ['external/wpt/foo']})
 
     def test_get_directory_owners_no_changed_files(self):
         host = MockHost()

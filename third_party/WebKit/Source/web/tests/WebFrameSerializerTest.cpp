@@ -31,13 +31,14 @@
 #include "public/web/WebFrameSerializer.h"
 
 #include "platform/testing/URLTestHelpers.h"
+#include "platform/testing/UnitTestHelpers.h"
 #include "platform/weborigin/KURL.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebCString.h"
+#include "public/platform/WebCache.h"
 #include "public/platform/WebString.h"
 #include "public/platform/WebURL.h"
 #include "public/platform/WebURLLoaderMockFactory.h"
-#include "public/web/WebCache.h"
 #include "public/web/WebFrameSerializerClient.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "web/WebLocalFrameImpl.h"
@@ -101,20 +102,27 @@ int matchSubstring(const String& str, const char* pattern, size_t size) {
 
 }  // namespace
 
-class WebFrameSerializerTest : public testing::Test {
+class WebFrameSerializerTest : public ::testing::Test {
  protected:
   WebFrameSerializerTest() { m_helper.initialize(); }
 
   ~WebFrameSerializerTest() override {
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
-    WebCache::clear();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
   }
 
-  void registerMockedImageURL(const String& url) {
+  void registerMockedImageURLLoad(const String& url) {
     // Image resources need to be mocked, but irrelevant here what image they
     // map to.
-    URLTestHelpers::registerMockedURLLoad(KURL(ParsedURLString, url),
-                                          "frameserialization/awesome.png");
+    registerMockedFileURLLoad(URLTestHelpers::toKURL(url.utf8().data()),
+                              "frameserialization/awesome.png");
+  }
+  void registerMockedFileURLLoad(const KURL& url,
+                                 const String& filePath,
+                                 const String& mimeType = "image/png") {
+    URLTestHelpers::registerMockedURLLoad(
+        url, testing::webTestDataPath(filePath.utf8().data()), mimeType);
   }
 
   class SingleLinkRewritingDelegate
@@ -143,8 +151,8 @@ class WebFrameSerializerTest : public testing::Test {
 
   String serializeFile(const String& url, const String& fileName) {
     KURL parsedURL(ParsedURLString, url);
-    URLTestHelpers::registerMockedURLLoad(parsedURL, fileName,
-                                          "frameserialization/", "text/html");
+    String filePath("frameserialization/" + fileName);
+    registerMockedFileURLLoad(parsedURL, filePath, "text/html");
     FrameTestHelpers::loadFrame(mainFrameImpl(), url.utf8().data());
     SingleLinkRewritingDelegate delegate(parsedURL, WebString("local"));
     SimpleWebFrameSerializerClient serializerClient;
@@ -164,7 +172,7 @@ class WebFrameSerializerTest : public testing::Test {
 };
 
 TEST_F(WebFrameSerializerTest, URLAttributeValues) {
-  registerMockedImageURL("javascript:\"");
+  registerMockedImageURLLoad("javascript:\"");
 
   const char* expectedHTML =
       "\n<!-- saved from url=(0020)http://www.test.com/ -->\n"
@@ -214,8 +222,8 @@ class WebFrameSerializerSanitizationTest : public WebFrameSerializerTest {
                             const String& fileName,
                             const String& mimeType = "text/html") {
     KURL parsedURL(ParsedURLString, url);
-    URLTestHelpers::registerMockedURLLoad(parsedURL, fileName,
-                                          "frameserialization/", mimeType);
+    String filePath("frameserialization/" + fileName);
+    registerMockedFileURLLoad(parsedURL, filePath, mimeType);
     FrameTestHelpers::loadFrame(mainFrameImpl(), url.utf8().data());
     WebThreadSafeData result = WebFrameSerializer::generateMHTMLParts(
         WebString("boundary"), mainFrameImpl(), &m_mhtmlDelegate);
@@ -303,12 +311,10 @@ TEST_F(WebFrameSerializerSanitizationTest, FromBrokenImageDocument) {
 }
 
 TEST_F(WebFrameSerializerSanitizationTest, ImageLoadedFromSrcsetForHiDPI) {
-  URLTestHelpers::registerMockedURLLoad(
-      KURL(ParsedURLString, "http://www.test.com/1x.png"),
-      "frameserialization/1x.png");
-  URLTestHelpers::registerMockedURLLoad(
-      KURL(ParsedURLString, "http://www.test.com/2x.png"),
-      "frameserialization/2x.png");
+  registerMockedFileURLLoad(KURL(ParsedURLString, "http://www.test.com/1x.png"),
+                            "frameserialization/1x.png");
+  registerMockedFileURLLoad(KURL(ParsedURLString, "http://www.test.com/2x.png"),
+                            "frameserialization/2x.png");
 
   // Set high DPR in order to load image from srcset, instead of src.
   webView()->setDeviceScaleFactor(2.0f);
@@ -328,12 +334,10 @@ TEST_F(WebFrameSerializerSanitizationTest, ImageLoadedFromSrcsetForHiDPI) {
 }
 
 TEST_F(WebFrameSerializerSanitizationTest, ImageLoadedFromSrcForNormalDPI) {
-  URLTestHelpers::registerMockedURLLoad(
-      KURL(ParsedURLString, "http://www.test.com/1x.png"),
-      "frameserialization/1x.png");
-  URLTestHelpers::registerMockedURLLoad(
-      KURL(ParsedURLString, "http://www.test.com/2x.png"),
-      "frameserialization/2x.png");
+  registerMockedFileURLLoad(KURL(ParsedURLString, "http://www.test.com/1x.png"),
+                            "frameserialization/1x.png");
+  registerMockedFileURLLoad(KURL(ParsedURLString, "http://www.test.com/2x.png"),
+                            "frameserialization/2x.png");
 
   String mhtml = generateMHTMLParts("http://www.test.com", "img_srcset.html");
 
@@ -359,6 +363,18 @@ TEST_F(WebFrameSerializerSanitizationTest, KeepPopupOverlayIfNotRequested) {
   String mhtml = generateMHTMLParts("http://www.test.com", "popup.html");
   EXPECT_NE(WTF::kNotFound, mhtml.find("class=3D\"overlay"));
   EXPECT_NE(WTF::kNotFound, mhtml.find("class=3D\"modal"));
+}
+
+TEST_F(WebFrameSerializerSanitizationTest, RemoveElements) {
+  String mhtml =
+      generateMHTMLParts("http://www.test.com", "remove_elements.html");
+
+  EXPECT_EQ(WTF::kNotFound, mhtml.find("<script"));
+  EXPECT_EQ(WTF::kNotFound, mhtml.find("<noscript"));
+
+  // If an element is removed, its children should also be skipped.
+  EXPECT_EQ(WTF::kNotFound, mhtml.find("<select"));
+  EXPECT_EQ(WTF::kNotFound, mhtml.find("<option"));
 }
 
 }  // namespace blink

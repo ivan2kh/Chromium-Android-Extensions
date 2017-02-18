@@ -53,6 +53,7 @@
 #include "chrome/browser/component_updater/origin_trials_component_installer.h"
 #include "chrome/browser/component_updater/pepper_flash_component_installer.h"
 #include "chrome/browser/component_updater/recovery_component_installer.h"
+#include "chrome/browser/component_updater/recovery_improved_component_installer.h"
 #include "chrome/browser/component_updater/sth_set_component_installer.h"
 #include "chrome/browser/component_updater/subresource_filter_component_installer.h"
 #include "chrome/browser/component_updater/supervised_user_whitelist_installer.h"
@@ -185,7 +186,6 @@
 #endif  // defined(OS_LINUX) && !defined(OS_CHROMEOS)
 
 #if defined(OS_CHROMEOS)
-#include "ash/common/material_design/material_design_controller.h"
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chromeos/chromeos_switches.h"
 #include "chromeos/settings/cros_settings_names.h"
@@ -237,6 +237,10 @@
 #if BUILDFLAG(ENABLE_BACKGROUND)
 #include "chrome/browser/background/background_mode_manager.h"
 #endif  // BUILDFLAG(ENABLE_BACKGROUND)
+
+#if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
+#include "chrome/browser/component_updater/ssl_error_assistant_component_installer.h"
+#endif  // BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/startup_helper.h"
@@ -467,16 +471,14 @@ OSStatus KeychainCallback(SecKeychainEvent keychain_event,
 #endif  // defined(OS_MACOSX)
 
 void RegisterComponentsForUpdate() {
-  component_updater::ComponentUpdateService* cus =
-      g_browser_process->component_updater();
+  auto* const cus = g_browser_process->component_updater();
 
-  // Registration can be before or after cus->Start() so it is ok to post
-  // a task to the UI thread to do registration once you done the necessary
-  // file IO to know you existing component version.
+  if (base::FeatureList::IsEnabled(features::kImprovedRecoveryComponent))
+    RegisterRecoveryImprovedComponent(cus, g_browser_process->local_state());
+  else
+    RegisterRecoveryComponent(cus, g_browser_process->local_state());
+
 #if !defined(OS_ANDROID)
-#if !defined(OS_CHROMEOS)
-  RegisterRecoveryComponent(cus, g_browser_process->local_state());
-#endif  // !defined(OS_CHROMEOS)
   RegisterPepperFlashComponent(cus);
 #if !defined(OS_CHROMEOS)
   RegisterSwiftShaderComponent(cus);
@@ -524,6 +526,10 @@ void RegisterComponentsForUpdate() {
     RegisterOriginTrialsComponent(cus, path);
 
     RegisterFileTypePoliciesComponent(cus, path);
+
+#if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
+    RegisterSSLErrorAssistantComponent(cus, path);
+#endif
   }
 
 #if defined(OS_WIN)
@@ -1043,9 +1049,6 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
   // are not available until this point. Now that they are, proceed with
   // initializing the MaterialDesignController.
   ui::MaterialDesignController::Initialize();
-#if defined(OS_CHROMEOS)
-  ash::MaterialDesignController::Initialize();
-#endif  // !defined(OS_CHROMEOS)
 
 #if defined(OS_WIN)
   // This is needed to enable ETW exporting when requested in about:flags.

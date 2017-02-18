@@ -39,13 +39,13 @@ Premeu Maj+Alt per canviar-lo.</translation>
 <translation id="1923539912171292317">Clics automàtics</translation>
 <translation id="1957803754585243749">0°</translation>
 <translation id="1969011864782743497"><ph name="DEVICE_NAME" /> (USB)</translation>
+<translation id="2122028596993374965">Deixa d'emetre <ph name="TAB_NAME" /> a <ph name="RECEIVER_NAME" /></translation>
 <translation id="2127372758936585790">Carregador de baix consum</translation>
 <translation id="2204305834655267233">Informació de la xarxa</translation>
 <translation id="2208323208084708176">Mode d'escriptori unificat</translation>
 <translation id="225680501294068881">S'estan cercant dispositius...</translation>
 <translation id="2268130516524549846">S'ha desactivat el Bluetooth</translation>
 <translation id="2268813581635650749">Tanca la sessió de tots els usuaris</translation>
-<translation id="2297568595583585744">Safata d'estat</translation>
 <translation id="2303600792989757991">Commuta la visió general de la finestra</translation>
 <translation id="2354174487190027830">S'està activant <ph name="NAME" /></translation>
 <translation id="2391579633712104609">180°</translation>
@@ -83,6 +83,7 @@ Premeu Cerca o Maj per cancel·lar.</translation>
 <translation id="3126069444801937830">Reinicia per actualitzar</translation>
 <translation id="3147142846278915599">Launcher (s'estan sincronitzant les aplicacions...)</translation>
 <translation id="3157169093162779309">Activeu el bloqueig de la rotació</translation>
+<translation id="3164154768979021380">S'està sortint del mode acoblat</translation>
 <translation id="3294437725009624529">Convidat</translation>
 <translation id="3335772982573114336">Nota nova</translation>
 <translation id="3364721542077212959">Eines del llapis òptic</translation>
@@ -99,9 +100,7 @@ Premeu Cerca o Maj per cancel·lar.</translation>
 <translation id="3626281679859535460">Brillantor</translation>
 <translation id="3683428399328702079">La resolució de <ph name="DISPLAY_NAME" /> ha canviat a <ph name="RESOLUTION" /></translation>
 <translation id="370649949373421643">Activa la Wi-Fi</translation>
-<translation id="3709443003275901162">Més de 9</translation>
 <translation id="3712407551474845318">Captura una part</translation>
-<translation id="372094107052732682">Premeu Ctrl+Maj+Q dues vegades per sortir.</translation>
 <translation id="3742055079367172538">Captura de pantalla feta</translation>
 <translation id="3775358506042162758">Només podeu tenir tres comptes com a màxim en un inici de sessió múltiple.</translation>
 <translation id="3783640748446814672">alt</translation>
@@ -139,16 +138,15 @@ Premeu Cerca o Maj per cancel·lar.</translation>
 <translation id="4957722034734105353">Més informació...</translation>
 <translation id="4961318399572185831">Emet la pantalla</translation>
 <translation id="5011233892417813670">Chromebook</translation>
-<translation id="5045002648206642691">Configuració de Google Drive...</translation>
 <translation id="510924152490034944">És possible que la connexió estigui supervisada</translation>
 <translation id="5168181903108465623">Dispositius d'emissió disponibles</translation>
 <translation id="5170568018924773124">Mostra a la carpeta</translation>
 <translation id="5222676887888702881">Tanca la sessió</translation>
-<translation id="5238774010593222950">No es pot iniciar la sessió a un altre compte.</translation>
 <translation id="532063867737390965">L'administrador ha desactivat aquesta configuració de xarxa.</translation>
 <translation id="5331975486040154427">Dispositiu USB-C (port posterior esquerre)</translation>
 <translation id="5431825016875453137">VPN oberta / L2TP</translation>
 <translation id="544691375626129091">Ja s'han afegit tots els usuaris disponibles a aquesta sessió.</translation>
+<translation id="5504841533973703486">Micròfon frontal</translation>
 <translation id="5507786745520522457">Configura les dades mòbils</translation>
 <translation id="5543001071567407895">SMS</translation>
 <translation id="5548285847212963613">L'extensió "<ph name="EXTENSION_NAME" />" pot ajudar a connectar-se a aquesta xarxa.</translation>
@@ -160,6 +158,7 @@ Premeu Cerca o Maj per cancel·lar.</translation>
 <translation id="57838592816432529">Silencia</translation>
 <translation id="5825747213122829519">El mètode d'entrada ha canviat a <ph name="INPUT_METHOD_ID" />.
 Premeu Maj+Alt per canviar-lo.</translation>
+<translation id="5830936593837877897">Micròfon posterior</translation>
 <translation id="5871632337994001636">Gestiona els dispositius...</translation>
 <translation id="5895138241574237353">Reinicia</translation>
 <translation id="5901316534475909376">Maj + Esc</translation>
@@ -171,6 +170,7 @@ Premeu Maj+Alt per canviar-lo.</translation>
 <translation id="5977415296283489383">Auricular</translation>
 <translation id="5978382165065462689">Es comparteix el control de la pantalla mitjançant l'Assistència remota.</translation>
 <translation id="5980301590375426705">Surt de la sessió de convidat</translation>
+<translation id="6018164090099858612">S'està sortint del mode de rèplica</translation>
 <translation id="6041154455840261787">El mode d'alt contrast s'ha activat. Torna a prémer Cerca+Maj+H per desactivar-lo.</translation>
 <translation id="6043212731627905357">Aquest monitor i el teu <ph name="DEVICE_TYPE" /> no s'entenen (el monitor no és compatible).</translation>
 <translation id="6043994281159824495">Tanca la sessió ara</translation>
@@ -181,7 +181,6 @@ Premeu Maj+Alt per canviar-lo.</translation>
 <translation id="6144938890088808325">Contribuïu a millorar els dispositius Chromebook</translation>
 <translation id="615957422585914272">Mostra el teclat en pantalla</translation>
 <translation id="6165508094623778733">Més informació</translation>
-<translation id="6248847161401822652">Premeu Control+Maj+Q dues vegades per sortir.</translation>
 <translation id="6267036997247669271"><ph name="NAME" />: s'està activant...</translation>
 <translation id="6297287540776456956">Utilitza el llapis òptic per seleccionar una part</translation>
 <translation id="6310121235600822547"><ph name="DISPLAY_NAME" /> s'ha canviat a <ph name="ROTATION" /></translation>
@@ -196,7 +195,6 @@ Premeu Maj+Alt per canviar-lo.</translation>
 <translation id="6521655319214113338">Entrada d'escriptura a mà</translation>
 <translation id="6537270692134705506">Captura la pantalla</translation>
 <translation id="6549021752953852991">No hi ha cap xarxa mòbil disponible</translation>
-<translation id="6550675742724504774">Opcions</translation>
 <translation id="6585808820553845416">La sessió finalitzarà d'aquí a <ph name="SESSION_TIME_REMAINING" />.</translation>
 <translation id="6596816719288285829">Adreça IP</translation>
 <translation id="6650933572246256093">El dispositiu Bluetooth "<ph name="DEVICE_NAME" />" sol·licita permís per emparellar-se. Introduïu-hi aquesta contrasenya: <ph name="PASSKEY" />.</translation>
@@ -208,10 +206,8 @@ Premeu Maj+Alt per canviar-lo.</translation>
 <translation id="6857811139397017780">Activa <ph name="NETWORKSERVICE" /></translation>
 <translation id="6911468394164995108">Connecta't a una altra xarxa...</translation>
 <translation id="6915678159055240887">Chromebox</translation>
-<translation id="6979158407327259162">Google Drive</translation>
 <translation id="6981982820502123353">Accessibilitat</translation>
 <translation id="7029814467594812963">Tanca la sessió</translation>
-<translation id="703171847531699602">No hi ha dispositius d'emissió</translation>
 <translation id="7034339000180558234">S'està emetent <ph name="TAB_NAME" /> a <ph name="RECEIVER_NAME" /></translation>
 <translation id="7052914147756339792">Estableix fons de pantalla...</translation>
 <translation id="7066646422045619941">L'administrador ha desactivat aquesta xarxa.</translation>
@@ -232,7 +228,6 @@ Premeu Alt+Cerca o Maj per cancel·lar.</translation>
 <translation id="7561014039265304140"><ph name="DISPLAY_NAME" /> no admet <ph name="SPECIFIED_RESOLUTION" />. S'ha canviat la resolució per <ph name="FALLBACK_RESOLUTION" />.</translation>
 <translation id="7562368315689366235">Paleta d'emoji</translation>
 <translation id="7573962313813535744">Mode acoblat</translation>
-<translation id="7580671184200851182">Reprodueix el mateix àudio per tots els altaveus (àudio mono)</translation>
 <translation id="7581273696622423628">Vull respondre a l'enquesta</translation>
 <translation id="7593891976182323525">Cerca o Maj</translation>
 <translation id="7649070708921625228">Ajuda</translation>
@@ -249,8 +244,10 @@ Premeu Alt+Cerca o Maj per cancel·lar.</translation>
 <translation id="8000066093800657092">No hi ha xarxa</translation>
 <translation id="8054466585765276473">S'està calculant el temps de la bateria.</translation>
 <translation id="8077816382010018681">El títol de la notificació per a la funció Desbloqueig ràpid va aquí</translation>
+<translation id="8098591350844501178">Deixa d'emetre la pantalla a <ph name="RECEIVER_NAME" /></translation>
 <translation id="8103386449138765447">Missatges SMS: <ph name="MESSAGE_COUNT" /></translation>
 <translation id="8132793192354020517">Connectat a <ph name="NAME" /></translation>
+<translation id="8180896103888046100">Deixa d'emetre a un receptor desconegut</translation>
 <translation id="8185286464235484130">Respon a algunes preguntes per dir-nos si ho estem fent bé.</translation>
 <translation id="8190698733819146287">Personalitza els idiomes i l'entrada...</translation>
 <translation id="8206859287963243715">Cel·lular</translation>
@@ -273,9 +270,11 @@ Premeu Alt+Cerca o Maj per cancel·lar.</translation>
 <translation id="9074739597929991885">Bluetooth</translation>
 <translation id="9080206825613744995">S'està fent servir el micròfon.</translation>
 <translation id="9089416786594320554">Mètodes d'introducció</translation>
+<translation id="9091626656156419976">S'ha suprimit la pantalla <ph name="DISPLAY_NAME" /></translation>
 <translation id="9151726767154816831">Reinicieu i feu un Powerwash per actualitzar.</translation>
 <translation id="9194617393863864469">Inicia la sessió amb un altre usuari...</translation>
 <translation id="9201131092683066720">La bateria està carregada fins al <ph name="PERCENTAGE" />%.</translation>
+<translation id="9210037371811586452">S'està sortint del mode d'escriptori unificat</translation>
 <translation id="923686485342484400">Premeu Control+Maj+Q dues vegades per tancar la sessió.</translation>
 <translation id="938582441709398163">Superposició de teclat</translation>
 <translation id="939252827960237676">S'ha produït un error en desar la captura de pantalla.</translation>

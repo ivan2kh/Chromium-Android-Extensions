@@ -97,6 +97,7 @@ struct CONTENT_EXPORT WebPreferences {
   bool loads_images_automatically;
   bool images_enabled;
   bool plugins_enabled;
+  bool encrypted_media_enabled;
   bool dom_paste_enabled;
   bool shrinks_standalone_images_to_fit;
   bool text_areas_are_resizable;
@@ -158,7 +159,6 @@ struct CONTENT_EXPORT WebPreferences {
   bool should_print_backgrounds;
   bool should_clear_document_background;
   bool enable_scroll_animator;
-  bool css_variables_enabled;
   bool touch_event_feature_detection_enabled;
   // TODO(mustaq): Nuke when the new API is ready
   bool device_supports_touch;
@@ -227,6 +227,7 @@ struct CONTENT_EXPORT WebPreferences {
   bool fullscreen_supported;
   bool double_tap_to_zoom_enabled;
   bool user_gesture_required_for_media_playback;
+  std::string media_playback_gesture_whitelist_scope;
   GURL default_video_poster_url;
   bool support_deprecated_target_density_dpi;
   bool use_legacy_background_size_shorthand_behavior;
@@ -282,6 +283,9 @@ struct CONTENT_EXPORT WebPreferences {
 
   // Whether it is a presentation receiver.
   bool presentation_receiver;
+
+  // If disabled, media controls should never be used.
+  bool media_controls_enabled;
 
   // We try to keep the default values the same as the default values in
   // chrome, except for the cases where it would require lots of extra work for

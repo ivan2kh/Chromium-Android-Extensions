@@ -1692,14 +1692,17 @@ Press any key to continue exploring.
   <message name="IDS_OOBE_OK_BUTTON_TEXT" desc="Text on 'OK' button" meaning="This is 'OK' text for all 'OK' buttons on ChromeOS initial device setup screens.">
     OK
   </message>
+  <message name="IDS_LANGUAGE_BUTTON_LABEL" desc="Navigation label attached to the 'Select Language' button on ChromeOS initial device setup screen" meaning="The button itself displays only current language name. But for accessibility mode we need full description of this button. So this label suggests that pressing on a button will allow to change current language and input method. And it should also include the name of currently selected language.">
+    Select language and keyboard button. Currently selected language is <ph name="LANGUAGE">$1<ex>English (United States)</ex></ph>.
+  </message>
   <message name="IDS_LANGUAGE_SECTION_TITLE" desc="Title of language selection screen" meaning="A title of the dialog where user should select ChromeOS UI language and default keyboard layout during initial device setup.">
     Choose your language &amp; keyboard
   </message>
   <message name="IDS_ACCESSIBILITY_SECTION_TITLE" desc="Title of accessibility options screen" meaning="A title of the dialog where user can control ChromeOS UI accessibility (like large cursor or screen reader) options during initial device setup.">
     Accessibility settings
   </message>
-  <message name="IDS_ACCESSIBILITY_SECTION_HINT" desc="Under-title line on the accessibility options screen" meaning="A hint to the user that these settings help to make device more usable.">
-    Configure your device to be more usable.
+  <message name="IDS_ACCESSIBILITY_SECTION_HINT" desc="Under-title line on the accessibility options screen" meaning="A hint to the user what these settings do and how to update them later.">
+    You can customize this device to fit your needs. These accessibility features can be changed later in Settings.
   </message>
   <message name="IDS_NETWORK_SECTION_TITLE" desc="Title of network selection screen" meaning="A title of the dialog where user should select network to connect to Internet">
     Connect to network
@@ -1761,6 +1764,12 @@ Press any key to continue exploring.
   <message name="IDS_OOBE_CLOSE_ACCESSIBILITY_MENU" desc="Text to be spoken when focus is set to the close button of accessibility options menu.">
     Close accessibility menu
   </message>
+  <message name="IDS_LANGUAGE_DROPDOWN_LABEL" desc="Navigation label attached to the 'List of languages' dropdown menu on ChromeOS Language and keyboard initial device setup screen" meaning="The menu itself displays only current language name. But for accessibility mode we need full description of this menu. So this label suggests that activating a menu will allow to change current language. And it should also include the name of currently selected language.">
+    Language selection menu. Currently selected language is <ph name="LANGUAGE">$1<ex>English (United States)</ex></ph>.
+  </message>
+  <message name="IDS_KEYBOARD_DROPDOWN_LABEL" desc="Navigation label attached to the 'List of keyboards' dropdown menu on ChromeOS Language and keyboard initial device setup screen" meaning="The menu itself displays only current keyboard layout name. But for accessibility mode we need full description of this menu. So this label suggests that activating a menu will allow to change current input method. And it should also include the name of currently selected input method.">
+    Input method selection menu. Currently selected input method is <ph name="KEYBOARD">$1<ex>English (US)</ex></ph>.
+  </message>
   <message name="IDS_OOBE_OTHER_LANGUAGES" desc="Option group name dividing vendor-configured languages from other available languages in out-of-box 'Select language' select control.">
     Other languages
   </message>
@@ -1777,7 +1786,10 @@ Press any key to continue exploring.
     Timezone
   </message>
   <message name="IDS_OOBE_EULA_SECTION_TITLE" desc="Title of Terms of Service screen">
-    Google Chrome OS Terms
+    Google Chrome OS terms
+  </message>
+  <message name="IDS_OOBE_EULA_IFRAME_LABEL" desc="Accessibility label on an iframe with full Chrome OS Terms text">
+    Google Chrome OS Terms contents
   </message>
   <message name="IDS_OOBE_EULA_ACCEPT_AND_CONTINUE_BUTTON_TEXT" desc="Label on a button on the Title of Terms of Service OOBE screen to accept EULA and continue.">
     Accept and continue
@@ -2370,7 +2382,7 @@ Press any key to continue exploring.
     Unrecognized error: <ph name="desc">$1<ex>ShillErrorString</ex></ph>
   </message>
   <message name="IDS_NETWORK_CELLULAR_ACTIVATED_TITLE" desc="Title for cellular activated notification">
-    Cellular Activated
+    Mobile Data Activated
   </message>
   <message name="IDS_NETWORK_CELLULAR_ACTIVATED" desc="Text of the cellular activated notification">
     Congratulations! Your '<ph name="name">$1<ex>Generic Wireless</ex></ph>' data service has been activated and is ready to go.
@@ -3543,8 +3555,11 @@ Press any key to continue exploring.
     <ph name="BEGIN_BOLD">&lt;strong&gt;</ph>Note:<ph name="END_BOLD">&lt;/strong&gt;</ph> Only enable if you know what you are doing or if you have been asked to do so, as collection of data may reduce performance.
   </message>
 
-  <message name="IDS_EULA_BACK_BUTTON" desc="Back button shown on EULA screen.">
+  <message name="IDS_EULA_BACK_BUTTON" desc="Back button shown on EULA/OOBE screens.">
     Back
+  </message>
+  <message name="IDS_EULA_NEXT_BUTTON" desc="Next button shown on EULA/OOBE screens.">
+    Next
   </message>
   <message name="IDS_EULA_ACCEPT_AND_CONTINUE_BUTTON" desc="Accept button text below EULA terms of service">
     Accept and continue
@@ -3954,7 +3969,7 @@ Press any key to continue exploring.
     Bluetooth
   </message>
   <message name="IDS_NETWORK_TYPE_CELLULAR" desc="The cellular network type.">
-    Cellular
+    Mobile
   </message>
   <message name="IDS_NETWORK_TYPE_VPN" desc="The vpn network type.">
     VPN
@@ -4837,6 +4852,9 @@ Battery full
   <message name="IDS_KEYBOARD_OVERLAY_TOGGLE_CHROMEVOX_SPOKEN_FEEDBACK" desc="The text in the keyboard overlay to explain the shortcut (enable or disable spoken feedback).">
     ChromeVox (spoken feedback)
   </message>
+  <message name="IDS_KEYBOARD_OVERLAY_TOGGLE_HIGH_CONTRAST_MODE" desc="The text in the keyboard overlay to explain the shortcut (Toggle high contrast mode).">
+    Toggle High Contrast Mode
+  </message>
   <message name="IDS_KEYBOARD_OVERLAY_TOGGLE_PROJECTION_TOUCH_HUD" desc="The text in the keyboard overlay to explain the shortcut.">
     Projection touch HUD
   </message>
@@ -5477,6 +5495,9 @@ Battery full
   <message name="IDS_ENTERPRISE_LOGIN_ERROR_WHITELIST" desc="Couldn't sign in because user is not whitelisted by the administrator.">
     You are not authorized to use this device. Please contact the administrator for sign-in permission.
   </message>
+  <message name="IDS_LOGIN_ERROR_GOOGLE_ACCOUNT_NOT_ALLOWED" desc="Couldn't sign into Google account on the Active Directory managed device.">
+    Sorry, Google accounts are not allowed on this device.
+  </message>
   <message name="IDS_LOGIN_ERROR_AUTHENTICATING_2ND_TIME" desc="Couldn't sign in because password is invalid for the 2nd time">
     Sorry, your password still could not be verified. Note: if you changed your password recently, your new password will be applied once you sign out, please use the old password here.
   </message>
@@ -5725,7 +5746,7 @@ Battery full
     You are currently offline.
   </message>
   <message name="IDS_UPGRADE_DISALLOWED" desc="Status label: Upgrade disallowed for the current network">
-    You are currently connected to the <ph name="NETWORK_TYPE">$1<ex>cellular</ex></ph> network.
+    You are currently connected to the <ph name="NETWORK_TYPE">$1<ex>mobile</ex></ph> network.
   </message>
   <message name="IDS_UPGRADE_NETWORK_LIST_CELLULAR_ALLOWED" desc="Status label: for updates you need to connect to an Ethernet, Wi-Fi or mobile data">
     To check for updates, please use Ethernet, Wi-Fi or mobile data.
@@ -5764,6 +5785,14 @@ Battery full
   </message>
   <message name="IDS_FLAGS_EOL_NOTIFICATION_DESCRIPTION" desc="Description of the about:flag option to disable eol notification.">
     Disable Notifcation when Device is End of Life.
+  </message>
+
+  <!-- Stylus strings -->
+  <message name="IDS_FLAGS_FORCE_ENABLE_STYLUS_TOOLS_NAME" desc="Name of the about:flag option to enable stylus tools.">
+    Force enable stylus features
+  </message>
+  <message name="IDS_FLAGS_FORCE_ENABLE_STYLUS_TOOLS_DESCRIPTION" desc="Description of the about:flag option to enable stylus tools.">
+    Forces display of the stylus tools menu in the shelf and the stylus section in settings, even if there is no attached stylus device.
   </message>
 
   <!-- Genius App -->
@@ -5900,7 +5929,7 @@ All users must sign out to continue.
     Google Chrome will use cellular data if you're not connected to another network.
   </message>
   <message name="IDS_3G_DATASAVER_TITLE" desc="Title of the 3G data notification prompting user to install Data Saver.">
-    You are using cellular data
+    You are using mobile data
   </message>
   <message name="IDS_3G_DATASAVER_MESSAGE" desc="Text of the 3G data notification prompting user to install Data Saver.">
     Save data and browse faster using Google Data Saver. Click to learn more.
@@ -6227,8 +6256,8 @@ All users must sign out to continue.
   <message name="IDS_ENTERPRISE_ENROLLMENT_ERROR_ACTIVE_DIRECTORY_POLICY_FETCH" desc="Error message shown on the enrollment screen when the system failed to fetch device policy from Active Directory.">
     Oops!  The system failed to fetch policy from Microsoft® Active Directory®.
   </message>
-  <message name="IDS_ENTERPRISE_ENROLLMENT_ERROR_STORE_DM_TOKEN_FAILED" desc="Error message shown on the enrollment screen when the system failed to store DM token into the local state.">
-    Oops!  The system failed to store DM token on the device.
+  <message name="IDS_ENTERPRISE_ENROLLMENT_ERROR_SAVE_DEVICE_CONFIGURATION" desc="Error message shown on the enrollment screen when the system failed to save some part of the device configuration. E.g. token from the Device Management server.">
+    Oops!  The system failed to save device configuration.
   </message>
   <message name="IDS_ENTERPRISE_ENROLLMENT_SCREEN_TITLE" desc="The title on the enterprise enrollment dialog.">
     Enterprise enrollment

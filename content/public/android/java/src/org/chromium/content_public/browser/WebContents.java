@@ -6,6 +6,7 @@ package org.chromium.content_public.browser;
 
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.os.Handler;
 import android.os.Parcelable;
 
 import org.chromium.base.VisibleForTesting;
@@ -269,7 +270,7 @@ public interface WebContents extends Parcelable {
      * Dispatches a Message event to the specified frame.
      */
     void postMessageToFrame(String frameName, String message,
-            String sourceOrigin, String targetOrigin, int[] sentPortIds);
+            String sourceOrigin, String targetOrigin, MessagePort[] ports);
 
     /**
      * Creates a message channel for sending postMessage requests and returns the ports for
@@ -277,7 +278,7 @@ public interface WebContents extends Parcelable {
      * @param service The message port service to register the channel with.
      * @return The ports that forms the ends of the message channel created.
      */
-    MessagePort[] createMessageChannel(MessagePortService service);
+    MessagePort[] createMessageChannel();
 
     /**
      * Returns whether the initial empty page has been accessed by a script from another
@@ -296,6 +297,17 @@ public interface WebContents extends Parcelable {
      * @return The theme color for the content as set by the theme-color meta tag.
      */
     int getThemeColor();
+
+    /**
+     * Initiate extraction of text, HTML, and other information for clipping puposes (smart clip)
+     * from the rectangle area defined by starting positions (x and y), and width and height.
+     */
+    void requestSmartClipExtract(int x, int y, int width, int height);
+
+    /**
+     * Register a handler to handle smart clip data once extraction is done.
+     */
+    void setSmartClipResultHandler(final Handler smartClipHandler);
 
     /**
      * Requests a snapshop of accessibility tree. The result is provided asynchronously
@@ -360,4 +372,12 @@ public interface WebContents extends Parcelable {
      *                        (e.g. renderer for the currently selected tab)
      */
     public void simulateRendererKilledForTesting(boolean wasOomProtected);
+
+    /**
+     * Notifies the WebContents about the new persistent video status. It should be called whenever
+     * the value changes.
+     *
+     * @param value Whether there is a persistent video associated with this WebContents.
+     */
+    public void setHasPersistentVideo(boolean value);
 }

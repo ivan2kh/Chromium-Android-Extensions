@@ -104,13 +104,13 @@
 #include "printing/features/features.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 #include "third_party/WebKit/public/platform/URLConversion.h"
+#include "third_party/WebKit/public/platform/WebCache.h"
 #include "third_party/WebKit/public/platform/WebCachePolicy.h"
 #include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
 #include "third_party/WebKit/public/platform/WebURLError.h"
 #include "third_party/WebKit/public/platform/WebURLRequest.h"
 #include "third_party/WebKit/public/platform/WebURLResponse.h"
-#include "third_party/WebKit/public/web/WebCache.h"
 #include "third_party/WebKit/public/web/WebDataSource.h"
 #include "third_party/WebKit/public/web/WebDocument.h"
 #include "third_party/WebKit/public/web/WebElement.h"
@@ -1443,9 +1443,6 @@ bool ChromeContentRendererClient::ShouldEnforceWebRTCRoutingPreferences() {
 }
 
 GURL ChromeContentRendererClient::OverrideFlashEmbedWithHTML(const GURL& url) {
-  if (!base::FeatureList::IsEnabled(features::kOverrideYouTubeFlashEmbed))
-    return GURL();
-
   if (!url.is_valid())
     return GURL();
 

@@ -25,6 +25,7 @@
 #include "base/rand_util.h"
 #include "base/strings/string16.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -41,6 +42,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/safe_browsing/certificate_reporting_metrics_provider.h"
 #include "chrome/browser/sync/chrome_sync_client.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/ui/browser_otr_state.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_paths.h"
@@ -50,6 +52,7 @@
 #include "chrome/common/features.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/installer/util/util_constants.h"
+#include "components/browser_sync/profile_sync_service.h"
 #include "components/browser_watcher/stability_debugging.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/metrics/call_stack_profile_metrics_provider.h"
@@ -564,15 +567,22 @@ void ChromeMetricsServiceClient::Initialize() {
   metrics_service_.reset(
       new metrics::MetricsService(metrics_state_manager_, this, local_state));
 
-  if (base::FeatureList::IsEnabled(ukm::kUkmFeature))
+  RegisterMetricsServiceProviders();
+
+  if (base::FeatureList::IsEnabled(ukm::kUkmFeature)) {
     ukm_service_.reset(new ukm::UkmService(local_state, this));
+    RegisterUKMProviders();
+  }
+}
+
+void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
+  PrefService* local_state = g_browser_process->local_state();
 
   // Gets access to persistent metrics shared by sub-processes.
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(
           new SubprocessMetricsProvider()));
 
-  // Register metrics providers.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(
@@ -591,12 +601,15 @@ void ChromeMetricsServiceClient::Initialize() {
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(new OmniboxMetricsProvider(
           base::Bind(&chrome::IsIncognitoSessionActive))));
+
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(
           new ChromeStabilityMetricsProvider(local_state)));
+
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(
           new metrics::GPUMetricsProvider));
+
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(
           new metrics::ScreenInfoMetricsProvider));
@@ -710,6 +723,14 @@ void ChromeMetricsServiceClient::Initialize() {
   metrics_service_->RegisterMetricsProvider(
       std::unique_ptr<metrics::MetricsProvider>(
           new CertificateReportingMetricsProvider()));
+}
+
+void ChromeMetricsServiceClient::RegisterUKMProviders() {
+  ukm_service_->RegisterMetricsProvider(
+      base::MakeUnique<metrics::NetworkMetricsProvider>(
+          base::MakeUnique<metrics::NetworkQualityEstimatorProviderImpl>(
+              g_browser_process->io_thread()),
+          content::BrowserThread::GetBlockingPool()));
 }
 
 bool ChromeMetricsServiceClient::ShouldIncludeProfilerDataInLog() {
@@ -877,15 +898,19 @@ void ChromeMetricsServiceClient::RegisterForNotifications() {
                  content::NotificationService::AllBrowserContextsAndSources());
   for (Profile* profile :
        g_browser_process->profile_manager()->GetLoadedProfiles()) {
-    RegisterForHistoryDeletions(profile);
+    RegisterForProfileEvents(profile);
   }
 }
 
-void ChromeMetricsServiceClient::RegisterForHistoryDeletions(Profile* profile) {
+void ChromeMetricsServiceClient::RegisterForProfileEvents(Profile* profile) {
   history::HistoryService* history_service =
       HistoryServiceFactory::GetForProfile(profile,
                                            ServiceAccessType::IMPLICIT_ACCESS);
   ObserveServiceForDeletions(history_service);
+  browser_sync::ProfileSyncService* sync =
+      ProfileSyncServiceFactory::GetInstance()->GetForProfile(profile);
+  if (sync)
+    ObserveServiceForSyncDisables(static_cast<syncer::SyncService*>(sync));
 }
 
 void ChromeMetricsServiceClient::Observe(
@@ -907,7 +932,7 @@ void ChromeMetricsServiceClient::Observe(
       break;
 
     case chrome::NOTIFICATION_PROFILE_ADDED:
-      RegisterForHistoryDeletions(content::Source<Profile>(source).ptr());
+      RegisterForProfileEvents(content::Source<Profile>(source).ptr());
       break;
 
     default:
@@ -926,4 +951,19 @@ bool ChromeMetricsServiceClient::IsUMACellularUploadLogicEnabled() {
 void ChromeMetricsServiceClient::OnHistoryDeleted() {
   if (ukm_service_)
     ukm_service_->Purge();
+}
+
+void ChromeMetricsServiceClient::OnSyncPrefsChanged(bool must_purge) {
+  if (!ukm_service_)
+    return;
+  if (must_purge) {
+    ukm_service_->Purge();
+    ukm_service_->ResetClientId();
+  }
+  // Signal service manager to enable/disable UKM based on new state.
+  UpdateRunningServices();
+}
+
+bool ChromeMetricsServiceClient::IsHistorySyncEnabledOnAllProfiles() {
+  return SyncDisableObserver::IsHistorySyncEnabledOnAllProfiles();
 }

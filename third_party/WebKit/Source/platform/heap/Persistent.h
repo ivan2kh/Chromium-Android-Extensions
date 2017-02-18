@@ -175,10 +175,9 @@ class PersistentBase {
   NO_SANITIZE_ADDRESS
   void assign(T* ptr) {
     if (crossThreadnessConfiguration == CrossThreadPersistentConfiguration) {
-      releaseStore(
-          reinterpret_cast<void* volatile*>(
-              const_cast<typename std::remove_const<T>::type**>(&m_raw)),
-          const_cast<typename std::remove_const<T>::type*>(ptr));
+      CrossThreadPersistentRegion::LockScope persistentLock(
+          ProcessHeap::crossThreadPersistentRegion());
+      m_raw = ptr;
     } else {
       m_raw = ptr;
     }
@@ -197,11 +196,7 @@ class PersistentBase {
     static_assert(IsGarbageCollectedType<T>::value,
                   "T needs to be a garbage collected object");
     if (weaknessConfiguration == WeakPersistentConfiguration) {
-      if (crossThreadnessConfiguration == CrossThreadPersistentConfiguration)
-        visitor->registerWeakCellWithCallback(reinterpret_cast<void**>(this),
-                                              handleWeakPersistent);
-      else
-        visitor->registerWeakMembers(this, m_raw, handleWeakPersistent);
+      visitor->registerWeakCallback(this, handleWeakPersistent);
     } else {
       visitor->mark(m_raw);
     }
@@ -231,14 +226,6 @@ class PersistentBase {
   }
 
   void uninitialize() {
-    // TODO(haraken): This is a short-term hack to prevent use-after-frees
-    // during a shutdown sequence.
-    // 1) blink::shutdown() frees the underlying storage for persistent nodes.
-    // 2) ~MessageLoop() destructs some Chromium-side objects that hold
-    //    Persistent. It touches the underlying storage and crashes.
-    if (WTF::isShutdown())
-      return;
-
     if (crossThreadnessConfiguration == CrossThreadPersistentConfiguration) {
       if (acquireLoad(reinterpret_cast<void* volatile*>(&m_persistentNode)))
         ProcessHeap::crossThreadPersistentRegion().freePersistentNode(

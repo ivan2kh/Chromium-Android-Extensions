@@ -41,6 +41,7 @@
 #include "core/dom/NodeTraversal.h"
 #include "core/dom/ParserContentPolicy.h"
 #include "core/dom/Text.h"
+#include "core/editing/EditingStyleUtilities.h"
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/InputMethodController.h"
 #include "core/editing/RenderedPosition.h"
@@ -647,7 +648,8 @@ bool Editor::deleteSelectionAfterDraggingWithEvents(
   // Dispatch 'beforeinput'.
   const bool shouldDelete = dispatchBeforeInputEditorCommand(
                                 dragSource, InputEvent::InputType::DeleteByDrag,
-                                nullptr) == DispatchEventResult::NotCanceled;
+                                targetRangesForInputEvent(*dragSource)) ==
+                            DispatchEventResult::NotCanceled;
 
   // 'beforeinput' event handler may destroy frame, return false to cancel
   // remaining actions;
@@ -679,8 +681,8 @@ bool Editor::replaceSelectionAfterDraggingWithEvents(
   dataTransfer->setSourceOperation(dragData->draggingSourceOperationMask());
   const bool shouldInsert =
       dispatchBeforeInputDataTransfer(
-          dropTarget, InputEvent::InputType::InsertFromDrop, dataTransfer,
-          nullptr) == DispatchEventResult::NotCanceled;
+          dropTarget, InputEvent::InputType::InsertFromDrop, dataTransfer) ==
+      DispatchEventResult::NotCanceled;
 
   // 'beforeinput' event handler may destroy frame, return false to cancel
   // remaining actions;
@@ -795,9 +797,10 @@ void Editor::applyParagraphStyleToSelection(StylePropertySet* style,
 bool Editor::selectionStartHasStyle(CSSPropertyID propertyID,
                                     const String& value) const {
   EditingStyle* styleToCheck = EditingStyle::create(propertyID, value);
-  EditingStyle* styleAtStart = EditingStyle::styleAtSelectionStart(
-      frame().selection().selection(), propertyID == CSSPropertyBackgroundColor,
-      styleToCheck->style());
+  EditingStyle* styleAtStart =
+      EditingStyleUtilities::createStyleAtSelectionStart(
+          frame().selection().selection(),
+          propertyID == CSSPropertyBackgroundColor, styleToCheck->style());
   return styleToCheck->triStateOfStyle(styleAtStart);
 }
 
@@ -808,9 +811,10 @@ TriState Editor::selectionHasStyle(CSSPropertyID propertyID,
 }
 
 String Editor::selectionStartCSSPropertyValue(CSSPropertyID propertyID) {
-  EditingStyle* selectionStyle = EditingStyle::styleAtSelectionStart(
-      frame().selection().selection(),
-      propertyID == CSSPropertyBackgroundColor);
+  EditingStyle* selectionStyle =
+      EditingStyleUtilities::createStyleAtSelectionStart(
+          frame().selection().selection(),
+          propertyID == CSSPropertyBackgroundColor);
   if (!selectionStyle || !selectionStyle->style())
     return String();
 
@@ -1079,7 +1083,7 @@ void Editor::cut(EditorCommandSource source) {
     if (source == CommandFromMenuOrKeyBinding) {
       if (dispatchBeforeInputDataTransfer(findEventTargetFromSelection(),
                                           InputEvent::InputType::DeleteByCut,
-                                          nullptr, nullptr) !=
+                                          nullptr) !=
           DispatchEventResult::NotCanceled)
         return;
       // 'beforeinput' event handler may destroy target frame.
@@ -1141,7 +1145,7 @@ void Editor::paste(EditorCommandSource source) {
 
     if (dispatchBeforeInputDataTransfer(findEventTargetFromSelection(),
                                         InputEvent::InputType::InsertFromPaste,
-                                        dataTransfer, nullptr) !=
+                                        dataTransfer) !=
         DispatchEventResult::NotCanceled)
       return;
     // 'beforeinput' event handler may destroy target frame.
@@ -1623,9 +1627,11 @@ void Editor::respondToChangedSelection(
     const Position& oldSelectionStart,
     FrameSelection::SetSelectionOptions options) {
   spellChecker().respondToChangedSelection(oldSelectionStart, options);
-  frame().inputMethodController().cancelCompositionIfSelectionIsInvalid();
   client().respondToChangedSelection(&frame(),
-                                     frame().selection().getSelectionType());
+                                     frame()
+                                         .selection()
+                                         .selectionInDOMTree()
+                                         .selectionTypeWithLegacyGranularity());
   setStartNewKillRingSequence(true);
 }
 

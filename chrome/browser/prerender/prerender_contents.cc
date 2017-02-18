@@ -139,7 +139,7 @@ class PrerenderContents::WebContentsDelegateImpl
       int32_t route_id,
       int32_t main_frame_route_id,
       int32_t main_frame_widget_route_id,
-      WindowContainerType window_container_type,
+      content::mojom::WindowContainerType window_container_type,
       const GURL& opener_url,
       const std::string& frame_name,
       const GURL& target_url,
@@ -231,7 +231,7 @@ bool PrerenderContents::IsValidHttpMethod(const std::string& method) {
   // |method| has been canonicalized to upper case at this point so we can just
   // compare them.
   DCHECK_EQ(method, base::ToUpperASCII(method));
-  for (const auto& valid_method : kValidHttpMethods) {
+  for (auto* valid_method : kValidHttpMethods) {
     if (method == valid_method)
       return true;
   }
@@ -239,7 +239,7 @@ bool PrerenderContents::IsValidHttpMethod(const std::string& method) {
   if (prerender_mode() == PREFETCH_ONLY)
     return false;
 
-  for (const auto& valid_method : kValidHttpMethodsForPrerendering) {
+  for (auto* valid_method : kValidHttpMethodsForPrerendering) {
     if (method == valid_method)
       return true;
   }

@@ -28,7 +28,6 @@
 #define Internals_h
 
 #include "bindings/core/v8/ExceptionState.h"
-#include "bindings/core/v8/Iterable.h"
 #include "bindings/core/v8/ScriptPromise.h"
 #include "bindings/core/v8/ScriptState.h"
 #include "bindings/core/v8/ScriptValue.h"
@@ -48,6 +47,8 @@ class ClientRect;
 class ClientRectList;
 class DOMArrayBuffer;
 class DOMPoint;
+class DOMWindow;
+class Dictionary;
 class DictionaryTest;
 class Document;
 class DocumentMarker;
@@ -77,8 +78,7 @@ class StaticNodeTypeList;
 using StaticNodeList = StaticNodeTypeList<Node>;
 
 class Internals final : public GarbageCollected<Internals>,
-                        public ScriptWrappable,
-                        public ValueIterable<int> {
+                        public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -417,6 +417,10 @@ class Internals final : public GarbageCollected<Internals>,
   int selectPopupItemStyleFontHeight(Node*, int);
   void resetTypeAheadSession(HTMLSelectElement*);
 
+  Node* visibleSelectionAnchorNode();
+  unsigned visibleSelectionAnchorOffset();
+  Node* visibleSelectionFocusNode();
+  unsigned visibleSelectionFocusOffset();
   ClientRect* selectionBounds(ExceptionState&);
 
   bool loseSharedGraphicsContext3D();
@@ -489,9 +493,18 @@ class Internals final : public GarbageCollected<Internals>,
   float visualViewportScrollY();
 
   // Return true if the given use counter exists for the given document.
-  // |useCounterId| must be one of the values from the UseCounter::Feature enum.
-  bool isUseCounted(Document*, int useCounterId);
+  // |feature| must be one of the values from the UseCounter::Feature enum.
+  bool isUseCounted(Document*, uint32_t feature);
   bool isCSSPropertyUseCounted(Document*, const String&);
+
+  // Observes changes on Document's UseCounter. Returns a promise that is
+  // resolved when |feature| is counted. When |feature| was already counted,
+  // it's immediately resolved.
+  ScriptPromise observeUseCounter(ScriptState*, Document*, uint32_t feature);
+
+  // Used by the iterable<>.
+  unsigned length() const { return 5; }
+  int anonymousIndexedGetter(uint32_t index) const { return index * index; }
 
   String unscopableAttribute();
   String unscopableMethod();
@@ -541,8 +554,6 @@ class Internals final : public GarbageCollected<Internals>,
                            ExceptionState&);
   Member<InternalRuntimeFlags> m_runtimeFlags;
   Member<Document> m_document;
-
-  IterationSource* startIteration(ScriptState*, ExceptionState&) override;
 };
 
 }  // namespace blink

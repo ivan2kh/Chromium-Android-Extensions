@@ -13,6 +13,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "cc/output/compositor_frame.h"
+#include "cc/surfaces/pending_frame_observer.h"
 #include "cc/surfaces/surface_id.h"
 #include "cc/surfaces/surface_resource_holder.h"
 #include "cc/surfaces/surface_sequence.h"
@@ -32,14 +33,14 @@ class SurfaceManager;
 // particular factory will be returned to that factory's client when they are no
 // longer being used. This is the only class most users of surfaces will need to
 // directly interact with.
-class CC_SURFACES_EXPORT SurfaceFactory {
+class CC_SURFACES_EXPORT SurfaceFactory : public PendingFrameObserver {
  public:
   using DrawCallback = base::Callback<void()>;
 
   SurfaceFactory(const FrameSinkId& frame_sink_id,
                  SurfaceManager* manager,
                  SurfaceFactoryClient* client);
-  ~SurfaceFactory();
+  ~SurfaceFactory() override;
 
   const FrameSinkId& frame_sink_id() const { return frame_sink_id_; }
 
@@ -78,17 +79,27 @@ class CC_SURFACES_EXPORT SurfaceFactory {
 
   SurfaceManager* manager() { return manager_; }
 
+  Surface* current_surface_for_testing() { return current_surface_.get(); }
+
   // This can be set to false if resources from this SurfaceFactory don't need
   // to have sync points set on them when returned from the Display, for
   // example if the Display shares a context with the creator.
   bool needs_sync_points() const { return needs_sync_points_; }
   void set_needs_sync_points(bool needs) { needs_sync_points_ = needs; }
 
-  // SurfaceFactory's owner can call this when it finds out that SurfaceManager
-  // is no longer alive during destruction.
-  void DidDestroySurfaceManager() { manager_ = nullptr; }
-
  private:
+  // PendingFrameObserver implementation.
+  void OnReferencedSurfacesChanged(
+      Surface* surface,
+      const std::vector<SurfaceId>* active_referenced_surfaces,
+      const std::vector<SurfaceId>* pending_referenced_surfaces) override;
+  void OnSurfaceActivated(Surface* surface) override;
+  void OnSurfaceDependenciesChanged(
+      Surface* surface,
+      const SurfaceDependencies& added_dependencies,
+      const SurfaceDependencies& removed_dependencies) override;
+  void OnSurfaceDiscarded(Surface* surface) override;
+
   std::unique_ptr<Surface> Create(const LocalSurfaceId& local_surface_id);
   void Destroy(std::unique_ptr<Surface> surface);
 
@@ -97,6 +108,7 @@ class CC_SURFACES_EXPORT SurfaceFactory {
   SurfaceFactoryClient* client_;
   SurfaceResourceHolder holder_;
   bool needs_sync_points_;
+  bool seen_first_frame_activation_ = false;
   std::unique_ptr<Surface> current_surface_;
   base::WeakPtrFactory<SurfaceFactory> weak_factory_;
 

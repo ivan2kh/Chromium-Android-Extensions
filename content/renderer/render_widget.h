@@ -268,6 +268,7 @@ class CONTENT_EXPORT RenderWidget
   void SetInputHandler(RenderWidgetInputHandler* input_handler) override;
   void ShowVirtualKeyboard() override;
   void UpdateTextInputState() override;
+  void ClearTextInputState() override;
   bool WillHandleGestureEvent(const blink::WebGestureEvent& event) override;
   bool WillHandleMouseEvent(const blink::WebMouseEvent& event) override;
 
@@ -292,7 +293,6 @@ class CONTENT_EXPORT RenderWidget
                       blink::WebTextDirection hint) override;
   void setWindowRect(const blink::WebRect&) override;
   blink::WebScreenInfo screenInfo() override;
-  void resetInputMethod() override;
   void didHandleGestureEvent(const blink::WebGestureEvent& event,
                              bool event_cancelled) override;
   void didOverscroll(const blink::WebFloatSize& overscrollDelta,
@@ -527,7 +527,8 @@ class CONTENT_EXPORT RenderWidget
                             const gfx::Point& screen_pt,
                             blink::WebDragOperationsMask operations_allowed,
                             int key_modifiers);
-  void OnDragTargetDragLeave();
+  void OnDragTargetDragLeave(const gfx::Point& client_point,
+                             const gfx::Point& screen_point);
   void OnDragTargetDrop(const DropData& drop_data,
                         const gfx::Point& client_pt,
                         const gfx::Point& screen_pt,
@@ -842,6 +843,9 @@ class CONTENT_EXPORT RenderWidget
   // being handled. If the current event results in starting a drag/drop
   // session, this info is sent to the browser along with other drag/drop info.
   DragEventSourceInfo possible_drag_event_info_;
+
+  bool time_to_first_active_paint_recorded_;
+  base::TimeTicks was_shown_time_;
 
   base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
 

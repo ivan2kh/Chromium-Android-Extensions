@@ -17,6 +17,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_notification_types.h"
@@ -555,6 +556,14 @@ bool LocalSafeBrowsingDatabaseManager::CheckBrowseUrl(const GURL& url,
       base::Bind(&LocalSafeBrowsingDatabaseManager::OnCheckDone, this, check));
 
   return false;
+}
+
+bool LocalSafeBrowsingDatabaseManager::CheckUrlForSubresourceFilter(
+    const GURL& url,
+    Client* client) {
+  // TODO(melandory): implement Android support.
+  NOTREACHED();
+  return true;
 }
 
 void LocalSafeBrowsingDatabaseManager::CancelCheck(Client* client) {

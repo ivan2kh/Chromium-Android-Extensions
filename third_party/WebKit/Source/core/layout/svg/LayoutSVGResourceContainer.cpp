@@ -193,7 +193,7 @@ void LayoutSVGResourceContainer::addClient(LayoutObject* client) {
 void LayoutSVGResourceContainer::removeClient(LayoutObject* client) {
   ASSERT(client);
   removeClientFromCache(client, false);
-  m_clients.remove(client);
+  m_clients.erase(client);
 }
 
 void LayoutSVGResourceContainer::invalidateCacheAndMarkForLayout(
@@ -230,8 +230,7 @@ void LayoutSVGResourceContainer::registerResource() {
     LayoutObject* layoutObject = pendingClient->layoutObject();
     if (!layoutObject)
       continue;
-    DCHECK(layoutObject->isSVG() && (resourceType() != FilterResourceType ||
-                                     !layoutObject->isSVGRoot()));
+    DCHECK(layoutObject->isSVG());
 
     StyleDifference diff;
     diff.setNeedsFullLayout();
@@ -276,7 +275,7 @@ static inline void removeFromCacheAndInvalidateDependencies(
 
       LayoutSVGResourceContainer::markForLayoutAndParentResourceInvalidation(
           layoutObject, needsLayout);
-      invalidatingDependencies.remove(element);
+      invalidatingDependencies.erase(element);
     }
   }
 }

@@ -4,7 +4,6 @@
 
 #include "ash/common/system/tray/tray_constants.h"
 
-#include "ash/common/material_design/material_design_controller.h"
 #include "base/logging.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/color_palette.h"
@@ -46,7 +45,6 @@ const int kTrayPopupAutoCloseDelayForTextInSeconds = 5;
 const int kTrayPopupPaddingHorizontal = 18;
 const int kTrayPopupPaddingBetweenItems = 10;
 const int kTrayPopupButtonEndMargin = 10;
-const int kTrayPopupUserCardVerticalPadding = 10;
 const int kTrayPopupLabelHorizontalPadding = 4;
 const int kTrayPopupSliderPaddingMD = 16;
 const int kTrayPopupLabelRightPadding = 8;
@@ -61,7 +59,6 @@ const int kTrayToggleButtonWidth = 68;
 
 const SkColor kBackgroundColor = SkColorSetRGB(0xfe, 0xfe, 0xfe);
 const SkColor kHoverBackgroundColor = SkColorSetRGB(0xf3, 0xf3, 0xf3);
-const SkColor kPublicAccountBackgroundColor = SkColorSetRGB(0xf8, 0xe5, 0xb6);
 const SkColor kPublicAccountUserCardTextColor = SkColorSetRGB(0x66, 0x66, 0x66);
 const SkColor kPublicAccountUserCardNameColor = SK_ColorBLACK;
 
@@ -95,11 +92,10 @@ const int kMenuEdgeEffectivePadding =
     kMenuExtraMarginFromLeftEdge + (kMenuButtonSize - kMenuIconSize) / 2;
 
 const int kHitRegionPadding = 4;
-const SkColor kSeparatorColor = SkColorSetA(SK_ColorWHITE, 0x99);
+const SkColor kTraySeparatorColor = SkColorSetA(SK_ColorWHITE, 0x99);
 const int kSeparatorWidth = 1;
 
-const SkColor kHorizontalSeparatorColor = SkColorSetA(SK_ColorBLACK, 0x1F);
-const int kHorizontalSeparatorHeight = 24;
+const SkColor kMenuSeparatorColor = SkColorSetA(SK_ColorBLACK, 0x1F);
 
 const SkColor kTrayPopupInkDropBaseColor = SK_ColorBLACK;
 const float kTrayPopupInkDropRippleOpacity = 0.06f;
@@ -129,10 +125,9 @@ int GetTrayConstant(TrayConstant constant) {
   const int kTrayImeMenuIcon[] = {40, kTrayItemSize, kTrayItemSize};
   const int kTrayImageItemPadding[] = {1, 3, 3};
 
-  const int mode = MaterialDesignController::GetMode();
-  DCHECK(mode >= MaterialDesignController::NON_MATERIAL &&
-         mode <= MaterialDesignController::MATERIAL_EXPERIMENTAL);
-
+  // TODO(estade): clean this up --- remove unneeded constants and reduce
+  // remaining arrays to a single constant.
+  const int mode = 1;
   switch (constant) {
     case TRAY_ITEM_HEIGHT_LEGACY:
       return kTrayItemHeightLegacy[mode];

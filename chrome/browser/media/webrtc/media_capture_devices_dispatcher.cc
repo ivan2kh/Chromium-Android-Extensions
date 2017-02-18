@@ -37,7 +37,7 @@
 #if defined(OS_CHROMEOS)
 #include "ash/shell.h"
 #include "chrome/browser/media/public_session_media_access_handler.h"
-#include "chrome/browser/media/webrtc/public_session_tab_capture_access_handler.h"
+#include "chrome/browser/media/public_session_tab_capture_access_handler.h"
 #endif  // defined(OS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -116,19 +116,9 @@ void MediaCaptureDevicesDispatcher::RegisterProfilePrefs(
 bool MediaCaptureDevicesDispatcher::IsOriginForCasting(const GURL& origin) {
   // Whitelisted tab casting extensions.
   return
-      // Dev
+      // Media Router Dev
       origin.spec() == "chrome-extension://enhhojjnijigcajfphajepfemndkmdlo/" ||
-      // Canary
-      origin.spec() == "chrome-extension://hfaagokkkhdbgiakmmlclaapfelnkoah/" ||
-      // Beta (internal)
-      origin.spec() == "chrome-extension://fmfcbgogabcbclcofgocippekhfcmgfj/" ||
-      // Google Cast Beta
-      origin.spec() == "chrome-extension://dliochdbjfkdbacpmhlcpmleaejidimm/" ||
-      // Google Cast Stable
-      origin.spec() == "chrome-extension://boadgeojelhgndaghljhdicfkmllpafd/" ||
-      // http://crbug.com/457908
-      origin.spec() == "chrome-extension://ekpaaapppgpmolpcldedioblbkmijaca/" ||
-      // http://crbug.com/574889
+      // Media Router Stable
       origin.spec() == "chrome-extension://pkedcjkdefgpdelpbcmbmeomcjbeemfm/";
 }
 

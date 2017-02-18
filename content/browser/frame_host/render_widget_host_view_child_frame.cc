@@ -594,8 +594,7 @@ bool RenderWidgetHostViewChildFrame::IsSpeaking() const {
   return false;
 }
 
-void RenderWidgetHostViewChildFrame::StopSpeaking() {
-}
+void RenderWidgetHostViewChildFrame::StopSpeaking() {}
 #endif  // defined(OS_MACOSX)
 
 void RenderWidgetHostViewChildFrame::RegisterFrameSwappedCallback(

@@ -704,7 +704,7 @@ To adjust your search term, long press to select. To refine your search, slide t
       <message name="IDS_IOS_ICON_SEARCH" desc="Accessibility label for the search icon [iOS only].">
         Search
       </message>
-      <message name="IDS_IOS_JAVA_SCRIPT_DIALOG_BLOCKING_BUTTON_TEXT" desc="The text used for the button added to JavaScript dialogs to prevent a page from spamming the user with endless alerts. [Length:25em]">
+      <message name="IDS_IOS_JAVA_SCRIPT_DIALOG_BLOCKING_BUTTON_TEXT" desc="The text used for the button added to JavaScript dialogs to prevent a page from spamming the user with endless alerts. [Length:27em]">
         Suppress Dialogs
       </message>
       <message name="IDS_IOS_KEYBOARD_BOOKMARK_THIS_PAGE" desc="In Title Case: Title of the keyboard shortcut that bookmarks the current page. [Length: 20 em] [iOS only]">
@@ -939,14 +939,14 @@ Handoff must also be enabled in the General section of Settings, and your device
       <message name="IDS_IOS_PAYMENT_REQUEST_CANCEL_BUTTON" desc="Label of the button to cancel the request for payment presented to the user [iOS only].">
         Cancel
       </message>
-      <message name="IDS_IOS_PAYMENT_REQUEST_METHOD_SELECTION_BUTTON" desc="Label of the button to select a payment method (credit card) [iOS only].">
-        Select
-      </message>
       <message name="IDS_IOS_PAYMENT_REQUEST_METHOD_SELECTION_TITLE" desc="Title of the view that allows the user to select the payment method (available credit cards or payment apps) for satisfying a payment request [iOS only].">
         Payment
       </message>
       <message name="IDS_IOS_PAYMENT_REQUEST_PAYMENT_ITEMS_TITLE" desc="Title of the view that displays the payment items in a payment request (for example subtotal, tax, shipping cost) to the user [iOS only].">
         Order Summary
+      </message>
+      <message name="IDS_IOS_PAYMENT_REQUEST_PAYMENT_ITEMS_TOTAL_FORMAT" desc="The format specifier of the Total label in the payment items in a payment request [iOS only].">
+        <ph name="FORMATTED_CURRENCY_CODE">$1<ex>USD</ex></ph> <ph name="FORMATTED_TOTAL_AMOUNT">$2<ex>$ 12.34</ex></ph>
       </message>
       <message name="IDS_IOS_PAYMENT_REQUEST_SHIPPING_ADDRESS_HEADER" desc="Label of the header of the section which displays the currently selected shipping address and the available shipping options for satisfying a payment request [iOS only].">
         Shipping
@@ -980,6 +980,9 @@ Handoff must also be enabled in the General section of Settings, and your device
       </message>
       <message name="IDS_IOS_PAYMENT_REQUEST_TOTAL_HEADER" desc="Label of the header of the section which displays the total charge for a payment request [iOS only].">
         Total
+      </message>
+      <message name="IDS_IOS_PAYMENT_REQUEST_TOTAL_UPDATED_LABEL" desc="Label placed on the section which displays the total charge for a payment request, indicating that the total charge was updated. [iOS only].">
+        Updated
       </message>
       <message name="IDS_IOS_PHOTO_LIBRARY_USAGE_DESCRIPTION" desc="Specifies the reason for accessing the user's photo library while the app is in use [Length: unlimited] [iOS only].">
         This lets you save and upload photos.
@@ -1062,6 +1065,9 @@ Handoff must also be enabled in the General section of Settings, and your device
       <message name="IDS_IOS_READING_LIST_CANCEL_BUTTON" desc="Label of the button to stop editing the reading list entries (delete, mark as read/unread) [Length: 25em]" meaning="Stop editing. [Length: 25em]">
         Cancel
       </message>
+      <message name="IDS_IOS_READING_LIST_CONTENT_CONTEXT_OFFLINE" desc="Title of the button to display the Offline version instead of the Online one. [Length: 50em]">
+        View Offline Version in New Tab
+      </message>
       <message name="IDS_IOS_READING_LIST_DELETE_ALL_READ_BUTTON" desc="Label of the button to delete all the reading list entries read [Length: 25em]" meaning="Delete all the read entries. [Length: 25em]">
         Delete Read
       </message>
@@ -1074,14 +1080,8 @@ Handoff must also be enabled in the General section of Settings, and your device
       <message name="IDS_IOS_READING_LIST_EDIT_BUTTON" desc="Label of the button to edit the reading list entries (delete, mark as read/unread) [Length: 20em]" meaning="Start editing the reading list entries. [Length: 20em]">
         Edit
       </message>
-      <message name="IDS_IOS_READING_LIST_EMPTY_MESSAGE_IPHONE" desc="Message to explain to the user how to add entries to the reading list" meaning="[Length: unlimited]">
-        To add a page to your reading list, tap <ph name="BEGIN_BOLD_FONT">BEGIN_BOLD_FONT</ph>Menu > Share > Read Later<ph name="END_BOLD_FONT">END_BOLD_FONT</ph>.
-      </message>
-      <message name="IDS_IOS_READING_LIST_EMPTY_MESSAGE_IPAD" desc="Message to explain to the user how to add entries to the reading list" meaning="[Length: unlimited]">
-        To add a page to your reading list, tap <ph name="BEGIN_BOLD_FONT">BEGIN_BOLD_FONT</ph>Share > Read Later<ph name="END_BOLD_FONT">END_BOLD_FONT</ph>.
-      </message>
-      <message name="IDS_IOS_READING_LIST_EMPTY_OFFLINE" desc="Message to explain to the user that the pages added to the reading list can be read offline." meaning="[Length:unlimited]">
-        Your reading list is available offline.
+      <message name="IDS_IOS_READING_LIST_EMPTY_MESSAGE" desc="Message to explain to the user how to add entries to the reading list" meaning="[Length: unlimited]">
+        Your reading list is available offline. To add a page to your reading list, tap<ph name="SHARE_OPENING_ICON">SHARE_OPENING_ICON<ex>Menu > Share > Read Later</ex></ph>.
       </message>
       <message name="IDS_IOS_READING_LIST_MARK_ALL_BUTTON" desc="Label of the button to suggest options to mark all reading list entries read or unread [Length: 25em]" meaning="Display options letting the user mark all the entries as read or as unread. [Length: 25em]">
         Mark All…

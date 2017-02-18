@@ -36,6 +36,8 @@ component("web") {
   defines = [ "BLINK_WEB_IMPLEMENTATION=1" ]
 
   sources = [
+    "AnimationWorkletProxyClientImpl.cpp",
+    "AnimationWorkletProxyClientImpl.h",
     "AssertMatchingEnums.cpp",
     "AudioOutputDeviceClientImpl.cpp",
     "AudioOutputDeviceClientImpl.h",
@@ -48,10 +50,11 @@ component("web") {
     "CompositionUnderlineBuilder.h",
     "CompositionUnderlineVectorBuilder.cpp",
     "CompositionUnderlineVectorBuilder.h",
+    "CompositorAnimator.h",
     "CompositorMutatorImpl.cpp",
     "CompositorMutatorImpl.h",
-    "CompositorProxyClientImpl.cpp",
-    "CompositorProxyClientImpl.h",
+    "CompositorWorkerProxyClientImpl.cpp",
+    "CompositorWorkerProxyClientImpl.h",
     "ContextFeaturesClientImpl.cpp",
     "ContextFeaturesClientImpl.h",
     "ContextMenuAllowedScope.cpp",
@@ -142,7 +145,6 @@ component("web") {
     "WebAssociatedURLLoaderImpl.h",
     "WebBlob.cpp",
     "WebCSSParser.cpp",
-    "WebCache.cpp",
     "WebColorSuggestion.cpp",
     "WebCryptoNormalize.cpp",
     "WebCustomElement.cpp",
@@ -193,6 +195,7 @@ component("web") {
     "WebImageCache.cpp",
     "WebImageDecoder.cpp",
     "WebInputElement.cpp",
+    "WebInputEvent.cpp",
     "WebInputEventConversion.cpp",
     "WebInputEventConversion.h",
     "WebInputMethodControllerImpl.cpp",
@@ -328,6 +331,7 @@ test("webkit_unit_tests") {
 
     # FIXME: Move the tests from web/tests/ to appropriate places.
     # crbug.com/353585
+    "tests/ActiveConnectionThrottlingTest.cpp",
     "tests/ActivityLoggerTest.cpp",
     "tests/BrowserControlsTest.cpp",
     "tests/ChromeClientImplTest.cpp",

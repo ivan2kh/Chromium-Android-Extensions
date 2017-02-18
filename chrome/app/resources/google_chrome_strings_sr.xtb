@@ -65,7 +65,6 @@
 <translation id="2664962310688259219">Лиценце отвореног кода за Chrome ОС</translation>
 <translation id="2665296953892887393">Помозите нам да побољшамо Google Chrome тако што ћете Google-у слати извештаје о отказивању и <ph name="UMA_LINK" /></translation>
 <translation id="2689103672227170538">Овај додатак је променио страницу која се приказује када покренете Chrome.</translation>
-<translation id="2748463065602559597">Прегледате безбедну Google Chrome страницу.</translation>
 <translation id="2769762047821873045">Google Chrome није ваш подразумевани прегледач.</translation>
 <translation id="2770231113462710648">Промени подразумевани прегледач у:</translation>
 <translation id="2799223571221894425">Поново покрени</translation>
@@ -134,6 +133,7 @@
 <translation id="4754614261631455953">Google Chrome Canary (mDNS-In)</translation>
 <translation id="4771048833395599659">Ова датотека може да буде опасна, па ју је Chrome блокирао.</translation>
 <translation id="4794050651896644714">Сачувај детаље у Chrome-у</translation>
+<translation id="4853578032408195113">Прегледате безбедну Google Chrome страницу.</translation>
 <translation id="4891791193823137474">Нека Google Chrome ради у позадини</translation>
 <translation id="4921569541910214635">Делите рачунар? Сада можете да подесите Chrome баш онако како вама одговара.</translation>
 <translation id="4953650215774548573">Подеси Google Chrome као подразумевани прегледач</translation>
@@ -207,6 +207,7 @@ Google Chrome не може да врати подешавања.</translation>
 <translation id="6970811910055250180">Ажурирање уређаја...</translation>
 <translation id="6982337800632491844"><ph name="DOMAIN" /> захтева да прочитате и прихватите следеће Услове коришћења услуге пре него што почнете да користите овај уређај. Ови услови не представљају проширење, измену или ограничење Услова за Google Chrome ОС.</translation>
 <translation id="6989339256997917931">Google Chrome је ажуриран, али га нисте користили најмање 30 дана.</translation>
+<translation id="7048801529101012374">Google Chrome је подразумевани прегледач. Сјајно!</translation>
 <translation id="7098166902387133879">Google Chrome користи микрофон.</translation>
 <translation id="7106741999175697885">Менаџер задатака – Google Chrome</translation>
 <translation id="7125719106133729027">Chrome не може сâм да се ажурира на најновију верзију, па пропуштате одличне нове функције и безбедносне исправке. Треба ручно поново да инсталирате Chrome.</translation>

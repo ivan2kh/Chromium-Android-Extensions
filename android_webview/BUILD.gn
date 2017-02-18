@@ -149,16 +149,18 @@ android_assets("assets") {
 
 action("generate_webview_license_notice") {
   script = "tools/webview_licenses.py"
-  inputs = exec_script("//android_webview/tools/webview_licenses.py",
-                       [ "gn_notice_deps" ],
-                       "value")
-  inputs += [ "tools/licenses_notice.tmpl" ]
+  depfile = "$target_gen_dir/$target_name.d"
+  inputs = [
+    "tools/licenses_notice.tmpl",
+  ]
   outputs = [
     webview_license_path,
   ]
   args = [
     "notice",
-    rebase_path(webview_license_path),
+    rebase_path(webview_license_path, root_build_dir),
+    "--depfile",
+    rebase_path(depfile, root_build_dir),
   ]
 }
 
@@ -312,7 +314,8 @@ shared_library("libwebviewchromium") {
   deps = [
     ":webview_entry_point",
   ]
-  configs -= [ "//build/config/android:hide_native_jni_exports" ]
+  configs -= [ "//build/config/android:hide_all_but_jni_onload" ]
+  configs += [ "//build/config/android:hide_all_but_jni" ]
 }
 
 if (android_64bit_target_cpu) {
@@ -334,7 +337,8 @@ if (android_64bit_target_cpu) {
     deps = [
       ":webview_entry_point",
     ]
-    configs -= [ "//build/config/android:hide_native_jni_exports" ]
+    configs -= [ "//build/config/android:hide_all_but_jni_onload" ]
+    configs += [ "//build/config/android:hide_all_but_jni" ]
   }
 }
 
@@ -493,6 +497,8 @@ source_set("common") {
     "common/aw_switches.h",
     "common/crash_reporter/aw_microdump_crash_reporter.cc",
     "common/crash_reporter/aw_microdump_crash_reporter.h",
+    "common/crash_reporter/crash_keys.cc",
+    "common/crash_reporter/crash_keys.h",
     "common/devtools_instrumentation.h",
     "common/render_view_messages.cc",
     "common/render_view_messages.h",
@@ -561,6 +567,7 @@ source_set("common") {
     "//content",
     "//content/public/app:both",
     "//content/public/browser",
+    "//content/public/common:content_descriptor_keys",
     "//content/public/common:service_names",
     "//crypto",
     "//gin",
@@ -682,8 +689,6 @@ android_library("android_webview_java") {
     "//net/android:net_java",
     "//third_party/android_tools:android_support_annotations_java",
     "//ui/android:ui_java",
-    google_play_services_library,
-    google_play_services_resources,
   ]
 
   if (enable_spellcheck) {
@@ -757,6 +762,14 @@ android_library("android_webview_platform_services_java") {
   ]
 }
 
+android_library("android_webview_commandline_java") {
+  java_files = [ "java/src/org/chromium/android_webview/command_line/CommandLineUtil.java" ]
+
+  deps = [
+    "//base:base_java",
+  ]
+}
+
 # Keep crash services separate from other WebView code to keep their deps clean
 # (and make them easy to move).
 android_library("android_webview_crash_services_java") {
@@ -767,6 +780,8 @@ android_library("android_webview_crash_services_java") {
     "java/src/org/chromium/android_webview/crash/MinidumpUploadJobService.java",
   ]
   deps = [
+    ":android_webview_commandline_java",
+    ":android_webview_platform_services_java",
     "//base:base_java",
     "//components/minidump_uploader:minidump_uploader_java",
   ]

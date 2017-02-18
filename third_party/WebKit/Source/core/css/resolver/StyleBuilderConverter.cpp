@@ -674,10 +674,10 @@ static void convertGridLineNamesList(
   for (auto& namedGridLineValue : toCSSValueList(value)) {
     String namedGridLine = toCSSCustomIdentValue(*namedGridLineValue).value();
     NamedGridLinesMap::AddResult result =
-        namedGridLines.add(namedGridLine, Vector<size_t>());
+        namedGridLines.insert(namedGridLine, Vector<size_t>());
     result.storedValue->value.push_back(currentNamedGridLine);
     OrderedNamedGridLines::AddResult orderedInsertionResult =
-        orderedNamedGridLines.add(currentNamedGridLine, Vector<String>());
+        orderedNamedGridLines.insert(currentNamedGridLine, Vector<String>());
     orderedInsertionResult.storedValue->value.push_back(namedGridLine);
   }
 }
@@ -762,7 +762,7 @@ void StyleBuilderConverter::convertOrderedNamedGridLinesMapToNamedGridLinesMap(
   for (auto& orderedNamedGridLine : orderedNamedGridLines) {
     for (auto& lineName : orderedNamedGridLine.value) {
       NamedGridLinesMap::AddResult startResult =
-          namedGridLines.add(lineName, Vector<size_t>());
+          namedGridLines.insert(lineName, Vector<size_t>());
       startResult.storedValue->value.push_back(orderedNamedGridLine.key);
     }
   }
@@ -781,15 +781,15 @@ void StyleBuilderConverter::createImplicitNamedGridLinesFromGridArea(
     GridSpan areaSpan = direction == ForRows ? namedGridAreaEntry.value.rows
                                              : namedGridAreaEntry.value.columns;
     {
-      NamedGridLinesMap::AddResult startResult = namedGridLines.add(
+      NamedGridLinesMap::AddResult startResult = namedGridLines.insert(
           namedGridAreaEntry.key + "-start", Vector<size_t>());
       startResult.storedValue->value.push_back(areaSpan.startLine());
       std::sort(startResult.storedValue->value.begin(),
                 startResult.storedValue->value.end());
     }
     {
-      NamedGridLinesMap::AddResult endResult =
-          namedGridLines.add(namedGridAreaEntry.key + "-end", Vector<size_t>());
+      NamedGridLinesMap::AddResult endResult = namedGridLines.insert(
+          namedGridAreaEntry.key + "-end", Vector<size_t>());
       endResult.storedValue->value.push_back(areaSpan.endLine());
       std::sort(endResult.storedValue->value.begin(),
                 endResult.storedValue->value.end());
@@ -1287,6 +1287,11 @@ PassRefPtr<TranslateTransformOperation> StyleBuilderConverter::convertTranslate(
 }
 
 Rotation StyleBuilderConverter::convertRotation(const CSSValue& value) {
+  if (value.isIdentifierValue()) {
+    DCHECK_EQ(toCSSIdentifierValue(value).getValueID(), CSSValueNone);
+    return Rotation(FloatPoint3D(0, 0, 1), 0);
+  }
+
   const CSSValueList& list = toCSSValueList(value);
   ASSERT(list.length() == 1 || list.length() == 4);
   double x = 0;
@@ -1305,6 +1310,11 @@ Rotation StyleBuilderConverter::convertRotation(const CSSValue& value) {
 PassRefPtr<RotateTransformOperation> StyleBuilderConverter::convertRotate(
     StyleResolverState& state,
     const CSSValue& value) {
+  if (value.isIdentifierValue()) {
+    DCHECK_EQ(toCSSIdentifierValue(value).getValueID(), CSSValueNone);
+    return nullptr;
+  }
+
   return RotateTransformOperation::create(convertRotation(value),
                                           TransformOperation::Rotate3D);
 }

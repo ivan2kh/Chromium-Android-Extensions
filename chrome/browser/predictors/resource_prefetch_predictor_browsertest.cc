@@ -9,6 +9,7 @@
 #include "base/command_line.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_util.h"
+#include "base/test/histogram_tester.h"
 #include "chrome/browser/browsing_data/browsing_data_helper.h"
 #include "chrome/browser/browsing_data/browsing_data_remover.h"
 #include "chrome/browser/browsing_data/browsing_data_remover_factory.h"
@@ -76,7 +77,6 @@ struct ResourceSummary {
         is_prohibited(false) {}
 
   ResourcePrefetchPredictor::URLRequestSummary request;
-  std::string content;
   // Allows to update HTTP ETag.
   size_t version;
   // True iff "Cache-control: no-store" header is present.
@@ -317,6 +317,7 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
         ResourcePrefetchPredictorFactory::GetForProfile(browser()->profile());
     ASSERT_TRUE(predictor_);
     EnsurePredictorInitialized();
+    histogram_tester_.reset(new base::HistogramTester());
   }
 
   void TestLearningAndPrefetching(const GURL& main_frame_url) {
@@ -412,14 +413,14 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
   ResourceSummary* AddExternalResource(const GURL& resource_url,
                                        content::ResourceType resource_type,
                                        net::RequestPriority priority) {
-    auto resource = AddResource(resource_url, resource_type, priority);
+    auto* resource = AddResource(resource_url, resource_type, priority);
     resource->is_external = true;
     return resource;
   }
 
   void AddUnobservableResources(const std::vector<GURL>& resource_urls) {
     for (const GURL& resource_url : resource_urls) {
-      auto resource =
+      auto* resource =
           AddResource(resource_url, content::RESOURCE_TYPE_SUB_RESOURCE,
                       net::DEFAULT_PRIORITY);
       resource->is_observable = false;
@@ -486,6 +487,8 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
   size_t navigation_ids_history_size() const {
     return navigation_id_history_.size();
   }
+
+  std::unique_ptr<base::HistogramTester> histogram_tester_;
 
  private:
   // ResourcePrefetchPredictor needs to be initialized before the navigation
@@ -586,8 +589,6 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
 
     if (!summary.request.mime_type.empty())
       http_response->set_content_type(summary.request.mime_type);
-    if (!summary.content.empty())
-      http_response->set_content(summary.content);
     if (summary.is_no_store)
       http_response->AddCustomHeader("Cache-Control", "no-store");
     if (summary.request.has_validators) {
@@ -598,6 +599,10 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
       http_response->AddCustomHeader("Cache-Control", "no-cache");
     else
       http_response->AddCustomHeader("Cache-Control", "max-age=2147483648");
+
+    // Add some content, otherwise the prefetch size histogram rounds down to
+    // 0kB.
+    http_response->set_content(std::string(1024, ' '));
 
     return std::move(http_response);
   }
@@ -642,6 +647,22 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest, Simple) {
   AddResource(GetURL(kFontPath), content::RESOURCE_TYPE_FONT_RESOURCE,
               net::HIGHEST);
   TestLearningAndPrefetching(GetURL(kHtmlSubresourcesPath));
+
+  // The local cache is cleared.
+  histogram_tester_->ExpectBucketCount(
+      internal::kResourcePrefetchPredictorPrefetchMissesCountCached, 0, 1);
+  histogram_tester_->ExpectBucketCount(
+      internal::kResourcePrefetchPredictorPrefetchMissesCountNotCached, 0, 1);
+  histogram_tester_->ExpectBucketCount(
+      internal::kResourcePrefetchPredictorPrefetchHitsCountCached, 0, 1);
+  histogram_tester_->ExpectBucketCount(
+      internal::kResourcePrefetchPredictorPrefetchHitsCountNotCached, 4, 1);
+
+  histogram_tester_->ExpectBucketCount(
+      internal::kResourcePrefetchPredictorPrefetchMissesSize, 0, 1);
+  // Each request is ~1k, see HandleResourceRequest() above.
+  histogram_tester_->ExpectBucketCount(
+      internal::kResourcePrefetchPredictorPrefetchHitsSize, 4, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest, Redirect) {
@@ -694,7 +715,7 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
                        JavascriptDocumentWrite) {
-  auto externalScript =
+  auto* externalScript =
       AddExternalResource(GetURL(kScriptDocumentWritePath),
                           content::RESOURCE_TYPE_SCRIPT, net::MEDIUM);
   externalScript->request.mime_type = kJavascriptMime;
@@ -707,7 +728,7 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
                        JavascriptAppendChild) {
-  auto externalScript =
+  auto* externalScript =
       AddExternalResource(GetURL(kScriptAppendChildPath),
                           content::RESOURCE_TYPE_SCRIPT, net::MEDIUM);
   externalScript->request.mime_type = kJavascriptMime;
@@ -721,7 +742,7 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
                        JavascriptInnerHtml) {
-  auto externalScript = AddExternalResource(
+  auto* externalScript = AddExternalResource(
       GetURL(kScriptInnerHtmlPath), content::RESOURCE_TYPE_SCRIPT, net::MEDIUM);
   externalScript->request.mime_type = kJavascriptMime;
   AddResource(GetURL(kImagePath), content::RESOURCE_TYPE_IMAGE, net::LOWEST);
@@ -736,17 +757,17 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
 // Requests originated by XMLHttpRequest have content::RESOURCE_TYPE_XHR.
 // Actual resource type is inferred from the mime-type.
 IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest, JavascriptXHR) {
-  auto externalScript = AddExternalResource(
+  auto* externalScript = AddExternalResource(
       GetURL(kScriptXHRPath), content::RESOURCE_TYPE_SCRIPT, net::MEDIUM);
   externalScript->request.mime_type = kJavascriptMime;
-  auto image = AddResource(GetURL(kImagePath), content::RESOURCE_TYPE_IMAGE,
-                           net::HIGHEST);
-  image->request.mime_type = kImageMime;
-  auto style = AddResource(GetURL(kStylePath),
-                           content::RESOURCE_TYPE_STYLESHEET, net::HIGHEST);
-  style->request.mime_type = kStyleMime;
-  auto script = AddResource(GetURL(kScriptPath), content::RESOURCE_TYPE_SCRIPT,
+  auto* image = AddResource(GetURL(kImagePath), content::RESOURCE_TYPE_IMAGE,
                             net::HIGHEST);
+  image->request.mime_type = kImageMime;
+  auto* style = AddResource(GetURL(kStylePath),
+                            content::RESOURCE_TYPE_STYLESHEET, net::HIGHEST);
+  style->request.mime_type = kStyleMime;
+  auto* script = AddResource(GetURL(kScriptPath), content::RESOURCE_TYPE_SCRIPT,
+                             net::HIGHEST);
   script->request.mime_type = kJavascriptMime;
   TestLearningAndPrefetching(GetURL(kHtmlXHRPath));
 }
@@ -836,7 +857,7 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest, AlwaysRevalidate) {
       AddResource(GetURL(kFontPath), content::RESOURCE_TYPE_FONT_RESOURCE,
                   net::HIGHEST),
   };
-  for (auto& resource : resources)
+  for (auto* resource : resources)
     resource->request.always_revalidate = true;
   TestLearningAndPrefetching(GetURL(kHtmlSubresourcesPath));
 }

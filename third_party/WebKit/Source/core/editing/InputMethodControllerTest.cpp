@@ -309,6 +309,29 @@ TEST_F(InputMethodControllerTest, CommitTextKeepingStyle) {
   EXPECT_STREQ("abc1<b>2</b>37<b>8</b>9", div->innerHTML().utf8().data());
 }
 
+TEST_F(InputMethodControllerTest, InsertTextWithNewLine) {
+  Element* div =
+      insertHTMLElement("<div id='sample' contenteditable></div>", "sample");
+  Vector<CompositionUnderline> underlines;
+  underlines.push_back(CompositionUnderline(0, 11, Color(255, 0, 0), false, 0));
+
+  controller().commitText(String("hello\nworld"), underlines, 0);
+  EXPECT_STREQ("hello<div>world</div>", div->innerHTML().utf8().data());
+}
+
+TEST_F(InputMethodControllerTest, InsertTextWithNewLineIncrementally) {
+  Element* div =
+      insertHTMLElement("<div id='sample' contenteditable></div>", "sample");
+
+  Vector<CompositionUnderline> underlines;
+  underlines.push_back(CompositionUnderline(0, 11, Color(255, 0, 0), false, 0));
+  controller().setComposition("foo", underlines, 0, 2);
+  EXPECT_STREQ("foo", div->innerHTML().utf8().data());
+
+  controller().commitText(String("hello\nworld"), underlines, 0);
+  EXPECT_STREQ("hello<div>world</div>", div->innerHTML().utf8().data());
+}
+
 TEST_F(InputMethodControllerTest, SelectionOnConfirmExistingText) {
   insertHTMLElement("<div id='sample' contenteditable>hello world</div>",
                     "sample");
@@ -953,7 +976,7 @@ TEST_F(InputMethodControllerTest, CompositionInputEventIsComposing) {
                document().title().utf8().data());
 
   document().setTitle(emptyString);
-  controller().finishComposingText(InputMethodController::KeepSelection);
+  controller().commitText("bar", underlines, 0);
   // Last pair of InputEvent should also be inside composition scope.
   EXPECT_STREQ("beforeinput.isComposing:true;input.isComposing:true;",
                document().title().utf8().data());
@@ -993,9 +1016,7 @@ TEST_F(InputMethodControllerTest, CompositionInputEventForConfirm) {
   // Confirm the ongoing composition.
   document().setTitle(emptyString);
   controller().finishComposingText(InputMethodController::KeepSelection);
-  EXPECT_STREQ(
-      "beforeinput.data:hello;input.data:hello;compositionend.data:hello;",
-      document().title().utf8().data());
+  EXPECT_STREQ("compositionend.data:hello;", document().title().utf8().data());
 }
 
 TEST_F(InputMethodControllerTest, CompositionInputEventForDelete) {
@@ -1013,7 +1034,7 @@ TEST_F(InputMethodControllerTest, CompositionInputEventForDelete) {
   // Delete the existing composition.
   document().setTitle(emptyString);
   controller().setComposition("", underlines, 0, 0);
-  EXPECT_STREQ("beforeinput.data:;compositionend.data:;",
+  EXPECT_STREQ("beforeinput.data:;input.data:;compositionend.data:;",
                document().title().utf8().data());
 }
 
@@ -1067,7 +1088,7 @@ TEST_F(InputMethodControllerTest, CompositionInputEventForInsertEmptyText) {
   document().setTitle(emptyString);
   document().updateStyleAndLayout();
   controller().commitText("", underlines, 1);
-  EXPECT_STREQ("beforeinput.data:;compositionend.data:;",
+  EXPECT_STREQ("beforeinput.data:;input.data:;compositionend.data:;",
                document().title().utf8().data());
 }
 

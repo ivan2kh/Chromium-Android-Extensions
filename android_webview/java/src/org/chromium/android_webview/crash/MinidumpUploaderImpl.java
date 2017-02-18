@@ -7,8 +7,13 @@ package org.chromium.android_webview.crash;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.webkit.ValueCallback;
 
+import org.chromium.android_webview.PlatformServiceBridge;
+import org.chromium.android_webview.command_line.CommandLineUtil;
+import org.chromium.base.CommandLine;
 import org.chromium.base.Log;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.components.minidump_uploader.CrashFileManager;
 import org.chromium.components.minidump_uploader.MinidumpUploadCallable;
@@ -26,14 +31,15 @@ import java.io.File;
  */
 public class MinidumpUploaderImpl implements MinidumpUploader {
     private static final String TAG = "MinidumpUploaderImpl";
+    private Context mContext;
     private Thread mWorkerThread;
     private final ConnectivityManager mConnectivityManager;
     private final CrashFileManager mFileManager;
 
-    private Object mCancelLock = new Object();
     private boolean mCancelUpload = false;
 
     private final boolean mCleanOutMinidumps;
+    private boolean mPermittedByUser = false;
 
     @VisibleForTesting
     public static final int MAX_UPLOAD_TRIES_ALLOWED = 3;
@@ -43,24 +49,21 @@ public class MinidumpUploaderImpl implements MinidumpUploader {
      * more minidumps.
      */
     private void setCancelUpload(boolean cancel) {
-        synchronized (mCancelLock) {
-            mCancelUpload = cancel;
-        }
+        mCancelUpload = cancel;
     }
 
     /**
      * Check whether the current job has been canceled.
      */
     private boolean getCancelUpload() {
-        synchronized (mCancelLock) {
-            return mCancelUpload;
-        }
+        return mCancelUpload;
     }
 
     @VisibleForTesting
     public MinidumpUploaderImpl(Context context, boolean cleanOutMinidumps) {
         mConnectivityManager =
                 (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        mContext = context;
         File webviewCrashDir = CrashReceiverService.createWebViewCrashDir(context);
         mFileManager = new CrashFileManager(webviewCrashDir);
         if (!mFileManager.ensureCrashDirExists()) {
@@ -79,7 +82,17 @@ public class MinidumpUploaderImpl implements MinidumpUploader {
                 minidumpFile, logfile, createWebViewCrashReportingManager());
     }
 
-    private final CrashReportingPermissionManager createWebViewCrashReportingManager() {
+    /**
+     * Utility method to allow us to test the logic of this class by injecting
+     * a test-PlatformServiceBridge.
+     */
+    @VisibleForTesting
+    public PlatformServiceBridge createPlatformServiceBridge() {
+        return PlatformServiceBridge.getInstance(mContext);
+    }
+
+    @VisibleForTesting
+    protected CrashReportingPermissionManager createWebViewCrashReportingManager() {
         return new CrashReportingPermissionManager() {
             @Override
             public boolean isClientInMetricsSample() {
@@ -112,15 +125,15 @@ public class MinidumpUploaderImpl implements MinidumpUploader {
             }
             @Override
             public boolean isUsageAndCrashReportingPermittedByUser() {
-                // We ensure we have user permission before copying minidumps to the directory used
-                // by this process - so always return true here.
-                return true;
+                return mPermittedByUser;
             }
             @Override
             public boolean isUploadEnabledForTests() {
-                // We are already checking whether this feature is enabled for manual testing before
-                // copying minidumps.
-                return false;
+                // Note that CommandLine/CommandLineUtil are not thread safe. They are initialized
+                // on the main thread, but before the current worker thread started - so this thread
+                // will have seen the initialization of the CommandLine.
+                return CommandLine.getInstance().hasSwitch(
+                        CommandLineUtil.CRASH_UPLOADS_ENABLED_FOR_TESTING_SWITCH);
             }
         };
     }
@@ -148,6 +161,10 @@ public class MinidumpUploaderImpl implements MinidumpUploader {
                 int uploadResult = uploadCallable.call();
 
                 // Job was canceled -> early out: any clean-up will be performed in cancelUploads().
+                // Note that we check whether we are canceled AFTER trying to upload a minidump -
+                // this is to allow the uploading of at least one minidump per job (to deal with
+                // cases where we reschedule jobs over and over again and would never upload any
+                // minidumps because old jobs are canceled when scheduling new jobs).
                 if (getCancelUpload()) return;
 
                 if (uploadResult == MinidumpUploadCallable.UPLOAD_FAILURE) {
@@ -174,12 +191,40 @@ public class MinidumpUploaderImpl implements MinidumpUploader {
     @Override
     public void uploadAllMinidumps(
             final MinidumpUploader.UploadsFinishedCallback uploadsFinishedCallback) {
+        // This call should happen on the main thread
+        ThreadUtils.assertOnUiThread();
         if (mWorkerThread != null) {
             throw new RuntimeException("Only one upload-job should be active at a time");
         }
         mWorkerThread = new Thread(new UploadRunnable(uploadsFinishedCallback), "mWorkerThread");
         setCancelUpload(false);
-        mWorkerThread.start();
+
+        createPlatformServiceBridge().queryMetricsSetting(new ValueCallback<Boolean>() {
+            public void onReceiveValue(Boolean enabled) {
+                // This callback should be received on the main thread (e.g. mWorkerThread
+                // is not thread-safe).
+                ThreadUtils.assertOnUiThread();
+
+                mPermittedByUser = enabled;
+                // Note that our job might have been cancelled by this time - however, we do start
+                // our worker thread anyway to try to make some progress towards uploading
+                // minidumps.
+                // This is to ensure that in the case where an app is crashing over and over again
+                // - and we are rescheduling jobs over and over again - we are still uploading at
+                // least one minidump per job, as long as that job starts before it is canceled by
+                // the next job.
+                // For cases where the job is cancelled because the network connection is lost, or
+                // because we switch over to a metered connection, we won't try to upload any
+                // minidumps anyway since we check the network connection just before the upload of
+                // each minidump.
+                mWorkerThread.start();
+            }
+        });
+    }
+
+    @VisibleForTesting
+    public void joinWorkerThreadForTesting() throws InterruptedException {
+        mWorkerThread.join();
     }
 
     /**

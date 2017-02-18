@@ -15,8 +15,10 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/thread.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/common/service_names.mojom.h"
 #include "content/public/test/test_launcher.h"
 #include "mojo/edk/embedder/embedder.h"
+#include "mojo/edk/embedder/pending_process_connection.h"
 #include "mojo/edk/embedder/platform_channel_pair.h"
 #include "mojo/edk/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/bindings/interface_request.h"
@@ -34,7 +36,6 @@
 namespace {
 
 const char kTestRunnerName[] = "mash_browser_tests";
-const char kTestName[] = "content_browser";
 
 // State created per test to register a client process with the background
 // service manager.
@@ -42,8 +43,7 @@ class MojoTestState : public content::TestState {
  public:
   explicit MojoTestState(
       service_manager::BackgroundServiceManager* background_service_manager)
-      : child_token_(mojo::edk::GenerateRandomToken()),
-        background_service_manager_(background_service_manager),
+      : background_service_manager_(background_service_manager),
         weak_factory_(this) {}
   ~MojoTestState() override {}
 
@@ -68,12 +68,12 @@ class MojoTestState : public content::TestState {
 #error "Unsupported"
 #endif
     service_manager::mojom::ServicePtr service =
-        service_manager::PassServiceRequestOnCommandLine(command_line,
-                                                         child_token_);
+        service_manager::PassServiceRequestOnCommandLine(&process_connection_,
+                                                         command_line);
 
     background_service_manager_->RegisterService(
-        service_manager::Identity(
-            kTestName, service_manager::mojom::kRootUserID),
+        service_manager::Identity(content::mojom::kPackagedServicesServiceName,
+                                  service_manager::mojom::kRootUserID),
         std::move(service),
         service_manager::mojom::PIDReceiverRequest(&pid_receiver_));
 
@@ -87,8 +87,7 @@ class MojoTestState : public content::TestState {
   void ChildProcessLaunched(base::ProcessHandle handle,
                             base::ProcessId pid) override {
     platform_channel_->ChildProcessLaunched();
-    mojo::edk::ChildProcessLaunched(
-        handle, platform_channel_->PassServerHandle(), child_token_);
+    process_connection_.Connect(handle, platform_channel_->PassServerHandle());
 
     main_task_runner_->PostTask(
         FROM_HERE,
@@ -102,7 +101,7 @@ class MojoTestState : public content::TestState {
     pid_receiver_.reset();
   }
 
-  const std::string child_token_;
+  mojo::edk::PendingProcessConnection process_connection_;
   service_manager::BackgroundServiceManager* const background_service_manager_;
 
   // NOTE: HandlePassingInformation must remain valid through process launch,
@@ -145,7 +144,7 @@ class MojoTestConnector::ServiceProcessLauncherDelegateImpl
   void AdjustCommandLineArgumentsForTarget(
       const service_manager::Identity& target,
       base::CommandLine* command_line) override {
-    if (target.name() != kTestName) {
+    if (target.name() != content::mojom::kPackagedServicesServiceName) {
       if (target.name() == kTestRunnerName) {
         RemoveMashFromBrowserTests(command_line);
         command_line->SetProgram(

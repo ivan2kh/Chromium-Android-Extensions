@@ -63,6 +63,7 @@
 <translation id="2910007522516064972">&amp;Chromium વિશે</translation>
 <translation id="3032787606318309379">Chromium માં ઉમેરી રહ્યું છે...</translation>
 <translation id="3046695367536568084">ઍપ્લિકેશનોનો ઉપયોગ કરવા માટે તમારે Chromium માં સાઇન ઇન કરવાની જરૂર છે. આ Chromium ને તમારી ઍપ્લિકેશનો, બુકમાર્ક્સ, ઇતિહાસ, પાસવર્ડ્સ અને સમગ્ર ઉપકરણો પર અન્ય સેટિંગ્સને સમન્વયિત કરવાની મંજૂરી આપે છે.</translation>
+<translation id="3064346599913645280">તને એક સુરક્ષિત Chromium પૃષ્ઠ જોઈ રહ્યાં છો</translation>
 <translation id="3068515742935458733">ક્રેશ રિપોર્ટ્સ અને <ph name="UMA_LINK" /> Google ને મોકલીને Chromium ને વધુ સારું બનાવવામાં સહાય કરો.</translation>
 <translation id="3103660991484857065">ઇન્સ્ટોલર આર્કાઇવને અસંકુચિત કરવામાં કરવામાં નિષ્ફળ થયું. કૃપા કરીને Chromium ફરીથી ડાઉનલોડ કરો.</translation>
 <translation id="3130323860337406239">Chromium તમારા માઇક્રોફોનનો ઉપયોગ કરી રહ્યું છે.</translation>
@@ -84,7 +85,6 @@
 <translation id="358997566136285270">Chromium લોગો</translation>
 <translation id="3645040538872234961">આ તમારા બ્રાઉઝિંગ ડેટાને આ ઉપકરણમાંથી સ્થાયી રૂપે કાઢી નાખશે. પછીથી તમારા ડેટાને પુનઃપ્રાપ્ત કરવા માટે, $2 તરીકે Chromium માં સાઇન ઇન કરો.</translation>
 <translation id="3738139272394829648">શોધવા માટે ટચ કરો</translation>
-<translation id="3748537968684000502">તને એક સુરક્ષિત Chromium પૃષ્ઠ જોઈ રહ્યાં છો.</translation>
 <translation id="378917192836375108">Chromium થી તમે વેબ પર એક ફોન નંબર પર ક્લિક કરી શકો છો અને તેને Skype થી કૉલ કરી શકો છો!</translation>
 <translation id="3848258323044014972"><ph name="PAGE_TITLE" /> - Chromium</translation>
 <translation id="3849925841547750267">દુર્ભાગ્યપણે, તમારી Mozilla Firefox સેટિંગ્સ ઉપલબ્ધ નથી જ્યારે કે બ્રાઉઝર ચાલી રહ્યું છે. તે સેટિંગ્સને Chromium પર આયાત કરવા માટે, તમારું કાર્ય સાચવો અને બધી Firefox વિંડોને બંધ કરો. પછી ચાલુ રાખો ક્લિક કરો.</translation>
@@ -138,6 +138,7 @@
 <translation id="5620765574781326016">પૃષ્ઠને છોડ્યાં વિના વેબસાઇટ્સ પરના મુદ્દાઓ વિશે જાણો.</translation>
 <translation id="5634636535844844681">Chromium માટે Windows 7 અથવા તે પછીનું સંસ્કરણ આવશ્યક છે.</translation>
 <translation id="5680901439334282664">Chromium માં સાઇન ઇન કરો</translation>
+<translation id="5684733627009686897">Chromium તમારું ડિફૉલ્ટ બ્રાઉઝર છે. વાહ!</translation>
 <translation id="5698481217667032250">આ ભાષામાં Chromium પ્રદર્શિત કરો</translation>
 <translation id="5726838626470692954">તમારા સંચાલકે તમને Chromium માંથી દૂર કરી અને તેના પર પાછા ઉમેરવા આવશ્યક છે.</translation>
 <translation id="5768914737813585044">આ ભાષામાં Chromium OS પ્રદર્શિત કરો</translation>

@@ -17,15 +17,14 @@ namespace blink {
 
 namespace {
 
-inline void addIsSkipInkException(GlyphBuffer* glyphBuffer,
-                                  const TextRun& run,
-                                  unsigned characterIndex) {
+inline bool isSkipInkException(const GlyphBuffer& glyphBuffer,
+                               const TextRun& run,
+                               unsigned characterIndex) {
   // We want to skip descenders in general, but it is undesirable renderings for
   // CJK characters.
-  DCHECK(!run.is8Bit()) << "8Bit() is always false, better to avoid to call";
-  UChar32 baseCharacter = run.codepointAt(characterIndex);
-  glyphBuffer->addIsSkipInkException(
-      Character::isCJKIdeographOrSymbol(baseCharacter));
+  return glyphBuffer.type() == GlyphBuffer::Type::TextIntercepts &&
+         !run.is8Bit() &&
+         Character::isCJKIdeographOrSymbol(run.codepointAt(characterIndex));
 }
 
 inline void addGlyphToBuffer(GlyphBuffer* glyphBuffer,
@@ -38,9 +37,9 @@ inline void addGlyphToBuffer(GlyphBuffer* glyphBuffer,
   FloatPoint startOffset = HB_DIRECTION_IS_HORIZONTAL(direction)
                                ? FloatPoint(advance, 0)
                                : FloatPoint(0, advance);
-  glyphBuffer->add(glyphData.glyph, fontData, startOffset + glyphData.offset);
-  if (glyphBuffer->hasSkipInkExceptions())
-    addIsSkipInkException(glyphBuffer, run, characterIndex);
+  if (!isSkipInkException(*glyphBuffer, run, characterIndex)) {
+    glyphBuffer->add(glyphData.glyph, fontData, startOffset + glyphData.offset);
+  }
 }
 
 inline void addEmphasisMark(GlyphBuffer* buffer,
@@ -233,11 +232,10 @@ float ShapeResultBuffer::fillFastHorizontalGlyphBuffer(
       for (const auto& glyphData : run->m_glyphData) {
         ASSERT(!glyphData.offset.height());
 
-        glyphBuffer->add(glyphData.glyph, run->m_fontData.get(),
-                         advance + glyphData.offset.width());
-        if (glyphBuffer->hasSkipInkExceptions()) {
-          addIsSkipInkException(glyphBuffer, textRun,
-                                characterIndex + glyphData.characterIndex);
+        if (!isSkipInkException(*glyphBuffer, textRun,
+                                characterIndex + glyphData.characterIndex)) {
+          glyphBuffer->add(glyphData.glyph, run->m_fontData.get(),
+                           advance + glyphData.offset.width());
         }
 
         advance += glyphData.advance;
@@ -314,10 +312,12 @@ float ShapeResultBuffer::fillGlyphBufferForTextEmphasis(
   return advance;
 }
 
-CharacterRange ShapeResultBuffer::getCharacterRange(TextDirection direction,
-                                                    float totalWidth,
-                                                    unsigned absoluteFrom,
-                                                    unsigned absoluteTo) const {
+CharacterRange ShapeResultBuffer::getCharacterRange(
+    const Vector<RefPtr<const ShapeResult>, 64>& results,
+    TextDirection direction,
+    float totalWidth,
+    unsigned absoluteFrom,
+    unsigned absoluteTo) {
   float currentX = 0;
   float fromX = 0;
   float toX = 0;
@@ -334,8 +334,8 @@ CharacterRange ShapeResultBuffer::getCharacterRange(TextDirection direction,
   int to = absoluteTo;
 
   unsigned totalNumCharacters = 0;
-  for (unsigned j = 0; j < m_results.size(); j++) {
-    const RefPtr<const ShapeResult> result = m_results[j];
+  for (unsigned j = 0; j < results.size(); j++) {
+    const RefPtr<const ShapeResult> result = results[j];
     if (direction == TextDirection::kRtl) {
       // Convert logical offsets to visual offsets, because results are in
       // logical order while runs are in visual order.
@@ -398,6 +398,13 @@ CharacterRange ShapeResultBuffer::getCharacterRange(TextDirection direction,
   if (fromX < toX)
     return CharacterRange(fromX, toX);
   return CharacterRange(toX, fromX);
+}
+
+CharacterRange ShapeResultBuffer::getCharacterRange(TextDirection direction,
+                                                    float totalWidth,
+                                                    unsigned from,
+                                                    unsigned to) const {
+  return getCharacterRange(m_results, direction, totalWidth, from, to);
 }
 
 void ShapeResultBuffer::addRunInfoRanges(const ShapeResult::RunInfo& runInfo,

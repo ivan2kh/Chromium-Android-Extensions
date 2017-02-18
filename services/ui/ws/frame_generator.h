@@ -59,7 +59,8 @@ class FrameGenerator : public cc::mojom::MojoCompositorFrameSinkClient {
   void DidReceiveCompositorFrameAck() override;
   void OnBeginFrame(const cc::BeginFrameArgs& begin_frame_arags) override;
   void ReclaimResources(const cc::ReturnedResourceArray& resources) override;
-  void WillDrawSurface() override;
+  void WillDrawSurface(const cc::LocalSurfaceId& local_surface_id,
+                       const gfx::Rect& damage_rect) override;
 
   // Generates the CompositorFrame.
   cc::CompositorFrame GenerateCompositorFrame(const gfx::Rect& output_rect);
@@ -81,8 +82,6 @@ class FrameGenerator : public cc::mojom::MojoCompositorFrameSinkClient {
   cc::SurfaceInfo window_manager_surface_info_;
 
   mojo::Binding<cc::mojom::MojoCompositorFrameSinkClient> binding_;
-
-  base::WeakPtrFactory<FrameGenerator> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(FrameGenerator);
 };

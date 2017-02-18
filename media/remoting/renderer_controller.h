@@ -44,15 +44,10 @@ class RendererController final : public SharedSession::Client,
   void OnPlaying() override;
   void OnPaused() override;
   void OnSetPoster(const GURL& poster) override;
+  void SetClient(MediaObserverClient* client) override;
 
-  void SetSwitchRendererCallback(const base::Closure& cb);
-  void SetRemoteSinkAvailableChangedCallback(
-      const base::Callback<void(bool)>& cb);
-
-  using ShowInterstitialCallback =
-      base::Callback<void(const base::Optional<SkBitmap>&,
-                          const gfx::Size&,
-                          InterstitialType type)>;
+  using ShowInterstitialCallback = base::Callback<
+      void(const SkBitmap&, const gfx::Size&, InterstitialType type)>;
   // Called by the CourierRenderer constructor to set the callback to draw and
   // show remoting interstial.
   void SetShowInterstitialCallback(const ShowInterstitialCallback& cb);
@@ -174,12 +169,6 @@ class RendererController final : public SharedSession::Client,
   // and never start again for the lifetime of this controller.
   bool encountered_renderer_fatal_error_ = false;
 
-  // The callback to switch the media renderer.
-  base::Closure switch_renderer_cb_;
-
-  // Called when remoting sink availability is changed.
-  base::Callback<void(bool)> sink_available_changed_cb_;
-
   // This is initially the SharedSession passed to the ctor, and might be
   // replaced with a different instance later if OnSetCdm() is called.
   scoped_refptr<SharedSession> session_;
@@ -197,6 +186,13 @@ class RendererController final : public SharedSession::Client,
   // ended.
   ShowInterstitialCallback show_interstitial_cb_;
 
+  // The arguments passed in the last call to the interstitial callback. On each
+  // call to UpdateInterstitial(), one or more of these may be changed. If any
+  // change, the callback will be run.
+  SkBitmap interstitial_background_;
+  gfx::Size interstitial_natural_size_;
+  InterstitialType interstitial_type_ = InterstitialType::BETWEEN_SESSIONS;
+
   // Current poster URL, whose image will feed into the local UI.
   GURL poster_url_;
 
@@ -207,6 +203,9 @@ class RendererController final : public SharedSession::Client,
 
   // Records session events of interest.
   SessionMetricsRecorder metrics_recorder_;
+
+  // Not own by this class. Can only be set once by calling SetClient().
+  MediaObserverClient* client_ = nullptr;
 
   base::WeakPtrFactory<RendererController> weak_factory_;
 

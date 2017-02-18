@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include "base/bind_helpers.h"
 #include "base/callback.h"
 #include "base/command_line.h"
+#include "base/debug/alias.h"
 #include "base/debug/crash_logging.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/feature_list.h"
@@ -87,7 +89,6 @@
 #include "content/browser/media/midi_host.h"
 #include "content/browser/memory/memory_coordinator_impl.h"
 #include "content/browser/memory/memory_message_filter.h"
-#include "content/browser/message_port_message_filter.h"
 #include "content/browser/mime_registry_impl.h"
 #include "content/browser/notifications/notification_message_filter.h"
 #include "content/browser/notifications/platform_notification_context_impl.h"
@@ -680,8 +681,6 @@ RenderProcessHostImpl::RenderProcessHostImpl(
       shared_worker_ref_count_(0),
       is_worker_ref_count_disabled_(false),
       route_provider_binding_(this),
-      associated_interface_provider_bindings_(
-          mojo::BindingSetDispatchMode::WITH_CONTEXT),
       visible_widgets_(0),
       is_process_backgrounded_(false),
       id_(ChildProcessHostImpl::GenerateChildProcessUniqueId()),
@@ -831,6 +830,7 @@ bool RenderProcessHostImpl::Init() {
   // null, so we re-initialize it here.
   if (!channel_)
     InitializeChannelProxy();
+  DCHECK(pending_connection_);
 
   // Unpause the Channel briefly. This will be paused again below if we launch a
   // real child process. Note that messages may be sent in the short window
@@ -911,7 +911,7 @@ bool RenderProcessHostImpl::Init() {
     // at this stage.
     child_process_launcher_.reset(new ChildProcessLauncher(
         base::MakeUnique<RendererSandboxedProcessLauncherDelegate>(),
-        std::move(cmd_line), GetID(), this, child_token_,
+        std::move(cmd_line), GetID(), this, std::move(pending_connection_),
         base::Bind(&RenderProcessHostImpl::OnMojoError, id_)));
     channel_->Pause();
 
@@ -934,9 +934,6 @@ void RenderProcessHostImpl::EnableSendQueue() {
 }
 
 void RenderProcessHostImpl::InitializeChannelProxy() {
-  // Generate a token used to identify the new child process.
-  child_token_ = mojo::edk::GenerateRandomToken();
-
   scoped_refptr<base::SingleThreadTaskRunner> io_task_runner =
       BrowserThread::GetTaskRunnerForThread(BrowserThread::IO);
 
@@ -961,10 +958,11 @@ void RenderProcessHostImpl::InitializeChannelProxy() {
   }
 
   // Establish a ServiceManager connection for the new render service instance.
+  pending_connection_.reset(new mojo::edk::PendingProcessConnection);
   child_connection_.reset(new ChildConnection(
       mojom::kRendererServiceName,
-      base::StringPrintf("%d_%d", id_, instance_id_++), child_token_, connector,
-      io_task_runner));
+      base::StringPrintf("%d_%d", id_, instance_id_++),
+      pending_connection_.get(), connector, io_task_runner));
 
   // Send an interface request to bootstrap the IPC::Channel. Note that this
   // request will happily sit on the pipe until the process is launched and
@@ -1138,19 +1136,13 @@ void RenderProcessHostImpl::CreateMessageFilters() {
   channel_->AddFilter(new FontCacheDispatcher());
 #endif
 
-  message_port_message_filter_ = new MessagePortMessageFilter(
-      base::Bind(&RenderWidgetHelper::GetNextRoutingID,
-                 base::Unretained(widget_helper_.get())));
-  AddFilter(message_port_message_filter_.get());
-
   scoped_refptr<CacheStorageDispatcherHost> cache_storage_filter =
       new CacheStorageDispatcherHost();
   cache_storage_filter->Init(storage_partition_impl_->GetCacheStorageContext());
   AddFilter(cache_storage_filter.get());
 
   scoped_refptr<ServiceWorkerDispatcherHost> service_worker_filter =
-      new ServiceWorkerDispatcherHost(
-          GetID(), message_port_message_filter_.get(), resource_context);
+      new ServiceWorkerDispatcherHost(GetID(), resource_context);
   service_worker_filter->Init(
       storage_partition_impl_->GetServiceWorkerContext());
   AddFilter(service_worker_filter.get());
@@ -1166,7 +1158,8 @@ void RenderProcessHostImpl::CreateMessageFilters() {
           storage_partition_impl_->GetDatabaseTracker(),
           storage_partition_impl_->GetIndexedDBContext(),
           storage_partition_impl_->GetServiceWorkerContext()),
-      message_port_message_filter_.get()));
+      base::Bind(&RenderWidgetHelper::GetNextRoutingID,
+                 base::Unretained(widget_helper_.get()))));
 
 #if BUILDFLAG(ENABLE_WEBRTC)
   p2p_socket_dispatcher_host_ = new P2PSocketDispatcherHost(
@@ -1356,15 +1349,14 @@ void RenderProcessHostImpl::GetRoute(
     mojom::AssociatedInterfaceProviderAssociatedRequest request) {
   DCHECK(request.is_pending());
   associated_interface_provider_bindings_.AddBinding(
-      this, std::move(request),
-      reinterpret_cast<void*>(static_cast<uintptr_t>(routing_id)));
+      this, std::move(request), routing_id);
 }
 
 void RenderProcessHostImpl::GetAssociatedInterface(
     const std::string& name,
     mojom::AssociatedInterfaceAssociatedRequest request) {
-  int32_t routing_id = static_cast<int32_t>(reinterpret_cast<uintptr_t>(
-      associated_interface_provider_bindings_.dispatch_context()));
+  int32_t routing_id =
+      associated_interface_provider_bindings_.dispatch_context();
   IPC::Listener* listener = listeners_.Lookup(routing_id);
   if (listener)
     listener->OnAssociatedInterfaceRequest(name, request.PassHandle());
@@ -1572,7 +1564,14 @@ int RenderProcessHostImpl::VisibleWidgetCount() const {
   return visible_widgets_;
 }
 
-void RenderProcessHostImpl::AudioStateChanged() {
+void RenderProcessHostImpl::OnAudioStreamAdded() {
+  ++audio_stream_count_;
+  UpdateProcessPriority();
+}
+
+void RenderProcessHostImpl::OnAudioStreamRemoved() {
+  DCHECK_GT(audio_stream_count_, 0);
+  --audio_stream_count_;
   UpdateProcessPriority();
 }
 
@@ -1589,9 +1588,6 @@ static void AppendCompositorCommandLineFlags(base::CommandLine* command_line) {
       switches::kNumRasterThreads,
       base::IntToString(NumberOfRendererRasterThreads()));
 
-  if (IsGpuRasterizationEnabled())
-    command_line->AppendSwitch(switches::kEnableGpuRasterization);
-
   if (IsAsyncWorkerContextEnabled())
     command_line->AppendSwitch(switches::kEnableGpuAsyncWorkerContext);
 
@@ -1605,9 +1601,6 @@ static void AppendCompositorCommandLineFlags(base::CommandLine* command_line) {
     command_line->AppendSwitch(switches::kEnableZeroCopy);
   if (!IsPartialRasterEnabled())
     command_line->AppendSwitch(switches::kDisablePartialRaster);
-
-  if (IsForceGpuRasterizationEnabled())
-    command_line->AppendSwitch(switches::kForceGpuRasterization);
 
   if (IsGpuMemoryBufferCompositorResourcesEnabled()) {
     command_line->AppendSwitch(
@@ -1718,7 +1711,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kDisableGpuVsync,
     switches::kDisableLowResTiling,
     switches::kDisableHistogramCustomizer,
-    switches::kDisableIconNtp,
     switches::kDisableLCDText,
     switches::kDisableLocalStorage,
     switches::kDisableLogging,
@@ -1755,7 +1747,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableGpuClientTracing,
     switches::kEnableGpuMemoryBufferVideoFrames,
     switches::kEnableGPUServiceLogging,
-    switches::kEnableIconNtp,
     switches::kEnableLowResTiling,
     switches::kEnableMediaSuspend,
     switches::kEnableInbandTextTracks,
@@ -1766,6 +1757,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnablePinch,
     switches::kEnablePluginPlaceholderTesting,
     switches::kEnablePreciseMemoryInfo,
+    switches::kEnablePrintBrowser,
     switches::kEnablePreferCompositingToLCDText,
     switches::kEnableRGBA4444Textures,
     switches::kEnableSkiaBenchmarking,
@@ -1788,6 +1780,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kForceDeviceScaleFactor,
     switches::kForceDisplayList2dCanvas,
     switches::kForceGpuMemAvailableMb,
+    switches::kForceGpuRasterization,
     switches::kEnableCanvas2dDynamicRenderingModeSwitching,
     switches::kForceOverlayFullscreenVideo,
     switches::kFullMemoryCrashReport,
@@ -1870,7 +1863,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kDisableLowEndDeviceMode,
 #if defined(OS_ANDROID)
     switches::kDisableMediaSessionAPI,
-    switches::kDisableUnifiedMediaPipeline,
     switches::kEnableContentIntentDetection,
     switches::kRendererWaitForJavaDebugger,
 #endif
@@ -2251,9 +2243,6 @@ void RenderProcessHostImpl::Cleanup() {
   // away first, since deleting the channel proxy will post a
   // OnChannelClosed() to IPC::ChannelProxy::Context on the IO thread.
   ResetChannelProxy();
-
-  // The following members should be cleared in ProcessDied() as well!
-  message_port_message_filter_ = NULL;
 
   // Its important to remove the kSessionStorageHolder after the channel
   // has been reset to avoid deleting the underlying namespaces prior
@@ -2742,8 +2731,6 @@ void RenderProcessHostImpl::ProcessDied(bool already_dead,
     observer.RenderProcessExited(this, status, exit_code);
   within_process_died_observer_ = false;
 
-  message_port_message_filter_ = NULL;
-
   RemoveUserData(kSessionStorageHolderKey);
 
   IDMap<IPC::Listener*>::iterator iter(&listeners_);
@@ -2831,7 +2818,7 @@ void RenderProcessHostImpl::UpdateProcessPriority() {
   // visible widgets -- the callers must call this function whenever we
   // transition in/out of those states.
   const bool should_background =
-      visible_widgets_ == 0 && !audio_renderer_host_->HasActiveAudio() &&
+      visible_widgets_ == 0 && audio_stream_count_ == 0 &&
       !base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDisableRendererBackgrounding);
 

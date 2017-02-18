@@ -116,8 +116,6 @@ class RoundedContainerView : public views::View {
     gfx::Rect bounds(size());
     path.addRoundRect(gfx::RectToSkRect(bounds), kRadius);
 
-    cc::PaintFlags paint;
-    paint.setAntiAlias(true);
     canvas->ClipPath(path, true);
     canvas->DrawColor(background_);
   }
@@ -404,6 +402,20 @@ void WindowSelector::OnGridEmpty(WindowGrid* grid) {
   }
   if (grid_list_.empty())
     CancelSelection();
+}
+
+void WindowSelector::IncrementSelection(int increment) {
+  const Direction direction =
+      increment > 0 ? WindowSelector::RIGHT : WindowSelector::LEFT;
+  for (int step = 0; step < abs(increment); ++step)
+    Move(direction, true);
+}
+
+bool WindowSelector::AcceptSelection() {
+  if (!grid_list_[selected_grid_index_]->is_selecting())
+    return false;
+  SelectWindow(grid_list_[selected_grid_index_]->SelectedWindow());
+  return true;
 }
 
 void WindowSelector::SelectWindow(WindowSelectorItem* item) {

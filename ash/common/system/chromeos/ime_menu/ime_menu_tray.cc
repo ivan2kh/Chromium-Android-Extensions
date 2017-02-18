@@ -11,7 +11,6 @@
 #include "ash/common/shelf/wm_shelf.h"
 #include "ash/common/shelf/wm_shelf_util.h"
 #include "ash/common/system/chromeos/ime_menu/ime_list_view.h"
-#include "ash/common/system/tray/fixed_sized_scroll_view.h"
 #include "ash/common/system/tray/hover_highlight_view.h"
 #include "ash/common/system/tray/system_menu_button.h"
 #include "ash/common/system/tray/system_tray_controller.h"
@@ -42,6 +41,7 @@
 #include "ui/keyboard/keyboard_util.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/separator.h"
 #include "ui/views/layout/box_layout.h"
 
@@ -143,7 +143,7 @@ class ImeTitleView : public views::View, public views::ButtonListener {
   explicit ImeTitleView(bool show_settings_button) : settings_button_(nullptr) {
     SetBorder(views::CreatePaddedBorder(
         views::CreateSolidSidedBorder(0, 0, kSeparatorWidth, 0,
-                                      kHorizontalSeparatorColor),
+                                      kMenuSeparatorColor),
         gfx::Insets(kMenuSeparatorVerticalPadding - kSeparatorWidth, 0)));
     auto* box_layout =
         new views::BoxLayout(views::BoxLayout::kHorizontal, 0, 0, 0);
@@ -152,8 +152,8 @@ class ImeTitleView : public views::View, public views::ButtonListener {
     SetLayoutManager(box_layout);
     auto title_label =
         new views::Label(l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_IME));
-    title_label->SetBorder(views::CreateEmptyBorder(
-        0, kMenuEdgeEffectivePadding, kTrayMenuBottomRowPadding, 0));
+    title_label->SetBorder(
+        views::CreateEmptyBorder(0, kMenuEdgeEffectivePadding, 1, 0));
     title_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     TrayPopupItemStyle style(TrayPopupItemStyle::FontStyle::TITLE);
     style.SetupLabel(title_label);
@@ -282,7 +282,7 @@ class ImeButtonsView : public views::View,
       SetLayoutManager(box_layout);
       SetBorder(views::CreatePaddedBorder(
           views::CreateSolidSidedBorder(kSeparatorWidth, 0, 0, 0,
-                                        kHorizontalSeparatorColor),
+                                        kMenuSeparatorColor),
           gfx::Insets(kMenuSeparatorVerticalPadding - kSeparatorWidth,
                       GetTrayConstant(TRAY_POPUP_ITEM_LEFT_INSET))));
     } else {
@@ -336,10 +336,7 @@ class ImeButtonsView : public views::View,
 // The list view that contains the selected IME and property items.
 class ImeMenuListView : public ImeListView {
  public:
-  ImeMenuListView(SystemTrayItem* owner,
-                  bool show_keyboard_toggle,
-                  SingleImeBehavior single_ime_behavior)
-      : ImeListView(owner, show_keyboard_toggle, single_ime_behavior) {
+  ImeMenuListView(SystemTrayItem* owner) : ImeListView(owner) {
     set_should_focus_ime_after_selection_with_keyboard(true);
   }
 
@@ -348,19 +345,7 @@ class ImeMenuListView : public ImeListView {
  protected:
   void Layout() override {
     gfx::Range height_range = GetImeListViewRange();
-    if (MaterialDesignController::IsSystemTrayMenuMaterial()) {
-      scroller()->ClipHeightTo(height_range.start(), height_range.end());
-    } else {
-      uint32_t current_height = scroll_content()->height();
-      int minimum_menu_width = GetMinimumMenuWidth();
-      if (current_height > height_range.end()) {
-        scroller()->SetFixedSize(
-            gfx::Size(minimum_menu_width, height_range.end()));
-      } else if (current_height < height_range.start()) {
-        scroller()->SetFixedSize(
-            gfx::Size(minimum_menu_width, height_range.start()));
-      }
-    }
+    scroller()->ClipHeightTo(height_range.start(), height_range.end());
     ImeListView::Layout();
   }
 
@@ -437,8 +422,9 @@ void ImeMenuTray::ShowImeMenuBubbleInternal() {
   }
 
   // Adds IME list to the bubble.
-  ime_list_view_ = new ImeMenuListView(nullptr, ShouldShowKeyboardToggle(),
-                                       ImeListView::SHOW_SINGLE_IME);
+  ime_list_view_ = new ImeMenuListView(nullptr);
+  ime_list_view_->Init(ShouldShowKeyboardToggle(),
+                       ImeListView::SHOW_SINGLE_IME);
   bubble_view->AddChildView(ime_list_view_);
 
   if (ShouldShowEmojiHandwritingVoiceButtons()) {

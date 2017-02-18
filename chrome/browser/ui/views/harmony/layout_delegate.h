@@ -10,9 +10,16 @@
 class LayoutDelegate {
  public:
   enum class Metric {
-    // Horizontal or vertical margin between the edge of a dialog and a
+    // Margin between the edge of a dialog and the left, right, or bottom of a
     // contained button.
     DIALOG_BUTTON_MARGIN,
+    // In theory, this is the spacing between a dialog button and the content
+    // above it.  In practice, what the code does with this value, at least
+    // pre-Harmony, defies easy explanation.
+    DIALOG_BUTTON_TOP_SPACING,
+    // Horizontal or vertical margin between the edge of a dialog and the close
+    // button in the upper trailing corner.
+    DIALOG_CLOSE_BUTTON_MARGIN,
     // Horizontal or vertical margin between the edge of a panel and the
     // contained content.
     PANEL_CONTENT_MARGIN,

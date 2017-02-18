@@ -72,8 +72,8 @@ void ArcAppTest::SetUp(Profile* profile) {
   chromeos::ProfileHelper::Get()->SetUserToProfileMappingForTesting(user,
                                                                     profile_);
 
-  // A valid |arc_app_list_prefs_| is needed for the Arc bridge service and the
-  // Arc auth service.
+  // A valid |arc_app_list_prefs_| is needed for the ARC bridge service and the
+  // ARC auth service.
   arc_app_list_pref_ = ArcAppListPrefs::Get(profile_);
   if (!arc_app_list_pref_) {
     ArcAppListPrefsFactory::GetInstance()->RecreateServiceInstanceForTesting(
@@ -93,7 +93,7 @@ void ArcAppTest::SetUp(Profile* profile) {
   arc_app_list_pref_->SetDefaltAppsReadyCallback(run_loop.QuitClosure());
   run_loop.Run();
 
-  arc_session_manager_->EnableArc();
+  arc_session_manager_->SetArcPlayStoreEnabled(true);
   // Check initial conditions.
   EXPECT_FALSE(arc_session_manager_->IsSessionRunning());
 

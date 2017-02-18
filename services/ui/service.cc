@@ -29,7 +29,6 @@
 #include "services/ui/ime/ime_registrar_impl.h"
 #include "services/ui/ime/ime_server_impl.h"
 #include "services/ui/ws/accessibility_manager.h"
-#include "services/ui/ws/display.h"
 #include "services/ui/ws/display_binding.h"
 #include "services/ui/ws/display_manager.h"
 #include "services/ui/ws/gpu_host.h"
@@ -41,6 +40,7 @@
 #include "services/ui/ws/window_tree_binding.h"
 #include "services/ui/ws/window_tree_factory.h"
 #include "services/ui/ws/window_tree_host_factory.h"
+#include "ui/base/platform_window_defaults.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/events/event_switches.h"
@@ -149,10 +149,11 @@ void Service::OnStart() {
       switches::kUseTestConfig);
 #if defined(USE_X11)
   XInitThreads();
-  if (test_config_)
-    ui::test::SetUseOverrideRedirectWindowByDefault(true);
   ui::SetDefaultX11ErrorHandlers();
 #endif
+
+  if (test_config_)
+    ui::test::EnableTestConfigForPlatformWindows();
 
   InitializeResources(context()->connector());
 

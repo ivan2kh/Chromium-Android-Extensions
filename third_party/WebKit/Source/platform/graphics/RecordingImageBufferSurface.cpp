@@ -80,11 +80,11 @@ bool RecordingImageBufferSurface::writePixels(const SkImageInfo& origInfo,
 
 void RecordingImageBufferSurface::fallBackToRasterCanvas(
     FallbackReason reason) {
-  ASSERT(m_fallbackFactory);
+  DCHECK(m_fallbackFactory);
   CHECK(reason != FallbackReasonUnknown);
 
   if (m_fallbackSurface) {
-    ASSERT(!m_currentFrame);
+    DCHECK(!m_currentFrame);
     return;
   }
 
@@ -104,8 +104,9 @@ void RecordingImageBufferSurface::fallBackToRasterCanvas(
   }
 
   if (m_currentFrame) {
-    m_currentFrame->finishRecordingAsPicture()->playback(
-        m_fallbackSurface->canvas());
+    sk_sp<PaintRecord> record = m_currentFrame->finishRecordingAsPicture();
+    if (record)
+      record->playback(m_fallbackSurface->canvas());
     m_currentFrame.reset();
   }
 
@@ -183,7 +184,7 @@ PaintCanvas* RecordingImageBufferSurface::canvas() {
   if (m_fallbackSurface)
     return m_fallbackSurface->canvas();
 
-  ASSERT(m_currentFrame->getRecordingCanvas());
+  DCHECK(m_currentFrame->getRecordingCanvas());
   return m_currentFrame->getRecordingCanvas();
 }
 
@@ -209,10 +210,10 @@ disableDeferralReasonToFallbackReason(DisableDeferralReason reason) {
       return RecordingImageBufferSurface::
           FallbackReasonDrawImageWithTextureBackedSourceImage;
     case DisableDeferralReasonCount:
-      ASSERT_NOT_REACHED();
+      NOTREACHED();
       break;
   }
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return RecordingImageBufferSurface::FallbackReasonUnknown;
 }
 
@@ -222,17 +223,16 @@ void RecordingImageBufferSurface::disableDeferral(
     fallBackToRasterCanvas(disableDeferralReasonToFallbackReason(reason));
 }
 
-sk_sp<PaintRecord> RecordingImageBufferSurface::getPicture() {
+sk_sp<PaintRecord> RecordingImageBufferSurface::getRecord() {
   if (m_fallbackSurface)
     return nullptr;
 
   FallbackReason fallbackReason = FallbackReasonUnknown;
-  bool canUsePicture = finalizeFrameInternal(&fallbackReason);
-  m_imageBuffer->didFinalizeFrame();
+  bool canUseRecord = finalizeFrameInternal(&fallbackReason);
 
-  ASSERT(canUsePicture || m_fallbackFactory);
+  DCHECK(canUseRecord || m_fallbackFactory);
 
-  if (canUsePicture) {
+  if (canUseRecord) {
     return m_previousFrame;
   }
 
@@ -241,15 +241,22 @@ sk_sp<PaintRecord> RecordingImageBufferSurface::getPicture() {
   return nullptr;
 }
 
-void RecordingImageBufferSurface::finalizeFrame(const FloatRect& dirtyRect) {
+void RecordingImageBufferSurface::finalizeFrame() {
   if (m_fallbackSurface) {
-    m_fallbackSurface->finalizeFrame(dirtyRect);
+    m_fallbackSurface->finalizeFrame();
     return;
   }
 
   FallbackReason fallbackReason = FallbackReasonUnknown;
   if (!finalizeFrameInternal(&fallbackReason))
     fallBackToRasterCanvas(fallbackReason);
+}
+
+void RecordingImageBufferSurface::doPaintInvalidation(
+    const FloatRect& dirtyRect) {
+  if (m_fallbackSurface) {
+    m_fallbackSurface->doPaintInvalidation(dirtyRect);
+  }
 }
 
 static RecordingImageBufferSurface::FallbackReason flushReasonToFallbackReason(
@@ -263,7 +270,7 @@ static RecordingImageBufferSurface::FallbackReason flushReasonToFallbackReason(
       return RecordingImageBufferSurface::
           FallbackReasonFlushForDrawImageOfWebGL;
   }
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return RecordingImageBufferSurface::FallbackReasonUnknown;
 }
 
@@ -295,11 +302,10 @@ bool RecordingImageBufferSurface::finalizeFrameInternal(
     FallbackReason* fallbackReason) {
   CHECK(!m_fallbackSurface);
   CHECK(m_currentFrame);
-  ASSERT(m_currentFrame->getRecordingCanvas());
-  ASSERT(fallbackReason);
-  ASSERT(*fallbackReason == FallbackReasonUnknown);
-
-  if (!m_imageBuffer->isDirty()) {
+  DCHECK(m_currentFrame->getRecordingCanvas());
+  DCHECK(fallbackReason);
+  DCHECK(*fallbackReason == FallbackReasonUnknown);
+  if (!m_didRecordDrawCommandsInCurrentFrame) {
     if (!m_previousFrame) {
       // Create an initial blank frame
       m_previousFrame = m_currentFrame->finishRecordingAsPicture();
@@ -341,9 +347,9 @@ void RecordingImageBufferSurface::draw(GraphicsContext& context,
     return;
   }
 
-  sk_sp<PaintRecord> picture = getPicture();
-  if (picture) {
-    context.compositePicture(std::move(picture), destRect, srcRect, op);
+  sk_sp<PaintRecord> record = getRecord();
+  if (record) {
+    context.compositeRecord(std::move(record), destRect, srcRect, op);
   } else {
     ImageBufferSurface::draw(context, destRect, srcRect, op);
   }

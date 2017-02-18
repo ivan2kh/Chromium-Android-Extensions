@@ -29,7 +29,6 @@
 #include <string>
 #include <utility>
 
-#include "ash/common/shell_observer.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "base/bind.h"
@@ -878,7 +877,7 @@ void shell_surface_set_toplevel(wl_client* client, wl_resource* resource) {
     return;
 
   shell_surface->SetFrame(true);
-  shell_surface->SetRectangularShadow(true);
+  shell_surface->SetRectangularShadowEnabled(true);
   shell_surface->SetEnabled(true);
 }
 
@@ -930,7 +929,7 @@ void shell_surface_set_transient(wl_client* client,
     shell_surface->SetFrame(true);
     shell_surface->SetParent(parent_shell_surface);
   }
-  shell_surface->SetRectangularShadow(true);
+  shell_surface->SetRectangularShadowEnabled(true);
   shell_surface->SetEnabled(true);
 }
 
@@ -1089,8 +1088,6 @@ class WaylandPrimaryDisplayObserver : public display::DisplayObserver {
   }
 
   // Overridden from display::DisplayObserver:
-  void OnDisplayAdded(const display::Display& new_display) override {}
-  void OnDisplayRemoved(const display::Display& new_display) override {}
   void OnDisplayMetricsChanged(const display::Display& display,
                                uint32_t changed_metrics) override {
     if (display::Screen::GetScreen()->GetPrimaryDisplay().id() != display.id())
@@ -1888,17 +1885,15 @@ void remote_surface_set_scale(wl_client* client,
   GetUserDataAs<ShellSurface>(resource)->SetScale(wl_fixed_to_double(scale));
 }
 
-void remote_surface_set_rectangular_shadow(wl_client* client,
-                                           wl_resource* resource,
-                                           int32_t x,
-                                           int32_t y,
-                                           int32_t width,
-                                           int32_t height) {
+void remote_surface_set_rectangular_shadow_DEPRECATED(wl_client* client,
+                                                      wl_resource* resource,
+                                                      int32_t x,
+                                                      int32_t y,
+                                                      int32_t width,
+                                                      int32_t height) {
   ShellSurface* shell_surface = GetUserDataAs<ShellSurface>(resource);
   gfx::Rect content_bounds(x, y, width, height);
-
-  shell_surface->SetRectangularShadowContentBounds(content_bounds);
-  shell_surface->SetRectangularShadow(!content_bounds.IsEmpty());
+  shell_surface->SetRectangularShadow_DEPRECATED(content_bounds);
 }
 
 void remote_surface_set_rectangular_shadow_background_opacity(
@@ -1967,12 +1962,33 @@ void remote_surface_unset_system_modal(wl_client* client,
   GetUserDataAs<ShellSurface>(resource)->SetSystemModal(false);
 }
 
+void remote_surface_set_rectangular_surface_shadow(wl_client* client,
+                                                   wl_resource* resource,
+                                                   int32_t x,
+                                                   int32_t y,
+                                                   int32_t width,
+                                                   int32_t height) {
+  ShellSurface* shell_surface = GetUserDataAs<ShellSurface>(resource);
+  gfx::Rect content_bounds(x, y, width, height);
+  shell_surface->SetRectangularSurfaceShadow(content_bounds);
+}
+
+void remote_surface_ack_configure(wl_client* client,
+                                  wl_resource* resource,
+                                  uint32_t serial) {
+  NOTIMPLEMENTED();
+}
+
+void remote_surface_move(wl_client* client, wl_resource* resource) {
+  NOTIMPLEMENTED();
+}
+
 const struct zcr_remote_surface_v1_interface remote_surface_implementation = {
     remote_surface_destroy,
     remote_surface_set_app_id,
     remote_surface_set_window_geometry,
     remote_surface_set_scale,
-    remote_surface_set_rectangular_shadow,
+    remote_surface_set_rectangular_shadow_DEPRECATED,
     remote_surface_set_rectangular_shadow_background_opacity,
     remote_surface_set_title,
     remote_surface_set_top_inset,
@@ -1985,7 +2001,10 @@ const struct zcr_remote_surface_v1_interface remote_surface_implementation = {
     remote_surface_pin,
     remote_surface_unpin,
     remote_surface_set_system_modal,
-    remote_surface_unset_system_modal};
+    remote_surface_unset_system_modal,
+    remote_surface_set_rectangular_surface_shadow,
+    remote_surface_ack_configure,
+    remote_surface_move};
 
 ////////////////////////////////////////////////////////////////////////////////
 // notification_surface_interface:
@@ -2019,7 +2038,7 @@ class WaylandRemoteShell : public WMHelper::MaximizeModeObserver,
                        ? ZCR_REMOTE_SHELL_V1_LAYOUT_MODE_TABLET
                        : ZCR_REMOTE_SHELL_V1_LAYOUT_MODE_WINDOWED;
 
-    SendPrimaryDisplayMetrics();
+    SendDisplayMetrics();
     SendActivated(helper->GetActiveWindow(), nullptr);
   }
   ~WaylandRemoteShell() override {
@@ -2041,40 +2060,29 @@ class WaylandRemoteShell : public WMHelper::MaximizeModeObserver,
   }
 
   // Overridden from display::DisplayObserver:
-  void OnDisplayAdded(const display::Display& new_display) override {}
-  void OnDisplayRemoved(const display::Display& new_display) override {}
   void OnDisplayMetricsChanged(const display::Display& display,
                                uint32_t changed_metrics) override {
     if (display::Screen::GetScreen()->GetPrimaryDisplay().id() != display.id())
       return;
 
-    // No need to update when a primary dislpay has changed without bounds
+    // No need to update when a primary display has changed without bounds
     // change. See WaylandPrimaryDisplayObserver::OnDisplayMetricsChanged
     // for more details.
     if (changed_metrics &
         (DISPLAY_METRIC_BOUNDS | DISPLAY_METRIC_DEVICE_SCALE_FACTOR |
          DISPLAY_METRIC_ROTATION | DISPLAY_METRIC_WORK_AREA)) {
-      SendDisplayMetrics(display);
+      ScheduleSendDisplayMetrics(0);
     }
   }
 
   // Overridden from WMHelper::MaximizeModeObserver:
   void OnMaximizeModeStarted() override {
     layout_mode_ = ZCR_REMOTE_SHELL_V1_LAYOUT_MODE_TABLET;
-
-    send_configure_after_layout_change_ = true;
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
-        FROM_HERE, base::Bind(&WaylandRemoteShell::MaybeSendConfigure,
-                              weak_ptr_factory_.GetWeakPtr()),
-        base::TimeDelta::FromMilliseconds(kConfigureDelayAfterLayoutSwitchMs));
+    ScheduleSendDisplayMetrics(kConfigureDelayAfterLayoutSwitchMs);
   }
   void OnMaximizeModeEnded() override {
     layout_mode_ = ZCR_REMOTE_SHELL_V1_LAYOUT_MODE_WINDOWED;
-    send_configure_after_layout_change_ = true;
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
-        FROM_HERE, base::Bind(&WaylandRemoteShell::MaybeSendConfigure,
-                              weak_ptr_factory_.GetWeakPtr()),
-        base::TimeDelta::FromMilliseconds(kConfigureDelayAfterLayoutSwitchMs));
+    ScheduleSendDisplayMetrics(kConfigureDelayAfterLayoutSwitchMs);
   }
 
   // Overridden from WMHelper::ActivationObserver:
@@ -2084,27 +2092,30 @@ class WaylandRemoteShell : public WMHelper::MaximizeModeObserver,
   }
 
  private:
-  void SendPrimaryDisplayMetrics() {
-    const display::Display primary =
-        display::Screen::GetScreen()->GetPrimaryDisplay();
-
-    SendDisplayMetrics(primary);
+  void ScheduleSendDisplayMetrics(int delay_ms) {
+    needs_send_display_metrics_ = true;
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE, base::Bind(&WaylandRemoteShell::SendDisplayMetrics,
+                              weak_ptr_factory_.GetWeakPtr()),
+        base::TimeDelta::FromMilliseconds(delay_ms));
   }
 
-  void MaybeSendConfigure() {
-    if (send_configure_after_layout_change_)
-      SendPrimaryDisplayMetrics();
-  }
+  void SendDisplayMetrics() {
+    if (!needs_send_display_metrics_)
+      return;
+    needs_send_display_metrics_ = false;
 
-  void SendDisplayMetrics(const display::Display& display) {
-    send_configure_after_layout_change_ = false;
+    const display::Screen* screen = display::Screen::GetScreen();
+    const display::Display primary_display = screen->GetPrimaryDisplay();
 
-    const gfx::Insets& work_area_insets = display.GetWorkAreaInsets();
+    const gfx::Insets& work_area_insets = primary_display.GetWorkAreaInsets();
 
     zcr_remote_shell_v1_send_configuration_changed(
-        remote_shell_resource_, display.size().width(), display.size().height(),
-        OutputTransform(display.rotation()),
-        wl_fixed_from_double(display.device_scale_factor()),
+        remote_shell_resource_,
+        primary_display.size().width(),
+        primary_display.size().height(),
+        OutputTransform(primary_display.rotation()),
+        wl_fixed_from_double(primary_display.device_scale_factor()),
         work_area_insets.left(), work_area_insets.top(),
         work_area_insets.right(), work_area_insets.bottom(), layout_mode_);
     wl_client_flush(wl_resource_get_client(remote_shell_resource_));
@@ -2149,7 +2160,7 @@ class WaylandRemoteShell : public WMHelper::MaximizeModeObserver,
   // The remote shell resource associated with observer.
   wl_resource* const remote_shell_resource_;
 
-  bool send_configure_after_layout_change_ = false;
+  bool needs_send_display_metrics_ = true;
 
   int layout_mode_ = ZCR_REMOTE_SHELL_V1_LAYOUT_MODE_WINDOWED;
 
@@ -2272,7 +2283,7 @@ const struct zcr_remote_shell_v1_interface remote_shell_implementation = {
     remote_shell_destroy, remote_shell_get_remote_surface,
     remote_shell_get_notification_surface};
 
-const uint32_t remote_shell_version = 1;
+const uint32_t remote_shell_version = 2;
 
 void bind_remote_shell(wl_client* client,
                        void* data,

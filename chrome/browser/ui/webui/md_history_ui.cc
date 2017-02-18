@@ -16,8 +16,6 @@
 #include "chrome/browser/ui/webui/foreign_session_handler.h"
 #include "chrome/browser/ui/webui/history_login_handler.h"
 #include "chrome/browser/ui/webui/metrics_handler.h"
-#include "chrome/common/chrome_features.h"
-#include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/browser_resources.h"
@@ -132,11 +130,6 @@ content::WebUIDataSource* CreateMdHistoryUIHTMLSource(Profile* profile,
   source->AddBoolean("allowDeletingHistory", allow_deleting_history);
 
   source->AddBoolean(kShowMenuPromoKey, !MenuPromoShown(profile));
-
-  bool group_by_domain = base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kHistoryEnableGroupByDomain) || profile->IsSupervised();
-  source->AddBoolean("groupByDomain", group_by_domain);
-
   source->AddBoolean("isGuestSession", profile->IsGuestSession());
 
   source->AddBoolean(kIsUserSignedInKey, IsUserSignedIn(profile));
@@ -158,8 +151,6 @@ content::WebUIDataSource* CreateMdHistoryUIHTMLSource(Profile* profile,
     {"app.js", IDR_MD_HISTORY_APP_JS},
     {"browser_service.html", IDR_MD_HISTORY_BROWSER_SERVICE_HTML},
     {"browser_service.js", IDR_MD_HISTORY_BROWSER_SERVICE_JS},
-    {"grouped_list.html", IDR_MD_HISTORY_GROUPED_LIST_HTML},
-    {"grouped_list.js", IDR_MD_HISTORY_GROUPED_LIST_JS},
     {"history_item.html", IDR_MD_HISTORY_HISTORY_ITEM_HTML},
     {"history_item.js", IDR_MD_HISTORY_HISTORY_ITEM_JS},
     {"history_list.html", IDR_MD_HISTORY_HISTORY_LIST_HTML},
@@ -239,12 +230,6 @@ MdHistoryUI::MdHistoryUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 }
 
 MdHistoryUI::~MdHistoryUI() {}
-
-// static
-bool MdHistoryUI::IsEnabled(Profile* profile) {
-  return base::FeatureList::IsEnabled(features::kMaterialDesignHistory) &&
-         !profile->IsSupervised();
-}
 
 // static
 base::RefCountedMemory* MdHistoryUI::GetFaviconResourceBytes(

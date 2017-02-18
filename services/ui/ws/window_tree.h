@@ -264,7 +264,8 @@ class WindowTree : public mojom::WindowTree,
   // |target_window| is the target of the event, and may be null or not known
   // to this tree.
   void SendToPointerWatcher(const ui::Event& event,
-                            ServerWindow* target_window);
+                            ServerWindow* target_window,
+                            int64_t display_id);
 
  private:
   friend class test::WindowTreeTestApi;
@@ -471,11 +472,7 @@ class WindowTree : public mojom::WindowTree,
   void AddActivationParent(Id transport_window_id) override;
   void RemoveActivationParent(Id transport_window_id) override;
   void ActivateNextWindow() override;
-  void SetUnderlaySurfaceOffsetAndExtendedHitArea(
-      Id window_id,
-      int32_t x_offset,
-      int32_t y_offset,
-      const gfx::Insets& hit_area) override;
+  void SetExtendedHitArea(Id window_id, const gfx::Insets& hit_area) override;
   void WmResponse(uint32_t change_id, bool response) override;
   void WmRequestClose(Id transport_window_id) override;
   void WmSetFrameDecorationValues(

@@ -213,9 +213,6 @@ if (!is_android && !is_mac) {
         "/DELAYLOAD:ole32.dll",
         "/DELAYLOAD:oleaut32.dll",
       ]
-
-      # Turn on CFG for this project.
-      configs += [ "//build/config/win:win_msvc_cfg" ]
     } else if (use_aura) {
       # Non-Windows aura entrypoint.
       sources += [ "app/chrome_exe_main_aura.cc" ]
@@ -457,10 +454,7 @@ if (is_win) {
 } else if (is_mac) {
   chrome_helper_name = chrome_product_full_name + " Helper"
   chrome_framework_name = chrome_product_full_name + " Framework"
-
-  if (enable_xpc_notifications) {
-    chrome_framework_version = "A"
-  }
+  chrome_framework_version = "A"
 
   group("chrome") {
     deps = [
@@ -909,7 +903,11 @@ if (is_win) {
       script = "//chrome/tools/build/mac/copy_keystone_framework.py"
 
       framework_path = "//third_party/googlemac/Releases/Keystone/KeystoneRegistration.framework"
-      output_path = "$root_out_dir/$chrome_framework_name.framework/Frameworks/"
+      output_path = "$root_out_dir/$chrome_framework_name.framework/"
+      if (defined(chrome_framework_version)) {
+        output_path += "/Versions/$chrome_framework_version/"
+      }
+      output_path += "Frameworks/"
 
       sources = [
         framework_path,
@@ -1013,7 +1011,10 @@ if (is_win) {
       ]
 
       if (is_chrome_branded) {
-        framework_contents += [ "Default Apps" ]
+        framework_contents += [
+          "Default Apps",
+          "Frameworks",  # For KeystoneRegistration.framework.
+        ]
       }
       if (enable_nacl) {
         framework_contents += [ "Internet Plug-Ins" ]
@@ -1337,18 +1338,25 @@ group("resources") {
 }
 
 group("extra_resources") {
+  # Deps should be same as those in chrome_extra_paks() within chrome_paks.gni.
   public_deps = [
-    "//chrome/browser/resources:component_extension_resources",
     "//chrome/browser/resources:invalidations_resources",
     "//chrome/browser/resources:net_internals_resources",
-    "//chrome/browser/resources:options_resources",
     "//chrome/browser/resources:password_manager_internals_resources",
     "//chrome/browser/resources:policy_resources",
     "//chrome/browser/resources:quota_internals_resources",
-    "//chrome/browser/resources:settings_resources",
     "//chrome/browser/resources:task_scheduler_internals_resources",
     "//chrome/browser/resources:translate_internals_resources",
+    "//chrome/browser/resources:webapks_ui_resources",
   ]
+
+  if (!is_android && !is_ios) {
+    public_deps += [
+      "//chrome/browser/resources:component_extension_resources",
+      "//chrome/browser/resources:options_resources",
+      "//chrome/browser/resources:settings_resources",
+    ]
+  }
 
   if (is_chromeos) {
     public_deps += [ "//chrome/browser/resources/chromeos/chromevox" ]
@@ -1424,14 +1432,16 @@ chrome_paks("packed_resources") {
 
 repack("browser_tests_pak") {
   sources = [
-    "$root_gen_dir/chrome/options_test_resources.pak",
     "$root_gen_dir/chrome/webui_test_resources.pak",
   ]
   output = "$root_out_dir/browser_tests.pak"
   deps = [
-    "//chrome/browser/resources:options_test_resources",
     "//chrome/test/data:webui_test_resources",
   ]
+  if (!is_android && !is_ios) {
+    sources += [ "$root_gen_dir/chrome/options_test_resources.pak" ]
+    deps += [ "//chrome/browser/resources:options_test_resources" ]
+  }
 }
 
 group("strings") {

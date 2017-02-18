@@ -47,7 +47,6 @@
 #include "wtf/Noncopyable.h"
 #include <memory>
 
-class SkBitmap;
 class SkPath;
 class SkRRect;
 struct SkRect;
@@ -182,11 +181,11 @@ class PLATFORM_EXPORT GraphicsContext {
 
   void strokeRect(const FloatRect&, float lineWidth);
 
-  void drawPicture(const PaintRecord*);
-  void compositePicture(sk_sp<PaintRecord>,
-                        const FloatRect& dest,
-                        const FloatRect& src,
-                        SkBlendMode);
+  void drawRecord(const PaintRecord*);
+  void compositeRecord(sk_sp<PaintRecord>,
+                       const FloatRect& dest,
+                       const FloatRect& src,
+                       SkBlendMode);
 
   void drawImage(Image*,
                  const FloatRect& destRect,
@@ -270,7 +269,8 @@ class PLATFORM_EXPORT GraphicsContext {
   };
   void drawLineForDocumentMarker(const FloatPoint&,
                                  float width,
-                                 DocumentMarkerLineStyle);
+                                 DocumentMarkerLineStyle,
+                                 float zoom);
 
   // beginLayer()/endLayer() behave like save()/restore() for CTM and clip
   // states. Apply SkBlendMode when the layer is composited on the backdrop
@@ -287,8 +287,8 @@ class PLATFORM_EXPORT GraphicsContext {
   // later time. Pass in the bounding rectangle for the content in the list.
   void beginRecording(const FloatRect&);
 
-  // Returns a picture with any recorded draw commands since the prerequisite
-  // call to beginRecording().  The picture is guaranteed to be non-null (but
+  // Returns a record with any recorded draw commands since the prerequisite
+  // call to beginRecording().  The record is guaranteed to be non-null (but
   // not necessarily non-empty), even when the context is disabled.
   sk_sp<PaintRecord> endRecording();
 
@@ -324,9 +324,9 @@ class PLATFORM_EXPORT GraphicsContext {
                        float shadowSpread,
                        Edges clippedEdges = NoEdge);
 
-  const PaintFlags& fillPaint() const { return immutableState()->fillPaint(); }
-  const PaintFlags& strokePaint() const {
-    return immutableState()->strokePaint();
+  const PaintFlags& fillFlags() const { return immutableState()->fillFlags(); }
+  const PaintFlags& strokeFlags() const {
+    return immutableState()->strokeFlags();
   }
 
   // ---------- Transformation methods -----------------
@@ -358,12 +358,7 @@ class PLATFORM_EXPORT GraphicsContext {
                                           float strokeWidth,
                                           StrokeStyle);
 
-  static int focusRingOutsetExtent(int offset, int width) {
-    // Unlike normal outlines (whole width is outside of the offset), focus
-    // rings are drawn with the center of the path aligned with the offset, so
-    // only half of the width is outside of the offset.
-    return focusRingOffset(offset) + (width + 1) / 2;
-  }
+  static int focusRingOutsetExtent(int offset, int width);
 
 #if DCHECK_IS_ON()
   void setInDrawingRecorder(bool);
@@ -381,17 +376,6 @@ class PLATFORM_EXPORT GraphicsContext {
 
   template <typename DrawTextFunc>
   void drawTextPasses(const DrawTextFunc&);
-
-#if OS(MACOSX)
-  static inline int focusRingOffset(int offset) { return offset + 2; }
-#else
-  static inline int focusRingOffset(int offset) { return 0; }
-  static SkPMColor lineColors(int);
-  static SkPMColor antiColors1(int);
-  static SkPMColor antiColors2(int);
-  static void draw1xMarker(SkBitmap*, int);
-  static void draw2xMarker(SkBitmap*, int);
-#endif
 
   void saveLayer(const SkRect* bounds, const PaintFlags*);
   void restoreLayer();
@@ -448,7 +432,7 @@ class PLATFORM_EXPORT GraphicsContext {
   // Raw pointer to the current state.
   GraphicsContextState* m_paintState;
 
-  PaintRecorder m_pictureRecorder;
+  PaintRecorder m_paintRecorder;
 
   SkMetaData m_metaData;
 

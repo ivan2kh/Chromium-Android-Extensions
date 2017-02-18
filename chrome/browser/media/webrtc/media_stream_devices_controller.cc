@@ -31,6 +31,7 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/url_formatter/elide_url.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_widget_host_view.h"
@@ -38,7 +39,6 @@
 #include "content/public/common/origin_util.h"
 #include "extensions/common/constants.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/gfx/vector_icons_public.h"
 
 #if defined(OS_ANDROID)
 #include <vector>
@@ -48,7 +48,9 @@
 #include "chrome/grit/theme_resources.h"
 #include "content/public/browser/android/content_view_core.h"
 #include "ui/android/window_android.h"
-#endif  // defined(OS_ANDROID)
+#else  // !defined(OS_ANDROID)
+#include "ui/vector_icons/vector_icons.h"
+#endif
 
 using content::BrowserThread;
 
@@ -140,11 +142,10 @@ class MediaPermissionRequestLogger : content::WebContentsObserver {
   }
 
   // content::WebContentsObserver overrides
-  void DidNavigateAnyFrame(
-      content::RenderFrameHost* render_frame_host,
-      const content::LoadCommittedDetails& details,
-      const content::FrameNavigateParams& params) override {
-    PageChanged(render_frame_host);
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override {
+    if (navigation_handle->HasCommitted())
+      PageChanged(navigation_handle->GetRenderFrameHost());
   }
 
   void RenderFrameDeleted(
@@ -280,8 +281,7 @@ PermissionRequest::IconId MediaStreamDevicesController::GetIconId() const {
   return IsAskingForVideo() ? IDR_INFOBAR_MEDIA_STREAM_CAMERA
                             : IDR_INFOBAR_MEDIA_STREAM_MIC;
 #else
-  return IsAskingForVideo() ? gfx::VectorIconId::VIDEOCAM
-                            : gfx::VectorIconId::MICROPHONE;
+  return IsAskingForVideo() ? ui::kVideocamIcon : ui::kMicrophoneIcon;
 #endif
 }
 

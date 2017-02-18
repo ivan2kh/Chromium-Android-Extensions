@@ -39,6 +39,7 @@
 #include "core/frame/Settings.h"
 #include "core/frame/UseCounter.h"
 #include "core/html/HTMLIFrameElement.h"
+#include "core/html/HTMLImageElement.h"
 #include "core/html/HTMLInputElement.h"
 #include "core/html/HTMLPlugInElement.h"
 #include "core/html/HTMLTableCellElement.h"
@@ -155,7 +156,7 @@ static void adjustStyleForFirstLetter(ComputedStyle& style) {
   style.setDisplay(style.isFloating() ? EDisplay::Block : EDisplay::Inline);
 
   // CSS2 says first-letter can't be positioned.
-  style.setPosition(StaticPosition);
+  style.setPosition(EPosition::kStatic);
 }
 
 void StyleAdjuster::adjustStyleForAlignment(ComputedStyle& style,
@@ -209,6 +210,12 @@ static void adjustStyleForHTMLElement(ComputedStyle& style,
     return;
   }
 
+  if (isHTMLImageElement(element)) {
+    if (toHTMLImageElement(element).isCollapsed())
+      style.setDisplay(EDisplay::None);
+    return;
+  }
+
   if (isHTMLTableElement(element)) {
     // Tables never support the -webkit-* values for text-align and will reset
     // back to the default.
@@ -223,7 +230,7 @@ static void adjustStyleForHTMLElement(ComputedStyle& style,
     // Frames and framesets never honor position:relative or position:absolute.
     // This is necessary to fix a crash where a site tries to position these
     // objects. They also never honor display.
-    style.setPosition(StaticPosition);
+    style.setPosition(EPosition::kStatic);
     style.setDisplay(EDisplay::Block);
     return;
   }
@@ -239,7 +246,7 @@ static void adjustStyleForHTMLElement(ComputedStyle& style,
   if (isHTMLRTElement(element)) {
     // Ruby text does not support float or position. This might change with
     // evolution of the specification.
-    style.setPosition(StaticPosition);
+    style.setPosition(EPosition::kStatic);
     style.setFloating(EFloat::kNone);
     return;
   }
@@ -336,16 +343,16 @@ static void adjustStyleForDisplay(ComputedStyle& style,
        style.display() == EDisplay::TableRowGroup ||
        style.display() == EDisplay::TableFooterGroup ||
        style.display() == EDisplay::TableRow) &&
-      style.position() == RelativePosition)
-    style.setPosition(StaticPosition);
+      style.position() == EPosition::kRelative)
+    style.setPosition(EPosition::kStatic);
 
   // Cannot support position: sticky for table columns and column groups because
   // current code is only doing background painting through columns / column
   // groups.
   if ((style.display() == EDisplay::TableColumnGroup ||
        style.display() == EDisplay::TableColumn) &&
-      style.position() == StickyPosition)
-    style.setPosition(StaticPosition);
+      style.position() == EPosition::kSticky)
+    style.setPosition(EPosition::kStatic);
 
   // writing-mode does not apply to table row groups, table column groups, table
   // rows, and table columns.
@@ -394,9 +401,10 @@ void StyleAdjuster::adjustComputedStyle(ComputedStyle& style,
 
     // Per the spec, position 'static' and 'relative' in the top layer compute
     // to 'absolute'.
-    if (isInTopLayer(element, style) && (style.position() == StaticPosition ||
-                                         style.position() == RelativePosition))
-      style.setPosition(AbsolutePosition);
+    if (isInTopLayer(element, style) &&
+        (style.position() == EPosition::kStatic ||
+         style.position() == EPosition::kRelative))
+      style.setPosition(EPosition::kAbsolute);
 
     // Absolute/fixed positioned elements, floating elements and the document
     // element need block-like outside display.
@@ -423,7 +431,7 @@ void StyleAdjuster::adjustComputedStyle(ComputedStyle& style,
     style.setHasCompositorProxy(true);
 
   // Make sure our z-index value is only applied if the object is positioned.
-  if (style.position() == StaticPosition &&
+  if (style.position() == EPosition::kStatic &&
       !parentStyleForcesZIndexToCreateStackingContext(parentStyle)) {
     style.setIsStackingContext(false);
     // TODO(alancutter): Avoid altering z-index here.
@@ -464,6 +472,18 @@ void StyleAdjuster::adjustComputedStyle(ComputedStyle& style,
 
   bool isSVGElement = element && element->isSVGElement();
   if (isSVGElement) {
+    // display: contents computes to inline for replaced elements and form
+    // controls, and isn't specified for other kinds of SVG content[1], so let's
+    // just do the same here for all other SVG elements.
+    //
+    // If we wouldn't do this, then we'd need to ensure that display: contents
+    // doesn't prevent SVG elements from generating a LayoutObject in
+    // SVGElement::layoutObjectIsNeeded.
+    //
+    // [1]: https://www.w3.org/TR/SVG/painting.html#DisplayProperty
+    if (style.display() == EDisplay::Contents)
+      style.setDisplay(EDisplay::Inline);
+
     // Only the root <svg> element in an SVG document fragment tree honors css
     // position.
     if (!(isSVGSVGElement(*element) && element->parentNode() &&

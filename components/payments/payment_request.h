@@ -9,8 +9,10 @@
 #include <string>
 #include <vector>
 
+#include "components/autofill/core/browser/personal_data_manager.h"
 #include "components/payments/currency_formatter.h"
 #include "components/payments/payment_request.mojom.h"
+#include "components/payments/payment_request_delegate.h"
 #include "mojo/public/cpp/bindings/binding.h"
 
 namespace autofill {
@@ -24,7 +26,6 @@ class WebContents;
 
 namespace payments {
 
-class PaymentRequestDelegate;
 class PaymentRequestWebContentsManager;
 
 class PaymentRequest : payments::mojom::PaymentRequest {
@@ -38,7 +39,7 @@ class PaymentRequest : payments::mojom::PaymentRequest {
 
   // payments::mojom::PaymentRequest "stub"
   void Init(payments::mojom::PaymentRequestClientPtr client,
-            std::vector<payments::mojom::PaymentMethodDataPtr> methodData,
+            std::vector<payments::mojom::PaymentMethodDataPtr> method_data,
             payments::mojom::PaymentDetailsPtr details,
             payments::mojom::PaymentOptionsPtr options) override;
   void Show() override;
@@ -95,7 +96,14 @@ class PaymentRequest : payments::mojom::PaymentRequest {
   // card.
   autofill::CreditCard* GetCurrentlySelectedCreditCard();
 
+  autofill::PersonalDataManager* personal_data_manager() {
+    return delegate_->GetPersonalDataManager();
+  }
+
   payments::mojom::PaymentDetails* details() { return details_.get(); }
+  const std::vector<std::string>& supported_card_networks() {
+    return supported_card_networks_;
+  }
   content::WebContents* web_contents() { return web_contents_; }
 
  private:
@@ -106,6 +114,10 @@ class PaymentRequest : payments::mojom::PaymentRequest {
   // Sets the default values for the selected Shipping and Contact profiles.
   void SetDefaultProfileSelections();
 
+  // Validates the |method_data| and fills |supported_card_networks_|.
+  void PopulateValidatedMethodData(
+      const std::vector<payments::mojom::PaymentMethodDataPtr>& method_data);
+
   content::WebContents* web_contents_;
   std::unique_ptr<PaymentRequestDelegate> delegate_;
   // |manager_| owns this PaymentRequest.
@@ -114,6 +126,8 @@ class PaymentRequest : payments::mojom::PaymentRequest {
   payments::mojom::PaymentRequestClientPtr client_;
   payments::mojom::PaymentDetailsPtr details_;
   std::unique_ptr<CurrencyFormatter> currency_formatter_;
+  // A set of supported basic card networks.
+  std::vector<std::string> supported_card_networks_;
 
   // Profiles may change due to (e.g.) sync events, so profiles are cached after
   // loading and owned here. They are populated once only, and ordered by

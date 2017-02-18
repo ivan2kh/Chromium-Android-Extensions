@@ -22,7 +22,11 @@ static_library("browser") {
     "//content/public/browser",
     "//content/public/common",
     "//ipc",
+    "//net",
     "//url",
+  ]
+  public_deps = [
+    "//ui/base",
   ]
 }
 

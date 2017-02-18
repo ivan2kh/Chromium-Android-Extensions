@@ -46,6 +46,8 @@ using ::testing::StrEq;
 using ::testing::Truly;
 using Checkpoint = ::testing::StrictMock<::testing::MockFunction<void(int)>>;
 
+constexpr char kFileName[] = "fox-null-terminated.html";
+
 class MockThreadableLoaderClient : public ThreadableLoaderClient {
  public:
   static std::unique_ptr<MockThreadableLoaderClient> create() {
@@ -404,14 +406,15 @@ class ThreadableLoaderTest
 
   void TearDown() override {
     m_helper->onTearDown();
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
-    memoryCache()->evictResources();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
     m_client.reset();
   }
 
   void setUpSuccessURL() {
     URLTestHelpers::registerMockedURLLoad(
-        successURL(), "fox-null-terminated.html", "text/html");
+        successURL(), testing::webTestDataPath(kFileName), "text/html");
   }
 
   void setUpErrorURL() {
@@ -432,7 +435,7 @@ class ThreadableLoaderTest
     response.addHTTPHeaderField("Access-Control-Allow-Origin", "null");
 
     URLTestHelpers::registerMockedURLLoadWithCustomResponse(
-        url, "fox-null-terminated.html", "", response);
+        url, testing::webTestDataPath(kFileName), response);
   }
 
   void setUpRedirectLoopURL() {
@@ -449,7 +452,7 @@ class ThreadableLoaderTest
     response.addHTTPHeaderField("Access-Control-Allow-Origin", "null");
 
     URLTestHelpers::registerMockedURLLoadWithCustomResponse(
-        url, "fox-null-terminated.html", "", response);
+        url, testing::webTestDataPath(kFileName), response);
   }
 
   std::unique_ptr<MockThreadableLoaderClient> m_client;

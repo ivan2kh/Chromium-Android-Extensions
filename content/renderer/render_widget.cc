@@ -237,7 +237,7 @@ WebDragData DropDataToWebDragData(const DropData& drop_data) {
   // These fields are currently unused when dragging into WebKit.
   DCHECK(drop_data.download_metadata.empty());
   DCHECK(drop_data.file_contents.empty());
-  DCHECK(drop_data.file_description_filename.empty());
+  DCHECK(drop_data.file_contents_content_disposition.empty());
 
   if (!drop_data.text.is_null()) {
     WebDragData::Item item;
@@ -375,6 +375,8 @@ RenderWidget::RenderWidget(int32_t widget_routing_id,
       text_input_client_observer_(new TextInputClientObserver(this)),
 #endif
       focused_pepper_plugin_(nullptr),
+      time_to_first_active_paint_recorded_(true),
+      was_shown_time_(base::TimeTicks::Now()),
       weak_ptr_factory_(this) {
   DCHECK_NE(routing_id_, MSG_ROUTING_NONE);
   if (!swapped_out)
@@ -391,7 +393,7 @@ RenderWidget::RenderWidget(int32_t widget_routing_id,
 #if defined(USE_AURA)
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kNoUseMusInRenderer)) {
-    RendererWindowTreeClient::Create(routing_id_);
+    RendererWindowTreeClient::CreateIfNecessary(routing_id_);
   }
 #endif
 }
@@ -668,7 +670,13 @@ void RenderWidget::SendOrCrash(IPC::Message* message) {
 }
 
 bool RenderWidget::ShouldHandleImeEvents() const {
-  return GetWebWidget()->isWebFrameWidget() && has_focus_;
+  // TODO(ekaramad): We track page focus in all RenderViews on the page but the
+  // RenderWidgets corresponding to OOPIFs do not get the update. For now, this
+  // method returns true when the RenderWidget is for an OOPIF, i.e., IME events
+  // will be processed regardless of page focus. We should revisit this after
+  // page focus for OOPIFs has been fully resolved (https://crbug.com/689777).
+  return GetWebWidget() && GetWebWidget()->isWebFrameWidget() &&
+         (has_focus_ || for_oopif_);
 }
 
 void RenderWidget::SetWindowRectSynchronously(
@@ -773,6 +781,7 @@ void RenderWidget::OnWasShown(bool needs_repainting,
   if (!GetWebWidget())
     return;
 
+  was_shown_time_ = base::TimeTicks::Now();
   // See OnWasHidden
   SetHidden(false);
   for (auto& observer : render_frames_)
@@ -929,6 +938,18 @@ void RenderWidget::RequestScheduleAnimation() {
 
 void RenderWidget::UpdateVisualState() {
   GetWebWidget()->updateAllLifecyclePhases();
+
+  if (time_to_first_active_paint_recorded_)
+    return;
+
+  RenderThreadImpl* render_thread_impl = RenderThreadImpl::current();
+  if (!render_thread_impl->NeedsToRecordFirstActivePaint())
+    return;
+
+  time_to_first_active_paint_recorded_ = true;
+  base::TimeDelta sample = base::TimeTicks::Now() - was_shown_time_;
+  UMA_HISTOGRAM_TIMES("PurgeAndSuspend.Experimental.TimeToFirstActivePaint",
+                      sample);
 }
 
 void RenderWidget::WillBeginCompositorFrame() {
@@ -1032,6 +1053,14 @@ void RenderWidget::SetInputHandler(RenderWidgetInputHandler* input_handler) {
 
 void RenderWidget::ShowVirtualKeyboard() {
   UpdateTextInputStateInternal(true, false);
+}
+
+void RenderWidget::ClearTextInputState() {
+  text_input_info_ = blink::WebTextInputInfo();
+  text_input_type_ = ui::TextInputType::TEXT_INPUT_TYPE_NONE;
+  text_input_mode_ = ui::TextInputMode::TEXT_INPUT_MODE_DEFAULT;
+  can_compose_inline_ = false;
+  text_input_flags_ = 0;
 }
 
 void RenderWidget::UpdateTextInputState() {
@@ -1555,20 +1584,16 @@ void RenderWidget::OnImeSetComposition(
     return;
   }
 #endif
-  if (replacement_range.IsValid()) {
-    GetWebWidget()->applyReplacementRange(
-        WebRange(replacement_range.start(), replacement_range.length()));
-  }
-
-  if (!GetWebWidget())
-    return;
   ImeEventGuard guard(this);
   blink::WebInputMethodController* controller = GetInputMethodController();
   if (!controller ||
       !controller->setComposition(
           WebString::fromUTF16(text),
-          WebVector<WebCompositionUnderline>(underlines), selection_start,
-          selection_end)) {
+          WebVector<WebCompositionUnderline>(underlines),
+          replacement_range.IsValid()
+              ? WebRange(replacement_range.start(), replacement_range.length())
+              : WebRange(),
+          selection_start, selection_end)) {
     // If we failed to set the composition text, then we need to let the browser
     // process to cancel the input method's ongoing composition session, to make
     // sure we are in a consistent state.
@@ -1592,19 +1617,17 @@ void RenderWidget::OnImeCommitText(
     return;
   }
 #endif
-  if (replacement_range.IsValid()) {
-    GetWebWidget()->applyReplacementRange(
-        WebRange(replacement_range.start(), replacement_range.length()));
-  }
-
-  if (!GetWebWidget())
-    return;
   ImeEventGuard guard(this);
   input_handler_->set_handling_input_event(true);
-  if (auto* controller = GetInputMethodController())
-    controller->commitText(WebString::fromUTF16(text),
-                           WebVector<WebCompositionUnderline>(underlines),
-                           relative_cursor_pos);
+  if (auto* controller = GetInputMethodController()) {
+    controller->commitText(
+        WebString::fromUTF16(text),
+        WebVector<WebCompositionUnderline>(underlines),
+        replacement_range.IsValid()
+            ? WebRange(replacement_range.start(), replacement_range.length())
+            : WebRange(),
+        relative_cursor_pos);
+  }
   input_handler_->set_handling_input_event(false);
   UpdateCompositionInfo(false /* not an immediate request */);
 }
@@ -1733,11 +1756,14 @@ void RenderWidget::OnDragTargetDragOver(const gfx::Point& client_point,
   Send(new DragHostMsg_UpdateDragCursor(routing_id(), operation));
 }
 
-void RenderWidget::OnDragTargetDragLeave() {
+void RenderWidget::OnDragTargetDragLeave(const gfx::Point& client_point,
+                                         const gfx::Point& screen_point) {
   if (!GetWebWidget())
     return;
   DCHECK(GetWebWidget()->isWebFrameWidget());
-  static_cast<WebFrameWidget*>(GetWebWidget())->dragTargetDragLeave();
+  static_cast<WebFrameWidget*>(GetWebWidget())
+      ->dragTargetDragLeave(ConvertWindowPointToViewport(client_point),
+                            screen_point);
 }
 
 void RenderWidget::OnDragTargetDrop(const DropData& drop_data,
@@ -1879,9 +1905,10 @@ void RenderWidget::SetHidden(bool hidden) {
   // throttled acks are released in case frame production ceases.
   is_hidden_ = hidden;
 
-  if (is_hidden_)
+  if (is_hidden_) {
     RenderThreadImpl::current()->WidgetHidden();
-  else
+    time_to_first_active_paint_recorded_ = false;
+  } else
     RenderThreadImpl::current()->WidgetRestored();
 
   if (render_widget_scheduling_state_)
@@ -2109,13 +2136,6 @@ blink::WebScreenInfo RenderWidget::screenInfo() {
   }
   web_screen_info.orientationAngle = screen_info_.orientation_angle;
   return web_screen_info;
-}
-
-void RenderWidget::resetInputMethod() {
-  ImeEventGuard guard(this);
-  Send(new InputHostMsg_ImeCancelComposition(routing_id()));
-
-  UpdateCompositionInfo(false /* not an immediate request */);
 }
 
 #if defined(OS_ANDROID)

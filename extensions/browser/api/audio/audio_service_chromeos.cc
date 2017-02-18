@@ -10,6 +10,7 @@
 #include "base/callback.h"
 #include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "chromeos/audio/audio_device.h"
 #include "chromeos/audio/cras_audio_handler.h"
@@ -23,6 +24,48 @@ using api::audio::OutputDeviceInfo;
 using api::audio::InputDeviceInfo;
 using api::audio::AudioDeviceInfo;
 
+namespace {
+
+api::audio::DeviceType GetAsAudioApiDeviceType(chromeos::AudioDeviceType type) {
+  switch (type) {
+    case chromeos::AUDIO_TYPE_HEADPHONE:
+      return api::audio::DEVICE_TYPE_HEADPHONE;
+    case chromeos::AUDIO_TYPE_MIC:
+      return api::audio::DEVICE_TYPE_MIC;
+    case chromeos::AUDIO_TYPE_USB:
+      return api::audio::DEVICE_TYPE_USB;
+    case chromeos::AUDIO_TYPE_BLUETOOTH:
+      return api::audio::DEVICE_TYPE_BLUETOOTH;
+    case chromeos::AUDIO_TYPE_HDMI:
+      return api::audio::DEVICE_TYPE_HDMI;
+    case chromeos::AUDIO_TYPE_INTERNAL_SPEAKER:
+      return api::audio::DEVICE_TYPE_INTERNAL_SPEAKER;
+    case chromeos::AUDIO_TYPE_INTERNAL_MIC:
+      return api::audio::DEVICE_TYPE_INTERNAL_MIC;
+    case chromeos::AUDIO_TYPE_FRONT_MIC:
+      return api::audio::DEVICE_TYPE_FRONT_MIC;
+    case chromeos::AUDIO_TYPE_REAR_MIC:
+      return api::audio::DEVICE_TYPE_REAR_MIC;
+    case chromeos::AUDIO_TYPE_KEYBOARD_MIC:
+      return api::audio::DEVICE_TYPE_KEYBOARD_MIC;
+    case chromeos::AUDIO_TYPE_HOTWORD:
+      return api::audio::DEVICE_TYPE_HOTWORD;
+    case chromeos::AUDIO_TYPE_LINEOUT:
+      return api::audio::DEVICE_TYPE_LINEOUT;
+    case chromeos::AUDIO_TYPE_POST_MIX_LOOPBACK:
+      return api::audio::DEVICE_TYPE_POST_MIX_LOOPBACK;
+    case chromeos::AUDIO_TYPE_POST_DSP_LOOPBACK:
+      return api::audio::DEVICE_TYPE_POST_DSP_LOOPBACK;
+    case chromeos::AUDIO_TYPE_OTHER:
+      return api::audio::DEVICE_TYPE_OTHER;
+  }
+
+  NOTREACHED();
+  return api::audio::DEVICE_TYPE_OTHER;
+}
+
+}  // namespace
+
 class AudioServiceImpl : public AudioService,
                          public chromeos::CrasAudioHandler::AudioObserver {
  public:
@@ -35,6 +78,8 @@ class AudioServiceImpl : public AudioService,
 
   // Start to query audio device information.
   bool GetInfo(OutputInfo* output_info_out, InputInfo* input_info_out) override;
+  bool GetDevices(const api::audio::DeviceFilter* filter,
+                  DeviceInfoList* devices_out) override;
   void SetActiveDevices(const DeviceIdList& device_list) override;
   bool SetActiveDeviceLists(
       const std::unique_ptr<DeviceIdList>& input_devices,
@@ -66,6 +111,7 @@ class AudioServiceImpl : public AudioService,
   bool GetAudioNodeIdList(const DeviceIdList& ids,
                           bool is_input,
                           chromeos::CrasAudioHandler::NodeIdList* node_ids);
+  AudioDeviceInfo ToAudioDeviceInfo(const chromeos::AudioDevice& device);
 
   // List of observers.
   base::ObserverList<AudioService::Observer> observer_list_;
@@ -136,6 +182,34 @@ bool AudioServiceImpl::GetInfo(OutputInfo* output_info_out,
       input_info_out->push_back(std::move(info));
     }
   }
+  return true;
+}
+
+bool AudioServiceImpl::GetDevices(const api::audio::DeviceFilter* filter,
+                                  DeviceInfoList* devices_out) {
+  if (!cras_audio_handler_)
+    return false;
+
+  chromeos::AudioDeviceList devices;
+  cras_audio_handler_->GetAudioDevices(&devices);
+
+  bool accept_input =
+      !(filter && filter->stream_types) ||
+      base::ContainsValue(*filter->stream_types, api::audio::STREAM_TYPE_INPUT);
+  bool accept_output = !(filter && filter->stream_types) ||
+                       base::ContainsValue(*filter->stream_types,
+                                           api::audio::STREAM_TYPE_OUTPUT);
+
+  for (const auto& device : devices) {
+    if (filter && filter->is_active && *filter->is_active != device.active)
+      continue;
+    if (device.is_input && !accept_input)
+      continue;
+    if (!device.is_input && !accept_output)
+      continue;
+    devices_out->push_back(ToAudioDeviceInfo(device));
+  }
+
   return true;
 }
 
@@ -270,6 +344,31 @@ bool AudioServiceImpl::GetAudioNodeIdList(
   return true;
 }
 
+AudioDeviceInfo AudioServiceImpl::ToAudioDeviceInfo(
+    const chromeos::AudioDevice& device) {
+  AudioDeviceInfo info;
+  info.id = base::Uint64ToString(device.id);
+  info.stream_type = device.is_input
+                         ? extensions::api::audio::STREAM_TYPE_INPUT
+                         : extensions::api::audio::STREAM_TYPE_OUTPUT;
+  info.is_input = device.is_input;
+  info.device_type = GetAsAudioApiDeviceType(device.type);
+  info.display_name = device.display_name;
+  info.device_name = device.device_name;
+  info.is_active = device.active;
+  info.is_muted = device.is_input
+                      ? cras_audio_handler_->IsInputMutedForDevice(device.id)
+                      : cras_audio_handler_->IsOutputMutedForDevice(device.id);
+  info.level =
+      device.is_input
+          ? cras_audio_handler_->GetOutputVolumePercentForDevice(device.id)
+          : cras_audio_handler_->GetInputGainPercentForDevice(device.id);
+  info.stable_device_id.reset(
+      new std::string(base::Uint64ToString(device.stable_device_id)));
+
+  return info;
+}
+
 void AudioServiceImpl::OnOutputNodeVolumeChanged(uint64_t id, int volume) {
   NotifyLevelChanged(id, volume);
 }
@@ -323,39 +422,17 @@ void AudioServiceImpl::NotifyMuteChanged(bool is_input, bool is_muted) {
 
 void AudioServiceImpl::NotifyDevicesChanged() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK(cras_audio_handler_);
 
-  DeviceInfoList devices_info_list;
   chromeos::AudioDeviceList devices;
   cras_audio_handler_->GetAudioDevices(&devices);
-  for (size_t i = 0; i < devices.size(); ++i) {
-    AudioDeviceInfo info;
-    info.id = base::Uint64ToString(devices[i].id);
-    info.stream_type = devices[i].is_input
-                           ? extensions::api::audio::STREAM_TYPE_INPUT
-                           : extensions::api::audio::STREAM_TYPE_OUTPUT;
-    info.is_input = devices[i].is_input;
-    info.device_type = chromeos::AudioDevice::GetTypeString(devices[i].type);
-    info.display_name = devices[i].display_name;
-    info.device_name = devices[i].device_name;
-    info.is_active = devices[i].active;
-    info.is_muted =
-        devices[i].is_input
-            ? cras_audio_handler_->IsInputMutedForDevice(devices[i].id)
-            : cras_audio_handler_->IsOutputMutedForDevice(devices[i].id);
-    info.level =
-        devices[i].is_input
-            ? cras_audio_handler_->GetOutputVolumePercentForDevice(
-                  devices[i].id)
-            : cras_audio_handler_->GetInputGainPercentForDevice(devices[i].id);
-    info.stable_device_id.reset(
-        new std::string(base::Uint64ToString(devices[i].stable_device_id)));
 
-    devices_info_list.push_back(std::move(info));
+  DeviceInfoList device_info_list;
+  for (const auto& device : devices) {
+    device_info_list.push_back(ToAudioDeviceInfo(device));
   }
 
   for (auto& observer : observer_list_)
-    observer.OnDevicesChanged(devices_info_list);
+    observer.OnDevicesChanged(device_info_list);
 
   // Notify DeviceChanged event for backward compatibility.
   // TODO(jennyz): remove this code when the old version of hotrod retires.

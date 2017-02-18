@@ -48,7 +48,6 @@
 #include "platform/transforms/TransformationMatrix.h"
 #include "public/platform/WebContentLayer.h"
 #include "public/platform/WebImageLayer.h"
-#include "public/platform/WebLayerScrollClient.h"
 #include "public/platform/WebLayerStickyPositionConstraint.h"
 #include "third_party/skia/include/core/SkFilterQuality.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
@@ -70,9 +69,7 @@ typedef Vector<GraphicsLayer*, 64> GraphicsLayerVector;
 
 // GraphicsLayer is an abstraction for a rendering surface with backing store,
 // which may have associated transformation and animations.
-
-class PLATFORM_EXPORT GraphicsLayer : public WebLayerScrollClient,
-                                      public cc::LayerClient,
+class PLATFORM_EXPORT GraphicsLayer : public cc::LayerClient,
                                       public DisplayItemClient {
   WTF_MAKE_NONCOPYABLE(GraphicsLayer);
   USING_FAST_MALLOC(GraphicsLayer);
@@ -254,9 +251,6 @@ class PLATFORM_EXPORT GraphicsLayer : public WebLayerScrollClient,
   void paint(const IntRect* interestRect,
              GraphicsContext::DisabledMode = GraphicsContext::NothingDisabled);
 
-  // WebLayerScrollClient implementation.
-  void didScroll() override;
-
   // cc::LayerClient implementation.
   std::unique_ptr<base::trace_event::ConvertableToTraceFormat> TakeDebugInfo(
       cc::Layer*) override;
@@ -335,7 +329,7 @@ class PLATFORM_EXPORT GraphicsLayer : public WebLayerScrollClient,
   std::unique_ptr<JSONObject> layerAsJSONInternal(LayerTreeFlags,
                                                   RenderingContextMap&) const;
 
-  sk_sp<PaintRecord> capturePicture();
+  sk_sp<PaintRecord> captureRecord();
   void checkPaintUnderInvalidations(const PaintRecord&);
 
   GraphicsLayerClient* m_client;

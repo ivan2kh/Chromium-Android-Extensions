@@ -10,8 +10,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/test/test_reg_util_win.h"
 #include "chrome/install_static/install_details.h"
-#include "chrome/install_static/install_modes.h"
-#include "chrome/install_static/product_install_details.h"
+#include "chrome/install_static/test/scoped_install_details.h"
 #include "chrome_elf/nt_registry/nt_registry.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -269,32 +268,22 @@ class InstallStaticUtilTest
     : public ::testing::TestWithParam<
           std::tuple<InstallConstantIndex, const char*>> {
  protected:
-  InstallStaticUtilTest() {
-    InstallConstantIndex mode_index;
-    const char* level;
+  InstallStaticUtilTest()
+      : system_level_(std::string(std::get<1>(GetParam())) != "user"),
+        scoped_install_details_(system_level_, std::get<0>(GetParam())),
+        mode_(&InstallDetails::Get().mode()),
+        root_key_(system_level_ ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER),
+        nt_root_key_(system_level_ ? nt::HKLM : nt::HKCU) {}
 
-    std::tie(mode_index, level) = GetParam();
-
-    mode_ = &kInstallModes[mode_index];
-    system_level_ = std::string(level) != "user";
-    EXPECT_TRUE(!system_level_ || mode_->supports_system_level);
-    root_key_ = system_level_ ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
-    nt_root_key_ = system_level_ ? nt::HKLM : nt::HKCU;
-
-    std::unique_ptr<PrimaryInstallDetails> details =
-        base::MakeUnique<PrimaryInstallDetails>();
-    details->set_mode(mode_);
-    details->set_channel(mode_->default_channel_name);
-    details->set_system_level(system_level_);
-    InstallDetails::SetForProcess(std::move(details));
-
+  void SetUp() override {
+    ASSERT_TRUE(!system_level_ || mode_->supports_system_level);
     base::string16 path;
-    override_manager_.OverrideRegistry(root_key_, &path);
+    ASSERT_NO_FATAL_FAILURE(
+        override_manager_.OverrideRegistry(root_key_, &path));
     nt::SetTestingOverride(nt_root_key_, path);
   }
 
-  ~InstallStaticUtilTest() {
-    InstallDetails::SetForProcess(nullptr);
+  void TearDown() override {
     nt::SetTestingOverride(nt_root_key_, base::string16());
   }
 
@@ -342,11 +331,12 @@ class InstallStaticUtilTest
     return result;
   }
 
+  const bool system_level_;
+  const ScopedInstallDetails scoped_install_details_;
+  const InstallConstants* mode_;
+  const HKEY root_key_;
+  const nt::ROOT_KEY nt_root_key_;
   registry_util::RegistryOverrideManager override_manager_;
-  HKEY root_key_ = nullptr;
-  nt::ROOT_KEY nt_root_key_ = nt::AUTO;
-  const InstallConstants* mode_ = nullptr;
-  bool system_level_ = false;
 
   DISALLOW_COPY_AND_ASSIGN(InstallStaticUtilTest);
 };

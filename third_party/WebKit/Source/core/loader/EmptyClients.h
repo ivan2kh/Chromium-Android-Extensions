@@ -218,7 +218,13 @@ class CORE_EXPORT EmptyChromeClient : public ChromeClient {
   void annotatedRegionsChanged() override {}
   String acceptLanguages() override;
 
-  CompositorProxyClient* createCompositorProxyClient(LocalFrame*) override {
+  CompositorWorkerProxyClient* createCompositorWorkerProxyClient(
+      LocalFrame*) override {
+    return nullptr;
+  }
+
+  AnimationWorkletProxyClient* createAnimationWorkletProxyClient(
+      LocalFrame*) override {
     return nullptr;
   }
 
@@ -260,7 +266,7 @@ class CORE_EXPORT EmptyFrameLoaderClient : public FrameLoaderClient {
   void dispatchDidHandleOnloadEvents() override {}
   void dispatchDidReceiveServerRedirectForProvisionalLoad() override {}
   void dispatchWillCommitProvisionalLoad() override {}
-  void dispatchDidStartProvisionalLoad() override {}
+  void dispatchDidStartProvisionalLoad(DocumentLoader*) override {}
   void dispatchDidReceiveTitle(const String&) override {}
   void dispatchDidChangeIcons(IconType) override {}
   void dispatchDidCommitLoad(HistoryItem*, HistoryCommitType) override {}

@@ -175,8 +175,9 @@ InterpolationValue CSSTransformInterpolationType::maybeConvertInherit(
 
 InterpolationValue CSSTransformInterpolationType::maybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState& state,
+    const StyleResolverState* state,
     ConversionCheckers& conversionCheckers) const {
+  DCHECK(state);
   if (value.isValueList()) {
     CSSLengthArray lengthArray;
     for (const CSSValue* item : toCSSValueList(value)) {
@@ -195,14 +196,15 @@ InterpolationValue CSSTransformInterpolationType::maybeConvertValue(
       }
     }
     std::unique_ptr<InterpolationType::ConversionChecker> lengthUnitsChecker =
-        LengthUnitsChecker::maybeCreate(std::move(lengthArray), state);
+        LengthUnitsChecker::maybeCreate(std::move(lengthArray), *state);
 
     if (lengthUnitsChecker)
       conversionCheckers.push_back(std::move(lengthUnitsChecker));
   }
 
+  DCHECK(state);
   TransformOperations transform = TransformBuilder::createTransformOperations(
-      value, state.cssToLengthConversionData());
+      value, state->cssToLengthConversionData());
   return convertTransform(std::move(transform));
 }
 
@@ -226,8 +228,8 @@ PairwiseInterpolationValue CSSTransformInterpolationType::maybeMergeSingles(
 
 InterpolationValue
 CSSTransformInterpolationType::maybeConvertStandardPropertyUnderlyingValue(
-    const StyleResolverState& state) const {
-  return convertTransform(state.style()->transform());
+    const ComputedStyle& style) const {
+  return convertTransform(style.transform());
 }
 
 void CSSTransformInterpolationType::composite(

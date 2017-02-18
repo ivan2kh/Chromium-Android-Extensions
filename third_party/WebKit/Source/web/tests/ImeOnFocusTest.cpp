@@ -10,7 +10,6 @@
 #include "platform/testing/UnitTestHelpers.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebURLLoaderMockFactory.h"
-#include "public/web/WebCache.h"
 #include "public/web/WebDocument.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "web/WebLocalFrameImpl.h"
@@ -18,7 +17,7 @@
 
 using blink::FrameTestHelpers::loadFrame;
 using blink::testing::runPendingTasks;
-using blink::URLTestHelpers::registerMockedURLFromBaseURL;
+using blink::URLTestHelpers::registerMockedURLLoadFromBase;
 
 namespace blink {
 
@@ -46,8 +45,9 @@ class ImeOnFocusTest : public ::testing::Test {
   ImeOnFocusTest() : m_baseURL("http://www.test.com/") {}
 
   void TearDown() override {
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
-    WebCache::clear();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
   }
 
  protected:
@@ -92,8 +92,9 @@ void ImeOnFocusTest::runImeOnFocusTest(std::string fileName,
                                        const AtomicString& focusElement,
                                        std::string frame) {
   ImeRequestTrackingWebViewClient client;
-  registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL),
-                               WebString::fromUTF8(fileName));
+  registerMockedURLLoadFromBase(WebString::fromUTF8(m_baseURL),
+                                testing::webTestDataPath(),
+                                WebString::fromUTF8(fileName));
   WebViewImpl* webView = m_webViewHelper.initialize(true, 0, &client);
   webView->resize(WebSize(800, 1200));
   loadFrame(webView->mainFrame(), m_baseURL + fileName);
@@ -108,8 +109,9 @@ void ImeOnFocusTest::runImeOnFocusTest(std::string fileName,
     sendGestureTap(webView, tapPoint);
 
   if (!frame.empty()) {
-    registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL),
-                                 WebString::fromUTF8(frame));
+    registerMockedURLLoadFromBase(WebString::fromUTF8(m_baseURL),
+                                  testing::webTestDataPath(),
+                                  WebString::fromUTF8(frame));
     WebFrame* childFrame = webView->mainFrame()->firstChild();
     loadFrame(childFrame, m_baseURL + frame);
   }

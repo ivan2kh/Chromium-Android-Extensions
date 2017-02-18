@@ -33,7 +33,6 @@
 #include "core/dom/DOMException.h"
 #include "core/dom/Document.h"
 #include "core/dom/ExceptionCode.h"
-#include "core/dom/ExecutionContextTask.h"
 #include "core/dom/TaskRunnerHelper.h"
 #include "core/frame/Settings.h"
 #include "core/html/HTMLMediaElement.h"
@@ -53,7 +52,6 @@
 #include "modules/webaudio/ChannelSplitterNode.h"
 #include "modules/webaudio/ConstantSourceNode.h"
 #include "modules/webaudio/ConvolverNode.h"
-#include "modules/webaudio/DefaultAudioDestinationNode.h"
 #include "modules/webaudio/DelayNode.h"
 #include "modules/webaudio/DynamicsCompressorNode.h"
 #include "modules/webaudio/GainNode.h"
@@ -80,9 +78,11 @@
 
 namespace blink {
 
-BaseAudioContext* BaseAudioContext::create(Document& document,
-                                           ExceptionState& exceptionState) {
-  return AudioContext::create(document, exceptionState);
+BaseAudioContext* BaseAudioContext::create(
+    Document& document,
+    const AudioContextOptions& contextOptions,
+    ExceptionState& exceptionState) {
+  return AudioContext::create(document, contextOptions, exceptionState);
 }
 
 // FIXME(dominicc): Devolve these constructors to AudioContext
@@ -112,10 +112,6 @@ BaseAudioContext::BaseAudioContext(Document* document)
     m_autoplayStatus = AutoplayStatus::AutoplayStatusFailed;
     m_userGestureRequired = true;
   }
-
-  m_destinationNode = DefaultAudioDestinationNode::create(this);
-
-  initialize();
 }
 
 // Constructor for offline (non-realtime) rendering.
@@ -318,7 +314,7 @@ void BaseAudioContext::handleDecodeAudioData(
 
   // We've resolved the promise.  Remove it now.
   DCHECK(m_decodeAudioResolvers.contains(resolver));
-  m_decodeAudioResolvers.remove(resolver);
+  m_decodeAudioResolvers.erase(resolver);
 }
 
 AudioBufferSourceNode* BaseAudioContext::createBufferSource(
@@ -617,9 +613,9 @@ void BaseAudioContext::setContextState(AudioContextState newState) {
 
   // Notify context that state changed
   if (getExecutionContext())
-    getExecutionContext()->postTask(
-        TaskType::MediaElementEvent, BLINK_FROM_HERE,
-        createSameThreadTask(&BaseAudioContext::notifyStateChange,
+    TaskRunnerHelper::get(TaskType::MediaElementEvent, getExecutionContext())
+        ->postTask(BLINK_FROM_HERE,
+                   WTF::bind(&BaseAudioContext::notifyStateChange,
                              wrapPersistent(this)));
 }
 

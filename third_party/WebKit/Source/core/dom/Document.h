@@ -63,13 +63,16 @@
 #include "platform/weborigin/ReferrerPolicy.h"
 #include "public/platform/WebFocusType.h"
 #include "public/platform/WebInsecureRequestPolicy.h"
-#include "public/platform/site_engagement.mojom-blink.h"
 #include "wtf/Compiler.h"
 #include "wtf/HashSet.h"
 #include "wtf/PassRefPtr.h"
 #include <memory>
 
 namespace blink {
+
+namespace mojom {
+enum class EngagementLevel : int32_t;
+}
 
 class AnimationClock;
 class DocumentTimeline;
@@ -78,7 +81,6 @@ class Attr;
 class CDATASection;
 class CSSStyleSheet;
 class CanvasFontCache;
-class CharacterData;
 class ChromeClient;
 class CompositorPendingAnimations;
 class Comment;
@@ -749,8 +751,6 @@ class CORE_EXPORT Document : public ContainerNode,
   void nodeChildrenWillBeRemoved(ContainerNode&);
   // nodeWillBeRemoved is only safe when removing one node at a time.
   void nodeWillBeRemoved(Node&);
-  // Called just before a destructive update to some CharacterData.
-  void dataWillChange(const CharacterData&);
   bool canAcceptChild(const Node& newChild,
                       const Node* oldChild,
                       ExceptionState&) const;
@@ -1201,10 +1201,10 @@ class CORE_EXPORT Document : public ContainerNode,
   Document& ensureTemplateDocument();
   Document* templateDocumentHost() { return m_templateDocumentHost; }
 
-  mojom::blink::EngagementLevel getEngagementLevel() const {
+  mojom::EngagementLevel getEngagementLevel() const {
     return m_engagementLevel;
   }
-  void setEngagementLevel(mojom::blink::EngagementLevel level) {
+  void setEngagementLevel(mojom::EngagementLevel level) {
     m_engagementLevel = level;
   }
 
@@ -1376,7 +1376,7 @@ class CORE_EXPORT Document : public ContainerNode,
   String nodeName() const final;
   NodeType getNodeType() const final;
   bool childTypeAllowed(NodeType) const final;
-  Node* cloneNode(bool deep) final;
+  Node* cloneNode(bool deep, ExceptionState&) final;
   void cloneDataFromDocument(const Document&);
   bool isSecureContextImpl(
       const SecureContextCheck priviligeContextCheck) const;

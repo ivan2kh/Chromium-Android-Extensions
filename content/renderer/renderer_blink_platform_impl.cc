@@ -13,6 +13,7 @@
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/memory/memory_coordinator_client_registry.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/shared_memory.h"
 #include "base/metrics/histogram_macros.h"
@@ -55,11 +56,11 @@
 #include "content/renderer/gamepad_shared_memory_reader.h"
 #include "content/renderer/media/audio_decoder.h"
 #include "content/renderer/media/audio_device_factory.h"
-#include "content/renderer/media/canvas_capture_handler.h"
-#include "content/renderer/media/html_audio_element_capturer_source.h"
-#include "content/renderer/media/html_video_element_capturer_source.h"
+#include "content/renderer/media/capturefromelement/canvas_capture_handler.h"
+#include "content/renderer/media/capturefromelement/html_audio_element_capturer_source.h"
+#include "content/renderer/media/capturefromelement/html_video_element_capturer_source.h"
 #include "content/renderer/media/image_capture_frame_grabber.h"
-#include "content/renderer/media/media_recorder_handler.h"
+#include "content/renderer/media/recorder/media_recorder_handler.h"
 #include "content/renderer/media/renderer_webaudiodevice_impl.h"
 #include "content/renderer/media/renderer_webmidiaccessor_impl.h"
 #include "content/renderer/mojo/blink_interface_provider_impl.h"
@@ -77,7 +78,6 @@
 #include "media/audio/audio_output_device.h"
 #include "media/blink/webcontentdecryptionmodule_impl.h"
 #include "media/filters/stream_parser_factory.h"
-#include "mojo/public/cpp/bindings/associated_group.h"
 #include "ppapi/features/features.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 #include "services/ui/public/cpp/gpu/context_provider_command_buffer.h"
@@ -86,6 +86,7 @@
 #include "third_party/WebKit/public/platform/BlameContext.h"
 #include "third_party/WebKit/public/platform/FilePathConversion.h"
 #include "third_party/WebKit/public/platform/URLConversion.h"
+#include "third_party/WebKit/public/platform/WebAudioLatencyHint.h"
 #include "third_party/WebKit/public/platform/WebBlobRegistry.h"
 #include "third_party/WebKit/public/platform/WebDeviceLightListener.h"
 #include "third_party/WebKit/public/platform/WebFileInfo.h"
@@ -116,7 +117,7 @@
 #include <string>
 
 #include "base/synchronization/lock.h"
-#include "content/common/child_process_sandbox_support_impl_linux.h"
+#include "content/child/child_process_sandbox_support_impl_linux.h"
 #include "third_party/WebKit/public/platform/linux/WebFallbackFont.h"
 #include "third_party/WebKit/public/platform/linux/WebSandboxSupport.h"
 #include "third_party/icu/source/common/unicode/utf16.h"
@@ -141,6 +142,7 @@
 
 using blink::Platform;
 using blink::WebAudioDevice;
+using blink::WebAudioLatencyHint;
 using blink::WebBlobRegistry;
 using blink::WebCanvasCaptureHandler;
 using blink::WebDatabaseObserver;
@@ -304,7 +306,7 @@ blink::WebURLLoader* RendererBlinkPlatformImpl::createURLLoader() {
   // data URLs to bypass the ResourceDispatcher.
   return new content::WebURLLoaderImpl(
       child_thread ? child_thread->resource_dispatcher() : nullptr,
-      url_loader_factory_.get(), url_loader_factory_.associated_group());
+      url_loader_factory_.get());
 }
 
 blink::WebThread* RendererBlinkPlatformImpl::currentThread() {
@@ -380,8 +382,7 @@ bool RendererBlinkPlatformImpl::isLinkVisited(unsigned long long link_hash) {
 void RendererBlinkPlatformImpl::createMessageChannel(
     blink::WebMessagePortChannel** channel1,
     blink::WebMessagePortChannel** channel2) {
-  WebMessagePortChannelImpl::CreatePair(
-      default_task_runner_, channel1, channel2);
+  WebMessagePortChannelImpl::CreatePair(channel1, channel2);
 }
 
 blink::WebPrescientNetworking*
@@ -659,16 +660,15 @@ WebDatabaseObserver* RendererBlinkPlatformImpl::databaseObserver() {
 }
 
 WebAudioDevice* RendererBlinkPlatformImpl::createAudioDevice(
-    size_t buffer_size,
     unsigned input_channels,
     unsigned channels,
-    double sample_rate,
+    const blink::WebAudioLatencyHint& latency_hint,
     WebAudioDevice::RenderCallback* callback,
     const blink::WebString& input_device_id,
     const blink::WebSecurityOrigin& security_origin) {
   // Use a mock for testing.
   blink::WebAudioDevice* mock_device =
-      GetContentClient()->renderer()->OverrideCreateAudioDevice(sample_rate);
+      GetContentClient()->renderer()->OverrideCreateAudioDevice();
   if (mock_device)
     return mock_device;
 
@@ -702,9 +702,9 @@ WebAudioDevice* RendererBlinkPlatformImpl::createAudioDevice(
       layout = media::CHANNEL_LAYOUT_7_1;
       break;
     default:
-      // If the layout is not supported (more than 9 channels), falls back to
-      // discrete mode.
-      layout = media::CHANNEL_LAYOUT_DISCRETE;
+      // TODO need to also pass 'channels' into RendererWebAudioDeviceImpl for
+      // CHANNEL_LAYOUT_DISCRETE
+      NOTREACHED();
   }
 
   int session_id = 0;
@@ -716,15 +716,9 @@ WebAudioDevice* RendererBlinkPlatformImpl::createAudioDevice(
     input_channels = 0;
   }
 
-  // For CHANNEL_LAYOUT_DISCRETE, pass the explicit channel count along with
-  // the channel layout when creating an |AudioParameters| object.
-  media::AudioParameters params(media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-                                layout, static_cast<int>(sample_rate), 16,
-                                buffer_size);
-  params.set_channels_for_discrete(channels);
-
-  return new RendererWebAudioDeviceImpl(
-      params, callback, session_id, static_cast<url::Origin>(security_origin));
+  return RendererWebAudioDeviceImpl::Create(
+      layout, latency_hint, callback, session_id,
+      static_cast<url::Origin>(security_origin));
 }
 
 bool RendererBlinkPlatformImpl::loadAudioResource(
@@ -1292,6 +1286,15 @@ void RendererBlinkPlatformImpl::workerContextCreated(
     const v8::Local<v8::Context>& worker) {
   GetContentClient()->renderer()->DidInitializeWorkerContextOnWorkerThread(
       worker);
+}
+
+//------------------------------------------------------------------------------
+void RendererBlinkPlatformImpl::requestPurgeMemory() {
+  // TODO(tasak|bashi): We should use ChildMemoryCoordinator here, but
+  // ChildMemoryCoordinator isn't always available as it's only initialized
+  // when kMemoryCoordinatorV0 is enabled.
+  // Use ChildMemoryCoordinator when memory coordinator is always enabled.
+  base::MemoryCoordinatorClientRegistry::GetInstance()->PurgeMemory();
 }
 
 }  // namespace content

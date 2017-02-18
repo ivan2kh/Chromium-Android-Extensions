@@ -509,6 +509,35 @@ void BrowserOptionsHandler::GetLocalizedValues(base::DictionaryValue* values) {
     { "mouseSpeed", IDS_OPTIONS_SETTINGS_MOUSE_SPEED_DESCRIPTION },
     { "noPointingDevices", IDS_OPTIONS_NO_POINTING_DEVICES },
     { "confirm", IDS_CONFIRM },
+    {"configureFingerprintTitle", IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_TITLE},
+    {"configureFingerprintInstructionLocateScannerStep",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSTRUCTION_LOCATE_SCANNER},
+    {"configureFingerprintInstructionMoveFingerStep",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSTRUCTION_MOVE_FINGER},
+    {"configureFingerprintInstructionReadyStep",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSTRUCTION_READY},
+    {"configureFingerprintLiftFinger",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_LIFT_FINGER},
+    {"configureFingerprintPartialData",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_PARTIAL_DATA},
+    {"configureFingerprintInsufficientData",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSUFFICIENT_DATA},
+    {"configureFingerprintSensorDirty",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_SENSOR_DIRTY},
+    {"configureFingerprintTooSlow",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_FINGER_TOO_SLOW},
+    {"configureFingerprintTooFast",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_FINGER_TOO_FAST},
+    {"configureFingerprintCancelButton",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_CANCEL_BUTTON},
+    {"configureFingerprintDoneButton",
+      IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_DONE_BUTTON},
+    {"configurePinChoosePinTitle",
+      IDS_SETTINGS_PEOPLE_CONFIGURE_PIN_CHOOSE_PIN_TITLE},
+    {"configurePinConfirmPinTitle",
+      IDS_SETTINGS_PEOPLE_CONFIGURE_PIN_CONFIRM_PIN_TITLE},
+    {"configurePinContinueButton",
+      IDS_SETTINGS_PEOPLE_CONFIGURE_PIN_CONTINUE_BUTTON},
     { "configurePinChoosePinTitle",
       IDS_SETTINGS_PEOPLE_CONFIGURE_PIN_CHOOSE_PIN_TITLE },
     { "configurePinConfirmPinTitle",
@@ -521,14 +550,14 @@ void BrowserOptionsHandler::GetLocalizedValues(base::DictionaryValue* values) {
     { "configurePinWeakPin", IDS_SETTINGS_PEOPLE_CONFIGURE_PIN_WEAK_PIN },
     { "lockScreenAddFingerprint",
       IDS_SETTINGS_PEOPLE_LOCK_SCREEN_ADD_FINGERPRINT_BUTTON},
-    { "lockScreenCannotAddFingerprint",
-      IDS_SETTINGS_PEOPLE_LOCK_SCREEN_CANNOT_ADD_NEW_FINGERPRINT},
     { "lockScreenChangePinButton",
       IDS_SETTINGS_PEOPLE_LOCK_SCREEN_CHANGE_PIN_BUTTON},
     { "lockScreenEditFingerprints",
       IDS_SETTINGS_PEOPLE_LOCK_SCREEN_EDIT_FINGERPRINTS},
     { "lockScreenEditFingerprintsDescription",
       IDS_SETTINGS_PEOPLE_LOCK_SCREEN_EDIT_FINGERPRINTS_DESCRIPTION},
+    {"lockScreenNumberFingerprints",
+      IDS_SETTINGS_PEOPLE_LOCK_SCREEN_NUM_FINGERPRINTS},
     { "lockScreenFingerprintEnable",
       IDS_SETTINGS_PEOPLE_LOCK_SCREEN_ENABLE_FINGERPRINT_CHECKBOX_LABEL},
     { "lockScreenFingerprintNewName",
@@ -885,6 +914,10 @@ void BrowserOptionsHandler::RegisterMessages() {
       base::Bind(&BrowserOptionsHandler::ShowAndroidAppsSettings,
                  base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
+      "showPlayStoreApps",
+      base::Bind(&BrowserOptionsHandler::ShowPlayStoreApps,
+                 base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
       "showAccessibilityTalkBackSettings",
       base::Bind(&BrowserOptionsHandler::ShowAccessibilityTalkBackSettings,
                  base::Unretained(this)));
@@ -1190,7 +1223,7 @@ void BrowserOptionsHandler::InitializePage() {
   if (arc::IsArcAllowedForProfile(profile) &&
       !arc::IsArcOptInVerificationDisabled()) {
     base::FundamentalValue is_arc_enabled(
-        arc::ArcSessionManager::Get()->IsArcEnabled());
+        arc::ArcSessionManager::Get()->IsArcPlayStoreEnabled());
     web_ui()->CallJavascriptFunctionUnsafe(
         "BrowserOptions.showAndroidAppsSection",
         is_arc_enabled);
@@ -2039,6 +2072,18 @@ void BrowserOptionsHandler::ShowAndroidAppsSettings(
   int flags = activated_from_keyboard ? ui::EF_NONE : ui::EF_LEFT_MOUSE_BUTTON;
 
   arc::LaunchAndroidSettingsApp(profile, flags);
+}
+
+void BrowserOptionsHandler::ShowPlayStoreApps(const base::ListValue* args) {
+  std::string apps_url;
+  args->GetString(0, &apps_url);
+  Profile* profile = Profile::FromWebUI(web_ui());
+  if (!arc::IsArcAllowedForProfile(profile)) {
+    VLOG(1) << "ARC is not enabled for this profile";
+    return;
+  }
+
+  arc::LaunchPlayStoreWithUrl(apps_url);
 }
 
 void BrowserOptionsHandler::ShowAccessibilityTalkBackSettings(

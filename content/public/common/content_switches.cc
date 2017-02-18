@@ -56,9 +56,9 @@ const char kAllowSandboxDebugging[]         = "allow-sandbox-debugging";
 const char kAndroidFontsPath[]          = "android-fonts-path";
 
 // Set blink settings. Format is <name>[=<value],<name>[=<value>],...
-// The names are declared in Settings.in. For boolean type, use "true", "false",
-// or omit '=<value>' part to set to true. For enum type, use the int value of
-// the enum value. Applied after other command line flags and prefs.
+// The names are declared in Settings.json5. For boolean type, use "true",
+// "false", or omit '=<value>' part to set to true. For enum type, use the int
+// value of the enum value. Applied after other command line flags and prefs.
 const char kBlinkSettings[]                 = "blink-settings";
 
 // Causes the browser process to crash on startup.
@@ -109,7 +109,7 @@ const char kDisableBackgroundTimerThrottling[] =
     "disable-background-timer-throttling";
 
 // Disable one or more Blink runtime-enabled features.
-// Use names from RuntimeEnabledFeatures.in, separated by commas.
+// Use names from RuntimeEnabledFeatures.json5, separated by commas.
 // Applied after kEnableBlinkFeatures, and after other flags that change these
 // features.
 const char kDisableBlinkFeatures[]          = "disable-blink-features";
@@ -169,10 +169,6 @@ const char kDisableGpuProcessCrashLimit[] = "disable-gpu-process-crash-limit";
 
 // Disable async GL worker context. Overrides kEnableGpuAsyncWorkerContext.
 const char kDisableGpuAsyncWorkerContext[] = "disable-gpu-async-worker-context";
-
-// Disable GPU rasterization, i.e. rasterize on the CPU only.
-// Overrides the kEnableGpuRasterization and kForceGpuRasterization flags.
-const char kDisableGpuRasterization[]       = "disable-gpu-rasterization";
 
 // When using CPU rasterizing disable low resolution tiling. This uses
 // less power, particularly during animations, but more white may be seen
@@ -352,7 +348,7 @@ const char kEnablePreferCompositingToLCDText[] =
     "enable-prefer-compositing-to-lcd-text";
 
 // Enable one or more Blink runtime-enabled features.
-// Use names from RuntimeEnabledFeatures.in, separated by commas.
+// Use names from RuntimeEnabledFeatures.json5, separated by commas.
 // Applied before kDisableBlinkFeatures, and after other flags that change these
 // features.
 const char kEnableBlinkFeatures[]           = "enable-blink-features";
@@ -413,11 +409,6 @@ const char kEnableGpuMemoryBufferCompositorResources[] =
 const char kEnableGpuMemoryBufferVideoFrames[] =
     "enable-gpu-memory-buffer-video-frames";
 
-// Allow heuristics to determine when a layer tile should be drawn with the
-// Skia GPU backend. Only valid with GPU accelerated compositing +
-// impl-side painting.
-const char kEnableGpuRasterization[]        = "enable-gpu-rasterization";
-
 // When using CPU rasterizing generate low resolution tiling. Low res
 // tiles may be displayed during fast scrolls especially on slower devices.
 const char kEnableLowResTiling[] = "enable-low-res-tiling";
@@ -445,19 +436,14 @@ const char kEnablePluginPlaceholderTesting[] =
 // also applys to workers.
 const char kEnablePreciseMemoryInfo[] = "enable-precise-memory-info";
 
+// Enables PrintBrowser mode, in which everything renders as though printed.
+const char kEnablePrintBrowser[] = "enable-print-browser";
+
 // Enables RGBA_4444 textures.
 const char kEnableRGBA4444Textures[] = "enable-rgba-4444-textures";
 
 // Set options to cache V8 data. (off, preparse data, or code)
 const char kV8CacheOptions[] = "v8-cache-options";
-
-// Signals that the V8 natives file has been transfered to the child process
-// by a file descriptor.
-const char kV8NativesPassedByFD[] = "v8-natives-passed-by-fd";
-
-// Signals that the V8 startup snapshot file has been transfered to the child
-// process by a file descriptor.
-const char kV8SnapshotPassedByFD[] = "v8-snapshot-passed-by-fd";
 
 // Set strategies to cache V8 data in CacheStorage. (off, normal, or aggressive)
 const char kV8CacheStrategiesForCacheStorage[] =
@@ -605,9 +591,6 @@ const char kHistoryEntryRequiresUserGesture[] =
 
 // These mappings only apply to the host resolver.
 const char kHostResolverRules[]             = "host-resolver-rules";
-
-// Ignores GPU blacklist.
-const char kIgnoreGpuBlacklist[]            = "ignore-gpu-blacklist";
 
 // Makes all APIs reflect the layout viewport.
 const char kInertVisualViewport[]           = "inert-visual-viewport";
@@ -802,6 +785,11 @@ const char kSandboxIPCProcess[]             = "sandbox-ipc";
 // Set the value to '1' to enable the feature, and set to '0' to disable.
 // Defaults to disabled.
 const char kScrollEndEffect[] = "scroll-end-effect";
+
+// Describes the file descriptors passed to the child process. List:
+// <file id from manifest>:<global descriptor id>,<file id string from manifest>
+// :<global descriptor id>,...
+const char kSharedFiles[] = "shared-files";
 
 // Visibly render a border around paint rects in the web page to help debug
 // and study painting behavior.

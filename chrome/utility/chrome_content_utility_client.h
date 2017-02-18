@@ -37,8 +37,6 @@ class ChromeContentUtilityClient : public content::ContentUtilityClient {
       service_manager::InterfaceRegistry* registry) override;
   void RegisterServices(StaticServiceMap* services) override;
 
-  void AddHandler(std::unique_ptr<UtilityMessageHandler> handler);
-
   static void PreSandboxStartup();
 
  private:
@@ -63,10 +61,7 @@ class ChromeContentUtilityClient : public content::ContentUtilityClient {
   typedef ScopedVector<UtilityMessageHandler> Handlers;
   Handlers handlers_;
 
-  // Flag to enable whitelisting.
-  bool filter_messages_;
-  // A list of message_ids to filter.
-  std::set<int> message_id_whitelist_;
+  bool utility_process_running_elevated_;
 
   DISALLOW_COPY_AND_ASSIGN(ChromeContentUtilityClient);
 };

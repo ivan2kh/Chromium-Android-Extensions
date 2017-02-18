@@ -108,8 +108,9 @@ class HashSet {
   // and a bool that is true if an new entry was added.
   template <typename IncomingValueType>
   AddResult insert(IncomingValueType&&);
-  template <typename IncomingValueType>
-  AddResult add(IncomingValueType&&);
+  // TODO(pilgrim) remove this
+  // template <typename IncomingValueType>
+  // AddResult add(IncomingValueType&&);
 
   // An alternate version of add() that finds the object by hashing and
   // comparing with some other type, to avoid the cost of type conversion if
@@ -121,7 +122,7 @@ class HashSet {
   template <typename HashTranslator, typename T>
   AddResult addWithTranslator(T&&);
 
-  void remove(ValuePeekInType);
+  void erase(ValuePeekInType);
   void remove(iterator);
   void clear();
   template <typename Collection>
@@ -259,15 +260,6 @@ inline typename HashSet<T, U, V, W>::AddResult HashSet<T, U, V, W>::insert(
   return m_impl.add(std::forward<IncomingValueType>(value));
 }
 
-// TODO(pilgrim) remove this method once all references and subclasses
-// have been migrated to insert() method
-template <typename T, typename U, typename V, typename W>
-template <typename IncomingValueType>
-inline typename HashSet<T, U, V, W>::AddResult HashSet<T, U, V, W>::add(
-    IncomingValueType&& value) {
-  return m_impl.add(std::forward<IncomingValueType>(value));
-}
-
 template <typename Value,
           typename HashFunctions,
           typename Traits,
@@ -288,7 +280,7 @@ inline void HashSet<T, U, V, W>::remove(iterator it) {
 }
 
 template <typename T, typename U, typename V, typename W>
-inline void HashSet<T, U, V, W>::remove(ValuePeekInType value) {
+inline void HashSet<T, U, V, W>::erase(ValuePeekInType value) {
   remove(find(value));
 }
 

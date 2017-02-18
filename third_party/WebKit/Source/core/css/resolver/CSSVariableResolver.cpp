@@ -45,7 +45,7 @@ CSSVariableData* CSSVariableResolver::valueForCustomProperty(
   }
 
   DCHECK(m_registry || !RuntimeEnabledFeatures::cssVariables2Enabled());
-  const PropertyRegistry::Registration* registration =
+  const PropertyRegistration* registration =
       m_registry ? m_registry->registration(name) : nullptr;
 
   CSSVariableData* variableData = nullptr;
@@ -98,7 +98,7 @@ PassRefPtr<CSSVariableData> CSSVariableResolver::resolveCustomProperty(
   bool success =
       resolveTokenRange(variableData.tokens(), disallowAnimationTainted, tokens,
                         isAnimationTainted);
-  m_variablesSeen.remove(name);
+  m_variablesSeen.erase(name);
 
   // The old variable data holds onto the backing string the new resolved
   // CSSVariableData relies on. Ensure it will live beyond us overwriting the
@@ -106,7 +106,7 @@ PassRefPtr<CSSVariableData> CSSVariableResolver::resolveCustomProperty(
   ASSERT(variableData.refCount() > 1);
 
   if (!success || !m_cycleStartPoints.isEmpty()) {
-    m_cycleStartPoints.remove(name);
+    m_cycleStartPoints.erase(name);
     return nullptr;
   }
   return CSSVariableData::createResolved(tokens, variableData,
@@ -332,9 +332,5 @@ CSSVariableResolver::CSSVariableResolver(const StyleResolverState& state)
     : m_inheritedVariables(state.style()->inheritedVariables()),
       m_nonInheritedVariables(state.style()->nonInheritedVariables()),
       m_registry(state.document().propertyRegistry()) {}
-
-DEFINE_TRACE(CSSVariableResolver) {
-  visitor->trace(m_registry);
-}
 
 }  // namespace blink

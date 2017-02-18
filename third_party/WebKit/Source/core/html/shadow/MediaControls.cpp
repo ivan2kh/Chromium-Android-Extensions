@@ -71,8 +71,16 @@ static bool shouldShowFullscreenButton(const HTMLMediaElement& mediaElement) {
 }
 
 static bool shouldShowCastButton(HTMLMediaElement& mediaElement) {
-  return !mediaElement.fastHasAttribute(HTMLNames::disableremoteplaybackAttr) &&
-         mediaElement.hasRemoteRoutes();
+  if (mediaElement.fastHasAttribute(HTMLNames::disableremoteplaybackAttr))
+    return false;
+
+  // Explicitly do not show cast button when the mediaControlsEnabled setting is
+  // false to make sure the overlay does not appear.
+  Document& document = mediaElement.document();
+  if (document.settings() && !document.settings()->getMediaControlsEnabled())
+    return false;
+
+  return mediaElement.hasRemoteRoutes();
 }
 
 static bool preferHiddenVolumeControls(const Document& document) {
@@ -633,7 +641,6 @@ void MediaControls::defaultEventHandler(Event* event) {
     // When we get a mouse move, show the media controls, and start a timer
     // that will hide the media controls after a 3 seconds without a mouse move.
     makeOpaque();
-    refreshCastButtonVisibility();
     if (shouldHideMediaControls(IgnoreVideoHover))
       startHideMediaControlsTimer();
     return;

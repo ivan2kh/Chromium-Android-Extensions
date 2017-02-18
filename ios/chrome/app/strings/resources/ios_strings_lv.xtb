@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Atvērt visas</translation>
 <translation id="1430915738399379752">Drukāt</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> vienumi</translation>
+<translation id="1491277525950327607">Veiciet dubultskārienu, lai pārslēgtu iestatījumu.</translation>
 <translation id="1540800554400757039">1. adrese</translation>
 <translation id="1545749641540134597">Skenējiet QR kodu</translation>
 <translation id="1580783302095112590">E-pasts nosūtīts.</translation>
@@ -65,7 +66,6 @@ Piemēram, dažas vietnes var atbildēt uz šo pieprasījumu un rādīt reklāma
 <translation id="2068952045031577364">Iepriekšējā nedēļa</translation>
 <translation id="2079545284768500474">Atsaukt</translation>
 <translation id="209018056901015185">Pieprasīt datora vietni</translation>
-<translation id="2100215774115172756">Jūsu lasīšanas saraksts ir pieejams bezsaistē.</translation>
 <translation id="2103075008456228677">Atvērt history.google.com</translation>
 <translation id="2116625576999540962">Pārvietoti vienumi: <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /></translation>
 <translation id="2149973817440762519">Rediģēt grāmatzīmes</translation>
@@ -120,7 +120,6 @@ Piemēram, dažas vietnes var atbildēt uz šo pieprasījumu un rādīt reklāma
 <translation id="3175081911749765310">Tīm. pak.</translation>
 <translation id="3207960819495026254">Atzīmēts kā grāmatzīme</translation>
 <translation id="3210163015918861891">Sinhronizācija izslēgta</translation>
-<translation id="3237561509210981547">Lai lasīšanas sarakstam pievienotu lapu, pieskarieties vienumam <ph name="BEGIN_BOLD_FONT" />Kopīgot &gt; Lasīt vēlāk<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Saite nokopēta</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" />. no <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Piemēram, dažas vietnes var atbildēt uz šo pieprasījumu un rādīt reklāma
 <translation id="3414292259312108062">Šo informāciju Chrome saglabās <ph name="BEGIN_LINK" />Google saglabātajās parolēs<ph name="END_LINK" /> un izmantos automātiskajai aizpildei, lai jums tā nav jāatceras.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Dalītais skats</translation>
-<translation id="3474068797193663261">Lai lasīšanas sarakstam pievienotu lapu, pieskarieties vienumam <ph name="BEGIN_BOLD_FONT" />Izvēlne &gt; Kopīgot &gt; Lasīt vēlāk<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Veidlapas aizpildītas.</translation>
 <translation id="3478058380795961209">Der. term. mēn.</translation>
 <translation id="3482959374254649722">Notiek ciļņu sinhronizācija...</translation>
@@ -171,6 +169,7 @@ Lai pielāgotu meklēšanas vienumu, nospiediet un turiet to. Lai veiktu precīz
 <translation id="4121993058175073134">Neto eksporta datu sūtīšanai konfigurējiet e-pasta kontu iestatījumos.</translation>
 <translation id="4124987746317609294">Laika periods</translation>
 <translation id="4172051516777682613">Vienmēr rādīt</translation>
+<translation id="418156467088430727">Skatīt bezsaistes versiju jaunā cilnē</translation>
 <translation id="424315890655130736">Ieejas frāzes ievade</translation>
 <translation id="4272631900155121838">Lai skenētu QR kodu, iestatījumos iespējojiet kameru.</translation>
 <translation id="4281844954008187215">Google pakalpojumu noteikumi</translation>
@@ -178,7 +177,6 @@ Lai pielāgotu meklēšanas vienumu, nospiediet un turiet to. Lai veiktu precīz
 <translation id="4359125752503270327">Šī lapa tiks atvērta citā lietojumprogrammā.</translation>
 <translation id="4378154925671717803">Tālrunis</translation>
 <translation id="441868831736628555">Konfidencialitātes paziņojums</translation>
-<translation id="4426508677408162512">Visas grāmatzīmes</translation>
 <translation id="4473991315115669931">Pāriet inkognito režīmā</translation>
 <translation id="4526249700380860531">Skatīt un pārvaldīt saglabātās paroles vietnē <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Mēģiniet pierakstīties vēlreiz.</translation>
@@ -218,6 +216,7 @@ Jūsu dati ir šifrēti, izmantojot jūsu sinhronizācijas ieejas frāzi. Lai s�
 <translation id="5300589172476337783">Rādīt</translation>
 <translation id="5317780077021120954">Saglabāt</translation>
 <translation id="5327248766486351172">Nosaukums</translation>
+<translation id="5332219387342487447">Piegādes veids</translation>
 <translation id="5388358297987318779">Atvērt attēlu</translation>
 <translation id="5409365236829784218">Nav instalēta neviena lietotne, ar kuru atvērt šo failu.</translation>
 <translation id="54401264925851789">Lapas drošības informācija</translation>
@@ -270,6 +269,7 @@ Funkcija Handoff ir jāiespējo arī iestatījumu sadaļā General (Vispārīgi)
 <translation id="6255097610484507482">Rediģēt kredītkarti</translation>
 <translation id="6308436439357671616">Varat uzņemt un augšupielādēt fotoattēlus.</translation>
 <translation id="6314335155547195432">Ģenerēt paroli</translation>
+<translation id="6324528485781869530">Sinhronizējamā konta pārslēgšana</translation>
 <translation id="6324669097367352121">Pierakst.iestatījumi</translation>
 <translation id="6337234675334993532">Šifrēšana</translation>
 <translation id="633809752005859102">Radās problēma. Mēs centīsimies to atrisināt.</translation>

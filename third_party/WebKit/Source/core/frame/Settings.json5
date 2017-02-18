@@ -223,6 +223,10 @@
       name: "mediaPlaybackRequiresUserGesture",
       initial: false,
     },
+    {
+      name: "mediaPlaybackGestureWhitelistScope",
+      type: "String",
+    },
 
     // This flags overrides mediaPlaybackRequiresUserGesture
     {
@@ -546,6 +550,11 @@
     {
       name: "pluginsEnabled",
       initial: false,
+    },
+
+    {
+      name: "encryptedMediaEnabled",
+      initial: true,
     },
 
     {
@@ -906,6 +915,13 @@
     {
       name: "presentationReceiver",
       initial: false,
+    },
+
+    // Whether Blink should show media controls when `controls` attribute is used.
+    {
+      name: "mediaControlsEnabled",
+      initial: true,
+      invalidate: "MediaControls",
     },
   ],
 }

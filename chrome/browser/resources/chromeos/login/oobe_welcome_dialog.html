@@ -15,26 +15,34 @@
     <div class="layout horizontal flex">
       <div class="vertical-margin"></div>
       <div class="welcome-content flex layout vertical center">
-        <h1 id="title">$i18n{networkScreenGreeting}</h1>
+        <h1 id="title" i18n-content="networkScreenGreeting"></h1>
         <!-- TODO(alemate): Display images depending on screen ppi. -->
         <img id="welcomeIllustration" src="images/welcome_illustration_2x.png">
+        <div hidden="[[!debuggingLinkVisible]]">
+          <a href="#" i18n-content="debuggingFeaturesLink"
+              on-tap="onDebuggingLinkClicked_"></a>
+        </div>
         <div class="flex"></div>
         <div id="buttons" class="layout horizontal center">
-          <oobe-welcome-secondary-button icon="icons:language"
-              on-tap="onLanguageClicked_">
+          <oobe-welcome-secondary-button id="languageSelectionButton"
+              icon="icons:language" on-tap="onLanguageClicked_"
+              aria-label="[[formatMessage_('languageButtonLabel',
+                  currentLanguage)]]">
             <div>[[currentLanguage]]</div>
           </oobe-welcome-secondary-button>
-          <oobe-welcome-secondary-button icon="icons:accessibility"
-              on-tap="onAccessibilityClicked_">
-            <div>$i18n{accessibilityLink}</div>
+          <oobe-welcome-secondary-button id="accessibilitySettingsButton"
+              icon="icons:accessibility" on-tap="onAccessibilityClicked_">
+            <div i18n-content="accessibilityLink"></div>
           </oobe-welcome-secondary-button>
-          <oobe-welcome-secondary-button icon="oobe-welcome-64:timezone"
-              on-tap="onTimezoneClicked_" hidden="[[!timezoneButtonVisible]]">
-            <div>$i18n{timezoneButtonText}</div>
+          <oobe-welcome-secondary-button id="timezoneSettingsButton"
+              icon="oobe-welcome-64:timezone" on-tap="onTimezoneClicked_"
+              hidden="[[!timezoneButtonVisible]]">
+            <div i18n-content="timezoneButtonText"></div>
           </oobe-welcome-secondary-button>
           <div class="flex"></div>
-          <oobe-text-button inverse on-tap="onNextClicked_">
-            <div>$i18n{welcomeNextButtonText}</div>
+          <oobe-text-button id="welcomeNextButton"
+              inverse on-tap="onNextClicked_">
+            <div i18n-content="welcomeNextButtonText"></div>
           </oobe-text-button>
         </div>
         <div id="bottom-margin"></div>

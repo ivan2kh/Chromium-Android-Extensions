@@ -57,7 +57,7 @@
 #if defined(OS_ANDROID)
 #include "chrome/browser/android/chrome_application.h"
 #else
-#include "chrome/browser/ui/webui/md_history_ui.h"
+#include "chrome/common/chrome_features.h"
 #endif
 
 // Number of chars to truncate titles when making them "short".
@@ -491,7 +491,7 @@ void BrowsingHistoryHandler::OnQueryComplete(
 
   bool is_md = false;
 #if !defined(OS_ANDROID)
-  is_md = MdHistoryUI::IsEnabled(profile);
+  is_md = base::FeatureList::IsEnabled(::features::kMaterialDesignHistory);
 #endif
 
   // Convert the result vector into a ListValue.
@@ -522,6 +522,8 @@ void BrowsingHistoryHandler::OnQueryComplete(
       "queryEndTime",
       GetRelativeDateLocalized(clock_.get(), query_results_info->end_time));
 
+  // TODO(calamity): Clean up grouped-specific fields once grouped history is
+  // removed.
   results_info.SetString(
       "queryStartMonth",
       base::TimeFormatMonthAndYear(query_results_info->start_time));

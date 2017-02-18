@@ -225,7 +225,7 @@ CSSBorderImageLengthBoxInterpolationType::maybeConvertInherit(
 
 InterpolationValue CSSBorderImageLengthBoxInterpolationType::maybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState&,
+    const StyleResolverState*,
     ConversionCheckers&) const {
   if (!value.isQuadValue())
     return nullptr;
@@ -263,8 +263,7 @@ InterpolationValue CSSBorderImageLengthBoxInterpolationType::maybeConvertValue(
 
 InterpolationValue CSSBorderImageLengthBoxInterpolationType::
     maybeConvertStandardPropertyUnderlyingValue(
-        const StyleResolverState& state) const {
-  const ComputedStyle& style = *state.style();
+        const ComputedStyle& style) const {
   return convertBorderImageLengthBox(
       BorderImageLengthBoxPropertyFunctions::getBorderImageLengthBox(
           cssProperty(), style),

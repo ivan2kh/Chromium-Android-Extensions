@@ -47,6 +47,7 @@ import org.chromium.chrome.browser.FrozenNativePage;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.IntentHandler.TabOpenType;
 import org.chromium.chrome.browser.NativePage;
+import org.chromium.chrome.browser.NativePageHost;
 import org.chromium.chrome.browser.SwipeRefreshHandler;
 import org.chromium.chrome.browser.TabState;
 import org.chromium.chrome.browser.TabState.WebContentsState;
@@ -129,7 +130,7 @@ import java.util.List;
  *    object.
  */
 public class Tab implements ViewGroup.OnHierarchyChangeListener,
-        View.OnSystemUiVisibilityChangeListener {
+                            View.OnSystemUiVisibilityChangeListener, NativePageHost {
     public static final int INVALID_TAB_ID = -1;
 
     /** Return value from {@link #getBookmarkId()} if this tab is not bookmarked. */
@@ -685,6 +686,7 @@ public class Tab implements ViewGroup.OnHierarchyChangeListener,
      * @return FULL_PRERENDERED_PAGE_LOAD or PARTIAL_PRERENDERED_PAGE_LOAD if the page has been
      *         prerendered. DEFAULT_PAGE_LOAD if it had not.
      */
+    @Override
     public int loadUrl(LoadUrlParams params) {
         try {
             TraceEvent.begin("Tab.loadUrl");
@@ -1065,9 +1067,7 @@ public class Tab implements ViewGroup.OnHierarchyChangeListener,
         return mId;
     }
 
-    /**
-     * @return Whether or not this tab is incognito.
-     */
+    @Override
     public boolean isIncognito() {
         return mIncognito;
     }
@@ -1751,25 +1751,14 @@ public class Tab implements ViewGroup.OnHierarchyChangeListener,
     }
 
     /**
-     * Notify observers when provisional load starts.
-     * @param isMainFrame    Whether the load is happening for the main frame.
-     * @param validatedUrl   The validated URL that is being navigated to.
-     */
-    void handleDidStartProvisionalLoadForFrame(boolean isMainFrame, String validatedUrl) {
-        RewindableIterator<TabObserver> observers = getTabObservers();
-        while (observers.hasNext()) {
-            observers.next().onDidStartProvisionalLoadForFrame(this, isMainFrame, validatedUrl);
-        }
-    }
-
-    /**
      * Update internal Tab state when provisional load gets committed.
      * @param url The URL that was loaded.
      * @param transitionType The transition type to the current URL.
      */
-    void handleDidCommitProvisonalLoadForFrame(String url, int transitionType) {
+    void handleDidFinishNavigation(String url, Integer transitionType) {
         mIsNativePageCommitPending = false;
-        boolean isReload = (transitionType == PageTransition.RELOAD);
+        boolean isReload = (transitionType != null
+                && (transitionType & PageTransition.CORE_MASK) == PageTransition.RELOAD);
         if (!maybeShowNativePage(url, isReload)) {
             showRenderedPage();
         }
@@ -2194,8 +2183,14 @@ public class Tab implements ViewGroup.OnHierarchyChangeListener,
     /**
      * @return The id of the tab that caused this tab to be opened.
      */
+    @Override
     public int getParentId() {
         return mParentId;
+    }
+
+    @Override
+    public Tab getActiveTab() {
+        return this;
     }
 
     /**
@@ -3078,6 +3073,14 @@ public class Tab implements ViewGroup.OnHierarchyChangeListener,
                 && !TextUtils.equals(getAppAssociatedWith(), packageName);
     }
 
+    /**
+     * Set the Webapp manifest scope, which is used to allow frames within the scope to autoplay
+     * media unmuted.
+     */
+    public void setWebappManifestScope(String scope) {
+        nativeSetWebappManifestScope(mNativeTabAndroid, scope);
+    }
+
     private native void nativeInit();
     private native void nativeDestroy(long nativeTabAndroid);
     private native void nativeInitWebContents(long nativeTabAndroid, boolean incognito,
@@ -3107,4 +3110,5 @@ public class Tab implements ViewGroup.OnHierarchyChangeListener,
     private native void nativeAttachToTabContentManager(long nativeTabAndroid,
             TabContentManager tabContentManager);
     private native boolean nativeHasPrerenderedUrl(long nativeTabAndroid, String url);
+    private native void nativeSetWebappManifestScope(long nativeTabAndroid, String scope);
 }

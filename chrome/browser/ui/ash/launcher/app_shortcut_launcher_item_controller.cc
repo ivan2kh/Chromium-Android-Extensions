@@ -6,17 +6,16 @@
 
 #include <stddef.h>
 
+#include "ash/public/cpp/shelf_application_menu_item.h"
 #include "ash/wm/window_util.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/chromeos/arc/arc_support_host.h"
 #include "chrome/browser/extensions/launch_util.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
 #include "chrome/browser/ui/ash/launcher/arc_playstore_shortcut_launcher_item_controller.h"
-#include "chrome/browser/ui/ash/launcher/chrome_launcher_app_menu_item.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_app_menu_item_tab.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_controller.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_controller_util.h"
-#include "chrome/browser/ui/ash/launcher/launcher_application_menu_item_model.h"
 #include "chrome/browser/ui/ash/launcher/launcher_context_menu.h"
 #include "chrome/browser/ui/ash/launcher/launcher_controller_helper.h"
 #include "chrome/browser/ui/ash/launcher/launcher_item_controller.h"
@@ -93,36 +92,49 @@ AppShortcutLauncherItemController::AppShortcutLauncherItemController(
   }
 }
 
-AppShortcutLauncherItemController::~AppShortcutLauncherItemController() {
-}
+AppShortcutLauncherItemController::~AppShortcutLauncherItemController() {}
 
-void AppShortcutLauncherItemController::Launch(ash::LaunchSource source,
-                                               int event_flags) {
-  // Launching an app replaces shortcut item controller to app controller. As
-  // result app_id_, launch_id_ are deleted during this call. Use local copies
-  // to prevent crash condition.
-  launcher_controller()->LaunchAppWithLaunchId(
-      std::string(app_id()), std::string(launch_id()), source, event_flags);
-}
+ash::ShelfAction AppShortcutLauncherItemController::ItemSelected(
+    ui::EventType event_type,
+    int event_flags,
+    int64_t display_id,
+    ash::ShelfLaunchSource source) {
+  // In case of a keyboard event, we were called by a hotkey. In that case we
+  // activate the next item in line if an item of our list is already active.
+  if (event_type == ui::ET_KEY_RELEASED && AdvanceToNextApp())
+    return ash::SHELF_ACTION_WINDOW_ACTIVATED;
 
-ash::ShelfItemDelegate::PerformedAction
-AppShortcutLauncherItemController::Activate(ash::LaunchSource source) {
   content::WebContents* content = GetLRUApplication();
   if (!content) {
-    if (IsV2App()) {
-      // Ideally we come here only once. After that ShellLauncherItemController
-      // will take over when the shell window gets opened. However there are
-      // apps which take a lot of time for pre-processing (like the files app)
-      // before they open a window. Since there is currently no other way to
-      // detect if an app was started we suppress any further clicks within a
-      // special time out.
-      if (!AllowNextLaunchAttempt())
-        return kNoAction;
-    }
-    Launch(source, ui::EF_NONE);
-    return kNewWindowCreated;
+    // Ideally we come here only once. After that ShellLauncherItemController
+    // will take over when the shell window gets opened. However there are apps
+    // which take a lot of time for pre-processing (like the files app) before
+    // they open a window. Since there is currently no other way to detect if an
+    // app was started we suppress any further clicks within a special time out.
+    if (IsV2App() && !AllowNextLaunchAttempt())
+      return ash::SHELF_ACTION_NONE;
+
+    // Launching some items replaces this item controller instance, which
+    // destroys the app and launch id strings; making copies avoid crashes.
+    launcher_controller()->LaunchApp(ash::AppLauncherId(app_id(), launch_id()),
+                                     source, ui::EF_NONE);
+    return ash::SHELF_ACTION_NEW_WINDOW_CREATED;
   }
   return ActivateContent(content);
+}
+
+ash::ShelfAppMenuItemList AppShortcutLauncherItemController::GetAppMenuItems(
+    int event_flags) {
+  ash::ShelfAppMenuItemList items;
+  std::vector<content::WebContents*> content_list = GetRunningApplications();
+  for (size_t i = 0; i < content_list.size(); i++) {
+    content::WebContents* web_contents = content_list[i];
+    gfx::Image app_icon = launcher_controller()->GetAppListIcon(web_contents);
+    base::string16 title = launcher_controller()->GetAppListTitle(web_contents);
+    items.push_back(base::MakeUnique<ChromeLauncherAppMenuItemTab>(
+        title, &app_icon, web_contents));
+  }
+  return items;
 }
 
 void AppShortcutLauncherItemController::Close() {
@@ -138,28 +150,6 @@ void AppShortcutLauncherItemController::Close() {
     DCHECK(index != TabStripModel::kNoTab);
     tab_strip->CloseWebContentsAt(index, TabStripModel::CLOSE_NONE);
   }
-}
-
-ChromeLauncherAppMenuItems
-AppShortcutLauncherItemController::GetApplicationList(int event_flags) {
-  ChromeLauncherAppMenuItems items;
-  // Add the application name to the menu.
-  base::string16 app_title = LauncherControllerHelper::GetAppTitle(
-      launcher_controller()->profile(), app_id());
-  items.push_back(
-      base::MakeUnique<ChromeLauncherAppMenuItem>(app_title, nullptr, false));
-
-  std::vector<content::WebContents*> content_list = GetRunningApplications();
-
-  for (size_t i = 0; i < content_list.size(); i++) {
-    content::WebContents* web_contents = content_list[i];
-    // Get the icon.
-    gfx::Image app_icon = launcher_controller()->GetAppListIcon(web_contents);
-    base::string16 title = launcher_controller()->GetAppListTitle(web_contents);
-    items.push_back(base::MakeUnique<ChromeLauncherAppMenuItemTab>(
-        title, &app_icon, web_contents, i == 0));
-  }
-  return items;
 }
 
 std::vector<content::WebContents*>
@@ -193,22 +183,6 @@ AppShortcutLauncherItemController::GetRunningApplications() {
     }
   }
   return items;
-}
-
-ash::ShelfItemDelegate::PerformedAction
-AppShortcutLauncherItemController::ItemSelected(const ui::Event& event) {
-  // In case of a keyboard event, we were called by a hotkey. In that case we
-  // activate the next item in line if an item of our list is already active.
-  if (event.type() == ui::ET_KEY_RELEASED) {
-    if (AdvanceToNextApp())
-      return kExistingWindowActivated;
-  }
-  return Activate(ash::LAUNCH_FROM_UNKNOWN);
-}
-
-ui::SimpleMenuModel* AppShortcutLauncherItemController::CreateApplicationMenu(
-    int event_flags) {
-  return new LauncherApplicationMenuItemModel(GetApplicationList(event_flags));
 }
 
 content::WebContents* AppShortcutLauncherItemController::GetLRUApplication() {
@@ -298,8 +272,7 @@ bool AppShortcutLauncherItemController::WebContentMatchesApp(
                                                                   app_id()));
 }
 
-ash::ShelfItemDelegate::PerformedAction
-AppShortcutLauncherItemController::ActivateContent(
+ash::ShelfAction AppShortcutLauncherItemController::ActivateContent(
     content::WebContents* content) {
   Browser* browser = chrome::FindBrowserWithWebContents(content);
   TabStripModel* tab_strip = browser->tab_strip_model();

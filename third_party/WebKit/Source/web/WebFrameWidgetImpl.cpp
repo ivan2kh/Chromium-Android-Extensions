@@ -58,9 +58,10 @@
 #include "public/web/WebPlugin.h"
 #include "public/web/WebRange.h"
 #include "public/web/WebWidgetClient.h"
+#include "web/AnimationWorkletProxyClientImpl.h"
 #include "web/CompositionUnderlineVectorBuilder.h"
 #include "web/CompositorMutatorImpl.h"
-#include "web/CompositorProxyClientImpl.h"
+#include "web/CompositorWorkerProxyClientImpl.h"
 #include "web/ContextMenuAllowedScope.h"
 #include "web/InspectorOverlay.h"
 #include "web/PageOverlay.h"
@@ -336,6 +337,12 @@ WebInputEventResult WebFrameWidgetImpl::handleInputEvent(
   AutoReset<const WebInputEvent*> currentEventChange(&m_currentInputEvent,
                                                      &inputEvent);
 
+  if (m_client->isPointerLocked() &&
+      WebInputEvent::isMouseEventType(inputEvent.type())) {
+    pointerLockMouseEvent(inputEvent);
+    return WebInputEventResult::HandledSystem;
+  }
+
   if (m_mouseCaptureNode &&
       WebInputEvent::isMouseEventType(inputEvent.type())) {
     TRACE_EVENT1("input", "captured mouse event", "type", inputEvent.type());
@@ -417,14 +424,25 @@ void WebFrameWidgetImpl::scheduleAnimation() {
     m_client->scheduleAnimation();
 }
 
-CompositorProxyClient* WebFrameWidgetImpl::createCompositorProxyClient() {
+CompositorMutatorImpl& WebFrameWidgetImpl::mutator() {
   if (!m_mutator) {
     std::unique_ptr<CompositorMutatorClient> mutatorClient =
         CompositorMutatorImpl::createClient();
     m_mutator = static_cast<CompositorMutatorImpl*>(mutatorClient->mutator());
     m_layerTreeView->setMutatorClient(std::move(mutatorClient));
   }
-  return new CompositorProxyClientImpl(m_mutator);
+
+  return *m_mutator;
+}
+
+CompositorWorkerProxyClient*
+WebFrameWidgetImpl::createCompositorWorkerProxyClient() {
+  return new CompositorWorkerProxyClientImpl(&mutator());
+}
+
+AnimationWorkletProxyClient*
+WebFrameWidgetImpl::createAnimationWorkletProxyClient() {
+  return new AnimationWorkletProxyClientImpl(&mutator());
 }
 
 void WebFrameWidgetImpl::applyViewportDeltas(
@@ -472,12 +490,6 @@ void WebFrameWidgetImpl::setFocus(bool enable) {
     if (focusedFrame) {
       // Finish an ongoing composition to delete the composition node.
       if (focusedFrame->inputMethodController().hasComposition()) {
-        WebAutofillClient* autofillClient =
-            WebLocalFrameImpl::fromFrame(focusedFrame)->autofillClient();
-
-        if (autofillClient)
-          autofillClient->setIgnoreTextChanges(true);
-
         // TODO(xiaochengh): The use of
         // updateStyleAndLayoutIgnorePendingStylesheets needs to be audited.
         // See http://crbug.com/590369 for more details.
@@ -486,9 +498,6 @@ void WebFrameWidgetImpl::setFocus(bool enable) {
 
         focusedFrame->inputMethodController().finishComposingText(
             InputMethodController::KeepSelection);
-
-        if (autofillClient)
-          autofillClient->setIgnoreTextChanges(false);
       }
       m_imeAcceptEvents = false;
     }
@@ -664,18 +673,6 @@ void WebFrameWidgetImpl::willCloseLayerTreeView() {
   m_layerTreeViewClosed = true;
 }
 
-void WebFrameWidgetImpl::didAcquirePointerLock() {
-  page()->pointerLockController().didAcquirePointerLock();
-}
-
-void WebFrameWidgetImpl::didNotAcquirePointerLock() {
-  page()->pointerLockController().didNotAcquirePointerLock();
-}
-
-void WebFrameWidgetImpl::didLosePointerLock() {
-  page()->pointerLockController().didLosePointerLock();
-}
-
 // TODO(ekaramad):This method is almost duplicated in WebViewImpl as well. This
 // code needs to be refactored  (http://crbug.com/629721).
 bool WebFrameWidgetImpl::getCompositionCharacterBounds(
@@ -703,16 +700,6 @@ bool WebFrameWidgetImpl::getCompositionCharacterBounds(
 
   bounds.swap(result);
   return true;
-}
-
-// TODO(ekaramad):This method is almost duplicated in WebViewImpl as well. This
-// code needs to be refactored  (http://crbug.com/629721).
-void WebFrameWidgetImpl::applyReplacementRange(const WebRange& range) {
-  if (LocalFrame* frame = focusedLocalFrameInWidget()) {
-    // TODO(dglazkov): Going from LocalFrame to WebLocalFrameImpl seems
-    // silly. What is going on here?
-    WebLocalFrameImpl::fromFrame(frame)->selectRange(range);
-  }
 }
 
 void WebFrameWidgetImpl::setRemoteViewportIntersection(

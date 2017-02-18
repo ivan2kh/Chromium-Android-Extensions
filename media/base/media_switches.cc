@@ -22,12 +22,6 @@ const char kDisableMediaSuspend[] = "disable-media-suspend";
 const char kReportVp9AsAnUnsupportedMimeType[] =
     "report-vp9-as-an-unsupported-mime-type";
 
-#if defined(OS_ANDROID)
-// Use WebMediaPlayerAndroid instead of WebMediaPlayerImpl. This is a temporary
-// switch for holding back the new unified media pipeline.
-const char kDisableUnifiedMediaPipeline[] = "disable-unified-media-pipeline";
-#endif
-
 #if defined(OS_LINUX) || defined(OS_FREEBSD) || defined(OS_SOLARIS)
 // The Alsa device to use when opening an audio input stream.
 const char kAlsaInputDevice[] = "alsa-input-device";
@@ -80,6 +74,13 @@ const char kEnableDefaultMediaSession[] = "enable-default-media-session";
 // be ducked when losing audio focus.
 const char kEnableDefaultMediaSessionDuckFlash[] = "duck-flash";
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
+
+#if BUILDFLAG(ENABLE_RUNTIME_MEDIA_RENDERER_SELECTION)
+// Rather than use the renderer hosted remotely in the media service, fall back
+// to the default renderer within content_renderer. Does not change the behavior
+// of the media service.
+const char kDisableMojoRenderer[] = "disable-mojo-renderer";
+#endif  // BUILDFLAG(ENABLE_RUNTIME_MEDIA_RENDERER_SELECTION)
 
 // Use fake device for Media Stream to replace actual camera and microphone.
 const char kUseFakeDeviceForMediaStream[] = "use-fake-device-for-media-stream";
@@ -194,13 +195,16 @@ const base::Feature kExternalClearKeyForTesting{
     "external-clear-key-for-testing", base::FEATURE_DISABLED_BY_DEFAULT};
 
 #if defined(OS_ANDROID)
-// Replaces WPMA by the MediaPlayerRenderer for HLS and fallback playback.
-const base::Feature kAndroidMediaPlayerRenderer{
-    "android-media-player-renderer", base::FEATURE_ENABLED_BY_DEFAULT};
-
 // Lock the screen orientation when a video goes fullscreen.
 const base::Feature kVideoFullscreenOrientationLock{
     "VideoFullscreenOrientationLock", base::FEATURE_ENABLED_BY_DEFAULT};
+
+// An experimental feature to enable persistent-license type support in MediaDrm
+// when using Encrypted Media Extensions (EME) API.
+// TODO(xhwang): Remove this after feature launch. See http://crbug.com/493521
+const base::Feature kMediaDrmPersistentLicense{
+    "MediaDrmPersistentLicense", base::FEATURE_DISABLED_BY_DEFAULT};
+
 #endif
 
 }  // namespace media

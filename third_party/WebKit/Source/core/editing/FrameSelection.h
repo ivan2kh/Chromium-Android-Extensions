@@ -27,6 +27,7 @@
 #ifndef FrameSelection_h
 #define FrameSelection_h
 
+#include <memory>
 #include "core/CoreExport.h"
 #include "core/dom/Range.h"
 #include "core/dom/SynchronousMutationObserver.h"
@@ -38,13 +39,12 @@
 #include "platform/Timer.h"
 #include "platform/geometry/IntRect.h"
 #include "platform/geometry/LayoutRect.h"
+#include "platform/graphics/PaintInvalidationReason.h"
 #include "platform/heap/Handle.h"
 #include "wtf/Noncopyable.h"
-#include <memory>
 
 namespace blink {
 
-class CharacterData;
 class DisplayItemClient;
 class LayoutBlock;
 class LocalFrame;
@@ -54,8 +54,8 @@ class GraphicsContext;
 class HTMLFormElement;
 class SelectionEditor;
 class PendingSelection;
-class Text;
 class TextIteratorBehavior;
+struct PaintInvalidatorContext;
 
 enum class CursorAlignOnScroll { IfNeeded, Always };
 
@@ -89,8 +89,8 @@ class CORE_EXPORT FrameSelection final
     DoNotSetFocus = 1 << 3,
     DoNotUpdateAppearance = 1 << 4,
     DoNotClearStrategy = 1 << 5,
+    // TODO(yosin): We should get rid of |DoNotAdjustInFlatTree|.
     DoNotAdjustInFlatTree = 1 << 6,
-    HandleVisible = 1 << 7,
   };
   // Union of values in SetSelectionOption and EUserTriggered
   typedef unsigned SetSelectionOptions;
@@ -101,8 +101,7 @@ class CORE_EXPORT FrameSelection final
 
   bool isAvailable() const { return lifecycleContext(); }
   // You should not call |document()| when |!isAvailable()|.
-  const Document& document() const;
-  Document& document();
+  Document& document() const;
   LocalFrame* frame() const { return m_frame; }
   Element* rootEditableElement() const {
     return selection().rootEditableElement();
@@ -121,6 +120,8 @@ class CORE_EXPORT FrameSelection final
 
   template <typename Strategy>
   const VisibleSelectionTemplate<Strategy>& visibleSelection() const;
+  const VisibleSelection& computeVisibleSelectionInDOMTree() const;
+  const VisibleSelectionInFlatTree& computeVisibleSelectionInFlatTree() const;
 
   const VisibleSelection& selection() const;
 
@@ -137,15 +138,19 @@ class CORE_EXPORT FrameSelection final
   // TODO(yosin): We should use |SelectionInDOMTree| version instead of
   // |VisibleSelection| version.
   void setSelection(const VisibleSelection&,
+                    HandleVisibility = HandleVisibility::NotVisible,
                     SetSelectionOptions = CloseTyping | ClearTypingStyle,
                     CursorAlignOnScroll = CursorAlignOnScroll::IfNeeded,
                     TextGranularity = CharacterGranularity);
+  void setSelection(const VisibleSelection&, SetSelectionOptions);
   // TODO(yosin): We should use |SelectionInFlatTree| version instead of
   // |VisibleSelectionInFlatTree| version.
   void setSelection(const VisibleSelectionInFlatTree&,
+                    HandleVisibility = HandleVisibility::NotVisible,
                     SetSelectionOptions = CloseTyping | ClearTypingStyle,
                     CursorAlignOnScroll = CursorAlignOnScroll::IfNeeded,
                     TextGranularity = CharacterGranularity);
+  void setSelection(const VisibleSelectionInFlatTree&, SetSelectionOptions);
   bool setSelectedRange(
       const EphemeralRange&,
       TextAffinity,
@@ -164,7 +169,7 @@ class CORE_EXPORT FrameSelection final
     return selection().getSelectionType();
   }
 
-  TextAffinity affinity() const { return selection().affinity(); }
+  TextAffinity affinity() const { return selectionInDOMTree().affinity(); }
 
   bool modify(EAlteration,
               SelectionDirection,
@@ -189,20 +194,22 @@ class CORE_EXPORT FrameSelection final
   Position start() const { return selection().start(); }
   Position end() const { return selection().end(); }
 
-  // Returns true if specified layout block has caret. This function is
-  // called during InRecalStyle and InPaint.
-  bool hasCaretIn(const LayoutBlock&) const;
+  // Returns true if specified layout block should paint caret. This function is
+  // called during painting only.
+  bool shouldPaintCaret(const LayoutBlock&) const;
 
   // Bounds of (possibly transformed) caret in absolute coords
   IntRect absoluteCaretBounds();
 
   void didChangeFocus();
 
+  const SelectionInDOMTree& selectionInDOMTree() const;
+  // TODO(yosin): We should rename |isNone()| to |isVisibleNone()|.
   bool isNone() const { return selection().isNone(); }
   bool isCaret() const { return selection().isCaret(); }
   bool isRange() const { return selection().isRange(); }
   bool isInPasswordField() const;
-  bool isDirectional() const { return selection().isDirectional(); }
+  bool isDirectional() const { return selectionInDOMTree().isDirectional(); }
 
   // If this FrameSelection has a logical range which is still valid, this
   // function return its clone. Otherwise, the return value from underlying
@@ -210,15 +217,22 @@ class CORE_EXPORT FrameSelection final
   Range* firstRange() const;
 
   void documentAttached(Document*);
-  void dataWillChange(const CharacterData& node);
 
   void didLayout();
   bool isAppearanceDirty() const;
   void commitAppearanceIfNeeded(LayoutView&);
   void setCaretVisible(bool caretIsVisible);
-  void setCaretRectNeedsUpdate();
   void scheduleVisualUpdate() const;
-  void invalidateCaretRect(bool forceInvalidation = false);
+  void scheduleVisualUpdateForPaintInvalidationIfNeeded() const;
+
+  // Paint invalidation methods delegating to FrameCaret.
+  void clearPreviousCaretVisualRect(const LayoutBlock&);
+  void layoutBlockWillBeDestroyed(const LayoutBlock&);
+  void updateStyleAndLayoutIfNeeded();
+  void invalidatePaintIfNeeded(const LayoutBlock&,
+                               const PaintInvalidatorContext&,
+                               PaintInvalidationReason);
+
   void paintCaret(GraphicsContext&, const LayoutPoint&);
 
   // Used to suspend caret blinking while the mouse is down.
@@ -233,9 +247,7 @@ class CORE_EXPORT FrameSelection final
 
   void setUseSecureKeyboardEntryWhenActive(bool);
 
-  bool isHandleVisible() const {
-    return m_handleVisibility == HandleVisibility::Visible;
-  }
+  bool isHandleVisible() const;
 
   void updateSecureKeyboardEntryIfActive();
 
@@ -277,9 +289,14 @@ class CORE_EXPORT FrameSelection final
   // to use updated selection, we should make |updateIfNeeded()| private.
   void updateIfNeeded();
 
+  void cacheRangeOfDocument(Range*);
+  Range* documentCachedRange() const;
+  void clearDocumentCachedRange();
+
   DECLARE_TRACE();
 
  private:
+  friend class CaretDisplayItemClientTest;
   friend class FrameSelectionTest;
   friend class PaintControllerPaintTestForSlimmingPaintV1AndV2;
   friend class SelectionControllerTest;
@@ -288,24 +305,11 @@ class CORE_EXPORT FrameSelection final
 
   explicit FrameSelection(LocalFrame&);
 
-  // For |PaintControllerPaintTestForSlimmingPaintV1AndV2|.
   const DisplayItemClient& caretDisplayItemClientForTesting() const;
 
   // Note: We have |selectionInFlatTree()| for unit tests, we should
   // use |visibleSelection<EditingInFlatTreeStrategy>()|.
   const VisibleSelectionInFlatTree& selectionInFlatTree() const;
-
-  template <typename Strategy>
-  void setSelectionAlgorithm(const VisibleSelectionTemplate<Strategy>&,
-                             SetSelectionOptions,
-                             CursorAlignOnScroll,
-                             TextGranularity);
-
-  void respondToNodeModification(Node&,
-                                 bool baseRemoved,
-                                 bool extentRemoved,
-                                 bool startRemoved,
-                                 bool endRemoved);
 
   void notifyAccessibilityForSelectionChange();
   void notifyCompositorForSelectionChange();
@@ -326,18 +330,6 @@ class CORE_EXPORT FrameSelection final
   void contextDestroyed(Document*) final;
   void nodeChildrenWillBeRemoved(ContainerNode&) final;
   void nodeWillBeRemoved(Node&) final;
-  void didUpdateCharacterData(CharacterData*,
-                              unsigned offset,
-                              unsigned oldLength,
-                              unsigned newLength) final;
-  void didMergeTextNodes(const Text& mergedNode,
-                         const NodeWithIndex& nodeToBeRemovedWithIndex,
-                         unsigned oldLength) final;
-  void didSplitTextNode(const Text& oldNode) final;
-
-  // For unittests
-  bool shouldPaintCaretForTesting() const;
-  bool isPreviousCaretDirtyForTesting() const;
 
   Member<LocalFrame> m_frame;
   const Member<PendingSelection> m_pendingSelection;
@@ -347,8 +339,6 @@ class CORE_EXPORT FrameSelection final
   LayoutUnit m_xPosForVerticalArrowNavigation;
 
   bool m_focused : 1;
-
-  HandleVisibility m_handleVisibility = HandleVisibility::NotVisible;
 
   // Controls text granularity used to adjust the selection's extent in
   // moveRangeSelectionExtent.

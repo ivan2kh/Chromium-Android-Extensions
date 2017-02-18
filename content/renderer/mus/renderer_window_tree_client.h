@@ -30,9 +30,10 @@ namespace content {
 class RendererWindowTreeClient : public ui::mojom::WindowTreeClient {
  public:
   // Creates a RendererWindowTreeClient instance for the RenderWidget instance
-  // associated with |routing_id|. The instance self-destructs when the
-  // connection to mus is lost, or when the window is closed.
-  static void Create(int routing_id);
+  // associated with |routing_id| (if one doesn't already exist). The instance
+  // self-destructs when the connection to mus is lost, or when the window is
+  // closed.
+  static void CreateIfNecessary(int routing_id);
 
   // Destroys the client instance, if one exists. Otherwise, does nothing.
   static void Destroy(int routing_id);
@@ -104,10 +105,12 @@ class RendererWindowTreeClient : public ui::mojom::WindowTreeClient {
       const base::Optional<std::vector<uint8_t>>& new_data) override;
   void OnWindowInputEvent(uint32_t event_id,
                           ui::Id window_id,
+                          int64_t display_id,
                           std::unique_ptr<ui::Event> event,
                           bool matches_pointer_watcher) override;
   void OnPointerEventObserved(std::unique_ptr<ui::Event> event,
-                              uint32_t window_id) override;
+                              uint32_t window_id,
+                              int64_t display_id) override;
   void OnWindowFocused(ui::Id focused_window_id) override;
   void OnWindowPredefinedCursorChanged(ui::Id window_id,
                                        ui::mojom::Cursor cursor) override;

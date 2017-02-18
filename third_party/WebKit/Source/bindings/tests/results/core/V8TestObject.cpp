@@ -17,7 +17,6 @@
 #include "bindings/core/v8/Dictionary.h"
 #include "bindings/core/v8/DoubleOrString.h"
 #include "bindings/core/v8/ExceptionState.h"
-#include "bindings/core/v8/GeneratedCodeHelper.h"
 #include "bindings/core/v8/ScriptCallStack.h"
 #include "bindings/core/v8/ScriptPromise.h"
 #include "bindings/core/v8/ScriptState.h"
@@ -94,7 +93,7 @@ namespace blink {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-const WrapperTypeInfo V8TestObject::wrapperTypeInfo = { gin::kEmbedderBlink, V8TestObject::domTemplate, V8TestObject::trace, V8TestObject::traceWrappers, V8TestObject::preparePrototypeAndInterfaceObject, "TestObject", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::ObjectClassId, WrapperTypeInfo::NotInheritFromActiveScriptWrappable, WrapperTypeInfo::NotInheritFromEventTarget, WrapperTypeInfo::Independent };
+const WrapperTypeInfo V8TestObject::wrapperTypeInfo = { gin::kEmbedderBlink, V8TestObject::domTemplate, V8TestObject::trace, V8TestObject::traceWrappers, V8TestObject::preparePrototypeAndInterfaceObject, "TestObject", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::ObjectClassId, WrapperTypeInfo::NotInheritFromActiveScriptWrappable, WrapperTypeInfo::Independent };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -4055,7 +4054,7 @@ static void voidMethodEventTargetArgMethod(const v8::FunctionCallbackInfo<v8::Va
   }
 
   EventTarget* eventTargetArg;
-  eventTargetArg = toEventTarget(info.GetIsolate(), info[0]);
+  eventTargetArg = V8EventTarget::toImplWithTypeCheck(info.GetIsolate(), info[0]);
   if (!eventTargetArg) {
     V8ThrowException::throwTypeError(info.GetIsolate(), ExceptionMessages::failedToExecute("voidMethodEventTargetArg", "TestObject", "parameter 1 is not of type 'EventTarget'."));
 
@@ -7697,9 +7696,9 @@ static void postMessageImpl(const char* interfaceName, TestObject* instance, con
       return;
   }
 
-  // FIXME: Only pass context/exceptionState if instance really requires it.
-  ExecutionContext* context = currentExecutionContext(info.GetIsolate());
-  instance->postMessage(context, message.release(), transferables.messagePorts, exceptionState);
+  // FIXME: Only pass scriptState/exceptionState if instance really requires it.
+  ScriptState* scriptState = ScriptState::current(info.GetIsolate());
+  instance->postMessage(scriptState, message.release(), transferables.messagePorts, exceptionState);
 }
 
 static void activityLoggingForAllWorldsPerWorldBindingsVoidMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info) {
@@ -8258,6 +8257,20 @@ static void serializerMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& in
   v8SetReturnValueString(info, impl->serializerMethod(), info.GetIsolate());
 }
 
+static void clearMethod(const v8::FunctionCallbackInfo<v8::Value>& info) {
+  ExceptionState exceptionState(info.GetIsolate(), ExceptionState::ExecutionContext, "TestObject", "clear");
+
+  TestObject* impl = V8TestObject::toImpl(info.Holder());
+
+  ScriptState* scriptState = ScriptState::forReceiverObject(info);
+
+  bool result = impl->myMaplikeClear(scriptState, exceptionState);
+  if (exceptionState.hadException()) {
+    return;
+  }
+  v8SetReturnValueBool(info, result);
+}
+
 static void keysMethod(const v8::FunctionCallbackInfo<v8::Value>& info) {
   ExceptionState exceptionState(info.GetIsolate(), ExceptionState::ExecutionContext, "TestObject", "keys");
 
@@ -8375,19 +8388,6 @@ static void getMethod(const v8::FunctionCallbackInfo<v8::Value>& info) {
     return;
   }
   v8SetReturnValue(info, result.v8Value());
-}
-
-static void clearMethod(const v8::FunctionCallbackInfo<v8::Value>& info) {
-  ExceptionState exceptionState(info.GetIsolate(), ExceptionState::ExecutionContext, "TestObject", "clear");
-
-  TestObject* impl = V8TestObject::toImpl(info.Holder());
-
-  ScriptState* scriptState = ScriptState::forReceiverObject(info);
-
-  impl->clearForBinding(scriptState, exceptionState);
-  if (exceptionState.hadException()) {
-    return;
-  }
 }
 
 static void deleteMethod(const v8::FunctionCallbackInfo<v8::Value>& info) {
@@ -11114,6 +11114,10 @@ void V8TestObject::serializerMethodMethodCallback(const v8::FunctionCallbackInfo
   TestObjectV8Internal::serializerMethodMethod(info);
 }
 
+void V8TestObject::clearMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
+  TestObjectV8Internal::clearMethod(info);
+}
+
 void V8TestObject::keysMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
   TestObjectV8Internal::keysMethod(info);
 }
@@ -11136,10 +11140,6 @@ void V8TestObject::hasMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& 
 
 void V8TestObject::getMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
   TestObjectV8Internal::getMethod(info);
-}
-
-void V8TestObject::clearMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
-  TestObjectV8Internal::clearMethod(info);
 }
 
 void V8TestObject::deleteMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
@@ -11610,7 +11610,6 @@ const V8DOMConfiguration::MethodConfiguration V8TestObjectMethods[] = {
     {"forEach", V8TestObject::forEachMethodCallback, nullptr, 1, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"has", V8TestObject::hasMethodCallback, nullptr, 1, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"get", V8TestObject::getMethodCallback, nullptr, 1, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"clear", V8TestObject::clearMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"delete", V8TestObject::deleteMethodCallback, nullptr, 1, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"set", V8TestObject::setMethodCallback, nullptr, 2, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"toJSON", V8TestObject::toJSONMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
@@ -11670,6 +11669,10 @@ static void installV8TestObjectTemplate(v8::Isolate* isolate, const DOMWrapperWo
   }
   const V8DOMConfiguration::MethodConfiguration partiallyRuntimeEnabledOverloadedVoidMethodMethodConfiguration = {"partiallyRuntimeEnabledOverloadedVoidMethod", V8TestObject::partiallyRuntimeEnabledOverloadedVoidMethodMethodCallback, nullptr, TestObjectV8Internal::partiallyRuntimeEnabledOverloadedVoidMethodMethodLength(), v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
   V8DOMConfiguration::installMethod(isolate, world, instanceTemplate, prototypeTemplate, interfaceTemplate, signature, partiallyRuntimeEnabledOverloadedVoidMethodMethodConfiguration);
+  if (RuntimeEnabledFeatures::featureNameEnabled()) {
+    const V8DOMConfiguration::MethodConfiguration clearMethodConfiguration = {"clear", V8TestObject::clearMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
+    V8DOMConfiguration::installMethod(isolate, world, instanceTemplate, prototypeTemplate, interfaceTemplate, signature, clearMethodConfiguration);
+  }
 }
 
 void V8TestObject::installFeatureName(v8::Isolate* isolate, const DOMWrapperWorld& world, v8::Local<v8::Object> instance, v8::Local<v8::Object> prototype, v8::Local<v8::Function> interface) {
@@ -11716,6 +11719,7 @@ TestObject* V8TestObject::toImplWithTypeCheck(v8::Isolate* isolate, v8::Local<v8
 
 void V8TestObject::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
   v8::Isolate* isolate = context->GetIsolate();
+
   v8::Local<v8::Name> unscopablesSymbol(v8::Symbol::GetUnscopables(isolate));
   v8::Local<v8::Object> unscopables;
   if (v8CallBoolean(prototypeObject->HasOwnProperty(context, unscopablesSymbol)))

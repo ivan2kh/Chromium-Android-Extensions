@@ -90,11 +90,8 @@
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_STATUS_CONNECTING" desc="The label used when a network connection is connecting.">
     Connecting...
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_CELLULAR_STATUS_NOT_ACTIVATED" desc="The label used when a cellular connection is not activated.">
-    Not activated
-  </message>
   <message name="IDS_ASH_STATUS_TRAY_VPN" desc="The label used in the VPN detailed view header.">
-    Private Network
+    Private network
   </message>
   <message name="IDS_ASH_STATUS_TRAY_VPN_BUILT_IN_PROVIDER" desc="The name of the built-in VPN provider that supports OpenVPN and L2TP over IPsec.">
     OpenVPN / L2TP
@@ -108,23 +105,20 @@
   <message name="IDS_ASH_STATUS_TRAY_WIFI" desc="The wifi network device.">
     Wi-Fi
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_CELLULAR" desc="The accessible text for the cellular button.">
-    Cellular
-  </message>
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_INFO" desc="The accessible text for the network info button.">
-    Network Info
+    Network info
   </message>
   <message name="IDS_ASH_STATUS_TRAY_IP" desc="The label for the IP address of the network:">
-    IP Address
+    IP address
   </message>
   <message name="IDS_ASH_STATUS_TRAY_IPV6" desc="The label for the IP address of the network:">
-    IPv6 Address
+    IPv6 address
   </message>
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_SETTINGS" desc="The label used in the settings entry in the network dialog.">
-    Settings...
+    Network settings
   </message>
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_PROXY_SETTINGS" desc="The label used in the proxy settings entry in the network dialog in the login screen.">
-    Proxy...
+    Proxy settings
   </message>
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_TECHNOLOGY_ENFORCED_BY_POLICY" desc="The label used for tell users that this technology is disabled by the administrator">
     This network setting is disabled by the administrator.
@@ -144,16 +138,16 @@
   <message name="IDS_ASH_STATUS_TRAY_TURN_ON_WIFI" desc="The label used for the item to turn on Wi-Fi networks.">
     Turn Wi-Fi on
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_ENABLE_MOBILE" desc="The label used for the item to enable cellular networks.">
+  <message name="IDS_ASH_STATUS_TRAY_ENABLE_MOBILE" desc="The label used for the item to enable mobile networks.">
     Enable mobile data
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_DISABLE_MOBILE" desc="The label used for the item to disable cellular networks.">
+  <message name="IDS_ASH_STATUS_TRAY_DISABLE_MOBILE" desc="The label used for the item to disable mobile networks.">
     Disable mobile data
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_SETUP_MOBILE" desc="The label used for the item to setup cellular network when no SIM card in installed.">
+  <message name="IDS_ASH_STATUS_TRAY_SETUP_MOBILE" desc="The label used for the item to setup mobile network when no SIM card in installed.">
     Set up mobile data
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_OTHER_MOBILE" desc="The label used for the item to display other cellular networks.">
+  <message name="IDS_ASH_STATUS_TRAY_OTHER_MOBILE" desc="The label used for the item to display other mobile networks.">
     Mobile ...
   </message>
   <message name="IDS_ASH_STATUS_TRAY_MOBILE_VIEW_ACCOUNT" desc="In the network popup bubble, the text of the top-up URL link.">
@@ -227,7 +221,7 @@
 
   <!-- Status tray audio strings. -->
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_FRONT_MIC" desc="label used for front microphone">
-    Front Microphone
+    Front microphone
   </message>
 
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_HEADPHONE" desc="label used for audio headphone device">
@@ -235,15 +229,15 @@
   </message>
 
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_INTERNAL_SPEAKER" desc="label used for internal audio speaker">
-    Speaker (Internal)
+    Speaker (internal)
   </message>
 
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_INTERNAL_MIC" desc="label used for internal microphone">
-    Microphone (Internal)
+    Microphone (internal)
   </message>
 
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_REAR_MIC" desc="label used for rear microphone">
-    Rear Microphone
+    Rear microphone
   </message>
 
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_USB_DEVICE" desc="label used for usb audio device">
@@ -258,22 +252,13 @@
     <ph name="device_name">$1<ex>Speaker</ex></ph> (HDMI/DP)
   </message>
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_MIC_JACK_DEVICE" desc="label used for mic jack device">
-    Mic Jack
+    Mic jack
   </message>
 
   <message name="IDS_AURA_SET_DESKTOP_WALLPAPER" desc="The label used for change wallpaper in context menu">
     Set wallpaper...
   </message>
 
-  <message name="IDS_ASH_STATUS_TRAY_SMS" desc="The label used in the status tray for SMS.">
-    SMS
-  </message>
-  <message name="IDS_ASH_STATUS_TRAY_SMS_MESSAGES" desc="The label used in the default status tray view for SMS with the number of messages.">
-    SMS messages: <ph name="MESSAGE_COUNT">$1<ex>3</ex></ph>
-  </message>
-  <message name="IDS_ASH_STATUS_TRAY_SMS_NUMBER" desc="Sender for SMS messagees in the system tray.">
-    SMS from <ph name="PHONE_NUMBER">$1<ex>08700 776655</ex></ph>
-  </message>
   <message name="IDS_ASH_STATUS_TRAY_TRACING" desc="The status tray item indicating that performance tracing is running.">
     Performance tracing enabled
   </message>
@@ -281,7 +266,7 @@
     Brightness
   </message>
   <message name="IDS_ASH_STATUS_TRAY_AUDIO" desc="The label used in audio detailed page bottom header of ash tray pop up.">
-    Audio Settings
+    Audio settings
   </message>
   <message name="IDS_ASH_STATUS_TRAY_AUDIO_OUTPUT" desc="The label used in audio detailed page for audio output section of ash tray pop up.">
     Output
@@ -454,14 +439,14 @@ Press Shift + Alt to switch.
   </message>
 
   <!-- Status tray networking strings. -->
-  <message name="IDS_ASH_STATUS_TRAY_CELLULAR_SCANNING" desc="Message when scanning for cellular networks">
-    Searching for cellular networks...
+  <message name="IDS_ASH_STATUS_TRAY_MOBILE_SCANNING" desc="Message when scanning for mobile networks">
+    Searching for mobile networks...
   </message>
   <message name="IDS_ASH_STATUS_TRAY_ETHERNET" desc="The ethernet network device.">
     Ethernet
   </message>
   <message name="IDS_ASH_STATUS_TRAY_INITIALIZING_CELLULAR" desc="Message for the status area when initializing the cellular device.">
-    Initializing cellular modem...
+    Initializing...
   </message>
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_ACTIVATING" desc="Message for the network tray tooltip and network list when activating a network.">
     Activating <ph name="NAME">$1<ex>YBH Cellular</ex></ph>
@@ -499,8 +484,8 @@ Press Shift + Alt to switch.
   <message name="IDS_ASH_STATUS_TRAY_NO_NETWORKS" desc="The message to display in the network info bubble when it is otherwise empty.">
     No network information available
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_NO_CELLULAR_NETWORKS" desc="The message to display in the network list when no cellular networks are available.">
-    No cellular network available
+  <message name="IDS_ASH_STATUS_TRAY_NO_MOBILE_NETWORKS" desc="The message to display in the network list when no mobile networks are available.">
+    No mobile network available
   </message>
   <message name="IDS_ASH_STATUS_TRAY_VPN_DISCONNECTED" desc="The label used in system tray bubble to display vpn is disconnected.">
     VPN disconnected
@@ -514,8 +499,8 @@ Press Shift + Alt to switch.
   <message name="IDS_ASH_STATUS_TRAY_WIFI_SCANNING_MESSAGE" desc="Scanning for wifi networks">
     Searching for Wi-Fi networks...
   </message>
-  <message name="IDS_ASH_STATUS_TRAY_NETWORK_CELLULAR" desc="The label used in the tray popup to separate cellular networks.">
-    Cellular
+  <message name="IDS_ASH_STATUS_TRAY_NETWORK_MOBILE" desc="The label used in the tray popup to separate mobile networks.">
+    Mobile data
   </message>
   <message name="IDS_ASH_STATUS_TRAY_NETWORK_WIFI" desc="The label used in the tray popup to separate Wi-Fi networks.">
     Wi-Fi
@@ -576,7 +561,7 @@ Press Shift + Alt to switch.
     Press Control Shift Q twice to sign out.
   </message>
   <message name="IDS_ASH_LOGOUT_CONFIRMATION_TITLE" desc="Dialog title for the logout confirmation dialog.">
-    Exiting Session
+    Exiting session
   </message>
   <message name="IDS_ASH_LOGOUT_CONFIRMATION_WARNING" desc="The text for the logout confirmation dialog.">
     You will automatically be signed out in <ph name="LOGOUT_TIME_LEFT">$1<ex>5 seconds</ex></ph>.

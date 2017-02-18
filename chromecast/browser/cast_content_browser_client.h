@@ -46,6 +46,7 @@ class MediaPipelineBackendManager;
 struct MediaPipelineDeviceParams;
 class MediaResourceTracker;
 class VideoPlaneController;
+class VideoModeSwitcher;
 class VideoResolutionPolicy;
 }
 
@@ -80,6 +81,8 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
       DisableQuicClosure disable_quic_closure,
       media::VideoPlaneController* video_plane_controller,
       CastWindowManager* window_manager);
+
+  virtual media::VideoModeSwitcher* GetVideoModeSwitcher();
 
 #if !defined(OS_ANDROID)
   // Gets object for enforcing video resolution policy restrictions.
@@ -127,6 +130,10 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
   void ResourceDispatcherHostCreated() override;
   std::string GetApplicationLocale() override;
   content::QuotaPermissionContext* CreateQuotaPermissionContext() override;
+  void GetQuotaSettings(
+      content::BrowserContext* context,
+      content::StoragePartition* partition,
+      const storage::OptionalQuotaSettingsCallback& callback) override;
   void AllowCertificateError(
       content::WebContents* web_contents,
       int cert_error,
@@ -147,12 +154,12 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
                        const GURL& opener_url,
                        const GURL& opener_top_level_frame_url,
                        const GURL& source_origin,
-                       WindowContainerType container_type,
+                       content::mojom::WindowContainerType container_type,
                        const GURL& target_url,
                        const content::Referrer& referrer,
                        const std::string& frame_name,
                        WindowOpenDisposition disposition,
-                       const blink::WebWindowFeatures& features,
+                       const blink::mojom::WindowFeatures& features,
                        bool user_gesture,
                        bool opener_suppressed,
                        content::ResourceContext* context,

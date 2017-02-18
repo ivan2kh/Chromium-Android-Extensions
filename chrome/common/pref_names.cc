@@ -24,7 +24,11 @@ const char kArcApps[] = "arc.apps";
 const char kArcBackupRestoreEnabled[] = "arc.backup_restore.enabled";
 // A preference to indicate that Android's data directory should be removed.
 const char kArcDataRemoveRequested[] = "arc.data.remove_requested";
-// A preference to keep Android apps enabled state.
+// A preference representing whether a user has opted in to use Google Play
+// Store on ARC.
+// TODO(hidehiko): For historical reason, now the preference name does not
+// directly reflect "Google Play Store". We should get and set the values via
+// utility methods (IsArcPlayStoreEnabled() and SetArcPlayStoreEnabled()).
 const char kArcEnabled[] = "arc.enabled";
 // A preference that indicated whether Android reported that it's compliant
 // with provided policies. When it's compliant, Android kiosk app will start.
@@ -67,6 +71,10 @@ const char kHomePageIsNewTabPage[] = "homepage_is_newtabpage";
 
 // This is the URL of the page to load when opening new tabs.
 const char kHomePage[] = "homepage";
+
+// Stores information about the important sites dialog, including the time and
+// frequency it has been ignored.
+const char kImportantSitesDialogHistory[] = "important_sites_dialog";
 
 #if defined(OS_WIN)
 // This is a timestamp of the last time this profile was reset by a third party
@@ -367,6 +375,8 @@ const char kWebKitJavascriptCanOpenWindowsAutomatically[] =
 const char kWebKitLoadsImagesAutomatically[] =
     "webkit.webprefs.loads_images_automatically";
 const char kWebKitPluginsEnabled[] = "webkit.webprefs.plugins_enabled";
+const char kWebKitEncryptedMediaEnabled[] =
+    "webkit.webprefs.encrypted_media_enabled";
 
 // Boolean that is true when Data Saver is enabled.
 // TODO(bengr): Migrate the preference string to "data_saver.enabled"
@@ -720,6 +730,14 @@ const char kSessionLengthLimit[] = "session.length_limit";
 // user activity has been observed in a session.
 const char kSessionWaitForInitialUserActivity[] =
     "session.wait_for_initial_user_activity";
+
+// A preference of the last user session type. It is used with the
+// kLastSessionLength pref below to store the last user session info
+// on shutdown so that it could be reported on the next run.
+const char kLastSessionType[] = "session.last_session_type";
+
+// A preference of the last user session length.
+const char kLastSessionLength[] = "session.last_session_length";
 
 // Inactivity time in milliseconds while the system is on AC power before
 // the screen should be dimmed, turned off, or locked, before an
@@ -1278,9 +1296,6 @@ const char kGpuDriverInfoBuildFingerPrint[] =
 const char kPushMessagingAppIdentifierMap[] =
     "gcm.push_messaging_application_id_map";
 
-// Maps from origin to background budget information.
-const char kBackgroundBudgetMap[] = "push_messaging.background_budget_map";
-
 // A string like "com.chrome.macosx" that should be used as the GCM category
 // when an app_id is sent as a subtype instead of as a category.
 const char kGCMProductCategoryForSubtypes[] =
@@ -1306,11 +1321,6 @@ const char kToolbarIconSurfacingBubbleAcknowledged[] =
     "toolbar_icon_surfacing_bubble_acknowledged";
 const char kToolbarIconSurfacingBubbleLastShowTime[] =
     "toolbar_icon_surfacing_bubble_show_time";
-
-// Used to track component actions in the toolbar that were migrated from
-// extensions.
-const char kToolbarMigratedComponentActionStatus[] =
-    "toolbar_migrated_component_action_status";
 #endif
 
 #if BUILDFLAG(ENABLE_WEBRTC)
@@ -1555,6 +1565,15 @@ const char kNtpCollapsedSyncPromo[] = "ntp.collapsed_sync_promo";
 // should stop showing them.
 const char kContentSuggestionsConsecutiveIgnoredPrefName[] =
     "ntp.content_suggestions.notifications.consecutive_ignored";
+
+// Tracks how many notifications have been sent today, and what day "today" is,
+// as an integer YYYYMMDD, in wall time in the local timezone.
+// If sent_day changes, sent_count is reset to 0. Allows limiting per-day
+// notification count.
+extern const char kContentSuggestionsNotificationsSentDay[] =
+    "ntp.content_suggestions.notifications.sent_day";
+extern const char kContentSuggestionsNotificationsSentCount[] =
+    "ntp.content_suggestions.notifications.sent_count";
 #endif  // defined(OS_ANDROID)
 
 // Which page should be visible on the new tab page v4
@@ -2389,5 +2408,52 @@ const char kGoogleDSEGeolocationSetting[] = "google_dse_geolocation_setting";
 // dictionary is the name of the attribute, and the value is the corresponding
 // value.
 const char kWebShareVisitedTargets[] = "profile.web_share.visited_targets";
+
+#if defined(OS_WIN)
+// True if the user is eligible to recieve "desktop to iOS" promotion.
+const char kIOSPromotionEligible[] = "ios.desktoptomobileeligible";
+
+// True if the "desktop to iOS" promotion was successful, i.e. user installed
+// the application and signed in after seeing the promotion and receiving the
+// SMS.
+const char kIOSPromotionDone[] = "ios.desktop_ios_promo_done";
+
+// Number of times user has seen the "desktop to iOS" save passwords bubble
+// promotion.
+const char kNumberSavePasswordsBubbleIOSPromoShown[] =
+    "savepasswords_bubble_ios_promo_shown_count";
+
+// True if the user has dismissed the "desktop to iOS" save passwords bubble
+// promotion.
+const char kSavePasswordsBubbleIOSPromoDismissed[] =
+    "savepasswords_bubble_ios_promo_dismissed";
+
+// Number of times the user has seen the "desktop to iOS" bookmarks bubble
+// promotion.
+const char kNumberBookmarksBubbleIOSPromoShown[] =
+    "bookmarks_bubble_ios_promo_shown_count";
+
+// True if the user has dismissed the "desktop to iOS" bookmarks bubble
+// promotion.
+const char kBookmarksBubbleIOSPromoDismissed[] =
+    "bookmarks_bubble_ios_promo_dismissed";
+
+// Number of times user has seen the "desktop to iOS" bookmarks foot note
+// promotion.
+const char kNumberBookmarksFootNoteIOSPromoShown[] =
+    "bookmarks_footnote_ios_promo_shown_count";
+
+// True if the user has dismissed the "desktop to iOS" bookmarks foot note
+// promotion.
+const char kBookmarksFootNoteIOSPromoDismissed[] =
+    "bookmarks_footnote_ios_promo_dismissed";
+
+// Number of times user has seen the "desktop to iOS" history page promotion.
+const char kNumberHistoryPageIOSPromoShown[] =
+    "history_page_ios_promo_shown_count";
+
+// True if the user has dismissed the "desktop to iOS" history page promotion.
+const char kHistoryPageIOSPromoDismissed[] = "history_page_ios_promo_dismissed";
+#endif
 
 }  // namespace prefs

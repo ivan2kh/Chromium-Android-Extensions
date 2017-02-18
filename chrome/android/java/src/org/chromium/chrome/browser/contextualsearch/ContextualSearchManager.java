@@ -213,7 +213,7 @@ public class ContextualSearchManager implements ContextualSearchManagementDelega
 
         mNetworkCommunicator = this;
 
-        mPolicy = new ContextualSearchPolicy(mActivity, mSelectionController, mNetworkCommunicator);
+        mPolicy = new ContextualSearchPolicy(mSelectionController, mNetworkCommunicator);
 
         mTranslateController = new ContextualSearchTranslateController(activity, mPolicy, this);
     }
@@ -695,10 +695,9 @@ public class ContextualSearchManager implements ContextualSearchManagementDelega
             doLiteralSearch = true;
         }
 
-        boolean quickActionShown =
-                mSearchPanel.getSearchBarControl().getQuickActionControl().hasQuickAction();
-        boolean receivedContextualCardsData = !quickActionShown && !TextUtils.isEmpty(caption)
+        boolean receivedCaptionOrThumbnail = !TextUtils.isEmpty(caption)
                 || !TextUtils.isEmpty(thumbnailUrl);
+
         if (ContextualSearchFieldTrial.shouldHideContextualCardsData()) {
             // Clear the thumbnail URL and caption so that they are not displayed in the bar. This
             // is used to determine the CTR on contextual searches where we would have shown
@@ -717,10 +716,14 @@ public class ContextualSearchManager implements ContextualSearchManagementDelega
             onSetCaption(caption, doesAnswer);
         }
 
+        boolean quickActionShown =
+                mSearchPanel.getSearchBarControl().getQuickActionControl().hasQuickAction();
+        boolean receivedContextualCardsEntityData = !quickActionShown && receivedCaptionOrThumbnail;
+
         if (ContextualSearchFieldTrial.isContextualCardsBarIntegrationEnabled()) {
-            ContextualSearchUma.logContextualCardsDataShown(receivedContextualCardsData);
+            ContextualSearchUma.logContextualCardsDataShown(receivedContextualCardsEntityData);
             mSearchPanel.getPanelMetrics().setWasContextualCardsDataShown(
-                    receivedContextualCardsData);
+                    receivedContextualCardsEntityData);
         }
 
         if (ContextualSearchFieldTrial.isContextualSearchSingleActionsEnabled()) {
@@ -924,6 +927,8 @@ public class ContextualSearchManager implements ContextualSearchManagementDelega
      * Implementation of OverlayContentDelegate. Made public for testing purposes.
      */
     public class SearchOverlayContentDelegate extends OverlayContentDelegate {
+        // Note: New navigation or changes to the WebContents are not advised in this class since
+        // the WebContents is being observed and navigation is already being performed.
 
         public SearchOverlayContentDelegate() {}
 
@@ -1090,6 +1095,11 @@ public class ContextualSearchManager implements ContextualSearchManagementDelega
             mSearchRequest.setNormalPriority();
             // If the content view is showing, load at normal priority now.
             if (mSearchPanel.isContentShowing()) {
+                // NOTE: we must reuse the existing content view because we're called from within
+                // a WebContentsObserver.  If we don't reuse the content view then the WebContents
+                // being observed will be deleted.  We notify of the failure to trigger the reuse.
+                // See crbug.com/682953 for details.
+                mSearchPanel.onLoadUrlFailed();
                 loadSearchUrl();
             } else {
                 mDidStartLoadingResolvedSearchRequest = false;

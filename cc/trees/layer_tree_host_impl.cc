@@ -247,6 +247,7 @@ LayerTreeHostImpl::LayerTreeHostImpl(
       max_memory_needed_bytes_(0),
       resourceless_software_draw_(false),
       mutator_host_(std::move(mutator_host)),
+      captured_scrollbar_animation_controller_(nullptr),
       rendering_stats_instrumentation_(rendering_stats_instrumentation),
       micro_benchmark_controller_(this),
       task_graph_runner_(task_graph_runner),
@@ -1061,16 +1062,16 @@ DrawResult LayerTreeHostImpl::PrepareToDraw(FrameData* frame) {
     input_handler_client_->ReconcileElasticOverscrollAndRootScroll();
 
   if (const char* client_name = GetClientNameForMetrics()) {
-    size_t total_picture_memory = 0;
+    size_t total_memory = 0;
     for (const PictureLayerImpl* layer : active_tree()->picture_layers())
-      total_picture_memory += layer->GetRasterSource()->GetPictureMemoryUsage();
-    if (total_picture_memory != 0) {
+      total_memory += layer->GetRasterSource()->GetMemoryUsage();
+    if (total_memory != 0) {
       // GetClientNameForMetrics only returns one non-null value over the
       // lifetime of the process, so this histogram name is runtime constant.
       UMA_HISTOGRAM_COUNTS(
           base::StringPrintf("Compositing.%s.PictureMemoryUsageKb",
                              client_name),
-          base::saturated_cast<int>(total_picture_memory / 1024));
+          base::saturated_cast<int>(total_memory / 1024));
     }
     // GetClientNameForMetrics only returns one non-null value over the lifetime
     // of the process, so this histogram name is runtime constant.
@@ -1570,8 +1571,16 @@ CompositorFrameMetadata LayerTreeHostImpl::MakeCompositorFrameMetadata() const {
   }
 
   for (LayerImpl* surface_layer : active_tree_->SurfaceLayers()) {
+    SurfaceLayerImpl* surface_layer_impl =
+        static_cast<SurfaceLayerImpl*>(surface_layer);
     metadata.referenced_surfaces.push_back(
-        static_cast<SurfaceLayerImpl*>(surface_layer)->surface_info().id());
+        surface_layer_impl->primary_surface_info().id());
+    // We need to retain a reference to the fallback surface too so that it's
+    // guaranteed to be available when needed.
+    if (surface_layer_impl->fallback_surface_info().id().is_valid()) {
+      metadata.referenced_surfaces.push_back(
+          surface_layer_impl->fallback_surface_info().id());
+    }
   }
   if (!InnerViewportScrollLayer())
     return metadata;
@@ -1760,8 +1769,10 @@ bool LayerTreeHostImpl::UpdateGpuRasterizationStatus() {
   int max_msaa_samples = 0;
   ContextProvider* compositor_context_provider =
       compositor_frame_sink_->context_provider();
+  bool gpu_rasterization_enabled = false;
   if (compositor_context_provider) {
     const auto& caps = compositor_context_provider->ContextCapabilities();
+    gpu_rasterization_enabled = caps.gpu_rasterization;
     if (!caps.msaa_is_slow)
       max_msaa_samples = caps.max_samples;
   }
@@ -1778,7 +1789,7 @@ bool LayerTreeHostImpl::UpdateGpuRasterizationStatus() {
     if (use_msaa) {
       gpu_rasterization_status_ = GpuRasterizationStatus::MSAA_CONTENT;
     }
-  } else if (!settings_.gpu_rasterization_enabled) {
+  } else if (!gpu_rasterization_enabled) {
     gpu_rasterization_status_ = GpuRasterizationStatus::OFF_DEVICE;
   } else if (!has_gpu_rasterization_trigger_) {
     gpu_rasterization_status_ = GpuRasterizationStatus::OFF_VIEWPORT;
@@ -3235,15 +3246,17 @@ float LayerTreeHostImpl::DeviceSpaceDistanceToLayer(
 void LayerTreeHostImpl::MouseDown() {
   ScrollbarAnimationController* animation_controller =
       ScrollbarAnimationControllerForId(scroll_layer_id_mouse_currently_over_);
-  if (animation_controller)
+  if (animation_controller) {
     animation_controller->DidMouseDown();
+    captured_scrollbar_animation_controller_ = animation_controller;
+  }
 }
 
 void LayerTreeHostImpl::MouseUp() {
-  ScrollbarAnimationController* animation_controller =
-      ScrollbarAnimationControllerForId(scroll_layer_id_mouse_currently_over_);
-  if (animation_controller)
-    animation_controller->DidMouseUp();
+  if (captured_scrollbar_animation_controller_) {
+    captured_scrollbar_animation_controller_->DidMouseUp();
+    captured_scrollbar_animation_controller_ = nullptr;
+  }
 }
 
 void LayerTreeHostImpl::MouseMoveAt(const gfx::Point& viewport_point) {

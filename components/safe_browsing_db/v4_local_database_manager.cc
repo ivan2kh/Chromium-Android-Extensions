@@ -14,6 +14,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "components/safe_browsing_db/v4_feature_list.h"
 #include "components/safe_browsing_db/v4_protocol_manager_util.h"
 #include "content/public/browser/browser_thread.h"
@@ -73,7 +74,12 @@ ListInfos GetListInfos() {
                GetChromeUrlClientIncidentId(),
                SB_THREAT_TYPE_BLACKLISTED_RESOURCE),
       ListInfo(kSyncNever, "", GetChromeUrlApiId(), SB_THREAT_TYPE_API_ABUSE),
+      ListInfo(kSyncOnlyOnChromeBuilds, "UrlSubresourceFilter.store",
+               GetUrlSubresourceFilterId(), SB_THREAT_TYPE_SUBRESOURCE_FILTER),
   });
+  // NOTE(vakh): IMPORTANT: Please make sure that the server already supports
+  // any list before adding it to this list otherwise the prefix updates break
+  // for all Canary users.
 }
 
 // Returns the severity information about a given SafeBrowsing list. The lowest
@@ -87,6 +93,7 @@ ThreatSeverity GetThreatSeverity(const ListIdentifier& list_id) {
     case UNWANTED_SOFTWARE:
       return 1;
     case API_ABUSE:
+    case CLIENT_INCIDENT:
       return 2;
     default:
       NOTREACHED() << "Unexpected ThreatType encountered: "
@@ -130,10 +137,6 @@ V4LocalDatabaseManager::PendingCheck::~PendingCheck() {}
 scoped_refptr<V4LocalDatabaseManager> V4LocalDatabaseManager::Create(
     const base::FilePath& base_path,
     ExtendedReportingLevelCallback extended_reporting_level_callback) {
-  if (!V4FeatureList::IsLocalDatabaseManagerEnabled()) {
-    return nullptr;
-  }
-
   return make_scoped_refptr(
       new V4LocalDatabaseManager(base_path, extended_reporting_level_callback));
 }
@@ -260,6 +263,22 @@ bool V4LocalDatabaseManager::CheckResourceUrl(const GURL& url, Client* client) {
   std::unique_ptr<PendingCheck> check = base::MakeUnique<PendingCheck>(
       client, ClientCallbackType::CHECK_RESOURCE_URL, stores_to_check,
       std::vector<GURL>(1, url));
+
+  return HandleCheck(std::move(check));
+}
+
+bool V4LocalDatabaseManager::CheckUrlForSubresourceFilter(const GURL& url,
+                                                          Client* client) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+
+  StoresToCheck stores_to_check({GetUrlSubresourceFilterId()});
+  if (!AreStoresAvailableNow(stores_to_check) || !CanCheckUrl(url)) {
+    return true;
+  }
+
+  std::unique_ptr<PendingCheck> check = base::MakeUnique<PendingCheck>(
+      client, ClientCallbackType::CHECK_URL_FOR_SUBRESOURCE_FILTER,
+      stores_to_check, std::vector<GURL>(1, url));
 
   return HandleCheck(std::move(check));
 }
@@ -457,25 +476,17 @@ bool V4LocalDatabaseManager::GetPrefixMatches(
   DCHECK(v4_database_);
 
   const base::TimeTicks before = TimeTicks::Now();
-  if (check->client_callback_type == ClientCallbackType::CHECK_BROWSE_URL ||
-      check->client_callback_type == ClientCallbackType::CHECK_DOWNLOAD_URLS ||
-      check->client_callback_type == ClientCallbackType::CHECK_RESOURCE_URL ||
-      check->client_callback_type == ClientCallbackType::CHECK_EXTENSION_IDS ||
-      check->client_callback_type == ClientCallbackType::CHECK_OTHER) {
-    DCHECK(!check->full_hashes.empty());
+  DCHECK(!check->full_hashes.empty());
 
-    full_hash_to_store_and_hash_prefixes->clear();
-    for (const auto& full_hash : check->full_hashes) {
-      StoreAndHashPrefixes matched_store_and_hash_prefixes;
-      v4_database_->GetStoresMatchingFullHash(full_hash, check->stores_to_check,
-                                              &matched_store_and_hash_prefixes);
-      if (!matched_store_and_hash_prefixes.empty()) {
-        (*full_hash_to_store_and_hash_prefixes)[full_hash] =
-            matched_store_and_hash_prefixes;
-      }
+  full_hash_to_store_and_hash_prefixes->clear();
+  for (const auto& full_hash : check->full_hashes) {
+    StoreAndHashPrefixes matched_store_and_hash_prefixes;
+    v4_database_->GetStoresMatchingFullHash(full_hash, check->stores_to_check,
+                                            &matched_store_and_hash_prefixes);
+    if (!matched_store_and_hash_prefixes.empty()) {
+      (*full_hash_to_store_and_hash_prefixes)[full_hash] =
+          matched_store_and_hash_prefixes;
     }
-  } else {
-    NOTREACHED() << "Unexpected client_callback_type encountered.";
   }
 
   // TODO(vakh): Only log SafeBrowsing.V4GetPrefixMatches.Time once PVer3 code
@@ -659,6 +670,7 @@ void V4LocalDatabaseManager::RespondToClient(
 
   switch (check->client_callback_type) {
     case ClientCallbackType::CHECK_BROWSE_URL:
+    case ClientCallbackType::CHECK_URL_FOR_SUBRESOURCE_FILTER:
       DCHECK_EQ(1u, check->urls.size());
       check->client->OnCheckBrowseUrlResult(
           check->urls[0], check->result_threat_type, check->url_metadata);
@@ -681,7 +693,6 @@ void V4LocalDatabaseManager::RespondToClient(
       check->client->OnCheckExtensionsResult(extension_ids);
       break;
     }
-
     case ClientCallbackType::CHECK_OTHER:
       NOTREACHED() << "Unexpected client_callback_type encountered";
   }

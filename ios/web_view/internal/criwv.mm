@@ -11,44 +11,51 @@
 #include "base/single_thread_task_runner.h"
 #include "ios/web/public/app/web_main.h"
 #include "ios/web/public/web_thread.h"
-#include "ios/web_view/internal/criwv_browser_state.h"
-#import "ios/web_view/internal/criwv_web_client.h"
 #import "ios/web_view/internal/criwv_web_main_delegate.h"
-#import "ios/web_view/internal/criwv_web_view_internal.h"
-#import "ios/web_view/public/criwv_delegate.h"
+#import "ios/web_view/public/cwv_delegate.h"
+#import "ios/web_view/public/cwv_web_view.h"
+#import "ios/web_view/public/cwv_web_view_configuration.h"
+#import "ios/web_view/public/cwv_website_data_store.h"
+
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
 
 namespace {
 CRIWV* g_criwv = nil;
 }
 
 @interface CRIWV () {
-  id<CRIWVDelegate> _delegate;
   std::unique_ptr<ios_web_view::CRIWVWebMainDelegate> _webMainDelegate;
   std::unique_ptr<web::WebMain> _webMain;
 }
 
-- (instancetype)initWithDelegate:(id<CRIWVDelegate>)delegate;
-- (ios_web_view::CRIWVBrowserState*)browserState;
+@property(nonatomic, weak) id<CWVDelegate> delegate;
+
+- (instancetype)initWithDelegate:(id<CWVDelegate>)delegate;
 @end
 
 @implementation CRIWV
 
-+ (void)configureWithDelegate:(id<CRIWVDelegate>)delegate {
+@synthesize delegate = _delegate;
+
++ (void)configureWithDelegate:(id<CWVDelegate>)delegate {
   g_criwv = [[CRIWV alloc] initWithDelegate:delegate];
 }
 
 + (void)shutDown {
-  [g_criwv release];
   g_criwv = nil;
 }
 
-+ (CRIWVWebView*)webViewWithFrame:(CGRect)frame {
-  return
-      [[[CRIWVWebView alloc] initWithFrame:frame
-                              browserState:[g_criwv browserState]] autorelease];
++ (CWVWebView*)webViewWithFrame:(CGRect)frame {
+  CWVWebViewConfiguration* configuration =
+      [[CWVWebViewConfiguration alloc] init];
+  configuration.websiteDataStore = [CWVWebsiteDataStore defaultDataStore];
+
+  return [[CWVWebView alloc] initWithFrame:frame configuration:configuration];
 }
 
-- (instancetype)initWithDelegate:(id<CRIWVDelegate>)delegate {
+- (instancetype)initWithDelegate:(id<CWVDelegate>)delegate {
   self = [super init];
   if (self) {
     _delegate = delegate;
@@ -62,13 +69,6 @@ CRIWV* g_criwv = nil;
 - (void)dealloc {
   _webMain.reset();
   _webMainDelegate.reset();
-  [super dealloc];
-}
-
-- (ios_web_view::CRIWVBrowserState*)browserState {
-  ios_web_view::CRIWVWebClient* client =
-      static_cast<ios_web_view::CRIWVWebClient*>(web::GetWebClient());
-  return client->browser_state();
 }
 
 @end

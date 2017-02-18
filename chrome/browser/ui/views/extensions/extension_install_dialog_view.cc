@@ -27,7 +27,6 @@
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/installer/util/browser_distribution.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/page_navigator.h"
@@ -245,20 +244,13 @@ void ExtensionInstallDialogView::InitView() {
     user_count->SetAutoColorReadabilityEnabled(false);
     user_count->SetEnabledColor(SK_ColorGRAY);
     layout->AddView(user_count);
-
-    layout->StartRow(0, column_set_id);
-    views::Link* store_link = new views::Link(
-        l10n_util::GetStringUTF16(IDS_EXTENSION_PROMPT_STORE_LINK));
-    store_link->SetFontList(small_font_list);
-    store_link->set_listener(this);
-    layout->AddView(store_link);
   }
 
   if (prompt_->ShouldShowPermissions()) {
     layout->AddPaddingRow(0, views::kRelatedControlVerticalSpacing);
     layout->StartRow(0, column_set_id);
-    layout->AddView(new views::Separator(views::Separator::HORIZONTAL), 3, 1,
-                    views::GridLayout::FILL, views::GridLayout::FILL);
+    layout->AddView(new views::Separator(), 3, 1, views::GridLayout::FILL,
+                    views::GridLayout::FILL);
   }
 
   const int content_width =
@@ -557,6 +549,16 @@ void ExtensionInstallDialogView::Layout() {
 
 gfx::Size ExtensionInstallDialogView::GetPreferredSize() const {
   return dialog_size_;
+}
+
+views::View* ExtensionInstallDialogView::CreateExtraView() {
+  if (!prompt_->has_webstore_data())
+    return nullptr;
+
+  views::Link* store_link = new views::Link(
+      l10n_util::GetStringUTF16(IDS_EXTENSION_PROMPT_STORE_LINK));
+  store_link->set_listener(this);
+  return store_link;
 }
 
 void ExtensionInstallDialogView::UpdateInstallResultHistogram(bool accepted)

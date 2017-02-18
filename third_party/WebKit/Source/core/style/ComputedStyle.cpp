@@ -63,7 +63,7 @@ namespace blink {
 
 struct SameSizeAsBorderValue {
   RGBA32 m_color;
-  unsigned m_width;
+  unsigned m_bitfield;
 };
 
 ASSERT_SIZE(BorderValue, SameSizeAsBorderValue);
@@ -367,15 +367,9 @@ void ComputedStyle::copyNonInheritedFromCached(const ComputedStyle& other) {
       other.m_nonInheritedData.m_effectiveDisplay;
   m_nonInheritedData.m_originalDisplay =
       other.m_nonInheritedData.m_originalDisplay;
-  m_nonInheritedData.m_overflowX = other.m_nonInheritedData.m_overflowX;
-  m_nonInheritedData.m_overflowY = other.m_nonInheritedData.m_overflowY;
   m_nonInheritedData.m_verticalAlign = other.m_nonInheritedData.m_verticalAlign;
-  m_nonInheritedData.m_position = other.m_nonInheritedData.m_position;
   m_nonInheritedData.m_hasViewportUnits =
       other.m_nonInheritedData.m_hasViewportUnits;
-  m_nonInheritedData.m_breakBefore = other.m_nonInheritedData.m_breakBefore;
-  m_nonInheritedData.m_breakAfter = other.m_nonInheritedData.m_breakAfter;
-  m_nonInheritedData.m_breakInside = other.m_nonInheritedData.m_breakInside;
   m_nonInheritedData.m_hasRemUnits = other.m_nonInheritedData.m_hasRemUnits;
 
   // Correctly set during selector matching:
@@ -386,7 +380,7 @@ void ComputedStyle::copyNonInheritedFromCached(const ComputedStyle& other) {
   // m_nonInheritedData.m_explicitInheritance
 
   // unique() styles are not cacheable.
-  DCHECK(!other.m_nonInheritedData.m_unique);
+  DCHECK(!other.unique());
 
   // styles with non inherited properties that reference variables are not
   // cacheable.
@@ -564,7 +558,7 @@ StyleDifference ComputedStyle::visualInvalidationDiff(
       diff.setNeedsFullLayout();
   }
 
-  if (!diff.needsFullLayout() && position() != StaticPosition &&
+  if (!diff.needsFullLayout() && position() != EPosition::kStatic &&
       m_surround->offset != other.m_surround->offset) {
     // Optimize for the case where a positioned layer is moving but not changing
     // size.
@@ -600,7 +594,7 @@ StyleDifference ComputedStyle::visualInvalidationDiff(
 bool ComputedStyle::scrollAnchorDisablingPropertyChanged(
     const ComputedStyle& other,
     const StyleDifference& diff) const {
-  if (m_nonInheritedData.m_position != other.m_nonInheritedData.m_position)
+  if (position() != other.position())
     return true;
 
   if (m_box.get() != other.m_box.get()) {
@@ -811,8 +805,7 @@ bool ComputedStyle::diffNeedsFullLayoutAndPaintInvalidation(
       getWritingMode() != other.getWritingMode())
     return true;
 
-  if (m_nonInheritedData.m_overflowX != other.m_nonInheritedData.m_overflowX ||
-      m_nonInheritedData.m_overflowY != other.m_nonInheritedData.m_overflowY ||
+  if (overflowX() != other.overflowX() || overflowY() != other.overflowY() ||
       clear() != other.clear() || getUnicodeBidi() != other.getUnicodeBidi() ||
       floating() != other.floating() ||
       m_nonInheritedData.m_originalDisplay !=
@@ -885,7 +878,7 @@ bool ComputedStyle::diffNeedsFullLayout(const ComputedStyle& other) const {
 
   if (m_nonInheritedData.m_verticalAlign !=
           other.m_nonInheritedData.m_verticalAlign ||
-      m_nonInheritedData.m_position != other.m_nonInheritedData.m_position)
+      position() != other.position())
     return true;
 
   if (m_surround.get() != other.m_surround.get()) {
@@ -1496,12 +1489,13 @@ FloatRoundedRect ComputedStyle::getRoundedInnerBorderFor(
   bool horizontal = isHorizontalWritingMode();
 
   int leftWidth =
-      (!horizontal || includeLogicalLeftEdge) ? borderLeftWidth() : 0;
+      (!horizontal || includeLogicalLeftEdge) ? roundf(borderLeftWidth()) : 0;
   int rightWidth =
-      (!horizontal || includeLogicalRightEdge) ? borderRightWidth() : 0;
-  int topWidth = (horizontal || includeLogicalLeftEdge) ? borderTopWidth() : 0;
+      (!horizontal || includeLogicalRightEdge) ? roundf(borderRightWidth()) : 0;
+  int topWidth =
+      (horizontal || includeLogicalLeftEdge) ? roundf(borderTopWidth()) : 0;
   int bottomWidth =
-      (horizontal || includeLogicalRightEdge) ? borderBottomWidth() : 0;
+      (horizontal || includeLogicalRightEdge) ? roundf(borderBottomWidth()) : 0;
 
   return getRoundedInnerBorderFor(
       borderRect,
@@ -2218,7 +2212,7 @@ const BorderValue& ComputedStyle::borderEnd() const {
   return isLeftToRightDirection() ? borderBottom() : borderTop();
 }
 
-int ComputedStyle::borderBeforeWidth() const {
+float ComputedStyle::borderBeforeWidth() const {
   switch (getWritingMode()) {
     case WritingMode::kHorizontalTb:
       return borderTopWidth();
@@ -2231,7 +2225,7 @@ int ComputedStyle::borderBeforeWidth() const {
   return borderTopWidth();
 }
 
-int ComputedStyle::borderAfterWidth() const {
+float ComputedStyle::borderAfterWidth() const {
   switch (getWritingMode()) {
     case WritingMode::kHorizontalTb:
       return borderBottomWidth();
@@ -2244,23 +2238,23 @@ int ComputedStyle::borderAfterWidth() const {
   return borderBottomWidth();
 }
 
-int ComputedStyle::borderStartWidth() const {
+float ComputedStyle::borderStartWidth() const {
   if (isHorizontalWritingMode())
     return isLeftToRightDirection() ? borderLeftWidth() : borderRightWidth();
   return isLeftToRightDirection() ? borderTopWidth() : borderBottomWidth();
 }
 
-int ComputedStyle::borderEndWidth() const {
+float ComputedStyle::borderEndWidth() const {
   if (isHorizontalWritingMode())
     return isLeftToRightDirection() ? borderRightWidth() : borderLeftWidth();
   return isLeftToRightDirection() ? borderBottomWidth() : borderTopWidth();
 }
 
-int ComputedStyle::borderOverWidth() const {
+float ComputedStyle::borderOverWidth() const {
   return isHorizontalWritingMode() ? borderTopWidth() : borderRightWidth();
 }
 
-int ComputedStyle::borderUnderWidth() const {
+float ComputedStyle::borderUnderWidth() const {
   return isHorizontalWritingMode() ? borderBottomWidth() : borderLeftWidth();
 }
 

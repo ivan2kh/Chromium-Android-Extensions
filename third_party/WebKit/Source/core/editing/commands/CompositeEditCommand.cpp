@@ -99,8 +99,7 @@ bool CompositeEditCommand::apply() {
       case InputEvent::InputType::InsertFromPaste:
       case InputEvent::InputType::InsertFromDrop:
       case InputEvent::InputType::InsertReplacementText:
-      case InputEvent::InputType::DeleteComposedCharacterForward:
-      case InputEvent::InputType::DeleteComposedCharacterBackward:
+      case InputEvent::InputType::InsertCompositionText:
       case InputEvent::InputType::DeleteWordBackward:
       case InputEvent::InputType::DeleteWordForward:
       case InputEvent::InputType::DeleteLineBackward:
@@ -688,20 +687,6 @@ void CompositeEditCommand::setNodeAttribute(Element* element,
       ASSERT_NO_EDITING_ABORT);
 }
 
-static inline bool containsOnlyWhitespace(const String& text) {
-  for (unsigned i = 0; i < text.length(); ++i) {
-    if (!isWhitespace(text[i]))
-      return false;
-  }
-
-  return true;
-}
-
-bool CompositeEditCommand::shouldRebalanceLeadingWhitespaceFor(
-    const String& text) const {
-  return containsOnlyWhitespace(text);
-}
-
 bool CompositeEditCommand::canRebalance(const Position& position) const {
   Node* node = position.computeContainerNode();
   if (!position.isOffsetInAnchor() || !node || !node->isTextNode() ||
@@ -777,7 +762,7 @@ void CompositeEditCommand::rebalanceWhitespaceOnTextSubstring(Text* textNode,
   const bool nextSiblingIsTextNode =
       textNode->nextSibling() && textNode->nextSibling()->isTextNode() &&
       toText(textNode->nextSibling())->data().length() &&
-      toText(textNode->nextSibling())->data()[0] != ' ';
+      !isWhitespace(toText(textNode->nextSibling())->data()[0]);
   const bool shouldEmitNBSPbeforeEnd =
       (isEndOfParagraph(visibleDownstreamPos) ||
        (unsigned)downstream == text.length()) &&

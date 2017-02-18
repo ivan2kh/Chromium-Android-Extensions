@@ -59,7 +59,7 @@ class FFmpegGlue;
 
 typedef std::unique_ptr<AVPacket, ScopedPtrAVFreePacket> ScopedAVPacket;
 
-class FFmpegDemuxerStream : public DemuxerStream {
+class MEDIA_EXPORT FFmpegDemuxerStream : public DemuxerStream {
  public:
   // Attempts to create FFmpegDemuxerStream form the given AVStream. Will return
   // null if the AVStream cannot be translated into a valid decoder config.
@@ -114,9 +114,11 @@ class FFmpegDemuxerStream : public DemuxerStream {
   AudioDecoderConfig audio_decoder_config() override;
   VideoDecoderConfig video_decoder_config() override;
   VideoRotation video_rotation() override;
-  bool enabled() const override;
-  void set_enabled(bool enabled, base::TimeDelta timestamp) override;
-  void SetStreamStatusChangeCB(const StreamStatusChangeCB& cb) override;
+
+  bool enabled() const;
+  void set_enabled(bool enabled, base::TimeDelta timestamp);
+
+  void SetStreamStatusChangeCB(const StreamStatusChangeCB& cb);
 
   void SetLiveness(Liveness liveness);
 
@@ -218,7 +220,8 @@ class MEDIA_EXPORT FFmpegDemuxer : public Demuxer {
   void CancelPendingSeek(base::TimeDelta seek_time) override;
   void Seek(base::TimeDelta time, const PipelineStatusCB& cb) override;
   base::Time GetTimelineOffset() const override;
-  DemuxerStream* GetStream(DemuxerStream::Type type) override;
+  std::vector<DemuxerStream*> GetAllStreams() override;
+  void SetStreamStatusChangeCB(const StreamStatusChangeCB& cb) override;
   base::TimeDelta GetStartTime() const override;
   int64_t GetMemoryUsage() const override;
 
@@ -276,9 +279,10 @@ class MEDIA_EXPORT FFmpegDemuxer : public Demuxer {
   // Called by |url_protocol_| whenever |data_source_| returns a read error.
   void OnDataSourceError();
 
-  // Returns the stream from |streams_| that matches |type| as an
-  // FFmpegDemuxerStream.
-  FFmpegDemuxerStream* GetFFmpegStream(DemuxerStream::Type type) const;
+  // Returns the first stream from |streams_| that matches |type| as an
+  // FFmpegDemuxerStream and is enabled.
+  FFmpegDemuxerStream* GetFirstEnabledFFmpegStream(
+      DemuxerStream::Type type) const;
 
   // Called after the streams have been collected from the media, to allow
   // the text renderer to bind each text stream to the cue rendering engine.
@@ -360,7 +364,7 @@ class MEDIA_EXPORT FFmpegDemuxer : public Demuxer {
 
   const MediaTracksUpdatedCB media_tracks_updated_cb_;
 
-  std::map<MediaTrack::Id, DemuxerStream*> track_id_to_demux_stream_map_;
+  std::map<MediaTrack::Id, FFmpegDemuxerStream*> track_id_to_demux_stream_map_;
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtr<FFmpegDemuxer> weak_this_;

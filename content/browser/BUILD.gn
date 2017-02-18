@@ -15,12 +15,9 @@ source_set("browser") {
   # internal content ones) should depend on the public one.
   visibility = [
     ":for_content_tests",  # See top of //content/BUILD.gn for why.
+    "//content/app:*",
     "//content/public/browser:browser_sources",
   ]
-  if (is_android) {
-    # See comment in content/app/BUILD.gn above content_app_deps.
-    visibility += [ "//content/app:*" ]
-  }
 
   configs += [
     "//build/config:precompiled_headers",
@@ -87,7 +84,6 @@ source_set("browser") {
     "//gpu/command_buffer/client:gles2_interface",
     "//gpu/ipc/host",
     "//ipc",
-    "//ipc:mojom",
     "//media",
     "//media/capture",
     "//media/capture/mojo:image_capture",
@@ -104,9 +100,11 @@ source_set("browser") {
     "//net:http_server",
     "//ppapi/features",
     "//printing/features",
+    "//services/catalog:constants",
+    "//services/catalog/public/cpp",
     "//services/catalog/public/interfaces:constants",
     "//services/device:lib",
-    "//services/device/public/interfaces",
+    "//services/device/public/interfaces:constants",
     "//services/file:lib",
     "//services/file/public/interfaces",
     "//services/service_manager",
@@ -242,10 +240,8 @@ source_set("browser") {
     "accessibility/browser_accessibility_win.h",
     "accessibility/one_shot_accessibility_tree_search.cc",
     "accessibility/one_shot_accessibility_tree_search.h",
-    "android/app_web_message_port_message_filter.cc",
-    "android/app_web_message_port_message_filter.h",
-    "android/app_web_message_port_service_impl.cc",
-    "android/app_web_message_port_service_impl.h",
+    "android/app_web_message_port.cc",
+    "android/app_web_message_port.h",
     "android/background_sync_network_observer_android.cc",
     "android/background_sync_network_observer_android.h",
     "android/browser_jni_registrar.cc",
@@ -265,6 +261,8 @@ source_set("browser") {
     "android/java_interfaces_impl.h",
     "android/scoped_surface_request_manager.cc",
     "android/scoped_surface_request_manager.h",
+    "android/string_message_codec.cc",
+    "android/string_message_codec.h",
     "android/url_request_content_job.cc",
     "android/url_request_content_job.h",
     "appcache/appcache.cc",
@@ -320,6 +318,12 @@ source_set("browser") {
     "appcache/chrome_appcache_service.h",
     "audio_manager_thread.cc",
     "audio_manager_thread.h",
+    "background_fetch/background_fetch_context.cc",
+    "background_fetch/background_fetch_context.h",
+    "background_fetch/background_fetch_data_manager.cc",
+    "background_fetch/background_fetch_data_manager.h",
+    "background_fetch/fetch_request.cc",
+    "background_fetch/fetch_request.h",
     "background_sync/background_sync_context.cc",
     "background_sync/background_sync_context.h",
     "background_sync/background_sync_manager.cc",
@@ -341,6 +345,8 @@ source_set("browser") {
     "blob_storage/blob_dispatcher_host.h",
     "blob_storage/chrome_blob_storage_context.cc",
     "blob_storage/chrome_blob_storage_context.h",
+    "bluetooth/bluetooth_allowed_devices.cc",
+    "bluetooth/bluetooth_allowed_devices.h",
     "bluetooth/bluetooth_allowed_devices_map.cc",
     "bluetooth/bluetooth_allowed_devices_map.h",
     "bluetooth/bluetooth_blocklist.cc",
@@ -618,6 +624,8 @@ source_set("browser") {
     "frame_host/interstitial_page_impl.h",
     "frame_host/interstitial_page_navigator_impl.cc",
     "frame_host/interstitial_page_navigator_impl.h",
+    "frame_host/mixed_content_navigation_throttle.cc",
+    "frame_host/mixed_content_navigation_throttle.h",
     "frame_host/navigation_controller_android.cc",
     "frame_host/navigation_controller_android.h",
     "frame_host/navigation_controller_delegate.h",
@@ -669,8 +677,12 @@ source_set("browser") {
     "gpu/gpu_data_manager_impl.h",
     "gpu/gpu_data_manager_impl_private.cc",
     "gpu/gpu_data_manager_impl_private.h",
+    "gpu/gpu_feature_checker_impl.cc",
+    "gpu/gpu_feature_checker_impl.h",
     "gpu/gpu_internals_ui.cc",
     "gpu/gpu_internals_ui.h",
+    "gpu/gpu_main_thread_factory.cc",
+    "gpu/gpu_main_thread_factory.h",
     "gpu/gpu_process_host.cc",
     "gpu/gpu_process_host.h",
     "gpu/gpu_process_host_ui_shim.cc",
@@ -931,11 +943,7 @@ source_set("browser") {
     "memory/memory_pressure_controller_impl.h",
     "memory/memory_state_updater.cc",
     "memory/memory_state_updater.h",
-    "message_port_message_filter.cc",
-    "message_port_message_filter.h",
     "message_port_provider.cc",
-    "message_port_service.cc",
-    "message_port_service.h",
     "mime_registry_impl.cc",
     "mime_registry_impl.h",
     "net/browser_online_state_observer.cc",
@@ -1207,10 +1215,10 @@ source_set("browser") {
     "resolve_proxy_msg_helper.h",
     "resource_context_impl.cc",
     "resource_context_impl.h",
-    "screen_orientation/screen_orientation.cc",
-    "screen_orientation/screen_orientation.h",
     "screen_orientation/screen_orientation_delegate_win.cc",
     "screen_orientation/screen_orientation_delegate_win.h",
+    "screen_orientation/screen_orientation_provider.cc",
+    "screen_orientation/screen_orientation_provider.h",
     "service_manager/merge_dictionary.cc",
     "service_manager/merge_dictionary.h",
     "service_manager/service_manager_context.cc",
@@ -1464,7 +1472,10 @@ source_set("browser") {
     deps += [ "//sandbox" ]
   }
   if (!is_android) {
-    deps += [ "//content/browser/tracing:resources" ]
+    deps += [
+      "//content/browser/tracing:resources",
+      "//ui/vector_icons",
+    ]
   }
   if ((use_udev && is_posix) || is_mac || is_win) {
     deps += [ "//tools/battor_agent:battor_agent_lib" ]

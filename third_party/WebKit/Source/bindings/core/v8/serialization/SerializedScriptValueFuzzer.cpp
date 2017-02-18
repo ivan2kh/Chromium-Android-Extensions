@@ -9,7 +9,6 @@
 #include "core/dom/MessagePort.h"
 #include "core/frame/Settings.h"
 #include "core/testing/DummyPageHolder.h"
-#include "platform/RuntimeEnabledFeatures.h"
 #include "platform/testing/BlinkFuzzerTestSupport.h"
 #include "public/platform/WebBlobInfo.h"
 #include "public/platform/WebMessagePortChannel.h"
@@ -38,8 +37,7 @@ class WebMessagePortChannelImpl final : public WebMessagePortChannel {
  public:
   // WebMessagePortChannel
   void setClient(WebMessagePortChannelClient* client) override {}
-  void destroy() override { delete this; }
-  void postMessage(const WebString&, WebMessagePortChannelArray*) {
+  void postMessage(const WebString&, WebMessagePortChannelArray) {
     NOTIMPLEMENTED();
   }
   bool tryGetMessage(WebString*, WebMessagePortChannelArray&) { return false; }
@@ -51,7 +49,6 @@ int LLVMFuzzerInitialize(int* argc, char*** argv) {
   const char kExposeGC[] = "--expose_gc";
   v8::V8::SetFlagsFromString(kExposeGC, sizeof(kExposeGC));
   InitializeBlinkFuzzTest(argc, argv);
-  RuntimeEnabledFeatures::setV8BasedStructuredCloneEnabled(true);
   pageHolder = DummyPageHolder::create().release();
   pageHolder->frame().settings()->setScriptEnabled(true);
   blobInfoArray = new WebBlobInfoArray();

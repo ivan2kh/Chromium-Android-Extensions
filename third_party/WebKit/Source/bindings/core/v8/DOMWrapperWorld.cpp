@@ -141,8 +141,9 @@ void DOMWrapperWorld::markWrappersInAllWorlds(
   // Handle marking in per-worker wrapper worlds.
   if (!isMainThread()) {
     DCHECK(ThreadState::current()->isolate());
-    if (workerWorld()) {
-      DOMDataStore& dataStore = workerWorld()->domDataStore();
+    DOMWrapperWorld* worker = workerWorld();
+    if (worker) {
+      DOMDataStore& dataStore = worker->domDataStore();
       if (dataStore.containsWrapper(scriptWrappable)) {
         dataStore.markWrapper(scriptWrappable);
       }
@@ -166,10 +167,6 @@ DOMWrapperWorld::~DOMWrapperWorld() {
 
   dispose();
 
-  if (m_worldId == WorkerWorldId) {
-    workerWorld() = nullptr;
-  }
-
   if (!isIsolatedWorld())
     return;
 
@@ -188,6 +185,8 @@ DOMWrapperWorld::~DOMWrapperWorld() {
 void DOMWrapperWorld::dispose() {
   m_domObjectHolders.clear();
   m_domDataStore.reset();
+  if (isWorkerWorld())
+    workerWorld() = nullptr;
 }
 
 #if DCHECK_IS_ON()
@@ -202,7 +201,7 @@ PassRefPtr<DOMWrapperWorld> DOMWrapperWorld::ensureIsolatedWorld(
   ASSERT(isIsolatedWorldId(worldId));
 
   WorldMap& map = isolatedWorldMap();
-  WorldMap::AddResult result = map.add(worldId, nullptr);
+  WorldMap::AddResult result = map.insert(worldId, nullptr);
   RefPtr<DOMWrapperWorld> world = result.storedValue->value;
   if (world) {
     ASSERT(world->worldId() == worldId);
@@ -307,7 +306,7 @@ void DOMWrapperWorld::registerDOMObjectHolderInternal(
 void DOMWrapperWorld::unregisterDOMObjectHolder(
     DOMObjectHolderBase* holderBase) {
   ASSERT(m_domObjectHolders.contains(holderBase));
-  m_domObjectHolders.remove(holderBase);
+  m_domObjectHolders.erase(holderBase);
 }
 
 void DOMWrapperWorld::weakCallbackForDOMObjectHolder(

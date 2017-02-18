@@ -14,7 +14,8 @@ api.Command = {
   'UPDATE_ELEMENT': 1,
   'REMOVE_ELEMENT': 2,
   'ADD_ANIMATION': 3,
-  'REMOVE_ANIMATION': 4
+  'REMOVE_ANIMATION': 4,
+  'UPDATE_BACKGROUND': 5
 };
 
 /**
@@ -69,6 +70,7 @@ api.Action = {
   'LOAD_URL': 6,
   'OMNIBOX_CONTENT': 7,
   'SET_CONTENT_PAUSED': 8,
+  'SHOW_TAB': 9
 };
 
 /**
@@ -119,6 +121,52 @@ api.setUiCssSize = function(width, height, dpr) {
   chrome.send('setUiCssSize', [width, height, dpr]);
 };
 
+api.FillType = {
+  'NONE': 0,
+  'SPRITE': 1,
+  'OPAQUE_GRADIENT': 2,
+  'GRID_GRADIENT': 3,
+  'CONTENT': 4
+};
+
+api.Fill = class {
+  constructor(type) {
+    this.properties = {};
+    this.properties['fillType'] = type;
+  }
+}
+
+api.Sprite = class extends api.Fill {
+  constructor(pixelX, pixelY, pixelWidth, pixelHeight) {
+    super(api.FillType.SPRITE);
+    this.properties.copyRect =
+        {x: pixelX, y: pixelY, width: pixelWidth, height: pixelHeight};
+  }
+}
+
+api.OpaqueGradient = class extends api.Fill {
+  constructor(edgeColor, centerColor) {
+    super(api.FillType.OPAQUE_GRADIENT);
+    this.properties.edgeColor = edgeColor;
+    this.properties.centerColor = centerColor;
+  }
+}
+
+api.GridGradient = class extends api.Fill {
+  constructor(edgeColor, centerColor, gridlineCount) {
+    super(api.FillType.GRID_GRADIENT);
+    this.properties.edgeColor = edgeColor;
+    this.properties.centerColor = centerColor;
+    this.properties.gridlineCount = gridlineCount;
+  }
+}
+
+api.Content = class extends api.Fill {
+  constructor() {
+    super(api.FillType.CONTENT);
+  }
+}
+
 /**
  * Represents updates to UI element properties. Any properties set on this
  * object are relayed to an underlying native element via scene command.
@@ -137,13 +185,6 @@ api.UiElementUpdate = class {
    */
   setId(id) {
     this.properties['id'] = id;
-  }
-
-  /**
-  * Operates on an instance of MyClass and returns something.
-  */
-  setIsContentQuad() {
-    this.properties['contentQuad'] = true;
   }
 
   /**
@@ -245,6 +286,21 @@ api.UiElementUpdate = class {
   setOpacity(opacity) {
     this.properties['opacity'] = opacity;
   }
+
+  setFill(fill) {
+    Object.assign(this.properties, fill.properties);
+  }
+
+  /**
+   * Sets the draw phase. Elements with a lower draw phase are rendered before
+   * elements with a higher draw phase. If elements have an equal draw phase
+   * the element with the larger distance is drawn first. The default draw phase
+   * is 1.
+   * @param {number} drawPhase
+   */
+  setDrawPhase(drawPhase) {
+    this.properties['drawPhase'] = drawPhase;
+  }
 };
 
 /**
@@ -266,9 +322,7 @@ api.UiElement = class extends api.UiElementUpdate {
   constructor(pixelX, pixelY, pixelWidth, pixelHeight) {
     super();
 
-    /** @private {Object} */
-    this.properties['copyRect'] =
-        {x: pixelX, y: pixelY, width: pixelWidth, height: pixelHeight};
+    this.setFill(new api.Sprite(pixelX, pixelY, pixelWidth, pixelHeight));
   }
 };
 
@@ -393,5 +447,143 @@ api.Animation = class {
   setOpacity(opacity) {
     this.property = api.Property.OPACITY;
     this.to.x = opacity;
+  }
+};
+
+/**
+ * Abstract class handling webui command calls from native.  The UI must
+ * subclass this and override the handlers.
+ */
+api.NativeCommandHandler = class {
+  /**
+   * @param {api.Mode} mode
+   */
+  onSetMode(mode) {}
+
+  /**
+   * Handles entering or exiting full-screen mode.
+   * @param {boolean} fullscreen
+   */
+  onSetFullscreen(fullscreen) {}
+
+  /**
+   * A controller app button click has happened.
+   */
+  onAppButtonClicked() {}
+
+  /**
+   * Handles a change in the visible page's security level.
+   * @param {number} level
+   */
+  onSetSecurityLevel(level) {}
+
+  /**
+   * Handles a change in the WebVR-specific secure-origin state. If |secure| is
+   * false, the UI must convey appropriate security warnings.
+   * @param {boolean} secure
+   */
+  onSetWebVRSecureOrigin(secure) {}
+
+  /**
+   * Handles enabling of a development-oriented control to reload the UI.
+   * @param {boolean} enabled
+   */
+  onSetReloadUiCapabilityEnabled(enabled) {}
+
+  /**
+   * Handles a new URL, specifying the host and path compoments.
+   * @param {string} host
+   * @param {string} path
+   */
+  onSetUrl(host, path) {}
+
+  /**
+   * Handle a change in loading state (used to show a spinner or other loading
+   * indicator).
+   * @param {boolean} loading
+   */
+  onSetLoading(loading) {}
+
+  /**
+   * Handle a change in loading progress. Progress is supplied as a number
+   * between 0.0 and 1.0.
+   * @param {boolean} progress
+   */
+  onSetLoadingProgress(progress) {}
+
+  /**
+   * Handle a change in the set of omnibox suggestions.
+   * @param {Array<Object>} suggestions Array of suggestions with string members
+   * |description| and |url|.
+   */
+  onSetOmniboxSuggestions(suggestions) {}
+
+  /**
+   * Handle a new set of tabs, overwriting the previous state.
+   * @param {Array<Object>} tabs Array of tab states.
+   */
+  onSetTabs(tabs) {}
+
+  /**
+   * Update (or add if not present) a tab.
+   * @param {Object} tab
+   */
+  onUpdateTab(tab) {}
+
+  /**
+   * Remove a tab.
+   * @param {Object} tab
+   */
+  onRemoveTab(tab) {}
+
+  /**
+   * This function is executed after command parsing completes.
+   */
+  onCommandHandlerFinished() {}
+
+  /** @final */
+  handleCommand(dict) {
+    if ('mode' in dict) {
+      this.onSetMode(dict['mode']);
+    }
+    if ('fullscreen' in dict) {
+      this.onSetFullscreen(dict['fullscreen'])
+    }
+    if ('appButtonClicked' in dict) {
+      this.onAppButtonClicked();
+    }
+    if ('securityLevel' in dict) {
+      this.onSetSecurityLevel(dict['securityLevel']);
+    }
+    if ('webVRSecureOrigin' in dict) {
+      this.onSetWebVRSecureOrigin(dict['webVRSecureOrigin']);
+    }
+    if ('enableReloadUi' in dict) {
+      this.onSetReloadUiCapabilityEnabled(dict['enableReloadUi']);
+    }
+    if ('url' in dict) {
+      let url = dict['url'];
+      this.onSetUrl(url['host'], url['path']);
+    }
+    if ('loading' in dict) {
+      this.onSetLoading(dict['loading']);
+    }
+    if ('loadProgress' in dict) {
+      this.onSetLoadingProgress(dict['loadProgress']);
+    }
+    if ('suggestions' in dict) {
+      this.onSetOmniboxSuggestions(dict['suggestions']);
+    }
+    if ('setTabs' in dict) {
+      this.onSetTabs(dict['setTabs']);
+    }
+    if ('updateTab' in dict) {
+      this.onUpdateTab(dict['updateTabs']);
+    }
+    if ('removeTab' in dict) {
+      this.onRemoveTab(dict['removeTab']);
+    }
+
+    this.onCommandHandlerFinished()
   }
 };

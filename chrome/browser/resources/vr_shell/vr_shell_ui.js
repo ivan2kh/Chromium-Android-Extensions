@@ -7,6 +7,7 @@ var vrShellUi = (function() {
 
   let ui = new scene.Scene();
   let uiManager;
+  let nativeCommandHandler;
 
   let uiRootElement = document.querySelector('#ui');
   let uiStyle = window.getComputedStyle(uiRootElement);
@@ -34,9 +35,15 @@ var vrShellUi = (function() {
       /** @const */ this.CSS_WIDTH_PIXELS = 960.0;
       /** @const */ this.CSS_HEIGHT_PIXELS = 640.0;
       /** @const */ this.DPR = 1.2;
+      /** @const */ this.MENU_MODE_SCREEN_DISTANCE = 1.2;
+      /** @const */ this.MENU_MODE_SCREEN_HEIGHT = 0.5;
+      /** @const */ this.MENU_MODE_SCREEN_ELEVATION = 0.1;
+
+      this.menuMode = false;
+      this.fullscreen = false;
 
       let element = new api.UiElement(0, 0, 0, 0);
-      element.setIsContentQuad();
+      element.setFill(new api.Content());
       element.setVisible(false);
       element.setSize(
           this.SCREEN_HEIGHT * this.SCREEN_RATIO, this.SCREEN_HEIGHT);
@@ -50,26 +57,48 @@ var vrShellUi = (function() {
       ui.updateElement(this.elementId, update);
       if (enabled) {
         api.setContentCssSize(
-          this.CSS_WIDTH_PIXELS, this.CSS_HEIGHT_PIXELS, this.DPR);
+            this.CSS_WIDTH_PIXELS, this.CSS_HEIGHT_PIXELS, this.DPR);
       } else {
         // TODO(mthiesse): Restore the webVR resolution (which matches native
         // display resolution).
       }
     }
 
-    setOpacity(opacity) {
-      let update = new api.UiElementUpdate();
-      update.setOpacity(opacity);
-      ui.updateElement(this.elementId, update);
+    setMenuMode(enabled) {
+      if (this.menuMode == enabled)
+        return;
+      this.menuMode = enabled;
+      this.updateState()
     }
 
     setFullscreen(enabled) {
-      let anim = new api.Animation(this.elementId, ANIM_DURATION);
-      if (enabled) {
-        anim.setTranslation(0, 0, -this.FULLSCREEN_DISTANCE);
-      } else {
-        anim.setTranslation(0, 0, -this.BROWSING_SCREEN_DISTANCE);
+      if (this.fullscreen == enabled)
+        return;
+      this.fullscreen = enabled;
+      this.updateState()
+    }
+
+    updateState() {
+      // Defaults content quad parameters.
+      let y = 0;
+      let z = -this.BROWSING_SCREEN_DISTANCE;
+      let height = this.SCREEN_HEIGHT;
+
+      // Mode-specific overrides.
+      if (this.menuMode) {
+        y = this.MENU_MODE_SCREEN_ELEVATION;
+        z = -this.MENU_MODE_SCREEN_DISTANCE;
+        height = this.MENU_MODE_SCREEN_HEIGHT;
+      } else if (this.fullscreen) {
+        z = -this.FULLSCREEN_DISTANCE;
       }
+
+      let anim;
+      anim = new api.Animation(this.elementId, ANIM_DURATION);
+      anim.setTranslation(0, y, z);
+      ui.addAnimation(anim);
+      anim = new api.Animation(this.elementId, ANIM_DURATION);
+      anim.setSize(height * this.SCREEN_RATIO, height);
       ui.addAnimation(anim);
     }
 
@@ -168,14 +197,17 @@ var vrShellUi = (function() {
         ],
       ];
 
-      /** @const */ var BUTTON_SPACING = 0.136;
+      /** @const */ var BUTTON_Y = -0.27;
+      /** @const */ var BUTTON_Z = -1;
+      /** @const */ var BUTTON_SPACING = 0.11;
 
       let startPosition = -BUTTON_SPACING * (descriptors.length / 2.0 - 0.5);
       for (let i = 0; i < descriptors.length; i++) {
         // Use an invisible parent to simplify Z-axis movement on hover.
         let position = new api.UiElement(0, 0, 0, 0);
         position.setVisible(false);
-        position.setTranslation(startPosition + i * BUTTON_SPACING, -0.68, -1);
+        position.setTranslation(
+            startPosition + i * BUTTON_SPACING, BUTTON_Y, BUTTON_Z);
         let id = ui.addElement(position);
 
         let domId = descriptors[i][0];
@@ -220,6 +252,9 @@ var vrShellUi = (function() {
 
       let update = new api.UiElementUpdate();
       update.setVisible(false);
+      update.setSize(0.5, 0.2);
+      update.setTranslation(0, -2, -1);
+      update.setRotation(1, 0, 0, -0.8);
       ui.updateElement(this.uiElement.uiElementId, update);
     }
 
@@ -483,6 +518,86 @@ var vrShellUi = (function() {
     }
   };
 
+  class Background {
+    constructor() {
+      /** @const */ this.SCENE_GROUND_SIZE = 25.0;
+      /** @const */ this.SCENE_HEIGHT = 4.0;
+      /** @const */ this.GRIDLINE_COUNT = 10;
+      /** @const */ this.HORIZON_COLOR = {r: 0.57, g: 0.57, b: 0.57, a: 1.0};
+      /** @const */ this.CENTER_COLOR = {r: 0.48, g: 0.48, b: 0.48, a: 1.0};
+      /** @const */ this.FULLSCREEN_BACKGROUND_COLOR =
+          {r: 0.1, g: 0.1, b: 0.1, a: 1.0};
+
+      // Make ground plane.
+      let groundPlane = new api.UiElementUpdate();
+      groundPlane.setVisible(true);
+      groundPlane.setSize(this.SCENE_GROUND_SIZE, this.SCENE_GROUND_SIZE);
+      groundPlane.setFill(
+          new api.OpaqueGradient(this.HORIZON_COLOR, this.CENTER_COLOR));
+      groundPlane.setTranslation(0, -this.SCENE_HEIGHT / 2, 0);
+      groundPlane.setRotation(1.0, 0.0, 0.0, -Math.PI / 2);
+      groundPlane.setDrawPhase(0);
+      this.groundPlaneId = ui.addElement(groundPlane);
+
+      // Make ceiling plane.
+      let ceilingPlane = new api.UiElementUpdate();
+      ceilingPlane.setVisible(true);
+      ceilingPlane.setSize(this.SCENE_GROUND_SIZE, this.SCENE_GROUND_SIZE);
+      ceilingPlane.setFill(
+          new api.OpaqueGradient(this.HORIZON_COLOR, this.CENTER_COLOR));
+      ceilingPlane.setTranslation(0, this.SCENE_HEIGHT / 2, 0);
+      ceilingPlane.setRotation(1.0, 0.0, 0.0, Math.PI / 2);
+      ceilingPlane.setDrawPhase(0);
+      this.ceilingPlaneId = ui.addElement(ceilingPlane);
+
+      // Ground grid.
+      let groundGrid = new api.UiElementUpdate();
+      groundGrid.setVisible(true);
+      groundGrid.setSize(this.SCENE_GROUND_SIZE, this.SCENE_GROUND_SIZE);
+      let transparentHorizonColor = {
+        r: this.HORIZON_COLOR.r,
+        g: this.HORIZON_COLOR.g,
+        b: this.HORIZON_COLOR.b,
+        a: 0
+      };
+      groundGrid.setFill(new api.GridGradient(
+          transparentHorizonColor, this.HORIZON_COLOR, this.GRIDLINE_COUNT));
+      groundGrid.setTranslation(0, -this.SCENE_HEIGHT / 2 + 0.01, 0);
+      groundGrid.setRotation(1.0, 0.0, 0.0, -Math.PI / 2);
+      groundGrid.setDrawPhase(0);
+      this.groundGridId = ui.addElement(groundGrid);
+    }
+
+    setEnabled(enabled) {
+      let groundPlaneUpdate = new api.UiElementUpdate();
+      groundPlaneUpdate.setVisible(enabled);
+      ui.updateElement(this.groundPlaneId, groundPlaneUpdate);
+      let ceilingPlaneUpdate = new api.UiElementUpdate();
+      ceilingPlaneUpdate.setVisible(enabled);
+      ui.updateElement(this.ceilingPlaneId, ceilingPlaneUpdate);
+      let groundGridUpdate = new api.UiElementUpdate();
+      groundGridUpdate.setVisible(enabled);
+      ui.updateElement(this.groundGridId, groundGridUpdate);
+    }
+
+    setFullscreen(fullscreen) {
+      let groundPlaneUpdate = new api.UiElementUpdate();
+      groundPlaneUpdate.setVisible(!fullscreen);
+      ui.updateElement(this.groundPlaneId, groundPlaneUpdate);
+      let ceilingPlaneUpdate = new api.UiElementUpdate();
+      ceilingPlaneUpdate.setVisible(!fullscreen);
+      ui.updateElement(this.ceilingPlaneId, ceilingPlaneUpdate);
+
+      // Set darker background color for fullscreen since the user might
+      // potentially watch a video.
+      if (fullscreen) {
+        ui.setBackgroundColor(this.FULLSCREEN_BACKGROUND_COLOR);
+      } else {
+        ui.setBackgroundColor(this.HORIZON_COLOR);
+      }
+    }
+  };
+
   class Omnibox {
     constructor() {
       this.enabled = false;
@@ -506,6 +621,7 @@ var vrShellUi = (function() {
       // Watch for the enter key to trigger navigation.
       this.inputField.addEventListener('keypress', function(e) {
         if (e.keyCode == 13) {
+          this.setSuggestions([]);
           api.doAction(
               // TODO(crbug.com/683344): Properly choose prefix.
               api.Action.LOAD_URL, {'url': 'http://' + e.target.value});
@@ -518,12 +634,13 @@ var vrShellUi = (function() {
       });
 
       // Clicking on suggestions triggers navigation.
-      let elements = root.querySelectorAll('.omnibox-suggestion');
+      let elements = root.querySelectorAll('.suggestion');
       this.maxSuggestions = elements.length;
       for (var i = 0; i < elements.length; i++) {
         elements[i].addEventListener('click', function(index, e) {
           if (e.target.url) {
             api.doAction(api.Action.LOAD_URL, {'url': e.target.url});
+            this.setSuggestions([]);
           }
         }.bind(this, i));
       }
@@ -557,12 +674,129 @@ var vrShellUi = (function() {
     }
   };
 
+  // Shows the open tabs.
+  //
+  // The tab container is made of three <div> nesting levels. The first is the
+  // tab container element, which acts like a scroll view. It has a fixed size
+  // and corresponds to a UI element in the scene. The second level is the clip
+  // element, which is programmatically set to the total width of all it's
+  // children (the third nesting level). The clip element is needed to enable
+  // horizontal scrolling and prevent the children from breaking to a new line.
+  // The third nesting level comprises the actual tabs.
+  //
+  // TODO(crbug/641487): currently, tabs cannot be scrolled because the
+  // scrolling event is not sent to UI elements.
+  class TabContainer {
+    constructor(contentQuadId) {
+      /** @const */ var DOM_TAB_TEMPLATE_SELECTOR = '#tab-template';
+      /** @const */ var DOM_TAB_CONTAINER_SELECTOR = '#tab-container';
+      /** @const */ var DOM_TAB_CLIP_SELECTOR = '#tab-clip';
+      /** @const */ var TAB_CONTAINER_Y_OFFSET = 0.4;
+      /** @const */ var TAB_CONTAINER_Z_OFFSET = -1;
+
+      this.tabs = {};
+      this.domTabs = {};
+      this.contentQuadId = contentQuadId;
+      this.domTabTemplate = document.querySelector(DOM_TAB_TEMPLATE_SELECTOR);
+      this.domTabContainer = document.querySelector(DOM_TAB_CONTAINER_SELECTOR);
+      this.domTabClip = document.querySelector(DOM_TAB_CLIP_SELECTOR);
+
+      // Add tab container to native scene.
+      this.tabContainerElement = new DomUiElement(DOM_TAB_CONTAINER_SELECTOR);
+      let positionUpdate = new api.UiElementUpdate();
+      positionUpdate.setTranslation(
+          0, TAB_CONTAINER_Y_OFFSET, TAB_CONTAINER_Z_OFFSET);
+      positionUpdate.setVisible(false);
+      ui.updateElement(this.tabContainerElement.uiElementId, positionUpdate);
+
+      // Calculate the width of one tab so that we can properly set the clip
+      // element's width.
+      this.domTabWidth = this.domTabTemplate.offsetWidth;
+      var domTabStyle = window.getComputedStyle(this.domTabTemplate);
+      this.domTabWidth += parseInt(domTabStyle.marginLeft, 10) +
+          parseInt(domTabStyle.marginRight, 10);
+    }
+
+    getQualifiedTabId(tab) {
+      return (tab.incognito ? 'i' : 'n') + tab.id;
+    }
+
+    makeDomTab(tab) {
+      // Make a copy of the template tab and add this copy to the tab container
+      // view.
+      let domTab = this.domTabTemplate.cloneNode(true);
+      domTab.removeAttribute('id');
+      domTab.addEventListener('click', function() {
+        api.doAction(api.Action.SHOW_TAB, {'id': domTab.tab.id});
+      });
+      domTab.tab = tab;
+      this.domTabClip.appendChild(domTab);
+      this.domTabs[this.getQualifiedTabId(tab)] = domTab;
+      return domTab;
+    }
+
+    resizeClipElement() {
+      // Resize clip element so that scrolling works.
+      this.domTabClip.style.width =
+          (Object.keys(this.tabs).length * this.domTabWidth) + 'px';
+    }
+
+    setTabs(tabs) {
+      // Remove all current tabs.
+      while (this.domTabClip.firstChild) {
+        this.domTabClip.removeChild(this.domTabClip.firstChild);
+      }
+      this.tabs = {};
+
+      // Add new tabs.
+      for (let i = 0; i < tabs.length; i++) {
+        this.addTab(tabs[i]);
+      }
+    }
+
+    hasTab(tab) {
+      return this.getQualifiedTabId(tab) in this.tabs;
+    }
+
+    addTab(tab) {
+      this.tabs[this.getQualifiedTabId(tab)] = tab;
+      this.makeDomTab(tab);
+      this.updateTab(tab);
+      this.resizeClipElement();
+    }
+
+    updateTab(tab) {
+      let domTab = this.domTabs[this.getQualifiedTabId(tab)];
+      domTab.textContent = tab.title;
+      domTab.classList.remove('tab-incognito');
+      if (tab.incognito) {
+        domTab.classList.add('tab-incognito');
+      }
+    }
+
+    removeTab(tab) {
+      let qualifiedTabId = this.getQualifiedTabId(tab);
+      let domTab = this.domTabs[qualifiedTabId];
+      delete this.domTabs[qualifiedTabId];
+      this.domTabClip.removeChild(domTab);
+      delete this.tabs[qualifiedTabId];
+      this.resizeClipElement();
+    }
+
+    setEnabled(enabled) {
+      let visibilityUpdate = new api.UiElementUpdate();
+      visibilityUpdate.setVisible(enabled);
+      ui.updateElement(this.tabContainerElement.uiElementId, visibilityUpdate);
+    }
+  };
+
   class UiManager {
     constructor() {
       this.mode = api.Mode.UNKNOWN;
       this.menuMode = false;
       this.fullscreen = false;
 
+      this.background = new Background();
       this.contentQuad = new ContentQuad();
       let contentId = this.contentQuad.getElementId();
 
@@ -571,10 +805,15 @@ var vrShellUi = (function() {
       this.urlIndicator = new UrlIndicator();
       this.omnibox = new Omnibox();
       this.reloadUiButton = new ReloadUiButton();
+      this.tabContainer = new TabContainer(contentId);
     }
 
-    setMode(mode, fullscreen) {
+    setMode(mode) {
       this.mode = mode;
+      this.updateState();
+    }
+
+    setFullscreen(fullscreen) {
       this.fullscreen = fullscreen;
       this.updateState();
     }
@@ -592,8 +831,10 @@ var vrShellUi = (function() {
 
       api.doAction(api.Action.SET_CONTENT_PAUSED, {'paused': menuMode});
 
-      this.contentQuad.setEnabled(mode == api.Mode.STANDARD && !menuMode);
+      this.background.setEnabled(mode == api.Mode.STANDARD);
+      this.contentQuad.setEnabled(mode == api.Mode.STANDARD);
       this.contentQuad.setFullscreen(this.fullscreen);
+      this.contentQuad.setMenuMode(menuMode);
       // TODO(crbug/643815): Set aspect ratio on content quad when available.
       this.controls.setEnabled(menuMode);
       this.omnibox.setEnabled(menuMode);
@@ -602,6 +843,9 @@ var vrShellUi = (function() {
           URL_INDICATOR_VISIBILITY_TIMEOUT_MS);
       this.secureOriginWarnings.setEnabled(
           mode == api.Mode.WEB_VR && !menuMode);
+      this.background.setEnabled(mode == api.Mode.STANDARD || menuMode);
+      this.background.setFullscreen(this.fullscreen);
+      this.tabContainer.setEnabled(mode == api.Mode.STANDARD && menuMode);
 
       this.reloadUiButton.setEnabled(mode == api.Mode.STANDARD);
 
@@ -620,51 +864,96 @@ var vrShellUi = (function() {
 
   function initialize() {
     uiManager = new UiManager();
+    nativeCommandHandler = new UiCommandHandler(uiManager);
     ui.flush();
 
     api.domLoaded();
   }
 
+  class UiCommandHandler extends api.NativeCommandHandler {
+    constructor(uiManager) {
+      super();
+      this.manager = uiManager;
+    }
+
+    /** @override */
+    onSetMode(mode) {
+      this.manager.setMode(mode);
+    }
+
+    /** @override */
+    onSetFullscreen(fullscreen) {
+      this.manager.setFullscreen(fullscreen);
+    }
+
+    /** @override */
+    onAppButtonClicked() {
+      this.manager.handleAppButtonClicked();
+    }
+
+    /** @override */
+    onSetSecurityLevel(level) {
+      this.manager.setSecurityLevel(level);
+    }
+
+    /** @override */
+    onSetWebVRSecureOrigin(secure) {
+      this.manager.setWebVRSecureOrigin(secure);
+    }
+
+    /** @override */
+    onSetReloadUiCapabilityEnabled(enabled) {
+      this.manager.reloadUiButton.setDevMode(enabled);
+    }
+
+    /** @override */
+    onSetUrl(host, path) {
+      this.manager.urlIndicator.setURL(host, path);
+      this.manager.omnibox.setURL(host, path);
+    }
+
+    /** @override */
+    onSetLoading(loading) {
+      this.manager.urlIndicator.setLoading(loading);
+    }
+
+    /** @override */
+    onSetLoadingProgress(progress) {
+      this.manager.urlIndicator.setLoadProgress(progress);
+    }
+
+    /** @override */
+    onSetOmniboxSuggestions(suggestions) {
+      this.manager.omnibox.setSuggestions(suggestions);
+    }
+
+    /** @override */
+    onSetTabs(tabs) {
+      uiManager.tabContainer.setTabs(tabs)
+    }
+
+    /** @override */
+    onUpdateTab(tab) {
+      if (uiManager.tabContainer.hasTab(tab)) {
+        uiManager.tabContainer.updateTab(tab);
+      } else {
+        uiManager.tabContainer.addTab(tab);
+      }
+    }
+
+    /** @override */
+    onRemoveTab(tab) {
+      uiManager.tabContainer.removeTab(tab);
+    }
+
+    /** @override */
+    onCommandHandlerFinished() {
+      ui.flush();
+    }
+  }
+
   function command(dict) {
-    if ('mode' in dict) {
-      uiManager.setMode(dict['mode'], dict['fullscreen']);
-    }
-    if ('appButtonClicked' in dict) {
-      uiManager.handleAppButtonClicked();
-    }
-    if ('securityLevel' in dict) {
-      uiManager.setSecurityLevel(dict['securityLevel']);
-    }
-    if ('webVRSecureOrigin' in dict) {
-      uiManager.setWebVRSecureOrigin(dict['webVRSecureOrigin']);
-    }
-    if ('enableReloadUi' in dict) {
-      uiManager.reloadUiButton.setDevMode(dict['enableReloadUi']);
-    }
-    if ('url' in dict) {
-      let url = dict['url'];
-      uiManager.urlIndicator.setURL(url['host'], url['path']);
-      uiManager.omnibox.setURL(url['host'] + url['path']);
-    }
-    if ('loading' in dict) {
-      uiManager.urlIndicator.setLoading(dict['loading']);
-    }
-    if ('loadProgress' in dict) {
-      uiManager.urlIndicator.setLoadProgress(dict['loadProgress']);
-    }
-    if ('suggestions' in dict) {
-      uiManager.omnibox.setSuggestions(dict['suggestions']);
-    }
-    if ('setTabs' in dict) {
-      console.log(dict['setTabs']);
-    }
-    if ('updateTab' in dict) {
-      console.log(dict['updateTab']);
-    }
-    if ('removeTab' in dict) {
-      console.log(dict['removeTab']);
-    }
-    ui.flush();
+    nativeCommandHandler.handleCommand(dict);
   }
 
   return {

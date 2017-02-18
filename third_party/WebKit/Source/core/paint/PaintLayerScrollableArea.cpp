@@ -409,11 +409,9 @@ void PaintLayerScrollableArea::updateScrollOffset(const ScrollOffset& newOffset,
 
   const LayoutBoxModelObject& paintInvalidationContainer =
       box().containerForPaintInvalidation();
-  // The caret rect needs to be invalidated after scrolling
-  frame->selection().setCaretRectNeedsUpdate();
 
   FloatQuad quadForFakeMouseMoveEvent = FloatQuad(FloatRect(
-      layer()->layoutObject()->previousVisualRectIncludingCompositedScrolling(
+      layer()->layoutObject().previousVisualRectIncludingCompositedScrolling(
           paintInvalidationContainer)));
 
   quadForFakeMouseMoveEvent =
@@ -1051,10 +1049,10 @@ IntRect PaintLayerScrollableArea::rectForHorizontalScrollbar(
   const IntRect& scrollCorner = scrollCornerRect();
 
   return IntRect(horizontalScrollbarStart(borderBoxRect.x()),
-                 borderBoxRect.maxY() - box().borderBottom() -
+                 borderBoxRect.maxY() - box().borderBottom().toInt() -
                      horizontalScrollbar()->scrollbarThickness(),
                  borderBoxRect.width() -
-                     (box().borderLeft() + box().borderRight()) -
+                     (box().borderLeft() + box().borderRight()).toInt() -
                      scrollCorner.width(),
                  horizontalScrollbar()->scrollbarThickness());
 }
@@ -1068,20 +1066,22 @@ IntRect PaintLayerScrollableArea::rectForVerticalScrollbar(
 
   return IntRect(
       verticalScrollbarStart(borderBoxRect.x(), borderBoxRect.maxX()),
-      borderBoxRect.y() + box().borderTop(),
+      borderBoxRect.y() + box().borderTop().toInt(),
       verticalScrollbar()->scrollbarThickness(),
-      borderBoxRect.height() - (box().borderTop() + box().borderBottom()) -
+      borderBoxRect.height() -
+          (box().borderTop() + box().borderBottom()).toInt() -
           scrollCorner.height());
 }
 
 int PaintLayerScrollableArea::verticalScrollbarStart(int minX, int maxX) const {
   if (box().shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
-    return minX + box().borderLeft();
-  return maxX - box().borderRight() - verticalScrollbar()->scrollbarThickness();
+    return minX + box().borderLeft().toInt();
+  return maxX - box().borderRight().toInt() -
+         verticalScrollbar()->scrollbarThickness();
 }
 
 int PaintLayerScrollableArea::horizontalScrollbarStart(int minX) const {
-  int x = minX + box().borderLeft();
+  int x = minX + box().borderLeft().toInt();
   if (box().shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
     x += hasVerticalScrollbar()
              ? verticalScrollbar()->scrollbarThickness()
@@ -1093,9 +1093,10 @@ int PaintLayerScrollableArea::horizontalScrollbarStart(int minX) const {
 
 IntSize PaintLayerScrollableArea::scrollbarOffset(
     const Scrollbar& scrollbar) const {
-  if (&scrollbar == verticalScrollbar())
+  if (&scrollbar == verticalScrollbar()) {
     return IntSize(verticalScrollbarStart(0, box().size().width().toInt()),
-                   box().borderTop());
+                   box().borderTop().toInt());
+  }
 
   if (&scrollbar == horizontalScrollbar())
     return IntSize(
@@ -1371,10 +1372,10 @@ bool PaintLayerScrollableArea::hitTestOverflowControls(
   if (hasVerticalScrollbar() &&
       verticalScrollbar()->shouldParticipateInHitTesting()) {
     LayoutRect vBarRect(verticalScrollbarStart(0, box().size().width().toInt()),
-                        box().borderTop(),
+                        box().borderTop().toInt(),
                         verticalScrollbar()->scrollbarThickness(),
                         box().size().height().toInt() -
-                            (box().borderTop() + box().borderBottom()) -
+                            (box().borderTop() + box().borderBottom()).toInt() -
                             (hasHorizontalScrollbar()
                                  ? horizontalScrollbar()->scrollbarThickness()
                                  : resizeControlSize));
@@ -1512,7 +1513,7 @@ void PaintLayerScrollableArea::updateResizerStyle() {
 void PaintLayerScrollableArea::invalidateAllStickyConstraints() {
   if (PaintLayerScrollableAreaRareData* d = rareData()) {
     for (PaintLayer* stickyLayer : d->m_stickyConstraintsMap.keys()) {
-      if (stickyLayer->layoutObject()->style()->position() == StickyPosition)
+      if (stickyLayer->layoutObject().style()->position() == EPosition::kSticky)
         stickyLayer->setNeedsCompositingInputsUpdate();
     }
     d->m_stickyConstraintsMap.clear();
@@ -1525,7 +1526,7 @@ void PaintLayerScrollableArea::invalidateStickyConstraintsFor(
   if (PaintLayerScrollableAreaRareData* d = rareData()) {
     d->m_stickyConstraintsMap.remove(layer);
     if (needsCompositingUpdate &&
-        layer->layoutObject()->style()->position() == StickyPosition)
+        layer->layoutObject().style()->position() == EPosition::kSticky)
       layer->setNeedsCompositingInputsUpdate();
   }
 }
@@ -1756,11 +1757,11 @@ bool PaintLayerScrollableArea::computeNeedsCompositedScrolling(
   // transforms are also integer.
   bool backgroundSupportsLCDText =
       RuntimeEnabledFeatures::compositeOpaqueScrollersEnabled() &&
-      layer->layoutObject()->style()->isStackingContext() &&
+      layer->layoutObject().style()->isStackingContext() &&
       layer->backgroundPaintLocation(&mainThreadScrollingReasons) &
           BackgroundPaintInScrollingContents &&
       layer->backgroundIsKnownToBeOpaqueInRect(
-          toLayoutBox(layer->layoutObject())->paddingBoxRect()) &&
+          toLayoutBox(layer->layoutObject()).paddingBoxRect()) &&
       !layer->compositesWithTransform() && !layer->compositesWithOpacity();
 
   if (mode == PaintLayerScrollableArea::ConsiderLCDText &&
@@ -1775,7 +1776,7 @@ bool PaintLayerScrollableArea::computeNeedsCompositedScrolling(
           MainThreadScrollingReason::kHasTransformAndLCDText;
     }
     if (!layer->backgroundIsKnownToBeOpaqueInRect(
-            toLayoutBox(layer->layoutObject())->paddingBoxRect())) {
+            toLayoutBox(layer->layoutObject()).paddingBoxRect())) {
       mainThreadScrollingReasons |=
           MainThreadScrollingReason::kBackgroundNotOpaqueInRectAndLCDText;
     }
@@ -1784,14 +1785,14 @@ bool PaintLayerScrollableArea::computeNeedsCompositedScrolling(
   }
 
   // TODO(schenney) Tests fail if we do not also exclude
-  // layer->layoutObject()->style()->hasBorderDecoration() (missing background
+  // layer->layoutObject().style()->hasBorderDecoration() (missing background
   // behind dashed borders). Resolve this case, or not, and update this check
   // with the results.
-  if (layer->layoutObject()->style()->hasBorderRadius()) {
+  if (layer->layoutObject().style()->hasBorderRadius()) {
     mainThreadScrollingReasons |= MainThreadScrollingReason::kHasBorderRadius;
     needsCompositedScrolling = false;
   }
-  if (layer->layoutObject()->hasClip() || layer->hasDescendantWithClipPath() ||
+  if (layer->layoutObject().hasClip() || layer->hasDescendantWithClipPath() ||
       layer->hasAncestorWithClipPath()) {
     mainThreadScrollingReasons |=
         MainThreadScrollingReason::kHasClipRelatedProperty;
@@ -1894,12 +1895,12 @@ void PaintLayerScrollableArea::resetRebuildScrollbarLayerFlags() {
 
 CompositorAnimationHost* PaintLayerScrollableArea::compositorAnimationHost()
     const {
-  return m_layer.layoutObject()->frameView()->compositorAnimationHost();
+  return m_layer.layoutObject().frameView()->compositorAnimationHost();
 }
 
 CompositorAnimationTimeline*
 PaintLayerScrollableArea::compositorAnimationTimeline() const {
-  return m_layer.layoutObject()->frameView()->compositorAnimationTimeline();
+  return m_layer.layoutObject().frameView()->compositorAnimationTimeline();
 }
 
 PaintLayerScrollableArea*

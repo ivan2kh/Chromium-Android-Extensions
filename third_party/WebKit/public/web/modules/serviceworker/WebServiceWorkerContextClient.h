@@ -100,6 +100,10 @@ class WebServiceWorkerContextClient {
   // Called when the worker context is initialized.
   virtual void didInitializeWorkerContext(v8::Local<v8::Context> context) {}
 
+  // Called when some API to be recorded in UseCounter is called on the worker
+  // global scope.
+  virtual void countFeature(uint32_t feature) {}
+
   // Called when the WorkerGlobalScope had an error or an exception.
   virtual void reportException(const WebString& errorMessage,
                                int lineNumber,
@@ -243,7 +247,7 @@ class WebServiceWorkerContextClient {
   // FIXME: Blob refs should be passed to maintain ref counts. crbug.com/351753
   virtual void postMessageToClient(const WebString& uuid,
                                    const WebString&,
-                                   WebMessagePortChannelArray*) = 0;
+                                   WebMessagePortChannelArray) = 0;
 
   // Ownership of the passed callbacks is transferred to the callee, callee
   // should delete the callbacks after run.

@@ -87,6 +87,10 @@
 
 #include "web/WebLocalFrameImpl.h"
 
+#include <algorithm>
+#include <memory>
+#include <utility>
+
 #include "bindings/core/v8/BindingSecurity.h"
 #include "bindings/core/v8/DOMWrapperWorld.h"
 #include "bindings/core/v8/ExceptionState.h"
@@ -120,6 +124,7 @@
 #include "core/frame/PageScaleConstraintsSet.h"
 #include "core/frame/RemoteFrame.h"
 #include "core/frame/Settings.h"
+#include "core/frame/SmartClip.h"
 #include "core/frame/UseCounter.h"
 #include "core/frame/VisualViewport.h"
 #include "core/html/HTMLAnchorElement.h"
@@ -166,7 +171,7 @@
 #include "platform/graphics/paint/ClipRecorder.h"
 #include "platform/graphics/paint/DisplayItemCacheSkipper.h"
 #include "platform/graphics/paint/DrawingRecorder.h"
-#include "platform/graphics/paint/SkPictureBuilder.h"
+#include "platform/graphics/paint/PaintRecordBuilder.h"
 #include "platform/graphics/skia/SkiaUtils.h"
 #include "platform/heap/Handle.h"
 #include "platform/instrumentation/tracing/TraceEvent.h"
@@ -229,9 +234,6 @@
 #include "wtf/CurrentTime.h"
 #include "wtf/HashMap.h"
 #include "wtf/PtrUtil.h"
-#include <algorithm>
-#include <memory>
-#include <utility>
 
 namespace blink {
 
@@ -301,11 +303,11 @@ class ChromePrintContext : public PrintContext {
       return 0;
 
     IntRect pageRect = m_pageRects[pageNumber];
-    SkPictureBuilder pictureBuilder(pageRect, &skia::GetMetaData(*canvas));
-    pictureBuilder.context().setPrinting(true);
+    PaintRecordBuilder builder(pageRect, &canvas->getMetaData());
+    builder.context().setPrinting(true);
 
-    float scale = spoolPage(pictureBuilder, pageNumber);
-    pictureBuilder.endRecording()->playback(canvas);
+    float scale = spoolPage(builder, pageNumber);
+    builder.endRecording()->playback(canvas);
     return scale;
   }
 
@@ -328,17 +330,17 @@ class ChromePrintContext : public PrintContext {
     int totalHeight = numPages * (pageSizeInPixels.height() + 1) - 1;
     IntRect allPagesRect(0, 0, pageWidth, totalHeight);
 
-    SkPictureBuilder pictureBuilder(allPagesRect, &skia::GetMetaData(*canvas));
-    pictureBuilder.context().setPrinting(true);
+    PaintRecordBuilder builder(allPagesRect, &canvas->getMetaData());
+    builder.context().setPrinting(true);
 
     {
-      GraphicsContext& context = pictureBuilder.context();
+      GraphicsContext& context = builder.context();
       DisplayItemCacheSkipper skipper(context);
 
       // Fill the whole background by white.
       {
         DrawingRecorder backgroundRecorder(
-            context, pictureBuilder, DisplayItem::kPrintedContentBackground,
+            context, builder, DisplayItem::kPrintedContentBackground,
             allPagesRect);
         context.fillRect(FloatRect(0, 0, pageWidth, totalHeight), Color::white);
       }
@@ -348,7 +350,7 @@ class ChromePrintContext : public PrintContext {
         // Draw a line for a page boundary if this isn't the first page.
         if (pageIndex > 0) {
           DrawingRecorder lineBoundaryRecorder(
-              context, pictureBuilder, DisplayItem::kPrintedContentLineBoundary,
+              context, builder, DisplayItem::kPrintedContentLineBoundary,
               allPagesRect);
           context.save();
           context.setStrokeColor(Color(0, 0, 255));
@@ -366,13 +368,13 @@ class ChromePrintContext : public PrintContext {
         float scale = getPageShrink(pageIndex);
         transform.scale(scale, scale);
 #endif
-        TransformRecorder transformRecorder(context, pictureBuilder, transform);
-        spoolPage(pictureBuilder, pageIndex);
+        TransformRecorder transformRecorder(context, builder, transform);
+        spoolPage(builder, pageIndex);
 
         currentHeight += pageSizeInPixels.height() + 1;
       }
     }
-    pictureBuilder.endRecording()->playback(canvas);
+    builder.endRecording()->playback(canvas);
   }
 
  protected:
@@ -381,10 +383,10 @@ class ChromePrintContext : public PrintContext {
   // instead. Returns the scale to be applied.
   // On Linux, we don't have the problem with NativeTheme, hence we let WebKit
   // do the scaling and ignore the return value.
-  virtual float spoolPage(SkPictureBuilder& pictureBuilder, int pageNumber) {
+  virtual float spoolPage(PaintRecordBuilder& builder, int pageNumber) {
     IntRect pageRect = m_pageRects[pageNumber];
     float scale = m_printedPageWidth / pageRect.width();
-    GraphicsContext& context = pictureBuilder.context();
+    GraphicsContext& context = builder.context();
 
     AffineTransform transform;
 #if OS(POSIX) && !OS(MACOSX)
@@ -392,17 +394,17 @@ class ChromePrintContext : public PrintContext {
 #endif
     transform.translate(static_cast<float>(-pageRect.x()),
                         static_cast<float>(-pageRect.y()));
-    TransformRecorder transformRecorder(context, pictureBuilder, transform);
+    TransformRecorder transformRecorder(context, builder, transform);
 
-    ClipRecorder clipRecorder(context, pictureBuilder,
-                              DisplayItem::kClipPrintedPage, pageRect);
+    ClipRecorder clipRecorder(context, builder, DisplayItem::kClipPrintedPage,
+                              pageRect);
 
     frame()->view()->paintContents(context, GlobalPaintNormalPhase, pageRect);
 
     {
       DrawingRecorder lineBoundaryRecorder(
-          context, pictureBuilder,
-          DisplayItem::kPrintedContentDestinationLocations, pageRect);
+          context, builder, DisplayItem::kPrintedContentDestinationLocations,
+          pageRect);
       outputLinkedDestinations(context, pageRect);
     }
 
@@ -472,9 +474,9 @@ class ChromePluginPrintContext final : public ChromePrintContext {
   // Spools the printed page, a subrect of frame(). Skip the scale step.
   // NativeTheme doesn't play well with scaling. Scaling is done browser side
   // instead. Returns the scale to be applied.
-  float spoolPage(SkPictureBuilder& pictureBuilder, int pageNumber) override {
+  float spoolPage(PaintRecordBuilder& builder, int pageNumber) override {
     IntRect pageRect = m_pageRects[pageNumber];
-    m_plugin->printPage(pageNumber, pictureBuilder.context(), pageRect);
+    m_plugin->printPage(pageNumber, builder.context(), pageRect);
 
     return 1.0;
   }
@@ -2068,6 +2070,26 @@ void WebLocalFrameImpl::setHasReceivedUserGesture() {
     frame()->setDocumentHasReceivedUserGesture();
 }
 
+void WebLocalFrameImpl::blinkFeatureUsageReport(const std::set<int>& features) {
+  DCHECK(!features.empty());
+  // Assimilate all features used/performed by the browser into UseCounter.
+  for (int feature : features) {
+    UseCounter::count(frame(), static_cast<UseCounter::Feature>(feature));
+  }
+}
+
+void WebLocalFrameImpl::mixedContentFound(
+    const WebURL& mainResourceUrl,
+    const WebURL& mixedContentUrl,
+    WebURLRequest::RequestContext requestContext,
+    bool wasAllowed,
+    bool hadRedirect) {
+  DCHECK(frame());
+  MixedContentChecker::mixedContentFound(frame(), mainResourceUrl,
+                                         mixedContentUrl, requestContext,
+                                         wasAllowed, hadRedirect);
+}
+
 void WebLocalFrameImpl::sendOrientationChangeEvent() {
   if (!frame())
     return;
@@ -2381,6 +2403,38 @@ base::SingleThreadTaskRunner* WebLocalFrameImpl::unthrottledTaskRunner() {
 
 WebInputMethodControllerImpl* WebLocalFrameImpl::inputMethodController() const {
   return m_inputMethodController.get();
+}
+
+void WebLocalFrameImpl::extractSmartClipData(WebRect rectInViewport,
+                                             WebString& clipText,
+                                             WebString& clipHtml) {
+  SmartClipData clipData = SmartClip(frame()).dataForRect(rectInViewport);
+  clipText = clipData.clipData();
+
+  WebPoint startPoint(rectInViewport.x, rectInViewport.y);
+  WebPoint endPoint(rectInViewport.x + rectInViewport.width,
+                    rectInViewport.y + rectInViewport.height);
+  VisiblePosition startVisiblePosition =
+      visiblePositionForViewportPoint(startPoint);
+  VisiblePosition endVisiblePosition =
+      visiblePositionForViewportPoint(endPoint);
+
+  Position startPosition = startVisiblePosition.deepEquivalent();
+  Position endPosition = endVisiblePosition.deepEquivalent();
+
+  // document() will return null if -webkit-user-select is set to none.
+  if (!startPosition.document() || !endPosition.document())
+    return;
+
+  if (startPosition.compareTo(endPosition) <= 0) {
+    clipHtml =
+        createMarkup(startPosition, endPosition, AnnotateForInterchange,
+                     ConvertBlocksToInlines::NotConvert, ResolveNonLocalURLs);
+  } else {
+    clipHtml =
+        createMarkup(endPosition, startPosition, AnnotateForInterchange,
+                     ConvertBlocksToInlines::NotConvert, ResolveNonLocalURLs);
+  }
 }
 
 }  // namespace blink

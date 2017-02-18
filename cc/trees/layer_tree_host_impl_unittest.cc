@@ -22,7 +22,6 @@
 #include "cc/input/browser_controls_offset_manager.h"
 #include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/input/page_scale_animation.h"
-#include "cc/input/scrollbar_animation_controller_thinning.h"
 #include "cc/layers/append_quads_data.h"
 #include "cc/layers/heads_up_display_layer_impl.h"
 #include "cc/layers/layer_impl.h"
@@ -55,7 +54,6 @@
 #include "cc/test/fake_raster_source.h"
 #include "cc/test/fake_video_frame_provider.h"
 #include "cc/test/geometry_test_utils.h"
-#include "cc/test/gpu_rasterization_enabled_settings.h"
 #include "cc/test/layer_test_common.h"
 #include "cc/test/layer_tree_test.h"
 #include "cc/test/test_compositor_frame_sink.h"
@@ -112,7 +110,6 @@ class LayerTreeHostImplTest : public testing::Test,
     LayerTreeSettings settings;
     settings.minimum_occlusion_tracking_size = gfx::Size();
     settings.renderer_settings.texture_id_allocation_chunk_size = 1;
-    settings.gpu_rasterization_enabled = true;
     settings.verify_clip_tree_calculations = true;
     settings.renderer_settings.buffer_to_texture_target_map =
         DefaultBufferToTextureTargetMapForTesting();
@@ -469,7 +466,7 @@ class LayerTreeHostImplTest : public testing::Test,
 
  protected:
   virtual std::unique_ptr<CompositorFrameSink> CreateCompositorFrameSink() {
-    return FakeCompositorFrameSink::Create3d();
+    return FakeCompositorFrameSink::Create3dForGpuRasterization();
   }
 
   void DrawOneFrame() {
@@ -2891,12 +2888,12 @@ class LayerTreeHostImplTestScrollbarAnimation : public LayerTreeHostImplTest {
   }
 };
 
-TEST_F(LayerTreeHostImplTestScrollbarAnimation, LinearFade) {
-  RunTest(LayerTreeSettings::LINEAR_FADE);
+TEST_F(LayerTreeHostImplTestScrollbarAnimation, Android) {
+  RunTest(LayerTreeSettings::ANDROID_OVERLAY);
 }
 
-TEST_F(LayerTreeHostImplTestScrollbarAnimation, Thinning) {
-  RunTest(LayerTreeSettings::THINNING);
+TEST_F(LayerTreeHostImplTestScrollbarAnimation, AuraOverlay) {
+  RunTest(LayerTreeSettings::AURA_OVERLAY);
 }
 
 TEST_F(LayerTreeHostImplTestScrollbarAnimation, NoAnimator) {
@@ -2990,12 +2987,12 @@ class LayerTreeHostImplTestScrollbarOpacity : public LayerTreeHostImplTest {
   }
 };
 
-TEST_F(LayerTreeHostImplTestScrollbarOpacity, LinearFade) {
-  RunTest(LayerTreeSettings::LINEAR_FADE);
+TEST_F(LayerTreeHostImplTestScrollbarOpacity, Android) {
+  RunTest(LayerTreeSettings::ANDROID_OVERLAY);
 }
 
-TEST_F(LayerTreeHostImplTestScrollbarOpacity, Thinning) {
-  RunTest(LayerTreeSettings::THINNING);
+TEST_F(LayerTreeHostImplTestScrollbarOpacity, AuraOverlay) {
+  RunTest(LayerTreeSettings::AURA_OVERLAY);
 }
 
 TEST_F(LayerTreeHostImplTestScrollbarOpacity, NoAnimator) {
@@ -3038,7 +3035,7 @@ TEST_F(LayerTreeHostImplTest, ScrollbarInnerLargerThanOuter) {
 
 TEST_F(LayerTreeHostImplTest, ScrollbarRegistration) {
   LayerTreeSettings settings = DefaultSettings();
-  settings.scrollbar_animator = LayerTreeSettings::LINEAR_FADE;
+  settings.scrollbar_animator = LayerTreeSettings::ANDROID_OVERLAY;
   settings.scrollbar_fade_delay = base::TimeDelta::FromMilliseconds(20);
   settings.scrollbar_fade_duration = base::TimeDelta::FromMilliseconds(20);
   CreateHostImpl(settings, CreateCompositorFrameSink());
@@ -3161,7 +3158,7 @@ void LayerTreeHostImplTest::SetupMouseMoveAtWithDeviceScale(
   LayerTreeSettings settings = DefaultSettings();
   settings.scrollbar_fade_delay = base::TimeDelta::FromMilliseconds(500);
   settings.scrollbar_fade_duration = base::TimeDelta::FromMilliseconds(300);
-  settings.scrollbar_animator = LayerTreeSettings::THINNING;
+  settings.scrollbar_animator = LayerTreeSettings::AURA_OVERLAY;
 
   gfx::Size viewport_size(300, 200);
   gfx::Size device_viewport_size =
@@ -3196,26 +3193,26 @@ void LayerTreeHostImplTest::SetupMouseMoveAtWithDeviceScale(
   DrawFrame();
   host_impl_->active_tree()->UpdateDrawProperties(false);
 
-  ScrollbarAnimationControllerThinning* scrollbar_animation_controller =
-      static_cast<ScrollbarAnimationControllerThinning*>(
-          host_impl_->ScrollbarAnimationControllerForId(root_scroll->id()));
-  scrollbar_animation_controller->set_mouse_move_distance_for_test(100.f);
+  ScrollbarAnimationController* scrollbar_animation_controller =
+      host_impl_->ScrollbarAnimationControllerForId(root_scroll->id());
 
-  host_impl_->MouseMoveAt(gfx::Point(200, 1));
+  const float kMouseDistanceToTriggerAnimation =
+      SingleScrollbarAnimationControllerThinning::
+          kDefaultMouseMoveDistanceToTriggerAnimation;
+
+  host_impl_->MouseMoveAt(
+      gfx::Point(15 + kMouseDistanceToTriggerAnimation * 2, 1));
   EXPECT_FALSE(
       scrollbar_animation_controller->mouse_is_near_scrollbar(VERTICAL));
 
-  host_impl_->MouseMoveAt(gfx::Point(100, 50));
+  host_impl_->MouseMoveAt(
+      gfx::Point(15 + kMouseDistanceToTriggerAnimation - 1, 50));
   EXPECT_TRUE(
       scrollbar_animation_controller->mouse_is_near_scrollbar(VERTICAL));
 
-  host_impl_->MouseMoveAt(gfx::Point(116, 100));
+  host_impl_->MouseMoveAt(
+      gfx::Point(15 + kMouseDistanceToTriggerAnimation, 100));
   EXPECT_FALSE(
-      scrollbar_animation_controller->mouse_is_near_scrollbar(VERTICAL));
-
-  scrollbar_animation_controller->set_mouse_move_distance_for_test(102.f);
-  host_impl_->MouseMoveAt(gfx::Point(116, 100));
-  EXPECT_TRUE(
       scrollbar_animation_controller->mouse_is_near_scrollbar(VERTICAL));
 
   did_request_redraw_ = false;
@@ -11237,7 +11234,8 @@ TEST_F(LayerTreeHostImplTest, GpuRasterizationStatusDeviceScaleFactor) {
   std::unique_ptr<TestWebGraphicsContext3D> context_with_msaa =
       TestWebGraphicsContext3D::Create();
   context_with_msaa->SetMaxSamples(4);
-  LayerTreeSettings msaaSettings = GpuRasterizationEnabledSettings();
+  context_with_msaa->set_gpu_rasterization(true);
+  LayerTreeSettings msaaSettings = DefaultSettings();
   msaaSettings.gpu_rasterization_msaa_sample_count = -1;
   EXPECT_TRUE(CreateHostImpl(msaaSettings, FakeCompositorFrameSink::Create3d(
                                                std::move(context_with_msaa))));
@@ -11274,7 +11272,8 @@ TEST_F(LayerTreeHostImplTest, GpuRasterizationStatusExplicitMSAACount) {
   std::unique_ptr<TestWebGraphicsContext3D> context_with_msaa =
       TestWebGraphicsContext3D::Create();
   context_with_msaa->SetMaxSamples(4);
-  LayerTreeSettings msaaSettings = GpuRasterizationEnabledSettings();
+  context_with_msaa->set_gpu_rasterization(true);
+  LayerTreeSettings msaaSettings = DefaultSettings();
   msaaSettings.gpu_rasterization_msaa_sample_count = 4;
   EXPECT_TRUE(CreateHostImpl(msaaSettings, FakeCompositorFrameSink::Create3d(
                                                std::move(context_with_msaa))));
@@ -11288,11 +11287,19 @@ TEST_F(LayerTreeHostImplTest, GpuRasterizationStatusExplicitMSAACount) {
   EXPECT_TRUE(host_impl_->use_msaa());
 }
 
+class GpuRasterizationDisabledLayerTreeHostImplTest
+    : public LayerTreeHostImplTest {
+ public:
+  std::unique_ptr<CompositorFrameSink> CreateCompositorFrameSink() override {
+    return FakeCompositorFrameSink::Create3d();
+  }
+};
+
 // Tests that GPU rasterization overrides work as expected.
-TEST_F(LayerTreeHostImplTest, GpuRasterizationStatusOverrides) {
+TEST_F(GpuRasterizationDisabledLayerTreeHostImplTest,
+       GpuRasterizationStatusOverrides) {
   // GPU rasterization explicitly disabled.
   LayerTreeSettings settings = DefaultSettings();
-  settings.gpu_rasterization_enabled = false;
   EXPECT_TRUE(CreateHostImpl(settings, FakeCompositorFrameSink::Create3d()));
   host_impl_->SetHasGpuRasterizationTrigger(true);
   host_impl_->SetContentIsSuitableForGpuRasterization(true);
@@ -11317,11 +11324,11 @@ class MsaaIsSlowLayerTreeHostImplTest : public LayerTreeHostImplTest {
  public:
   void CreateHostImplWithMsaaIsSlow(bool msaa_is_slow) {
     LayerTreeSettings settings = DefaultSettings();
-    settings.gpu_rasterization_enabled = true;
     settings.gpu_rasterization_msaa_sample_count = 4;
     auto context_provider = TestContextProvider::Create();
     context_provider->UnboundTestContext3d()->SetMaxSamples(4);
     context_provider->UnboundTestContext3d()->set_msaa_is_slow(msaa_is_slow);
+    context_provider->UnboundTestContext3d()->set_gpu_rasterization(true);
     auto msaa_is_normal_compositor_frame_sink =
         FakeCompositorFrameSink::Create3d(context_provider);
     EXPECT_TRUE(CreateHostImpl(
@@ -11554,7 +11561,7 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
   LayerTreeSettings settings = DefaultSettings();
   settings.scrollbar_fade_delay = base::TimeDelta::FromMilliseconds(500);
   settings.scrollbar_fade_duration = base::TimeDelta::FromMilliseconds(300);
-  settings.scrollbar_animator = LayerTreeSettings::THINNING;
+  settings.scrollbar_animator = LayerTreeSettings::AURA_OVERLAY;
 
   gfx::Size viewport_size(300, 200);
   gfx::Size content_size(1000, 1000);
@@ -11601,20 +11608,24 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
   DrawFrame();
   host_impl_->active_tree()->UpdateDrawProperties(false);
 
-  ScrollbarAnimationControllerThinning* scrollbar_1_animation_controller =
-      static_cast<ScrollbarAnimationControllerThinning*>(
-          host_impl_->ScrollbarAnimationControllerForId(root_scroll->id()));
+  ScrollbarAnimationController* scrollbar_1_animation_controller =
+      host_impl_->ScrollbarAnimationControllerForId(root_scroll->id());
   EXPECT_TRUE(scrollbar_1_animation_controller);
-  scrollbar_1_animation_controller->set_mouse_move_distance_for_test(40.f);
+
+  const float kMouseDistanceToTriggerAnimation =
+      SingleScrollbarAnimationControllerThinning::
+          kDefaultMouseMoveDistanceToTriggerAnimation;
 
   // Mouse moves close to the scrollbar, goes over the scrollbar, and
   // moves back to where it was.
-  host_impl_->MouseMoveAt(gfx::Point(100, 150));
+  host_impl_->MouseMoveAt(
+      gfx::Point(15 + kMouseDistanceToTriggerAnimation, 150));
   EXPECT_FALSE(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
       scrollbar_1_animation_controller->mouse_is_over_scrollbar(VERTICAL));
-  host_impl_->MouseMoveAt(gfx::Point(40, 150));
+  host_impl_->MouseMoveAt(
+      gfx::Point(14 + kMouseDistanceToTriggerAnimation, 150));
   EXPECT_TRUE(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
@@ -11624,12 +11635,14 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_TRUE(
       scrollbar_1_animation_controller->mouse_is_over_scrollbar(VERTICAL));
-  host_impl_->MouseMoveAt(gfx::Point(40, 150));
+  host_impl_->MouseMoveAt(
+      gfx::Point(14 + kMouseDistanceToTriggerAnimation, 150));
   EXPECT_TRUE(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
       scrollbar_1_animation_controller->mouse_is_over_scrollbar(VERTICAL));
-  host_impl_->MouseMoveAt(gfx::Point(100, 150));
+  host_impl_->MouseMoveAt(
+      gfx::Point(15 + kMouseDistanceToTriggerAnimation, 150));
   EXPECT_FALSE(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
@@ -11665,11 +11678,9 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
   host_impl_->active_tree()->BuildPropertyTreesForTesting();
   host_impl_->active_tree()->DidBecomeActive();
 
-  ScrollbarAnimationControllerThinning* scrollbar_2_animation_controller =
-      static_cast<ScrollbarAnimationControllerThinning*>(
-          host_impl_->ScrollbarAnimationControllerForId(child_scroll_id));
+  ScrollbarAnimationController* scrollbar_2_animation_controller =
+      host_impl_->ScrollbarAnimationControllerForId(child_scroll_id);
   EXPECT_TRUE(scrollbar_2_animation_controller);
-  scrollbar_2_animation_controller->set_mouse_move_distance_for_test(40.f);
 
   // Mouse goes over scrollbar_2, moves close to scrollbar_2, moves close to
   // scrollbar_1, goes over scrollbar_1.
@@ -11682,7 +11693,8 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
       scrollbar_2_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_TRUE(
       scrollbar_2_animation_controller->mouse_is_over_scrollbar(VERTICAL));
-  host_impl_->MouseMoveAt(gfx::Point(100, 150));
+  host_impl_->MouseMoveAt(
+      gfx::Point(64 + kMouseDistanceToTriggerAnimation, 150));
   EXPECT_FALSE(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
@@ -11691,7 +11703,8 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
       scrollbar_2_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
       scrollbar_2_animation_controller->mouse_is_over_scrollbar(VERTICAL));
-  host_impl_->MouseMoveAt(gfx::Point(40, 150));
+  host_impl_->MouseMoveAt(
+      gfx::Point(14 + kMouseDistanceToTriggerAnimation, 150));
   EXPECT_TRUE(
       scrollbar_1_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
@@ -11709,6 +11722,16 @@ void LayerTreeHostImplTest::SetupMouseMoveAtTestScrollbarStates(
       scrollbar_2_animation_controller->mouse_is_near_scrollbar(VERTICAL));
   EXPECT_FALSE(
       scrollbar_2_animation_controller->mouse_is_over_scrollbar(VERTICAL));
+
+  // Capture scrollbar_1, then move mouse to scrollbar_2's layer, should post an
+  // event to fade out scrollbar_1.
+  animation_task_ = base::Closure();
+
+  host_impl_->MouseDown();
+  host_impl_->MouseMoveAt(gfx::Point(100, 150));
+  host_impl_->MouseUp();
+
+  EXPECT_FALSE(animation_task_.Equals(base::Closure()));
 }
 
 TEST_F(LayerTreeHostImplTest,

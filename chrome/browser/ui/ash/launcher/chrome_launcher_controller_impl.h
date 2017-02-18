@@ -81,7 +81,7 @@ class ChromeLauncherControllerImpl
   bool IsOpen(ash::ShelfID id) override;
   bool IsPlatformApp(ash::ShelfID id) override;
   void ActivateApp(const std::string& app_id,
-                   ash::LaunchSource source,
+                   ash::ShelfLaunchSource source,
                    int event_flags) override;
   void SetLauncherItemImage(ash::ShelfID shelf_id,
                             const gfx::ImageSkia& image) override;
@@ -90,13 +90,13 @@ class ChromeLauncherControllerImpl
   ash::ShelfID GetShelfIDForWebContents(
       content::WebContents* contents) override;
   void SetRefocusURLPatternForTest(ash::ShelfID id, const GURL& url) override;
-  ash::ShelfItemDelegate::PerformedAction ActivateWindowOrMinimizeIfActive(
+  ash::ShelfAction ActivateWindowOrMinimizeIfActive(
       ui::BaseWindow* window,
       bool allow_minimize) override;
   void ActiveUserChanged(const std::string& user_email) override;
   void AdditionalUserAddedToSession(Profile* profile) override;
-  ChromeLauncherAppMenuItems GetApplicationList(const ash::ShelfItem& item,
-                                                int event_flags) override;
+  ash::ShelfAppMenuItemList GetAppMenuItems(const ash::ShelfItem& item,
+                                            int event_flags) override;
   std::vector<content::WebContents*> GetV1ApplicationsFromAppId(
       const std::string& app_id) override;
   void ActivateShellApp(const std::string& app_id, int window_index) override;
@@ -156,7 +156,7 @@ class ChromeLauncherControllerImpl
   // Creates a new app shortcut item and controller on the shelf at |index|.
   // Use kInsertItemAtEnd to add a shortcut as the last item.
   ash::ShelfID CreateAppShortcutLauncherItem(
-      const ash::launcher::AppLauncherId& app_launcher_id,
+      const ash::AppLauncherId& app_launcher_id,
       int index);
 
  private:
@@ -178,7 +178,7 @@ class ChromeLauncherControllerImpl
   // Creates a new app shortcut item and controller on the shelf at |index|.
   // Use kInsertItemAtEnd to add a shortcut as the last item.
   ash::ShelfID CreateAppShortcutLauncherItemWithType(
-      const ash::launcher::AppLauncherId& app_launcher_id,
+      const ash::AppLauncherId& app_launcher_id,
       int index,
       ash::ShelfItemType shelf_item_type);
 

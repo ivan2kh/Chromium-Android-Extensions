@@ -25,6 +25,9 @@
 
 #include "bindings/core/v8/V8Initializer.h"
 
+#include <v8-debug.h>
+#include <v8-profiler.h>
+#include <memory>
 #include "bindings/core/v8/DOMWrapperWorld.h"
 #include "bindings/core/v8/RejectedPromises.h"
 #include "bindings/core/v8/RetainedDOMInfo.h"
@@ -32,6 +35,7 @@
 #include "bindings/core/v8/ScriptValue.h"
 #include "bindings/core/v8/ScriptWrappableVisitor.h"
 #include "bindings/core/v8/SourceLocation.h"
+#include "bindings/core/v8/UseCounterCallback.h"
 #include "bindings/core/v8/V8Binding.h"
 #include "bindings/core/v8/V8DOMException.h"
 #include "bindings/core/v8/V8ErrorEvent.h"
@@ -62,9 +66,6 @@
 #include "wtf/RefPtr.h"
 #include "wtf/text/WTFString.h"
 #include "wtf/typed_arrays/ArrayBufferContents.h"
-#include <memory>
-#include <v8-debug.h>
-#include <v8-profiler.h>
 
 namespace blink {
 
@@ -331,6 +332,8 @@ static void initializeV8Common(v8::Isolate* isolate) {
   v8::Debug::SetLiveEditEnabled(isolate, false);
 
   isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kScoped);
+
+  isolate->SetUseCounterCallback(&useCounterCallback);
 }
 
 namespace {
@@ -426,8 +429,6 @@ void V8Initializer::initializeMainThread() {
   }
 
   ASSERT(ThreadState::mainThreadState());
-  ThreadState::mainThreadState()->addInterruptor(
-      WTF::makeUnique<V8IsolateInterruptor>(isolate));
   ThreadState::mainThreadState()->registerTraceDOMWrappers(
       isolate, V8GCController::traceDOMWrappers,
       ScriptWrappableVisitor::invalidateDeadObjectsInMarkingDeque,
@@ -435,13 +436,6 @@ void V8Initializer::initializeMainThread() {
 
   V8PerIsolateData::from(isolate)->setThreadDebugger(
       WTF::makeUnique<MainThreadDebugger>(isolate));
-}
-
-void V8Initializer::shutdownMainThread() {
-  ASSERT(isMainThread());
-  v8::Isolate* isolate = V8PerIsolateData::mainThreadIsolate();
-  V8PerIsolateData::willBeDestroyed(isolate);
-  V8PerIsolateData::destroy(isolate);
 }
 
 static void reportFatalErrorInWorker(const char* location,

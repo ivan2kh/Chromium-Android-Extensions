@@ -39,13 +39,13 @@
 <translation id="1923539912171292317">ራስ-ሰር ጠቅታዎች</translation>
 <translation id="1957803754585243749">0°</translation>
 <translation id="1969011864782743497"><ph name="DEVICE_NAME" /> (USB)</translation>
+<translation id="2122028596993374965"><ph name="TAB_NAME" />ን ወደ <ph name="RECEIVER_NAME" /> Cast ማድረግ አስቁም</translation>
 <translation id="2127372758936585790">አነስተኛ ኃይል ያለው ባትሪ መሙያ</translation>
 <translation id="2204305834655267233">የአውታረ መረብ መረጃ</translation>
 <translation id="2208323208084708176">የተዋሃደ የዴስክቶፕ ሁነታ</translation>
 <translation id="225680501294068881">መሣሪያዎችን በመቃኘት ላይ...</translation>
 <translation id="2268130516524549846">ብሉቱዝ ተሰናክሏል</translation>
 <translation id="2268813581635650749">ሁሉንም ዘግተህ ውጣ</translation>
-<translation id="2297568595583585744">የሁኔታ መሳቢያ</translation>
 <translation id="2303600792989757991">የመስኮት አጠቃላይ እይታን ቀያይር</translation>
 <translation id="2354174487190027830"><ph name="NAME" />ን በማግበር ላይ</translation>
 <translation id="2391579633712104609">180°</translation>
@@ -83,6 +83,7 @@
 <translation id="3126069444801937830">ለማዘመን ዳግም ያስጀምሩ</translation>
 <translation id="3147142846278915599">ማስጀመሪያ (መተግበሪያዎችን በማመሳሰል ላይ...)</translation>
 <translation id="3157169093162779309">ተሽከርካሪ መቆለፊያን አንቃ</translation>
+<translation id="3164154768979021380">ከተከላ ሁነታ በመውጣት ላይ</translation>
 <translation id="3294437725009624529">እንግዳ</translation>
 <translation id="3335772982573114336">አዲስ ማስታወሻ</translation>
 <translation id="3364721542077212959">የስቲለስ መሣሪያዎች</translation>
@@ -99,9 +100,7 @@
 <translation id="3626281679859535460">ብሩህነት</translation>
 <translation id="3683428399328702079"><ph name="DISPLAY_NAME" /> ጥራት ወደ <ph name="RESOLUTION" /> ተለውጧል</translation>
 <translation id="370649949373421643">Wi-Fi ያንቁ</translation>
-<translation id="3709443003275901162">9+</translation>
 <translation id="3712407551474845318">ክልልን አንሳ</translation>
-<translation id="372094107052732682">ለመውጣት Ctrl+Shift+Qን ይጫኑ</translation>
 <translation id="3742055079367172538">ቅጽበታዊ ገጽ እይታ ተነስቷል</translation>
 <translation id="3775358506042162758">በአንድ ጊዜ ብዙ መግባት ላይ እስከ ሶስት መለያዎች ድረስ ብቻ ነው ሊኖርዎ የሚችለው።</translation>
 <translation id="3783640748446814672">alt</translation>
@@ -139,16 +138,15 @@
 <translation id="4957722034734105353">ተጨማሪ ለመረዳት...</translation>
 <translation id="4961318399572185831">የCast ማያ ገጽ</translation>
 <translation id="5011233892417813670">Chromebook</translation>
-<translation id="5045002648206642691">የGoogle Drive ቅንብሮች...</translation>
 <translation id="510924152490034944">ግንኙነት ክትትል የሚደረግበት ሊሆን ይችላል</translation>
 <translation id="5168181903108465623">የCast መሣሪያዎች ይገኛሉ</translation>
 <translation id="5170568018924773124">በአቃፊ አሳይ</translation>
 <translation id="5222676887888702881">ዘግተህ ውጣ</translation>
-<translation id="5238774010593222950">ወደሌላ መለያ በመለያ መግባት አይቻልም።</translation>
 <translation id="532063867737390965">ይህ የአውታረ መረብ ቅንብር በአስተዳዳሪው ተሰናክሏል።</translation>
 <translation id="5331975486040154427">USB-C መሣሪያ (የግራ ጎን ኋላ ወደብ)</translation>
 <translation id="5431825016875453137">OpenVPN / L2TP</translation>
 <translation id="544691375626129091">ሁሉም የሚገኙ ተጤቃሚዎች አስቀድመው ወደዚህ ክፍለ-ጊዜ ታክለዋል።</translation>
+<translation id="5504841533973703486">የፊት ለፊት ማይክራፎን</translation>
 <translation id="5507786745520522457">የተንቀሳቃሽ ስልክ ውሂብ ያዋቅሩ</translation>
 <translation id="5543001071567407895">ኤስ ኤም ኤስ</translation>
 <translation id="5548285847212963613">«<ph name="EXTENSION_NAME" />» ቅጥያ ወደዚህ አውታረመረብ ለማገናኘት ሊያግዝ ይችላል።</translation>
@@ -160,6 +158,7 @@
 <translation id="57838592816432529">ድምጽ ይዝጉ</translation>
 <translation id="5825747213122829519">የግቤት ስልትዎ ወደ <ph name="INPUT_METHOD_ID" /> ተቀይሯል።
 ለመቀየር Shift + Alt ይጫኑ።</translation>
+<translation id="5830936593837877897">የኋላ ማይክራፎን</translation>
 <translation id="5871632337994001636">መሳሪያዎችን ያስተዳድሩ...</translation>
 <translation id="5895138241574237353">እንደገና ጀምር</translation>
 <translation id="5901316534475909376">Shift+Esc</translation>
@@ -171,6 +170,7 @@
 <translation id="5977415296283489383">ጆሮ ማዳጀጫ</translation>
 <translation id="5978382165065462689">የማያ ገጽዎን ቁጥጥር በርቀት እርዳታ በኩል በማጋራት ላይ።</translation>
 <translation id="5980301590375426705">ከእንግዳ ውጣ</translation>
+<translation id="6018164090099858612">ከመስታወት ሁነታ በመውጣት ላይ</translation>
 <translation id="6041154455840261787">ባለከፍተኛ ንፅፅር ሁነታ ነቅቷል። እሱን ለማጥፋት እንደገና Search+Shift+H ይጫኑ።</translation>
 <translation id="6043212731627905357">ይህ ማሳያ ከእርስዎ <ph name="DEVICE_TYPE" /> ጋር መስማማት አልቻለም (ማሳያው የሚደገፍ አይደለም)።</translation>
 <translation id="6043994281159824495">አሁን ዘግተህ ውጣ</translation>
@@ -181,7 +181,6 @@
 <translation id="6144938890088808325">Chromebooksን እንድናሻሽል ያግዙን</translation>
 <translation id="615957422585914272">የማያ ገጽ ላይ ቁልፍ ሰሌዳ አሳይ</translation>
 <translation id="6165508094623778733">ተጨማሪ ለመረዳት</translation>
-<translation id="6248847161401822652">ለመተው Control Shift Qን ሁለት ጊዜ ይጫኑ።</translation>
 <translation id="6267036997247669271"><ph name="NAME" />፦ በማግበር ላይ...</translation>
 <translation id="6297287540776456956">ክልል ለመምረጥ ስቲለሱን ይጠቀሙ</translation>
 <translation id="6310121235600822547"><ph name="DISPLAY_NAME" /> ወደ <ph name="ROTATION" /> ዞሯል</translation>
@@ -196,7 +195,6 @@
 <translation id="6521655319214113338">የእጅ ጽሑፍ ግቤት</translation>
 <translation id="6537270692134705506">ማያ ገጽን አንሳ</translation>
 <translation id="6549021752953852991">ምንም የተንቀሳቃሽ ሞደም አውታረ መረብ አይገኝም</translation>
-<translation id="6550675742724504774">አማራጮች</translation>
 <translation id="6585808820553845416">ክፍለ-ጊዜ በ<ph name="SESSION_TIME_REMAINING" /> ውስጥ ያበቃል።</translation>
 <translation id="6596816719288285829">IP አድራሻ</translation>
 <translation id="6650933572246256093">የብሉቱዝ መሣሪያ «<ph name="DEVICE_NAME" />» ለመጣመር ፍቃድ ይፈልጋል። እባክዎ ይህን የይለፍ ቁልፍ በዚህ መሣሪያ ላይ ያስገቡ፦ <ph name="PASSKEY" /></translation>
@@ -208,10 +206,8 @@
 <translation id="6857811139397017780"><ph name="NETWORKSERVICE" />ን አግብር</translation>
 <translation id="6911468394164995108">ሌላ ይቀላቀሉ...</translation>
 <translation id="6915678159055240887">Chromebox</translation>
-<translation id="6979158407327259162">Google Drive</translation>
 <translation id="6981982820502123353">ተደራሽነት</translation>
 <translation id="7029814467594812963">ከክፍለ-ጊዜ ውጣ</translation>
-<translation id="703171847531699602">ምንም የሚወሰዱ መሣሪያዎች የሉም</translation>
 <translation id="7034339000180558234"><ph name="TAB_NAME" />ን ወደ <ph name="RECEIVER_NAME" /> Cast በማድረግ ላይ</translation>
 <translation id="7052914147756339792">ልጣፍ አዘጋጅ...</translation>
 <translation id="7066646422045619941">ይህ አውታረ መረብ በአስተዳዳሪዎ ነው የተሰናከለው።</translation>
@@ -232,7 +228,6 @@
 <translation id="7561014039265304140"><ph name="DISPLAY_NAME" /> <ph name="SPECIFIED_RESOLUTION" />ን አይደግፍም። ጥራቱ ወደ <ph name="FALLBACK_RESOLUTION" /> ተቀይሯል</translation>
 <translation id="7562368315689366235">ስሜት ገላጭ ሥዕል ቤተ-ሥዕል</translation>
 <translation id="7573962313813535744">ትክል ሁነታ</translation>
-<translation id="7580671184200851182">ተመሳሳዩን ኦዲዮ በሁሉም ድምፅ ማጉያዎች በኩል አጫውት (ሞኖ ኦዲዮ)</translation>
 <translation id="7581273696622423628">አጠቃላይ ጥናት ላይ ይሳተፉ</translation>
 <translation id="7593891976182323525">Search ወይም Shift</translation>
 <translation id="7649070708921625228">እገዛ</translation>
@@ -249,8 +244,10 @@
 <translation id="8000066093800657092">ምንም አውታረ መረብ የለም</translation>
 <translation id="8054466585765276473">የባትሪ ጊዜን በማስላት ላይ።</translation>
 <translation id="8077816382010018681">የQU ባህሪ ማሳወቂያ ርዕስ እዚህ ነው የሚሆነው።</translation>
+<translation id="8098591350844501178">ማያ ገጹን ወደ <ph name="RECEIVER_NAME" /> Cast ማድረግ አስቁም</translation>
 <translation id="8103386449138765447">የኤስ ኤም ኤስ መልዕክቶች፦ <ph name="MESSAGE_COUNT" /></translation>
 <translation id="8132793192354020517">ከ<ph name="NAME" /> ጋር ተገናኝቷል</translation>
+<translation id="8180896103888046100">ወደ ያልታወቀ ተቀባይ cast ማድረግን አስቁም</translation>
 <translation id="8185286464235484130">ለጥቂት ጥያቄዎች መልስ በመስጠት እኛ እንዴት እያደረግን እንዳለን ያሳውቁን።</translation>
 <translation id="8190698733819146287">ቋንቋዎችን እና ግብአቶችን አብጅ...</translation>
 <translation id="8206859287963243715">ሴሉላር</translation>
@@ -273,9 +270,11 @@
 <translation id="9074739597929991885">ብሉቱዝ</translation>
 <translation id="9080206825613744995">ማይክሮፎን ስራ ላይ ነው።</translation>
 <translation id="9089416786594320554">የግቤት ስልቶች</translation>
+<translation id="9091626656156419976">ማሳያ <ph name="DISPLAY_NAME" /> ተወግዷል</translation>
 <translation id="9151726767154816831">እንደገና ያስጀምሩ እና ለማዘመን powerwash ያድርጉ</translation>
 <translation id="9194617393863864469">ሌላ ተጠቃሚ በመለያ አስገባ...</translation>
 <translation id="9201131092683066720">ባትሪው <ph name="PERCENTAGE" />% ሙሉ ነው።</translation>
+<translation id="9210037371811586452">ከተዋሃደ የዴስክቶፕ ሁነታ በመውጣት ላይ</translation>
 <translation id="923686485342484400">ዘግተው ለመውጣት Ctrl Shift Qን ሁለቴ ይጫኑ።</translation>
 <translation id="938582441709398163">የቁልፍ ሰሌዳ ተደራቢ</translation>
 <translation id="939252827960237676">ቅጽበታዊ ገጽ እይታን ማስቀመጥ አልተቻለም</translation>

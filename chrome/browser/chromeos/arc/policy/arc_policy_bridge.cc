@@ -45,8 +45,39 @@ constexpr char kNonComplianceDetails[] = "nonComplianceDetails";
 constexpr char kNonComplianceReason[] = "nonComplianceReason";
 constexpr char kPolicyCompliantJson[] = "{ \"policyCompliant\": true }";
 constexpr char kPolicyNonCompliantJson[] = "{ \"policyCompliant\": false }";
+
 // Value from CloudDPS NonComplianceDetail.NonComplianceReason enum.
-constexpr int kAppNotInstalled = 5;
+// Used to figure out whether to ignore non-compliance.
+enum NonComplianceReason : int {
+  UNKNOWN = 0,
+
+  // The API level of the device does not support the setting.
+  API_LEVEL = 1,
+
+  // The admin type (profile owner, device owner, etc.) does not support the
+  // setting.
+  ADMIN_TYPE = 2,
+
+  // The user has not taken required action to comply with the setting.
+  USER_ACTION = 3,
+
+  // The setting has an invalid value.
+  INVALID_VALUE = 4,
+
+  // A required application has not been (or cannot be) installed.
+  APP_NOT_INSTALLED = 5,
+
+  // The policy is not supported by the version of CloudDPC on the device.
+  UNSUPPORTED = 6,
+};
+
+// ChromeOS should ignore some non-critical CloudDPC non-compliance reasons
+// and proceed with starting ARC apps.
+bool IgnoreNonComplianceReason(int reason) {
+  return reason == NonComplianceReason::API_LEVEL ||
+         reason == NonComplianceReason::APP_NOT_INSTALLED ||
+         reason == NonComplianceReason::UNSUPPORTED;
+}
 
 // invert_bool_value: If the Chrome policy and the ARC policy with boolean value
 // have opposite semantics, set this to true so the bool is inverted before
@@ -60,7 +91,7 @@ void MapBoolToBool(const std::string& arc_policy_name,
   if (!policy_value)
     return;
   if (!policy_value->IsType(base::Value::Type::BOOLEAN)) {
-    LOG(ERROR) << "Policy " << policy_name << " is not a boolean.";
+    NOTREACHED() << "Policy " << policy_name << " is not a boolean.";
     return;
   }
   bool bool_value;
@@ -80,12 +111,34 @@ void MapIntToBool(const std::string& arc_policy_name,
   if (!policy_value)
     return;
   if (!policy_value->IsType(base::Value::Type::INTEGER)) {
-    LOG(ERROR) << "Policy " << policy_name << " is not an integer.";
+    NOTREACHED() << "Policy " << policy_name << " is not an integer.";
     return;
   }
   int int_value;
   policy_value->GetAsInteger(&int_value);
   filtered_policies->SetBoolean(arc_policy_name, int_value == int_true);
+}
+
+// Checks whether |policy_name| is present as an object and has all |fields|,
+// Sets |arc_policy_name| to true only if the condition above is satisfied.
+void MapObjectToPresenceBool(const std::string& arc_policy_name,
+                             const std::string& policy_name,
+                             const policy::PolicyMap& policy_map,
+                             base::DictionaryValue* filtered_policies,
+                             const std::vector<std::string>& fields) {
+  const base::Value* const policy_value = policy_map.GetValue(policy_name);
+  if (!policy_value)
+    return;
+  const base::DictionaryValue* dict = nullptr;
+  if (!policy_value->GetAsDictionary(&dict)) {
+    NOTREACHED() << "Policy " << policy_name << " is not an object.";
+    return;
+  }
+  for (const auto& field : fields) {
+    if (!dict->HasKey(field))
+      return;
+  }
+  filtered_policies->SetBoolean(arc_policy_name, true);
 }
 
 void AddGlobalAppRestriction(const std::string& arc_app_restriction_name,
@@ -233,6 +286,8 @@ std::string GetFilteredJSONPolicies(const policy::PolicyMap& policy_map) {
   MapBoolToBool("mountPhysicalMediaDisabled",
                 policy::key::kExternalStorageDisabled, policy_map, false,
                 &filtered_policies);
+  MapObjectToPresenceBool("setWallpaperDisabled", policy::key::kWallpaperImage,
+                          policy_map, &filtered_policies, {"url", "hash"});
 
   // Add global app restrictions.
   AddGlobalAppRestriction("com.android.browser:URLBlacklist",
@@ -411,7 +466,7 @@ void ArcPolicyBridge::OnReportComplianceParseSuccess(
   }
 
   // ChromeOS is 'compliant' with the report if all "nonComplianceDetails"
-  // entries have APP_NOT_INSTALLED reason.
+  // entries have API_LEVEL, APP_NOT_INSTALLED or UNSUPPORTED reason.
   bool compliant = true;
   const base::ListValue* value = nullptr;
   dict->GetList(kNonComplianceDetails, &value);
@@ -419,9 +474,11 @@ void ArcPolicyBridge::OnReportComplianceParseSuccess(
     for (const auto& entry : *value) {
       const base::DictionaryValue* entry_dict;
       int reason = 0;
+      // Get NonComplianceDetails.NonComplianceReason int enum value and check
+      // whether it shouldn't be ignored.
       if (entry->GetAsDictionary(&entry_dict) &&
           entry_dict->GetInteger(kNonComplianceReason, &reason) &&
-          reason != kAppNotInstalled) {
+          !IgnoreNonComplianceReason(reason)) {
         compliant = false;
         break;
       }

@@ -14,15 +14,16 @@ TEST(ICCProfile, Conversions) {
   ICCProfile icc_profile = ICCProfileForTestingColorSpin();
   ColorSpace color_space_from_icc_profile = icc_profile.GetColorSpace();
 
-  ICCProfile icc_profile_from_color_space =
-      ICCProfile::FromColorSpace(color_space_from_icc_profile);
+  ICCProfile icc_profile_from_color_space;
+  bool result =
+      color_space_from_icc_profile.GetICCProfile(&icc_profile_from_color_space);
+  EXPECT_TRUE(result);
   EXPECT_TRUE(icc_profile == icc_profile_from_color_space);
 }
 
 TEST(ICCProfile, SRGB) {
   ColorSpace color_space = ColorSpace::CreateSRGB();
-  sk_sp<SkColorSpace> sk_color_space =
-      SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named);
+  sk_sp<SkColorSpace> sk_color_space = SkColorSpace::MakeSRGB();
 
   // These should be the same pointer, not just equal.
   EXPECT_EQ(color_space.ToSkColorSpace().get(), sk_color_space.get());
@@ -43,10 +44,18 @@ TEST(ICCProfile, Equality) {
   EXPECT_FALSE(spin_space == adobe_space);
   EXPECT_TRUE(spin_space != adobe_space);
 
-  EXPECT_TRUE(spin_profile == ICCProfile::FromColorSpace(spin_space));
-  EXPECT_FALSE(spin_profile != ICCProfile::FromColorSpace(spin_space));
-  EXPECT_FALSE(spin_profile == ICCProfile::FromColorSpace(adobe_space));
-  EXPECT_TRUE(spin_profile != ICCProfile::FromColorSpace(adobe_space));
+  ICCProfile temp;
+  bool get_icc_result = false;
+
+  get_icc_result = spin_space.GetICCProfile(&temp);
+  EXPECT_TRUE(get_icc_result);
+  EXPECT_TRUE(spin_profile == temp);
+  EXPECT_FALSE(spin_profile != temp);
+
+  get_icc_result = adobe_space.GetICCProfile(&temp);
+  EXPECT_TRUE(get_icc_result);
+  EXPECT_FALSE(spin_profile == temp);
+  EXPECT_TRUE(spin_profile != temp);
 
   EXPECT_TRUE(!!spin_space.ToSkColorSpace());
   EXPECT_TRUE(!!adobe_space.ToSkColorSpace());

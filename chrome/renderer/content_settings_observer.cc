@@ -11,6 +11,7 @@
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_view.h"
 #include "extensions/features/features.h"
+#include "services/service_manager/public/cpp/interface_registry.h"
 #include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebContentSettingCallbacks.h"
 #include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
@@ -104,6 +105,10 @@ ContentSettingsObserver::ContentSettingsObserver(
   ClearBlockedContentSettings();
   render_frame->GetWebFrame()->setContentSettingsClient(this);
 
+  render_frame->GetInterfaceRegistry()->AddInterface(
+      base::Bind(&ContentSettingsObserver::OnInsecureContentRendererRequest,
+                 base::Unretained(this)));
+
   content::RenderFrame* main_frame =
       render_frame->GetRenderView()->GetMainRenderFrame();
   // TODO(nasko): The main frame is not guaranteed to be in the same process
@@ -158,9 +163,6 @@ bool ContentSettingsObserver::OnMessageReceived(const IPC::Message& message) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(ContentSettingsObserver, message)
     IPC_MESSAGE_HANDLER(ChromeViewMsg_SetAsInterstitial, OnSetAsInterstitial)
-    IPC_MESSAGE_HANDLER(ChromeViewMsg_SetAllowRunningInsecureContent,
-                        OnSetAllowRunningInsecureContent)
-    IPC_MESSAGE_HANDLER(ChromeViewMsg_ReloadFrame, OnReloadFrame);
     IPC_MESSAGE_HANDLER(ChromeViewMsg_RequestFileSystemAccessAsyncResponse,
                         OnRequestFileSystemAccessAsyncResponse)
     IPC_MESSAGE_UNHANDLED(handled = false)
@@ -203,6 +205,20 @@ void ContentSettingsObserver::DidCommitProvisionalLoad(
 
 void ContentSettingsObserver::OnDestruct() {
   delete this;
+}
+
+void ContentSettingsObserver::SetAllowRunningInsecureContent() {
+  allow_running_insecure_content_ = true;
+
+  // Reload if we are the main frame.
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+  if (!frame->parent())
+    frame->reload(blink::WebFrameLoadType::ReloadMainResource);
+}
+
+void ContentSettingsObserver::OnInsecureContentRendererRequest(
+    chrome::mojom::InsecureContentRendererRequest request) {
+  insecure_content_renderer_bindings_.AddBinding(this, std::move(request));
 }
 
 bool ContentSettingsObserver::allowDatabase(const WebString& name,
@@ -390,6 +406,8 @@ bool ContentSettingsObserver::allowRunningInsecureContent(
     bool allowed_per_settings,
     const blink::WebSecurityOrigin& origin,
     const blink::WebURL& resource_url) {
+  // Note: this implementation is a mirror of
+  // Browser::ShouldAllowRunningInsecureContent.
   FilteredReportInsecureContentRan(GURL(resource_url));
 
   if (!allow_running_insecure_content_ && !allowed_per_settings) {
@@ -413,6 +431,8 @@ bool ContentSettingsObserver::allowAutoplay(bool default_value) {
 
 void ContentSettingsObserver::passiveInsecureContentFound(
     const blink::WebURL& resource_url) {
+  // Note: this implementation is a mirror of
+  // Browser::PassiveInsecureContentFound.
   ReportInsecureContent(SslInsecureContentType::DISPLAY);
   FilteredReportInsecureContentDisplayed(GURL(resource_url));
 }
@@ -432,17 +452,6 @@ void ContentSettingsObserver::OnLoadBlockedPlugins(
 
 void ContentSettingsObserver::OnSetAsInterstitial() {
   is_interstitial_page_ = true;
-}
-
-void ContentSettingsObserver::OnSetAllowRunningInsecureContent(bool allow) {
-  allow_running_insecure_content_ = allow;
-}
-
-void ContentSettingsObserver::OnReloadFrame() {
-  DCHECK(!render_frame()->GetWebFrame()->parent()) <<
-      "Should only be called on the main frame";
-  render_frame()->GetWebFrame()->reload(
-      blink::WebFrameLoadType::ReloadMainResource);
 }
 
 void ContentSettingsObserver::OnRequestFileSystemAccessAsyncResponse(

@@ -10,6 +10,7 @@
 
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
+#include "base/optional.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/chrome_notification_types.h"
@@ -95,7 +96,7 @@ CastDeviceCache::CastDeviceCache(
     : MediaRoutesObserver(GetMediaRouter()),
       MediaSinksObserver(GetMediaRouter(),
                          media_router::MediaSourceForDesktop(),
-                         GURL(chrome::kChromeUIMediaRouterURL)),
+                         url::Origin(GURL(chrome::kChromeUIMediaRouterURL))),
       cast_config_client_(cast_config_client) {}
 
 CastDeviceCache::~CastDeviceCache() {}
@@ -116,7 +117,7 @@ void CastDeviceCache::OnSinksReceived(const MediaSinks& sinks) {
     // Hide all sinks which have a domain (ie, castouts) to meet privacy
     // requirements. This will be enabled once UI can display the domain. See
     // crbug.com/624016.
-    if (!sink.domain().empty())
+    if (sink.domain() && !sink.domain()->empty())
       continue;
 
     sinks_.push_back(sink);
@@ -154,7 +155,7 @@ CastConfigClientMediaRouter::CastConfigClientMediaRouter() : binding_(this) {
 
   // Register this object as the client interface implementation.
   ash::mojom::CastConfigClientAssociatedPtrInfo ptr_info;
-  binding_.Bind(&ptr_info, cast_config_.associated_group());
+  binding_.Bind(&ptr_info);
   cast_config_->SetClient(std::move(ptr_info));
 }
 
@@ -194,7 +195,7 @@ void CastConfigClientMediaRouter::RequestDeviceRefresh() {
     sr->sink = ash::mojom::CastSink::New();
     sr->sink->id = sink.id();
     sr->sink->name = sink.name();
-    sr->sink->domain = sink.domain();
+    sr->sink->domain = sink.domain().value_or(std::string());
     items.push_back(std::move(sr));
   }
 
@@ -226,7 +227,7 @@ void CastConfigClientMediaRouter::CastToSink(ash::mojom::CastSinkPtr sink) {
   // TODO(imcheng): Pass in tab casting timeout.
   GetMediaRouter()->CreateRoute(
       media_router::MediaSourceForDesktop().id(), sink->id,
-      GURL("http://cros-cast-origin/"), nullptr,
+      url::Origin(GURL("http://cros-cast-origin/")), nullptr,
       std::vector<media_router::MediaRouteResponseCallback>(),
       base::TimeDelta(), false);
 }

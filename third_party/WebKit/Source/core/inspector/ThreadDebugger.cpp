@@ -41,7 +41,7 @@ ThreadDebugger* ThreadDebugger::from(v8::Isolate* isolate) {
   if (!isolate)
     return nullptr;
   V8PerIsolateData* data = V8PerIsolateData::from(isolate);
-  return data ? data->threadDebugger() : nullptr;
+  return data ? static_cast<ThreadDebugger*>(data->threadDebugger()) : nullptr;
 }
 
 // static
@@ -394,7 +394,7 @@ void ThreadDebugger::getEventListenersCallback(
   if (groupId)
     debugger->muteMetrics(groupId);
   InspectorDOMDebuggerAgent::eventListenersInfoForTarget(isolate, info[0],
-                                                         listenerInfo);
+                                                         &listenerInfo);
   if (groupId)
     debugger->unmuteMetrics(groupId);
 
@@ -422,10 +422,6 @@ void ThreadDebugger::getEventListenersCallback(
                        v8::Boolean::New(isolate, info.once));
     createDataProperty(context, listenerObject, v8String(isolate, "type"),
                        v8String(isolate, currentEventType));
-    v8::Local<v8::Function> removeFunction;
-    if (info.removeFunction.ToLocal(&removeFunction))
-      createDataProperty(context, listenerObject, v8String(isolate, "remove"),
-                         removeFunction);
     createDataPropertyInArray(context, listeners, outputIndex++,
                               listenerObject);
   }

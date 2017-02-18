@@ -26,14 +26,16 @@
 #ifndef UseCounter_h
 #define UseCounter_h
 
+#include <v8.h>
 #include "core/CSSPropertyNames.h"
 #include "core/CoreExport.h"
 #include "core/css/parser/CSSParserMode.h"
+#include "platform/heap/GarbageCollected.h"
+#include "platform/heap/HeapAllocator.h"
 #include "platform/weborigin/KURL.h"
 #include "wtf/BitVector.h"
 #include "wtf/Noncopyable.h"
 #include "wtf/text/WTFString.h"
-#include <v8.h>
 
 namespace blink {
 
@@ -55,7 +57,8 @@ class StyleSheetContents;
 // "Automatically send usage statistics and crash reports to Google" setting
 // enabled:
 // http://www.google.com/chrome/intl/en/privacy.html
-
+//
+// Changes on UseCounter are observable by UseCounter::Observer.
 class CORE_EXPORT UseCounter {
   DISALLOW_NEW();
   WTF_MAKE_NONCOPYABLE(UseCounter);
@@ -69,7 +72,7 @@ class CORE_EXPORT UseCounter {
 
   UseCounter(Context = DefaultContext);
 
-  enum Feature {
+  enum Feature : uint32_t {
     // Do not change assigned numbers of existing items: add new features
     // to the end of the list.
     OBSOLETE_PageDestruction = 0,
@@ -160,8 +163,6 @@ class CORE_EXPORT UseCounter {
     DOMNodeInsertedIntoDocumentEvent = 147,
     DOMCharacterDataModifiedEvent = 148,
     DocumentAllLegacyCall = 150,
-    HTMLEmbedElementLegacyCall = 152,
-    HTMLObjectElementLegacyCall = 153,
     GetMatchedCSSRules = 155,
     PrefixedAudioDecodedByteCount = 164,
     PrefixedVideoDecodedByteCount = 165,
@@ -305,7 +306,7 @@ class CORE_EXPORT UseCounter {
     VTTCueRenderLineNotAuto = 413,
     VTTCueRenderPositionNot50 = 414,
     VTTCueRenderSizeNot100 = 415,
-    VTTCueRenderAlignNotMiddle = 416,
+    VTTCueRenderAlignNotCenter = 416,
     // The above items are available in M36 branch.
 
     ElementRequestPointerLock = 417,
@@ -569,8 +570,6 @@ class CORE_EXPORT UseCounter {
     FullscreenInsecureOrigin = 766,
     DialogInSandboxedContext = 767,
     SVGSMILAnimationInImageRegardlessOfCache = 768,
-    EncryptedMediaSecureOrigin = 770,
-    EncryptedMediaInsecureOrigin = 771,
     PerformanceFrameTiming = 772,
     V8Element_Animate_Method = 773,
     // The above items are available in M44 branch.
@@ -997,8 +996,6 @@ class CORE_EXPORT UseCounter {
     FileAPINativeLineEndings = 1320,
     PointerEventAttributeCount = 1321,
     CompositedReplication = 1322,
-    EncryptedMediaAllSelectedContentTypesHaveCodecs = 1323,
-    EncryptedMediaAllSelectedContentTypesMissingCodecs = 1324,
     V8DataTransferItem_WebkitGetAsEntry_Method = 1325,
     V8HTMLInputElement_WebkitEntries_AttributeGetter = 1326,
     Entry_Filesystem_AttributeGetter_IsolatedFileSystem = 1327,
@@ -1262,8 +1259,6 @@ class CORE_EXPORT UseCounter {
     DocumentCreateTouchTargetWrongType = 1610,
     DocumentCreateTouchLessThanSevenArguments = 1611,
     DocumentCreateTouchMoreThanSevenArguments = 1612,
-    EncryptedMediaCapabilityProvided = 1613,
-    EncryptedMediaCapabilityNotProvided = 1614,
     LongTaskObserver = 1615,
     CSSMotionInEffect = 1616,
     CSSOffsetInEffect = 1617,
@@ -1438,6 +1433,8 @@ class CORE_EXPORT UseCounter {
     HTMLTableCellElementColspanGreaterThan8190 = 1785,
     SelectionAddRangeIntersect = 1786,
     PostMessageFromInsecureToSecureToplevel = 1787,
+    // The above items are available in M57 branch.
+
     V8MediaSession_Metadata_AttributeGetter = 1788,
     V8MediaSession_Metadata_AttributeSetter = 1789,
     V8MediaSession_PlaybackState_AttributeGetter = 1790,
@@ -1452,12 +1449,49 @@ class CORE_EXPORT UseCounter {
     CSSValueUserModifyReadWrite = 1799,
     CSSValueUserModifyReadWritePlaintextOnly = 1800,
     V8TextDetector_Detect_Method = 1801,
+    CSSValueOnDemand = 1802,
+    ServiceWorkerNavigationPreload = 1803,
+    FullscreenRequestWithPendingElement = 1804,
+    HTMLIFrameElementAllowfullscreenAttributeSetAfterContentLoad = 1805,
+    PointerEventSetCaptureOutsideDispatch = 1806,
+    NotificationPermissionRequestedInsecureOrigin = 1807,
+    V8DeprecatedStorageInfo_QueryUsageAndQuota_Method = 1808,
+    V8DeprecatedStorageInfo_RequestQuota_Method = 1809,
+    V8DeprecatedStorageQuota_QueryUsageAndQuota_Method = 1810,
+    V8DeprecatedStorageQuota_RequestQuota_Method = 1811,
+    V8FileReaderSync_Constructor = 1812,
+    UncancellableTouchEventPreventDefaulted = 1813,
+    UncancellableTouchEventDueToMainThreadResponsivenessPreventDefaulted = 1814,
+    V8HTMLVideoElement_Poster_AttributeGetter = 1815,
+    V8HTMLVideoElement_Poster_AttributeSetter = 1816,
+    NotificationPermissionRequestedIframe = 1817,
+    FileReaderSyncInServiceWorker = 1818,
+    PresentationReceiverInsecureOrigin = 1819,
+    PresentationReceiverSecureOrigin = 1820,
+    PresentationRequestInsecureOrigin = 1821,
+    PresentationRequestSecureOrigin = 1822,
+    RtcpMuxPolicyNegotiate = 1823,
+    DOMClobberedVariableAccessed = 1824,
+    HTMLDocumentCreateProcessingInstruction = 1825,
 
     // Add new features immediately above this line. Don't change assigned
     // numbers of any item, and don't reuse removed slots.
     // Also, run update_use_counter_feature_enum.py in
     // chromium/src/tools/metrics/histograms/ to update the UMA mapping.
     NumberOfFeatures,  // This enum value must be last.
+  };
+
+  // An interface to observe UseCounter changes. Note that this is never
+  // notified when the counter is disabled by |m_muteCount| or
+  // |m_disableReporting|.
+  class Observer : public GarbageCollected<Observer> {
+   public:
+    // Notified when a feature is counted for the first time. This should return
+    // true if it no longer needs to observe changes so that the counter can
+    // remove a reference to the observer and stop notifications.
+    virtual bool onCountFeature(Feature) = 0;
+
+    DEFINE_INLINE_VIRTUAL_TRACE() {}
   };
 
   // "count" sets the bit for this feature to 1. Repeated calls are ignored.
@@ -1480,12 +1514,11 @@ class CORE_EXPORT UseCounter {
   static bool isCounted(Document&, const String&);
   bool isCounted(CSSPropertyID unresolvedProperty);
 
+  // Retains a reference to the observer to notify of UseCounter changes.
+  void addObserver(Observer*);
+
   // Invoked when a new document is loaded into the main frame of the page.
   void didCommitLoad(KURL);
-
-  static UseCounter* getFrom(const Document*);
-  static UseCounter* getFrom(const CSSStyleSheet*);
-  static UseCounter* getFrom(const StyleSheetContents*);
 
   static int mapCSSPropertyIdToCSSSampleIdForHistogram(CSSPropertyID);
 
@@ -1500,7 +1533,14 @@ class CORE_EXPORT UseCounter {
   // reporting disabled.
   bool hasRecordedMeasurement(Feature) const;
 
+  DECLARE_TRACE();
+
  private:
+  // Notifies that a feature is newly counted to |m_observers|. This shouldn't
+  // be called when the counter is disabled by |m_muteCount| or
+  // |m_disableReporting|.
+  void notifyFeatureCounted(Feature);
+
   EnumerationHistogram& featuresHistogram() const;
   EnumerationHistogram& cssHistogram() const;
 
@@ -1517,6 +1557,8 @@ class CORE_EXPORT UseCounter {
   // histograms.
   BitVector m_featuresRecorded;
   BitVector m_CSSRecorded;
+
+  HeapHashSet<Member<Observer>> m_observers;
 
   // Encapsulates the work to preserve the old "FeatureObserver" histogram with
   // original semantics

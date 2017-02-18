@@ -181,8 +181,9 @@ std::unique_ptr<Layer> Layer::Clone() const {
     clone->SetAlphaShape(base::MakeUnique<SkRegion>(*alpha_shape_));
 
   // cc::Layer state.
-  if (surface_layer_ && surface_layer_->surface_info().id().is_valid()) {
-    clone->SetShowSurface(surface_layer_->surface_info(),
+  if (surface_layer_ &&
+      surface_layer_->primary_surface_info().id().is_valid()) {
+    clone->SetShowSurface(surface_layer_->primary_surface_info(),
                           surface_layer_->surface_reference_factory());
   } else if (type_ == LAYER_SOLID_COLOR) {
     clone->SetColor(GetTargetColor());
@@ -659,7 +660,7 @@ void Layer::SetShowSurface(
 
   scoped_refptr<cc::SurfaceLayer> new_layer =
       cc::SurfaceLayer::Create(ref_factory);
-  new_layer->SetSurfaceInfo(surface_info);
+  new_layer->SetPrimarySurfaceInfo(surface_info);
   SwitchToLayer(new_layer);
   surface_layer_ = new_layer;
 
@@ -820,8 +821,9 @@ void Layer::OnDelegatedFrameDamage(const gfx::Rect& damage_rect_in_dip) {
     delegate_->OnDelegatedFrameDamage(damage_rect_in_dip);
 }
 
-void Layer::SetScrollable(Layer* parent_clip_layer,
-                          const base::Closure& on_scroll) {
+void Layer::SetScrollable(
+    Layer* parent_clip_layer,
+    const base::Callback<void(const gfx::ScrollOffset&)>& on_scroll) {
   cc_layer_->SetScrollClipLayerId(parent_clip_layer->cc_layer_->id());
   cc_layer_->set_did_scroll_callback(on_scroll);
   cc_layer_->SetUserScrollable(true, true);

@@ -12,6 +12,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task_scheduler/post_task.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_shutdown.h"
@@ -240,8 +241,9 @@ GaiaScreenHandler::~GaiaScreenHandler() {
 }
 
 void GaiaScreenHandler::LoadGaia(const GaiaContext& context) {
-  base::PostTaskAndReplyWithResult(
-      content::BrowserThread::GetBlockingPool(), FROM_HERE,
+  base::PostTaskWithTraitsAndReplyWithResult(
+      FROM_HERE, base::TaskTraits().MayBlock().WithPriority(
+                     base::TaskPriority::BACKGROUND),
       base::Bind(&version_loader::GetVersion, version_loader::VERSION_SHORT),
       base::Bind(&GaiaScreenHandler::LoadGaiaWithVersion,
                  weak_factory_.GetWeakPtr(), context));
@@ -501,15 +503,19 @@ AccountId GaiaScreenHandler::GetAccountId(
   return account_id;
 }
 
-void GaiaScreenHandler::DoAdAuth(const std::string& username,
-                                 const Key& key,
-                                 authpolicy::ErrorType error,
-                                 const std::string& uid) {
+void GaiaScreenHandler::DoAdAuth(
+    const std::string& username,
+    const Key& key,
+    authpolicy::ErrorType error,
+    const authpolicy::ActiveDirectoryAccountData& account_data) {
   switch (error) {
     case authpolicy::ERROR_NONE: {
-      DCHECK(!uid.empty());
-      const AccountId account_id(
-          GetAccountId(username, uid, AccountType::ACTIVE_DIRECTORY));
+      DCHECK(account_data.has_account_id() &&
+             !account_data.account_id().empty());
+      const AccountId account_id(GetAccountId(
+          username, account_data.account_id(), AccountType::ACTIVE_DIRECTORY));
+      Delegate()->SetDisplayAndGivenName(account_data.display_name(),
+                                         account_data.given_name());
       UserContext user_context(account_id);
       user_context.SetKey(key);
       user_context.SetAuthFlow(UserContext::AUTH_FLOW_ACTIVE_DIRECTORY);

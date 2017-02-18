@@ -38,7 +38,6 @@
 #include "core/css/resolver/StyleResolver.h"
 #include "core/dom/DOMImplementation.h"
 #include "core/dom/DocumentUserGestureToken.h"
-#include "core/dom/ExecutionContextTask.h"
 #include "core/dom/FrameRequestCallback.h"
 #include "core/dom/SandboxFlags.h"
 #include "core/dom/TaskRunnerHelper.h"
@@ -87,6 +86,7 @@
 #include "platform/weborigin/Suborigin.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebScreenInfo.h"
+#include "public/platform/site_engagement.mojom-blink.h"
 
 #include <memory>
 
@@ -106,7 +106,7 @@ class PostMessageTimer final
                    PassRefPtr<SecurityOrigin> targetOrigin,
                    std::unique_ptr<SourceLocation> location,
                    UserGestureToken* userGestureToken)
-      : SuspendableTimer(window.document(), TaskType::Timer),
+      : SuspendableTimer(window.document(), TaskType::PostedMessage),
         m_event(event),
         m_window(&window),
         m_targetOrigin(targetOrigin),
@@ -391,9 +391,9 @@ void LocalDOMWindow::dispatchWindowLoadEvent() {
   // workaround to avoid Editing code crashes.  We should always dispatch
   // 'load' event asynchronously.  crbug.com/569511.
   if (ScopedEventQueue::instance()->shouldQueueEvents() && m_document) {
-    m_document->postTask(
-        TaskType::Networking, BLINK_FROM_HERE,
-        createSameThreadTask(&LocalDOMWindow::dispatchLoadEvent,
+    TaskRunnerHelper::get(TaskType::Networking, m_document)
+        ->postTask(BLINK_FROM_HERE,
+                   WTF::bind(&LocalDOMWindow::dispatchLoadEvent,
                              wrapPersistent(this)));
     return;
   }
@@ -644,7 +644,7 @@ void LocalDOMWindow::postMessageTimerFired(PostMessageTimer* timer) {
 }
 
 void LocalDOMWindow::removePostMessageTimer(PostMessageTimer* timer) {
-  m_postMessageTimers.remove(timer);
+  m_postMessageTimers.erase(timer);
 }
 
 void LocalDOMWindow::dispatchMessageEventWithOriginCheck(

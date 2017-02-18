@@ -36,6 +36,7 @@ extern const char kDisableScreenshots[];
 extern const char kForceEphemeralProfiles[];
 extern const char kHomePageIsNewTabPage[];
 extern const char kHomePage[];
+extern const char kImportantSitesDialogHistory[];
 #if defined(OS_WIN)
 extern const char kLastProfileResetTimestamp[];
 #endif
@@ -148,6 +149,7 @@ extern const char kWebKitWebSecurityEnabled[];
 extern const char kWebKitJavascriptCanOpenWindowsAutomatically[];
 extern const char kWebKitLoadsImagesAutomatically[];
 extern const char kWebKitPluginsEnabled[];
+extern const char kWebKitEncryptedMediaEnabled[];
 extern const char kWebKitDomPasteEnabled[];
 extern const char kWebKitTextAreasAreResizable[];
 extern const char kWebkitTabsToLinks[];
@@ -260,6 +262,8 @@ extern const char kSessionUserActivitySeen[];
 extern const char kSessionStartTime[];
 extern const char kSessionLengthLimit[];
 extern const char kSessionWaitForInitialUserActivity[];
+extern const char kLastSessionType[];
+extern const char kLastSessionLength[];
 extern const char kPowerAcScreenDimDelayMs[];
 extern const char kPowerAcScreenOffDelayMs[];
 extern const char kPowerAcScreenLockDelayMs[];
@@ -436,7 +440,6 @@ extern const char kNotificationsVibrateEnabled[];
 #endif
 
 extern const char kPushMessagingAppIdentifierMap[];
-extern const char kBackgroundBudgetMap[];
 
 extern const char kGCMProductCategoryForSubtypes[];
 
@@ -448,7 +451,6 @@ extern const char kEasyUnlockProximityRequired[];
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 extern const char kToolbarIconSurfacingBubbleAcknowledged[];
 extern const char kToolbarIconSurfacingBubbleLastShowTime[];
-extern const char kToolbarMigratedComponentActionStatus[];
 #endif
 
 #if BUILDFLAG(ENABLE_WEBRTC)
@@ -560,6 +562,8 @@ extern const char kNtpCollapsedRecentlyClosedTabs[];
 extern const char kNtpCollapsedSnapshotDocument[];
 extern const char kNtpCollapsedSyncPromo[];
 extern const char kContentSuggestionsConsecutiveIgnoredPrefName[];
+extern const char kContentSuggestionsNotificationsSentDay[];
+extern const char kContentSuggestionsNotificationsSentCount[];
 #endif  // defined(OS_ANDROID)
 extern const char kNtpShownPage[];
 
@@ -879,6 +883,19 @@ extern const char kSearchGeolocationPostDisclosureMetricsRecorded[];
 extern const char kGoogleDSEGeolocationSetting[];
 
 extern const char kWebShareVisitedTargets[];
+
+#if defined(OS_WIN)
+extern const char kIOSPromotionEligible[];
+extern const char kIOSPromotionDone[];
+extern const char kNumberSavePasswordsBubbleIOSPromoShown[];
+extern const char kSavePasswordsBubbleIOSPromoDismissed[];
+extern const char kNumberBookmarksBubbleIOSPromoShown[];
+extern const char kBookmarksBubbleIOSPromoDismissed[];
+extern const char kNumberBookmarksFootNoteIOSPromoShown[];
+extern const char kBookmarksFootNoteIOSPromoDismissed[];
+extern const char kNumberHistoryPageIOSPromoShown[];
+extern const char kHistoryPageIOSPromoDismissed[];
+#endif
 
 }  // namespace prefs
 

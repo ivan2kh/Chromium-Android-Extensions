@@ -19,6 +19,7 @@
 #include "base/observer_list.h"
 #include "base/threading/thread_checker.h"
 #include "cc/surfaces/frame_sink_id.h"
+#include "cc/surfaces/surface_dependency_tracker.h"
 #include "cc/surfaces/surface_id.h"
 #include "cc/surfaces/surface_observer.h"
 #include "cc/surfaces/surface_reference.h"
@@ -37,6 +38,10 @@ class CompositorFrame;
 class Surface;
 class SurfaceFactoryClient;
 
+namespace test {
+class CompositorFrameSinkSupportTest;
+}
+
 class CC_SURFACES_EXPORT SurfaceManager {
  public:
   enum class LifetimeType {
@@ -51,6 +56,14 @@ class CC_SURFACES_EXPORT SurfaceManager {
   // Returns a string representation of all reachable surface references.
   std::string SurfaceReferencesToString();
 #endif
+
+  void SetDependencyTracker(
+      std::unique_ptr<SurfaceDependencyTracker> dependency_tracker);
+  SurfaceDependencyTracker* dependency_tracker() {
+    return dependency_tracker_.get();
+  }
+
+  void RequestSurfaceResolution(Surface* pending_surface);
 
   void RegisterSurface(Surface* surface);
   void DeregisterSurface(const SurfaceId& surface_id);
@@ -147,7 +160,12 @@ class CC_SURFACES_EXPORT SurfaceManager {
     return reference_factory_;
   }
 
+  bool using_surface_references() const {
+    return lifetime_type_ == LifetimeType::REFERENCES;
+  }
+
  private:
+  friend class test::CompositorFrameSinkSupportTest;
   friend class SurfaceManagerRefTest;
 
   using SurfaceIdSet = std::unordered_set<SurfaceId, SurfaceIdHash>;
@@ -260,6 +278,8 @@ class CC_SURFACES_EXPORT SurfaceManager {
   // The LocalSurfaceIds are stored in the order the surfaces are created in.
   std::unordered_map<FrameSinkId, std::vector<LocalSurfaceId>, FrameSinkIdHash>
       temp_references_;
+
+  std::unique_ptr<SurfaceDependencyTracker> dependency_tracker_;
 
   base::WeakPtrFactory<SurfaceManager> weak_factory_;
 

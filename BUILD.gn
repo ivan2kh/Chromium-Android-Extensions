@@ -314,6 +314,7 @@ group("both_gn_and_gyp") {
       "//third_party/WebKit/Source/wtf:wtf_unittests",
       "//third_party/angle/src/tests:angle_end2end_tests",
       "//third_party/angle/src/tests:angle_unittests",
+      "//third_party/angle/src/tests:angle_white_box_tests",
       "//third_party/catapult/telemetry:bitmaptools($host_toolchain)",
       "//third_party/smhasher:pmurhash",
       "//tools/imagediff($host_toolchain)",
@@ -365,12 +366,6 @@ group("both_gn_and_gyp") {
     ]
   }
 
-  if (is_linux && !is_chromeos && !is_chromecast && !use_ozone) {
-    # TODO(thomasanderson): Remove this once we build using
-    # GTK3 by default. (crbug.com/132847, crbug.com/79722)
-    deps += [ "//chrome/browser/ui/libgtkui:libgtk3ui" ]
-  }
-
   if (use_ozone) {
     deps += [
       "//ui/ozone",
@@ -381,10 +376,6 @@ group("both_gn_and_gyp") {
 
   if (use_x11 || ozone_platform_x11) {
     deps += [ "//tools/xdisplaycheck" ]
-  }
-
-  if (v8_use_external_startup_data) {
-    deps += [ "//gin:gin_v8_snapshot_fingerprint" ]
   }
 
   if (is_win) {
@@ -727,7 +718,6 @@ group("gn_only") {
   if (!is_ios) {
     deps += [
       "//media/mojo:media_mojo_unittests",
-      "//mojo/common:mojo_common_perftests",
       "//services:service_unittests",
     ]
   }
@@ -919,11 +909,30 @@ if (!is_ios) {
   }
 
   # https://www.chromium.org/developers/testing/webkit-layout-tests
+
+  # The _exparchive at the end of the name indicates to the isolate recipe
+  # that the isolate should be archived separately using the `exparchive`
+  # command, rather than as part of the normal `batcharchive` command.
+  group("webkit_layout_tests_exparchive") {
+    testonly = true
+    deps = [
+      ":webkit_layout_tests",
+    ]
+    data_deps = [
+      ":webkit_layout_tests",
+    ]
+  }
+
+  # This target contains only a small subset of the layout tests,
+  # and is useful for testing with the regular isolate mechanism.
+  # To run the full layout test suite you need to use
+  # :webkit_layout_tests_exparchive, above, instead.
   group("webkit_layout_tests") {
     testonly = true
-
     data_deps = [
       "//content/shell:content_shell",
+      "//third_party/WebKit/public:blink_devtools_frontend_resources_files",
+      "//third_party/mesa:osmesa",
       "//tools/imagediff",
     ]
 
@@ -958,11 +967,23 @@ if (!is_ios) {
     data = [
       "//testing/scripts/common.py",
       "//testing/xvfb.py",
-      "//testing/scripts/run_telemetry_as_googletest.py",
+      "//testing/scripts/run_isolated_script_test.py",
       "//third_party/WebKit/LayoutTests/",
+      "//third_party/WebKit/PerformanceTests/",
       "//third_party/WebKit/Tools/Scripts/",
       "$root_build_dir/resources/inspector/",
     ]
+
+    if (is_win) {
+      data += [ "//third_party/apache-win32/" ]
+    }
+
+    if (is_android) {
+      data += [
+        "//third_party/catapult/",
+        "//build/android/",
+      ]
+    }
   }
 }
 

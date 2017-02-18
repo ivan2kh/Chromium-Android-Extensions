@@ -64,7 +64,6 @@
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/thumbnails/thumbnail_service_factory.h"
 #include "chrome/browser/ui/app_list/app_list_syncable_service_factory.h"
-#include "chrome/browser/ui/desktop_ios_promotion/sms_service_factory.h"
 #include "chrome/browser/ui/find_bar/find_bar_state_factory.h"
 #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
 #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
@@ -123,7 +122,7 @@
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/printer_detector/printer_detector_factory.h"
 #include "chrome/browser/chromeos/printing/cups_print_job_manager_factory.h"
-#include "chrome/browser/chromeos/printing/printer_pref_manager_factory.h"
+#include "chrome/browser/chromeos/printing/printers_manager_factory.h"
 #include "chrome/browser/extensions/api/platform_keys/verify_trust_api.h"
 #endif
 
@@ -137,6 +136,7 @@
 
 #if defined(OS_WIN)
 #include "chrome/browser/profile_resetter/triggered_profile_resetter_factory.h"
+#include "chrome/browser/ui/desktop_ios_promotion/sms_service_factory.h"
 #endif
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
@@ -224,7 +224,7 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
 #endif
   NotifierStateTrackerFactory::GetInstance();
   data_use_measurement::ChromeDataUseAscriberServiceFactory::GetInstance();
-#if !defined(OS_ANDROID)
+#if defined(OS_WIN)
   SMSServiceFactory::GetInstance();
 #endif
   dom_distiller::DomDistillerServiceFactory::GetInstance();
@@ -237,7 +237,7 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
 #if defined(OS_CHROMEOS)
   chromeos::PrinterDetectorFactory::GetInstance();
   chromeos::CupsPrintJobManagerFactory::GetInstance();
-  chromeos::PrinterPrefManagerFactory::GetInstance();
+  chromeos::PrintersManagerFactory::GetInstance();
   extensions::VerifyTrustAPI::GetFactoryInstance();
 #endif
   FaviconServiceFactory::GetInstance();

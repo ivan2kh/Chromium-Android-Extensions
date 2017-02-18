@@ -12,7 +12,6 @@
 #include "V8TestInterfacePartial.h"
 
 #include "bindings/core/v8/ExceptionState.h"
-#include "bindings/core/v8/GeneratedCodeHelper.h"
 #include "bindings/core/v8/ScriptPromise.h"
 #include "bindings/core/v8/ScriptState.h"
 #include "bindings/core/v8/V8DOMConfiguration.h"
@@ -433,7 +432,9 @@ void V8TestInterfacePartial::installOriginTrialPartialFeature(ScriptState* scrip
 
 void V8TestInterfacePartial::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
   V8TestInterface::preparePrototypeAndInterfaceObject(context, world, prototypeObject, interfaceObject, interfaceTemplate);
+
   v8::Isolate* isolate = context->GetIsolate();
+
   v8::Local<v8::Name> unscopablesSymbol(v8::Symbol::GetUnscopables(isolate));
   v8::Local<v8::Object> unscopables;
   if (v8CallBoolean(prototypeObject->HasOwnProperty(context, unscopablesSymbol)))
@@ -448,6 +449,7 @@ void V8TestInterfacePartial::initialize() {
   // Should be invoked from ModulesInitializer.
   V8TestInterface::updateWrapperTypeInfo(
       &V8TestInterfacePartial::installV8TestInterfaceTemplate,
+      nullptr,
       V8TestInterfacePartial::preparePrototypeAndInterfaceObject);
   V8TestInterface::registerVoidMethodPartialOverloadMethodForPartialInterface(&TestInterfaceImplementationPartialV8Internal::voidMethodPartialOverloadMethod);
   V8TestInterface::registerStaticVoidMethodPartialOverloadMethodForPartialInterface(&TestInterfaceImplementationPartialV8Internal::staticVoidMethodPartialOverloadMethod);

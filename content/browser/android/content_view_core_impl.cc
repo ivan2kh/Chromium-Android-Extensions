@@ -43,7 +43,6 @@
 #include "content/public/browser/favicon_status.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/browser/screen_orientation_provider.h"
 #include "content/public/browser/ssl_host_state_delegate.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
@@ -1398,26 +1397,7 @@ void ContentViewCoreImpl::SendOrientationChangeEventInternal() {
   if (rwhv)
     rwhv->UpdateScreenInfo(GetViewAndroid());
 
-  static_cast<WebContentsImpl*>(web_contents())
-      ->GetScreenOrientationProvider()
-      ->OnOrientationChange();
-}
-
-void ContentViewCoreImpl::ExtractSmartClipData(JNIEnv* env,
-                                               const JavaParamRef<jobject>& obj,
-                                               jint x,
-                                               jint y,
-                                               jint width,
-                                               jint height) {
-  gfx::Rect rect(
-      static_cast<int>(x / dpi_scale()),
-      static_cast<int>(y / dpi_scale()),
-      static_cast<int>((width > 0 && width < dpi_scale()) ?
-          1 : (int)(width / dpi_scale())),
-      static_cast<int>((height > 0 && height < dpi_scale()) ?
-          1 : (int)(height / dpi_scale())));
-  GetWebContents()->Send(new ViewMsg_ExtractSmartClipData(
-      GetWebContents()->GetRenderViewHost()->GetRoutingID(), rect));
+  static_cast<WebContentsImpl*>(web_contents())->OnScreenOrientationChange();
 }
 
 jint ContentViewCoreImpl::GetCurrentRenderProcessId(
@@ -1523,21 +1503,6 @@ void ContentViewCoreImpl::HidePopupsAndPreserveSelection() {
     return;
 
   Java_ContentViewCore_hidePopupsAndPreserveSelection(env, obj);
-}
-
-void ContentViewCoreImpl::OnSmartClipDataExtracted(
-    const base::string16& text,
-    const base::string16& html,
-    const gfx::Rect& clip_rect) {
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  ScopedJavaLocalRef<jstring> jtext = ConvertUTF16ToJavaString(env, text);
-  ScopedJavaLocalRef<jstring> jhtml = ConvertUTF16ToJavaString(env, html);
-  ScopedJavaLocalRef<jobject> clip_rect_object(CreateJavaRect(env, clip_rect));
-  Java_ContentViewCore_onSmartClipDataExtracted(env, obj, jtext, jhtml,
-                                                clip_rect_object);
 }
 
 void ContentViewCoreImpl::WebContentsDestroyed() {

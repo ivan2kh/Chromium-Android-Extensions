@@ -94,7 +94,7 @@ WorkerThread::~WorkerThread() {
   DCHECK(isMainThread());
   MutexLocker lock(threadSetMutex());
   DCHECK(workerThreads().contains(this));
-  workerThreads().remove(this);
+  workerThreads().erase(this);
 
   DCHECK_NE(ExitCode::NotTerminated, m_exitCode);
   DEFINE_THREAD_SAFE_STATIC_LOCAL(
@@ -225,11 +225,8 @@ void WorkerThread::startRunningDebuggerTasksOnPauseOnWorkerThread() {
   ThreadDebugger::idleStarted(isolate());
   std::unique_ptr<CrossThreadClosure> task;
   do {
-    {
-      SafePointScope safePointScope(BlinkGC::HeapPointersOnStack);
-      task =
-          m_inspectorTaskRunner->takeNextTask(InspectorTaskRunner::WaitForTask);
-    }
+    task =
+        m_inspectorTaskRunner->takeNextTask(InspectorTaskRunner::WaitForTask);
     if (task)
       (*task)();
     // Keep waiting until execution is resumed.
@@ -309,9 +306,6 @@ void WorkerThread::terminateInternal(TerminationMode mode) {
   DCHECK(m_requestedToStart);
 
   {
-    // Prevent the deadlock between GC and an attempt to terminate a thread.
-    SafePointScope safePointScope(BlinkGC::HeapPointersOnStack);
-
     // Protect against this method, initializeOnWorkerThread() or
     // termination via the global scope racing each other.
     MutexLocker lock(m_threadStateMutex);

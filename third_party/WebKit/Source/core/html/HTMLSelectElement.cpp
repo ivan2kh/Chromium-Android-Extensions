@@ -37,7 +37,6 @@
 #include "core/dom/AXObjectCache.h"
 #include "core/dom/Attribute.h"
 #include "core/dom/ElementTraversal.h"
-#include "core/dom/ExecutionContextTask.h"
 #include "core/dom/MutationCallback.h"
 #include "core/dom/MutationObserver.h"
 #include "core/dom/MutationObserverInit.h"
@@ -60,6 +59,7 @@
 #include "core/html/HTMLOptionElement.h"
 #include "core/html/forms/FormController.h"
 #include "core/input/EventHandler.h"
+#include "core/input/InputDeviceCapabilities.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/layout/HitTestRequest.h"
 #include "core/layout/HitTestResult.h"
@@ -894,9 +894,9 @@ void HTMLSelectElement::scrollToOption(HTMLOptionElement* option) {
   // inserted before executing scrollToOptionTask().
   m_optionToScrollTo = option;
   if (!hasPendingTask)
-    document().postTask(
-        TaskType::UserInteraction, BLINK_FROM_HERE,
-        createSameThreadTask(&HTMLSelectElement::scrollToOptionTask,
+    TaskRunnerHelper::get(TaskType::UserInteraction, &document())
+        ->postTask(BLINK_FROM_HERE,
+                   WTF::bind(&HTMLSelectElement::scrollToOptionTask,
                              wrapPersistent(this)));
 }
 
@@ -1286,8 +1286,8 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event* event) {
         !isSpatialNavigationEnabled(document().frame()))
       return;
 
-    int ignoreModifiers = PlatformEvent::ShiftKey | PlatformEvent::CtrlKey |
-                          PlatformEvent::AltKey | PlatformEvent::MetaKey;
+    int ignoreModifiers = WebInputEvent::ShiftKey | WebInputEvent::ControlKey |
+                          WebInputEvent::AltKey | WebInputEvent::MetaKey;
     if (keyEvent->modifiers() & ignoreModifiers)
       return;
 
@@ -1351,10 +1351,8 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event* event) {
       toMouseEvent(event)->button() ==
           static_cast<short>(WebPointerProperties::Button::Left)) {
     InputDeviceCapabilities* sourceCapabilities =
-        toMouseEvent(event)->fromTouch()
-            ? InputDeviceCapabilities::firesTouchEventsSourceCapabilities()
-            : InputDeviceCapabilities::
-                  doesntFireTouchEventsSourceCapabilities();
+        document().domWindow()->getInputDeviceCapabilities()->firesTouchEvents(
+            toMouseEvent(event)->fromTouch());
     focus(FocusParams(SelectionBehaviorOnFocus::Restore, WebFocusTypeNone,
                       sourceCapabilities));
     if (layoutObject() && layoutObject()->isMenuList() &&

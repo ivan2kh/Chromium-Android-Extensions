@@ -40,7 +40,6 @@
 #include "content/public/child/fixed_received_data.h"
 #include "content/public/child/request_peer.h"
 #include "content/public/common/browser_side_navigation_policy.h"
-#include "mojo/public/cpp/bindings/associated_group.h"
 #include "net/base/data_url.h"
 #include "net/base/filename_util.h"
 #include "net/base/net_errors.h"
@@ -362,8 +361,7 @@ class WebURLLoaderImpl::Context : public base::RefCounted<Context> {
 
   Context(WebURLLoaderImpl* loader,
           ResourceDispatcher* resource_dispatcher,
-          mojom::URLLoaderFactory* factory,
-          mojo::AssociatedGroup* associated_group);
+          mojom::URLLoaderFactory* factory);
 
   WebURLLoaderClient* client() const { return client_; }
   void set_client(WebURLLoaderClient* client) { client_ = client; }
@@ -416,7 +414,6 @@ class WebURLLoaderImpl::Context : public base::RefCounted<Context> {
 
   // These are owned by the Blink::Platform singleton.
   mojom::URLLoaderFactory* url_loader_factory_;
-  mojo::AssociatedGroup* associated_group_;
 };
 
 // A thin wrapper class for Context to ensure its lifetime while it is
@@ -451,16 +448,14 @@ class WebURLLoaderImpl::RequestPeerImpl : public RequestPeer {
 
 WebURLLoaderImpl::Context::Context(WebURLLoaderImpl* loader,
                                    ResourceDispatcher* resource_dispatcher,
-                                   mojom::URLLoaderFactory* url_loader_factory,
-                                   mojo::AssociatedGroup* associated_group)
+                                   mojom::URLLoaderFactory* url_loader_factory)
     : loader_(loader),
       client_(NULL),
       resource_dispatcher_(resource_dispatcher),
       task_runner_(base::ThreadTaskRunnerHandle::Get()),
       defers_loading_(NOT_DEFERRING),
       request_id_(-1),
-      url_loader_factory_(url_loader_factory),
-      associated_group_(associated_group) {}
+      url_loader_factory_(url_loader_factory) {}
 
 void WebURLLoaderImpl::Context::Cancel() {
   TRACE_EVENT_WITH_FLOW0("loading", "WebURLLoaderImpl::Context::Cancel", this,
@@ -638,7 +633,7 @@ void WebURLLoaderImpl::Context::Start(const WebURLRequest& request,
       std::move(resource_request), request.requestorID(), task_runner_,
       extra_data->frame_origin(),
       base::MakeUnique<WebURLLoaderImpl::RequestPeerImpl>(this),
-      request.getLoadingIPCType(), url_loader_factory_, associated_group_);
+      request.getLoadingIPCType(), url_loader_factory_);
 
   if (defers_loading_ != NOT_DEFERRING)
     resource_dispatcher_->SetDefersLoading(request_id_, true);
@@ -914,8 +909,7 @@ void WebURLLoaderImpl::Context::CancelBodyStreaming() {
 }
 
 bool WebURLLoaderImpl::Context::CanHandleDataURLRequestLocally() const {
-  GURL url = request_.url();
-  if (!url.SchemeIs(url::kDataScheme))
+  if (!request_.url().protocolIs(url::kDataScheme))
     return false;
 
   // The fast paths for data URL, Start() and HandleDataURL(), don't support
@@ -1037,12 +1031,8 @@ void WebURLLoaderImpl::RequestPeerImpl::OnCompletedRequest(
 // WebURLLoaderImpl -----------------------------------------------------------
 
 WebURLLoaderImpl::WebURLLoaderImpl(ResourceDispatcher* resource_dispatcher,
-                                   mojom::URLLoaderFactory* url_loader_factory,
-                                   mojo::AssociatedGroup* associated_group)
-    : context_(new Context(this,
-                           resource_dispatcher,
-                           url_loader_factory,
-                           associated_group)) {}
+                                   mojom::URLLoaderFactory* url_loader_factory)
+    : context_(new Context(this, resource_dispatcher, url_loader_factory)) {}
 
 WebURLLoaderImpl::~WebURLLoaderImpl() {
   cancel();
@@ -1087,6 +1077,8 @@ void WebURLLoaderImpl::PopulateURLResponse(const GURL& url,
       info.cors_exposed_header_names.end(), cors_exposed_header_names.begin(),
       [](const std::string& h) { return blink::WebString::fromLatin1(h); });
   response->setCorsExposedHeaderNames(cors_exposed_header_names);
+  response->setDidServiceWorkerNavigationPreload(
+      info.did_service_worker_navigation_preload);
   response->setEncodedDataLength(info.encoded_data_length);
 
   SetSecurityStyleAndDetails(url, info, response, report_security_info);
@@ -1162,19 +1154,6 @@ void WebURLLoaderImpl::PopulateURLResponse(const GURL& url,
   response->setHTTPStatusCode(headers->response_code());
   response->setHTTPStatusText(WebString::fromLatin1(headers->GetStatusText()));
 
-  // TODO(darin): We should leverage HttpResponseHeaders for this, and this
-  // should be using the same code as ResourceDispatcherHost.
-  // TODO(jungshik): Figure out the actual value of the referrer charset and
-  // pass it to GetSuggestedFilename.
-  std::string value;
-  headers->EnumerateHeader(NULL, "content-disposition", &value);
-  response->setSuggestedFileName(blink::WebString::fromUTF16(
-      net::GetSuggestedFilename(url, value,
-                                std::string(),     // referrer_charset
-                                std::string(),     // suggested_name
-                                std::string(),     // mime_type
-                                std::string())));  // default_name
-
   Time time_val;
   if (headers->GetLastModifiedValue(&time_val))
     response->setLastModifiedDate(time_val.ToDoubleT());
@@ -1182,6 +1161,7 @@ void WebURLLoaderImpl::PopulateURLResponse(const GURL& url,
   // Build up the header map.
   size_t iter = 0;
   std::string name;
+  std::string value;
   while (headers->EnumerateHeaderLines(&iter, &name, &value)) {
     response->addHTTPHeaderField(WebString::fromLatin1(name),
                                  WebString::fromLatin1(value));

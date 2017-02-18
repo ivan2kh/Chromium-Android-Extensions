@@ -44,8 +44,6 @@ class PaletteDelegateImpl : public PaletteDelegate {
   }
   void CreateNote() override {}
   bool HasNoteApp() override { return false; }
-  void SetStylusStateChangedCallback(
-      const OnStylusStateChangedCallback& on_stylus_state_changed) override {}
   bool ShouldAutoOpenPalette() override { return false; }
   bool ShouldShowPalette() override { return false; }
   void TakeScreenshot() override {}
@@ -165,8 +163,7 @@ keyboard::KeyboardUI* ShellDelegateImpl::CreateKeyboardUI() {
 void ShellDelegateImpl::OpenUrlFromArc(const GURL& url) {}
 
 ShelfDelegate* ShellDelegateImpl::CreateShelfDelegate(ShelfModel* model) {
-  shelf_delegate_ = new test::TestShelfDelegate(model);
-  return shelf_delegate_;
+  return new test::TestShelfDelegate();
 }
 
 SystemTrayDelegate* ShellDelegateImpl::CreateSystemTrayDelegate() {

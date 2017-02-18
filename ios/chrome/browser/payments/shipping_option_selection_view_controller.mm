@@ -7,13 +7,15 @@
 #import "base/ios/weak_nsobject.h"
 #include "base/mac/foundation_util.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/payments/currency_formatter.h"
 #include "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/payments/cells/payments_text_item.h"
-#import "ios/chrome/browser/payments/payment_request_utils.h"
+#include "ios/chrome/browser/payments/payment_request.h"
 #import "ios/chrome/browser/ui/autofill/cells/status_item.h"
+#import "ios/chrome/browser/ui/collection_view/cells/MDCCollectionViewCell+Chrome.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_item.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_text_item.h"
-#import "ios/chrome/browser/ui/collection_view/cells/MDCCollectionViewCell+Chrome.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_model.h"
 #import "ios/chrome/browser/ui/colors/MDCPalette+CrAdditions.h"
 #import "ios/chrome/browser/ui/icons/chrome_icon.h"
@@ -47,6 +49,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
   base::WeakNSProtocol<id<ShippingOptionSelectionViewControllerDelegate>>
       _delegate;
 
+  // The PaymentRequest object owning an instance of web::PaymentRequest as
+  // provided by the page invoking the Payment Request API. This is a weak
+  // pointer and should outlive this class.
+  PaymentRequest* _paymentRequest;
+
+  // The currently selected item. May be nil.
   CollectionViewTextItem* _selectedItem;
 }
 
@@ -57,12 +65,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 @implementation ShippingOptionSelectionViewController
 
-@synthesize shippingOptions = _shippingOptions;
-@synthesize selectedShippingOption = _selectedShippingOption;
 @synthesize isLoading = _isLoading;
 @synthesize errorMessage = _errorMessage;
 
-- (instancetype)init {
+- (instancetype)initWithPaymentRequest:(PaymentRequest*)paymentRequest {
+  DCHECK(paymentRequest);
   if ((self = [super initWithStyle:CollectionViewControllerStyleAppBar])) {
     self.title = l10n_util::GetNSString(
         IDS_IOS_PAYMENT_REQUEST_SHIPPING_OPTION_SELECTION_TITLE);
@@ -73,6 +80,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
                                             action:@selector(onReturn)];
     returnButton.accessibilityLabel = l10n_util::GetNSString(IDS_ACCNAME_BACK);
     self.navigationItem.leftBarButtonItem = returnButton;
+
+    _paymentRequest = paymentRequest;
   }
   return self;
 }
@@ -118,18 +127,14 @@ typedef NS_ENUM(NSInteger, ItemType) {
         toSectionWithIdentifier:SectionIdentifierShippingOption];
   }
 
-  for (size_t i = 0; i < _shippingOptions.size(); ++i) {
-    web::PaymentShippingOption* shippingOption = _shippingOptions[i];
+  for (const auto& shippingOption : _paymentRequest->shipping_options()) {
     CollectionViewTextItem* item = [[[CollectionViewTextItem alloc]
         initWithType:ItemTypeShippingOption] autorelease];
     item.text = base::SysUTF16ToNSString(shippingOption->label);
-    NSString* currencyCode =
-        base::SysUTF16ToNSString(shippingOption->amount.currency);
-    NSDecimalNumber* value = [NSDecimalNumber
-        decimalNumberWithString:SysUTF16ToNSString(
-                                    shippingOption->amount.value)];
-    item.detailText =
-        payment_request_utils::FormattedCurrencyString(value, currencyCode);
+    payments::CurrencyFormatter* currencyFormatter =
+        _paymentRequest->GetOrCreateCurrencyFormatter();
+    item.detailText = SysUTF16ToNSString(currencyFormatter->Format(
+        base::UTF16ToASCII(shippingOption->amount.value)));
 
     // Styling.
     item.textFont = [MDCTypography body2Font];
@@ -137,7 +142,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
     item.detailTextFont = [MDCTypography body1Font];
     item.detailTextColor = [[MDCPalette greyPalette] tint900];
 
-    if (_selectedShippingOption == shippingOption) {
+    if (_paymentRequest->selected_shipping_option() == shippingOption) {
       item.accessoryType = MDCCollectionViewCellAccessoryCheckmark;
       _selectedItem = item;
     }
@@ -204,16 +209,16 @@ typedef NS_ENUM(NSInteger, ItemType) {
     [self reconfigureCellsForItems:@[ newlySelectedItem ]
            inSectionWithIdentifier:SectionIdentifierShippingOption];
 
-    // Update the selected shipping option and its respective item.
-    NSInteger index = [model indexInItemTypeForIndexPath:indexPath];
-    DCHECK(index < (NSInteger)_shippingOptions.size());
-    self.selectedShippingOption = _shippingOptions[index];
+    // Update the reference to the selected item.
     _selectedItem = newlySelectedItem;
 
     // Notify the delegate of the selection.
+    NSInteger index = [model indexInItemTypeForIndexPath:indexPath];
+    DCHECK(index < (NSInteger)_paymentRequest->shipping_options().size());
     [_delegate
         shippingOptionSelectionViewController:self
-                       selectedShippingOption:self.selectedShippingOption];
+                      didSelectShippingOption:_paymentRequest
+                                                  ->shipping_options()[index]];
   }
 }
 

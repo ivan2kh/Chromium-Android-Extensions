@@ -11,6 +11,7 @@
 #include "base/bind.h"
 #include "base/bind_helpers.h"
 #include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/strings/string16.h"
@@ -26,6 +27,8 @@
 #include "gin/handle.h"
 #include "gin/object_template_builder.h"
 #include "gin/wrappable.h"
+#include "net/base/filename_util.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebCoalescedInputEvent.h"
 #include "third_party/WebKit/public/platform/WebGestureEvent.h"
 #include "third_party/WebKit/public/platform/WebKeyboardEvent.h"
@@ -62,6 +65,7 @@ using blink::WebPointerProperties;
 using blink::WebString;
 using blink::WebTouchEvent;
 using blink::WebTouchPoint;
+using blink::WebURL;
 using blink::WebVector;
 using blink::WebView;
 
@@ -1890,16 +1894,28 @@ void EventSender::DumpFilenameBeingDragged() {
   if (current_drag_data_.isNull())
     return;
 
-  WebString filename;
   WebVector<WebDragData::Item> items = current_drag_data_.items();
   for (size_t i = 0; i < items.size(); ++i) {
     if (items[i].storageType == WebDragData::Item::StorageTypeBinaryData) {
-      filename = items[i].title;
-      break;
+      WebURL url = items[i].binaryDataSourceURL;
+      WebString filename_extension = items[i].binaryDataFilenameExtension;
+      WebString content_disposition = items[i].binaryDataContentDisposition;
+      base::FilePath filename =
+          net::GenerateFileName(url, content_disposition.utf8(),
+                                std::string(),   // referrer_charset
+                                std::string(),   // suggested_name
+                                std::string(),   // mime_type
+                                std::string());  // default_name
+#if defined(OS_WIN)
+      filename = filename.ReplaceExtension(filename_extension.utf16());
+#else
+      filename = filename.ReplaceExtension(filename_extension.utf8());
+#endif
+      delegate()->PrintMessage(std::string("Filename being dragged: ") +
+                               filename.AsUTF8Unsafe() + "\n");
+      return;
     }
   }
-  delegate()->PrintMessage(std::string("Filename being dragged: ") +
-                           filename.utf8().data() + "\n");
 }
 
 void EventSender::GestureFlingCancel() {
@@ -2236,22 +2252,6 @@ void EventSender::DoLeapForward(int milliseconds) {
   time_offset_ms_ += milliseconds;
 }
 
-void EventSender::GetOptionalTouchArgs(gin::Arguments* args,
-                                       bool& moved_beyond_slop_region,
-                                       uint32_t& unique_touch_event_id) {
-  moved_beyond_slop_region = false;
-  if(!args->PeekNext().IsEmpty() && args->PeekNext()->IsString()) {
-    std::string arg;
-    if (args->GetNext(&arg) && arg == "movedBeyondSlopRegion")
-      moved_beyond_slop_region = true;
-    else
-      args->ThrowError();
-  }
-
-  unique_touch_event_id = GetUniqueTouchEventId(args);
-  return;
-}
-
 uint32_t EventSender::GetUniqueTouchEventId(gin::Arguments* args) {
   uint32_t unique_touch_event_id;
   if(!args->PeekNext().IsEmpty() && args->GetNext(&unique_touch_event_id))
@@ -2262,9 +2262,7 @@ uint32_t EventSender::GetUniqueTouchEventId(gin::Arguments* args) {
 
 void EventSender::SendCurrentTouchEvent(WebInputEvent::Type type,
                                         gin::Arguments* args) {
-  bool moved_beyond_slop_region;
-  uint32_t unique_touch_event_id;
-  GetOptionalTouchArgs(args, moved_beyond_slop_region, unique_touch_event_id);
+  uint32_t unique_touch_event_id = GetUniqueTouchEventId(args);
 
   DCHECK_GT(static_cast<unsigned>(WebTouchEvent::kTouchesLengthCap),
             touch_points_.size());
@@ -2275,7 +2273,7 @@ void EventSender::SendCurrentTouchEvent(WebInputEvent::Type type,
   touch_event.dispatchType = touch_cancelable_
                                  ? WebInputEvent::Blocking
                                  : WebInputEvent::EventNonBlocking;
-  touch_event.movedBeyondSlopRegion = moved_beyond_slop_region;
+  touch_event.movedBeyondSlopRegion = true;
   touch_event.uniqueTouchEventId = unique_touch_event_id;
   touch_event.touchesLength = touch_points_.size();
   for (size_t i = 0; i < touch_points_.size(); ++i)
@@ -2689,7 +2687,8 @@ void EventSender::FinishDragAndDrop(const WebMouseEvent& raw_event,
     mainFrameWidget()->dragTargetDrop(current_drag_data_, client_point,
                                       screen_point, event->modifiers());
   } else {
-    mainFrameWidget()->dragTargetDragLeave();
+    mainFrameWidget()->dragTargetDragLeave(blink::WebPoint(),
+                                           blink::WebPoint());
   }
   current_drag_data_.reset();
   mainFrameWidget()->dragSourceEndedAt(client_point, screen_point,

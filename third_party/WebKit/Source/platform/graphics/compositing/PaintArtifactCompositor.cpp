@@ -221,18 +221,18 @@ static gfx::Rect largeRect(-200000, -200000, 400000, 400000);
 static void appendDisplayItemToCcDisplayItemList(const DisplayItem& displayItem,
                                                  cc::DisplayItemList* list) {
   if (DisplayItem::isDrawingType(displayItem.getType())) {
-    const PaintRecord* picture =
-        static_cast<const DrawingDisplayItem&>(displayItem).picture();
-    if (!picture)
+    const PaintRecord* record =
+        static_cast<const DrawingDisplayItem&>(displayItem).GetPaintRecord();
+    if (!record)
       return;
-    // In theory we would pass the bounds of the picture, previously done as:
-    // gfx::Rect bounds = gfx::SkIRectToRect(picture->cullRect().roundOut());
+    // In theory we would pass the bounds of the record, previously done as:
+    // gfx::Rect bounds = gfx::SkIRectToRect(record->cullRect().roundOut());
     // or use the visual rect directly. However, clip content layers attempt
     // to raster in a different space than that of the visual rects. We'll be
     // reworking visual rects further for SPv2, so for now we just pass a
     // visual rect large enough to make sure items raster.
-    list->CreateAndAppendDrawingItem<cc::DrawingDisplayItem>(
-        largeRect, sk_ref_sp(picture));
+    list->CreateAndAppendDrawingItem<cc::DrawingDisplayItem>(largeRect,
+                                                             sk_ref_sp(record));
   }
 }
 
@@ -282,7 +282,7 @@ static void applyClipsBetweenStates(const PropertyTreeState& localState,
 #endif
 
   FloatRect combinedClip =
-      geometryMapper.localToAncestorClipRect(localState, ancestorState);
+      geometryMapper.localToAncestorClipRect(localState, ancestorState).rect();
 
   ccList.CreateAndAppendPairedBeginItem<cc::FloatClipDisplayItem>(
       gfx::RectF(combinedClip));
@@ -600,14 +600,18 @@ bool PaintArtifactCompositor::mightOverlap(
                                           EffectPaintPropertyNode::root());
 
   FloatRect paintChunkScreenVisualRect =
-      geometryMapper.localToAncestorVisualRect(
-          paintChunk.bounds, paintChunk.properties.propertyTreeState,
-          rootPropertyTreeState);
+      geometryMapper
+          .localToAncestorVisualRect(paintChunk.bounds,
+                                     paintChunk.properties.propertyTreeState,
+                                     rootPropertyTreeState)
+          .rect();
 
   FloatRect pendingLayerScreenVisualRect =
-      geometryMapper.localToAncestorVisualRect(
-          candidatePendingLayer.bounds, candidatePendingLayer.propertyTreeState,
-          rootPropertyTreeState);
+      geometryMapper
+          .localToAncestorVisualRect(candidatePendingLayer.bounds,
+                                     candidatePendingLayer.propertyTreeState,
+                                     rootPropertyTreeState)
+          .rect();
 
   return paintChunkScreenVisualRect.intersects(pendingLayerScreenVisualRect);
 }

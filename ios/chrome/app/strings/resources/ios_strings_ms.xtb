@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Buka semua</translation>
 <translation id="1430915738399379752">Cetak</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> item</translation>
+<translation id="1491277525950327607">Dwiketik untuk togol tetapan</translation>
 <translation id="1540800554400757039">Alamat 1</translation>
 <translation id="1545749641540134597">Imbas Kod QR</translation>
 <translation id="1580783302095112590">Mel dihantar.</translation>
@@ -65,7 +66,6 @@ Contohnya, sesetengah tapak web mungkin menyambut permintaan ini dengan memapark
 <translation id="2068952045031577364">Minggu Yang Lalu</translation>
 <translation id="2079545284768500474">Buat asal</translation>
 <translation id="209018056901015185">Minta Tapak Desktop</translation>
-<translation id="2100215774115172756">Senarai bacaan anda tersedia di luar talian.</translation>
 <translation id="2103075008456228677">Buka history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> item dialihkan</translation>
 <translation id="2149973817440762519">Edit Penanda Halaman</translation>
@@ -120,7 +120,6 @@ Contohnya, sesetengah tapak web mungkin menyambut permintaan ini dengan memapark
 <translation id="3175081911749765310">Prkhdmtn Web</translation>
 <translation id="3207960819495026254">Ditandai halaman</translation>
 <translation id="3210163015918861891">Penyegerakan Dimatikan</translation>
-<translation id="3237561509210981547">Untuk menambahkan halaman pada senarai bacaan anda, ketik <ph name="BEGIN_BOLD_FONT" />Kongsi &gt; Baca Kemudian<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Pautan disalin</translation>
 <translation id="3244271242291266297">BB</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> daripada <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Contohnya, sesetengah tapak web mungkin menyambut permintaan ini dengan memapark
 <translation id="3414292259312108062">Chrome akan menyimpan ini dalam <ph name="BEGIN_LINK" />Kata laluan Google yang disimpan<ph name="END_LINK" /> anda dan auto isi untuk anda agar anda tidak perlu mengingati kata laluan itu sendiri.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Paparan Pisah</translation>
-<translation id="3474068797193663261">Untuk menambahkan halaman pada senarai bacaan anda, ketik <ph name="BEGIN_BOLD_FONT" />Menu &gt; Kongsi &gt; Baca Kemudian<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Borang diisi.</translation>
 <translation id="3478058380795961209">Bulan Tamat Tempoh</translation>
 <translation id="3482959374254649722">Menyegerakkan tab anda...</translation>
@@ -171,6 +169,7 @@ Untuk membetulkan istilah carian anda, tekan lama untuk memilih. Untuk memperhal
 <translation id="4121993058175073134">Tetapkn akaun e-mel anda dahulu dlm apl Tetapan utk mhantar data net-eksport.</translation>
 <translation id="4124987746317609294">Julat Masa</translation>
 <translation id="4172051516777682613">Sentiasa paparkan</translation>
+<translation id="418156467088430727">Lihat Versi Luar Talian di Tab Baharu</translation>
 <translation id="424315890655130736">Masukkan Ungkapan Laluan</translation>
 <translation id="4272631900155121838">Untuk mengimbas kod QR, dayakan kamera daripada tetapan</translation>
 <translation id="4281844954008187215">Syarat Perkhidmatan</translation>
@@ -178,7 +177,6 @@ Untuk membetulkan istilah carian anda, tekan lama untuk memilih. Untuk memperhal
 <translation id="4359125752503270327">Halaman ini akan dibuka dalam aplikasi lain.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Notis Privasi</translation>
-<translation id="4426508677408162512">Semua Penanda Halaman</translation>
 <translation id="4473991315115669931">Masuk ke Mod Inkognito</translation>
 <translation id="4526249700380860531">Lihat dan urus kata laluan yang disimpan di <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Cuba log masuk semula.</translation>
@@ -218,6 +216,7 @@ Data anda disulitkan dengan ungkapan laluan segerak anda. Masukkannya untuk memu
 <translation id="5300589172476337783">Paparkan</translation>
 <translation id="5317780077021120954">Simpan</translation>
 <translation id="5327248766486351172">Nama</translation>
+<translation id="5332219387342487447">Kaedah Penghantaran</translation>
 <translation id="5388358297987318779">Buka Imej</translation>
 <translation id="5409365236829784218">Tiada aplikasi dipasang yang boleh membuka fail ini.</translation>
 <translation id="54401264925851789">Maklumat Halaman Keselamatan</translation>
@@ -256,6 +255,7 @@ Serah mestilah turut didayakan dalam bahagian Umum pada Tetapan dan peranti anda
 <translation id="6042308850641462728">Lagi</translation>
 <translation id="605721222689873409">TT</translation>
 <translation id="6066301408025741299">Ketik untuk membatalkan.</translation>
+<translation id="60851516108411750">Senarai bacaan anda tersedia di luar talian. Untuk menambahkan halaman pada senarai bacaan anda, ketik<ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Dalam talian</translation>
 <translation id="6127379762771434464">Item dialih keluar</translation>
 <translation id="6136914049981179737">Bbrp saat lalu</translation>
@@ -270,6 +270,7 @@ Serah mestilah turut didayakan dalam bahagian Umum pada Tetapan dan peranti anda
 <translation id="6255097610484507482">Edit Kad Kredit</translation>
 <translation id="6308436439357671616">Langkah ini membolehkan anda mengambil dan memuat naik foto.</translation>
 <translation id="6314335155547195432">Jana Kata Laluan</translation>
+<translation id="6324528485781869530">Tukar Akaun Segerak</translation>
 <translation id="6324669097367352121">Tetapan log masuk</translation>
 <translation id="6337234675334993532">Penyulitan</translation>
 <translation id="633809752005859102">Ada sesuatu yang tidak kena. Kami akan membetulkannya.</translation>

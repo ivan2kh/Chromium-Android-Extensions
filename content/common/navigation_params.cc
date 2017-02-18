@@ -12,7 +12,6 @@
 #include "content/public/common/url_constants.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
-#include "url/url_util.h"
 
 namespace content {
 
@@ -22,16 +21,14 @@ bool ShouldMakeNetworkRequestForURL(const GURL& url) {
 
   // Javascript URLs, about:blank, srcdoc should not send a request
   // to the network stack.
-  // TODO(clamy): same document navigations should not send requests to the
-  // network stack. Neither should pushState/popState.
-  return !url::IsAboutBlank(url) && !url.SchemeIs(url::kJavaScriptScheme) &&
+  return !url.IsAboutBlank() && !url.SchemeIs(url::kJavaScriptScheme) &&
          !url.is_empty() && !url.SchemeIs(url::kContentIDScheme) &&
          url != content::kAboutSrcDocURL;
 }
 
 CommonNavigationParams::CommonNavigationParams()
     : transition(ui::PAGE_TRANSITION_LINK),
-      navigation_type(FrameMsg_Navigate_Type::NORMAL),
+      navigation_type(FrameMsg_Navigate_Type::DIFFERENT_DOCUMENT),
       allow_download(true),
       should_replace_current_entry(false),
       report_type(FrameMsg_UILoadMetricsReportType::NO_REPORT),
@@ -134,7 +131,6 @@ RequestNavigationParams::RequestNavigationParams()
     : is_overriding_user_agent(false),
       can_load_local_resources(false),
       nav_entry_id(0),
-      is_same_document_history_load(false),
       is_history_navigation_in_new_child(false),
       has_committed_real_load(false),
       intended_as_new_entry(false),
@@ -155,7 +151,6 @@ RequestNavigationParams::RequestNavigationParams(
     bool can_load_local_resources,
     const PageState& page_state,
     int nav_entry_id,
-    bool is_same_document_history_load,
     bool is_history_navigation_in_new_child,
     std::map<std::string, bool> subframe_unique_names,
     bool has_committed_real_load,
@@ -171,7 +166,6 @@ RequestNavigationParams::RequestNavigationParams(
       can_load_local_resources(can_load_local_resources),
       page_state(page_state),
       nav_entry_id(nav_entry_id),
-      is_same_document_history_load(is_same_document_history_load),
       is_history_navigation_in_new_child(is_history_navigation_in_new_child),
       subframe_unique_names(subframe_unique_names),
       has_committed_real_load(has_committed_real_load),

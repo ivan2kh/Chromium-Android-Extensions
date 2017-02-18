@@ -43,17 +43,6 @@ const base::Feature kCompositeOpaqueScrollers{"CompositeOpaqueScrollers",
 const base::Feature kCredentialManagementAPI{"CredentialManagementAPI",
                                              base::FEATURE_ENABLED_BY_DEFAULT};
 
-// Enable GPU Rasterization by default. This can still be overridden by
-// --force-gpu-rasterization or --disable-gpu-rasterization.
-#if defined(OS_ANDROID) || defined(OS_MACOSX)
-// DefaultEnableGpuRasterization has launched on Android and Mac.
-const base::Feature kDefaultEnableGpuRasterization{
-    "DefaultEnableGpuRasterization", base::FEATURE_ENABLED_BY_DEFAULT};
-#else
-const base::Feature kDefaultEnableGpuRasterization{
-    "DefaultEnableGpuRasterization", base::FEATURE_DISABLED_BY_DEFAULT};
-#endif
-
 // Speculatively pre-evaluate Javascript which will likely use document.write to
 // load an external script. The feature extracts the written markup and sends it
 // to the preload scanner.
@@ -145,6 +134,10 @@ const base::Feature kOptimizeLoadingIPCForSmallResources{
 // Origin Trials for controlling access to feature/API experiments.
 const base::Feature kOriginTrials{"OriginTrials",
                                   base::FEATURE_ENABLED_BY_DEFAULT};
+
+// Whether a download can be handled by parallel jobs.
+const base::Feature kParallelDownloading{
+    "ParallelDownloading", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Whether document level event listeners should default 'passive' to true.
 const base::Feature kPassiveDocumentEventListeners{
@@ -256,6 +249,12 @@ const base::Feature kWebRtcUseGpuMemoryBufferVideoFrames{
 const base::Feature kWebRtcHWH264Encoding{
     "WebRtcHWH264Encoding", base::FEATURE_ENABLED_BY_DEFAULT};
 
+// Enables the WebRTC Echo Canceller version 3 (AEC3). Feature for
+// http://crbug.com/688388. This value is sent to WebRTC's echo canceller to
+// toggle which echo canceller should be used.
+const base::Feature kWebRtcUseEchoCanceller3{"WebRtcUseEchoCanceller3",
+                                             base::FEATURE_DISABLED_BY_DEFAULT};
+
 // Controls whether the WebUSB API is enabled:
 // https://wicg.github.io/webusb
 const base::Feature kWebUsb{"WebUSB", base::FEATURE_ENABLED_BY_DEFAULT};
@@ -266,6 +265,10 @@ const base::Feature kSendBeaconThrowForBlobWithNonSimpleType{
     base::FEATURE_DISABLED_BY_DEFAULT};
 
 #if defined(OS_ANDROID)
+// A browsing history manager implementation for Android.
+const base::Feature kNativeAndroidHistoryManager{
+  "AndroidHistoryManager", base::FEATURE_DISABLED_BY_DEFAULT};
+
 // FeatureList definition for the Seccomp field trial.
 const base::Feature kSeccompSandboxAndroid{"SeccompSandboxAndroid",
                                            base::FEATURE_DISABLED_BY_DEFAULT};

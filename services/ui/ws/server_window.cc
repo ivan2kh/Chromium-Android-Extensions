@@ -31,8 +31,10 @@ ServerWindow::ServerWindow(ServerWindowDelegate* delegate,
       transient_parent_(nullptr),
       is_modal_(false),
       visible_(false),
-      cursor_id_(mojom::Cursor::CURSOR_NULL),
-      non_client_cursor_id_(mojom::Cursor::CURSOR_NULL),
+      // Default to POINTER as CURSOR_NULL doesn't change the cursor, it leaves
+      // the last non-null cursor.
+      cursor_id_(mojom::Cursor::POINTER),
+      non_client_cursor_id_(mojom::Cursor::POINTER),
       opacity_(1),
       can_focus_(true),
       properties_(properties),
@@ -144,7 +146,11 @@ void ServerWindow::Remove(ServerWindow* child) {
 
   for (auto& observer : child->observers_)
     observer.OnWillChangeWindowHierarchy(child, nullptr, this);
+
   RemoveImpl(child);
+
+  if (GetRoot() != nullptr)
+    child->ProcessRootChanged(GetRoot(), nullptr);
 
   // Stack the child properly if it is a transient child of a sibling.
   if (child->transient_parent_ && child->transient_parent_->parent() == this)

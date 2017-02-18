@@ -23,11 +23,11 @@
 #include "media/remoting/metrics.h"
 #include "media/remoting/rpc_broker.h"
 #include "mojo/public/cpp/system/data_pipe.h"
-#include "third_party/skia/include/core/SkBitmap.h"
 
 namespace media {
 
 class RendererClient;
+class VideoRendererSink;
 
 namespace remoting {
 
@@ -72,14 +72,15 @@ class CourierRenderer : public Renderer {
       base::WeakPtr<CourierRenderer> self,
       std::unique_ptr<pb::RpcMessage> message);
 
-  // Callback when remoting interstitial needs to be updated. Will post task to
-  // media thread to avoid threading race condition.
-  static void RequestUpdateInterstitialOnMainThread(
+  // Called to render the interstitial on the main thread. Then, trampoline to
+  // the media thread to have the CourierRenderer pass the resulting VideoFrame
+  // to the VideoRendererSink.
+  static void RenderInterstitialAndShow(
       scoped_refptr<base::SingleThreadTaskRunner> media_task_runner,
       base::WeakPtr<CourierRenderer> self,
-      const base::Optional<SkBitmap>& background_image,
-      const gfx::Size& canvas_size,
-      InterstitialType interstitial_type);
+      const SkBitmap& background,
+      const gfx::Size& natural_size,
+      InterstitialType type);
 
  public:
   // media::Renderer implementation.
@@ -133,11 +134,10 @@ class CourierRenderer : public Renderer {
   void OnStatisticsUpdate(std::unique_ptr<pb::RpcMessage> message);
   void OnDurationChange(std::unique_ptr<pb::RpcMessage> message);
 
-  // Called to update the remoting interstitial. Update
-  // |interstitial_background_| if |background_image| is set.
-  void UpdateInterstitial(const base::Optional<SkBitmap>& background_image,
-                          const gfx::Size& canvas_size,
-                          InterstitialType interstitial_type);
+  // Called to pass the newly-rendered interstitial VideoFrame to the
+  // VideoRendererSink.
+  void PaintInterstitial(scoped_refptr<VideoFrame> frame,
+                         InterstitialType type);
 
   // Called when |current_media_time_| is updated.
   void OnMediaTimeUpdated();
@@ -190,11 +190,6 @@ class CourierRenderer : public Renderer {
   base::Closure flush_cb_;
 
   VideoRendererSink* const video_renderer_sink_;  // Outlives this class.
-  // The background image for remoting interstitial. When |this| is destructed,
-  // |interstitial_background_| will be paint to clear the cast messages on
-  // the interstitial.
-  SkBitmap interstitial_background_;
-  gfx::Size canvas_size_;
 
   // Current playback rate.
   double playback_rate_ = 0;
@@ -230,6 +225,9 @@ class CourierRenderer : public Renderer {
   // A timer that polls the DemuxerStreamAdapters periodically to measure
   // the data flow rates for metrics.
   base::RepeatingTimer data_flow_poll_timer_;
+
+  // Current type of the interstitial frame.
+  InterstitialType interstitial_type_ = InterstitialType::BETWEEN_SESSIONS;
 
   base::WeakPtrFactory<CourierRenderer> weak_factory_;
 

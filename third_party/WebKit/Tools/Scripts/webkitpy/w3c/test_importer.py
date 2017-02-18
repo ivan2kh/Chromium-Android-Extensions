@@ -27,6 +27,7 @@ from webkitpy.w3c.directory_owners_extractor import DirectoryOwnersExtractor
 from webkitpy.w3c.local_wpt import LocalWPT
 from webkitpy.w3c.test_copier import TestCopier
 from webkitpy.w3c.wpt_expectations_updater import WPTExpectationsUpdater
+from webkitpy.w3c.wpt_manifest import WPTManifest
 
 # Settings for how often to check try job results and how long to wait.
 POLL_DELAY_SECONDS = 2 * 60
@@ -39,7 +40,6 @@ class TestImporter(object):
 
     def __init__(self, host):
         self.host = host
-        self.host.initialize_scm()
         self.executive = host.executive
         self.fs = host.filesystem
         self.finder = WebKitFinder(self.fs)
@@ -78,12 +78,15 @@ class TestImporter(object):
         if options.target == 'wpt' and not options.ignore_exportable_commits:
             commits = self.exportable_but_not_exported_commits(temp_repo_path)
             if commits:
-                _log.error('There were exportable but not-yet-exported commits:')
+                # If there are exportable commits, then there's no more work
+                # to do for now. This isn't really an error case; we expect
+                # to hit this case some of the time.
+                _log.info('There were exportable but not-yet-exported commits:')
                 for commit in commits:
-                    _log.error('  https://chromium.googlesource.com/chromium/src/+/%s', commit.sha)
-                _log.error('Aborting import to prevent clobbering these commits.')
+                    _log.info('  https://chromium.googlesource.com/chromium/src/+/%s', commit.sha)
+                _log.info('Aborting import to prevent clobbering these commits.')
                 self.clean_up_temp_repo(temp_repo_path)
-                return 1
+                return 0
 
         import_commit = self.update(dest_dir_name, temp_repo_path, options.revision)
 
@@ -194,12 +197,11 @@ class TestImporter(object):
         Runs the (newly-updated) manifest command if it's found, and then
         stages the generated MANIFEST.json in the git index, ready to commit.
         """
-        manifest_command = self.finder.path_from_webkit_base('Tools', 'Scripts', 'webkitpy', 'thirdparty', 'wpt', 'wpt', 'manifest')
         if 'css' in dest_path:
             # Do nothing for csswg-test.
             return
         _log.info('Generating MANIFEST.json')
-        self.run([manifest_command, '--work', '--tests-root', dest_path])
+        WPTManifest.generate_manifest(self.host, dest_path)
         self.run(['git', 'add', self.fs.join(dest_path, 'MANIFEST.json')])
 
     def update(self, dest_dir_name, temp_repo_path, revision):
@@ -341,17 +343,21 @@ class TestImporter(object):
         if try_results and self.git_cl.has_failing_try_results(try_results):
             self.fetch_new_expectations_and_baselines()
 
-        # Wait for CQ try jobs to finish. If there are failures, then abort.
+        # Trigger CQ and wait for CQ try jobs to finish.
         self.git_cl.run(['set-commit', '--rietveld'])
         try_results = self.git_cl.wait_for_try_jobs(
             poll_delay_seconds=POLL_DELAY_SECONDS, timeout_seconds=TIMEOUT_SECONDS)
 
         if not try_results:
+            _log.error('No try job results.')
             self.git_cl.run(['set-close'])
             return False
 
-        if self.git_cl.has_failing_try_results(try_results):
-            _log.info('CQ failed; aborting.')
+        # If the CQ passes, then the issue will be closed.
+        status = self.git_cl.run(['status' '--field', 'status']).strip()
+        _log.info('CL status: "%s"', status)
+        if status not in ('lgtm', 'closed'):
+            _log.error('CQ appears to have failed; aborting.')
             self.git_cl.run(['set-close'])
             return False
 
@@ -360,35 +366,47 @@ class TestImporter(object):
 
     def _upload_cl(self):
         _log.info('Uploading change list.')
-        cc_list = self.get_directory_owners()
-        description = self._cl_description()
+        directory_owners = self.get_directory_owners()
+        description = self._cl_description(directory_owners)
         self.git_cl.run([
             'upload',
             '-f',
             '--rietveld',
             '-m',
             description,
-        ] + ['--cc=' + email for email in cc_list])
+        ] + ['--cc=' + email_address for email_address in directory_owners])
 
     def get_directory_owners(self):
         """Returns a list of email addresses of owners of changed tests."""
         _log.info('Gathering directory owners emails to CC.')
-        changed_files = self.host.scm().changed_files()
+        changed_files = self.host.git().changed_files()
         extractor = DirectoryOwnersExtractor(self.fs)
         extractor.read_owner_map()
         return extractor.list_owners(changed_files)
 
-    def _cl_description(self):
+    def _cl_description(self, directory_owners):
         description = self.check_run(['git', 'log', '-1', '--format=%B'])
         build_link = current_build_link(self.host)
         if build_link:
             description += 'Build: %s\n\n' % build_link
+
+        if directory_owners:
+            description += self._format_directory_owners(directory_owners) + '\n\n'
         description += 'TBR=qyearsley@chromium.org\n'
+
         # Move any NOEXPORT tag to the end of the description.
         description = description.replace('NOEXPORT=true', '')
         description = description.replace('\n\n\n\n', '\n\n')
         description += 'NOEXPORT=true'
         return description
+
+    @staticmethod
+    def _format_directory_owners(directory_owners):
+        message_lines = ['Directory owners for changes in this CL:']
+        for owner, directories in sorted(directory_owners.items()):
+            message_lines.append(owner + ':')
+            message_lines.extend(['  ' + d for d in directories])
+        return '\n'.join(message_lines)
 
     def fetch_new_expectations_and_baselines(self):
         """Adds new expectations and downloads baselines based on try job results, then commits and uploads the change."""

@@ -3,10 +3,14 @@
 // found in the LICENSE file.
 
 #include "cc/surfaces/surface.h"
+#include "base/memory/ptr_util.h"
+#include "cc/surfaces/surface_dependency_tracker.h"
 #include "cc/surfaces/surface_factory.h"
 #include "cc/surfaces/surface_factory_client.h"
 #include "cc/surfaces/surface_id_allocator.h"
 #include "cc/surfaces/surface_manager.h"
+#include "cc/test/begin_frame_args_test.h"
+#include "cc/test/fake_external_begin_frame_source.h"
 #include "cc/test/scheduler_test_common.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/geometry/size.h"

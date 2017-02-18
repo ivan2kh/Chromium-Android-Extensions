@@ -20,6 +20,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.support.v7.app.AlertDialog;
@@ -97,11 +98,13 @@ import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.omaha.UpdateMenuItemHelper;
 import org.chromium.chrome.browser.pageinfo.WebsiteSettingsPopup;
 import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomizations;
+import org.chromium.chrome.browser.physicalweb.PhysicalWebShareActivity;
 import org.chromium.chrome.browser.preferences.ChromePreferenceManager;
 import org.chromium.chrome.browser.preferences.PrefServiceBridge;
 import org.chromium.chrome.browser.preferences.PreferencesLauncher;
 import org.chromium.chrome.browser.printing.PrintShareActivity;
 import org.chromium.chrome.browser.printing.TabPrinter;
+import org.chromium.chrome.browser.share.OptionalShareTargetsManager;
 import org.chromium.chrome.browser.share.ShareHelper;
 import org.chromium.chrome.browser.snackbar.BottomContainer;
 import org.chromium.chrome.browser.snackbar.DataReductionPromoSnackbarController;
@@ -128,6 +131,7 @@ import org.chromium.chrome.browser.util.FeatureUtilities;
 import org.chromium.chrome.browser.webapps.AddToHomescreenManager;
 import org.chromium.chrome.browser.widget.BottomSheet;
 import org.chromium.chrome.browser.widget.ControlContainer;
+import org.chromium.chrome.browser.widget.FadingBackgroundView;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.content.browser.ContentVideoView;
 import org.chromium.content.browser.ContentViewCore;
@@ -149,6 +153,8 @@ import org.chromium.ui.base.WindowAndroid;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nullable;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -302,7 +308,7 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         // If a user had ALLOW_LOW_END_DEVICE_UI explicitly set to false then we manually override
         // SysUtils.isLowEndDevice() with a switch so that they continue to see the normal UI. This
         // is only the case for grandfathered-in svelte users. We no longer do so for newer users.
-        if (!ChromePreferenceManager.getInstance(this).getAllowLowEndDeviceUi()) {
+        if (!ChromePreferenceManager.getInstance().getAllowLowEndDeviceUi()) {
             CommandLine.getInstance().appendSwitch(
                     BaseSwitches.DISABLE_LOW_END_DEVICE_MODE);
         }
@@ -341,6 +347,11 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         if (mBottomSheet != null) {
             mBottomSheet.setTabModelSelector(mTabModelSelector);
             mBottomSheet.setFullscreenManager(mFullscreenManager);
+
+            FadingBackgroundView fadingView =
+                    (FadingBackgroundView) findViewById(R.id.fading_focus_target);
+            mBottomSheet.addObserver(fadingView);
+            fadingView.addObserver(mBottomSheet);
         }
         ((BottomContainer) findViewById(R.id.bottom_container)).initialize(mFullscreenManager);
     }
@@ -582,7 +593,6 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
     /**
      * @return {@link ToolbarManager} that belongs to this activity.
      */
-    @VisibleForTesting
     public ToolbarManager getToolbarManager() {
         return mToolbarManager;
     }
@@ -1083,7 +1093,15 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
                     ApiCompatibilityUtils.getColor(getResources(),
                             R.color.resizing_background_color)));
         } else {
-            removeWindowBackground();
+            // Post the removeWindowBackground() call as a separate task, as doing it synchronously
+            // here can cause redrawing glitches. See crbug.com/686662 for an example problem.
+            Handler handler = new Handler();
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    removeWindowBackground();
+                }
+            });
         }
 
         mRemoveWindowBackgroundDone = true;
@@ -1140,15 +1158,23 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         final Tab currentTab = getActivityTab();
         if (currentTab == null) return;
 
-        PrintingController printingController = PrintingControllerImpl.getInstance();
-        if (printingController != null && !currentTab.isNativePage() && !printingController.isBusy()
-                && PrefServiceBridge.getInstance().isPrintingEnabled()) {
-            PrintShareActivity.enablePrintShareOption(this, new Runnable() {
-                @Override
-                public void run() {
-                    triggerShare(currentTab, shareDirectly, isIncognito);
-                }
-            });
+        List<Class<? extends Activity>> classesToEnable = new ArrayList<>(2);
+
+        if (PrintShareActivity.printingIsEnabled(currentTab)) {
+            classesToEnable.add(PrintShareActivity.class);
+        }
+        if (PhysicalWebShareActivity.sharingIsEnabled(currentTab)) {
+            classesToEnable.add(PhysicalWebShareActivity.class);
+        }
+
+        if (!classesToEnable.isEmpty()) {
+            OptionalShareTargetsManager.enableOptionalShareActivities(
+                    this, classesToEnable, new Runnable() {
+                        @Override
+                        public void run() {
+                            triggerShare(currentTab, shareDirectly, isIncognito);
+                        }
+                    });
             return;
         }
 
@@ -1951,6 +1977,30 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         boolean useLowEndTheme =
                 SysUtils.isLowEndDevice() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
         return (useLowEndTheme ? R.style.MainTheme_LowEnd : R.style.MainTheme);
+    }
+
+    /**
+     * Looks up the Chrome activity of the given web contents. This can be null. Should never be
+     * cached, because web contents can change activities, e.g., when user selects "Open in Chrome"
+     * menu item.
+     *
+     * @param webContents The web contents for which to lookup the Chrome activity.
+     * @return Possibly null Chrome activity that should never be cached.
+     */
+    @Nullable public static ChromeActivity fromWebContents(@Nullable WebContents webContents) {
+        if (webContents == null) return null;
+
+        ContentViewCore contentViewCore = ContentViewCore.fromWebContents(webContents);
+        if (contentViewCore == null) return null;
+
+        WindowAndroid window = contentViewCore.getWindowAndroid();
+        if (window == null) return null;
+
+        Activity activity = window.getActivity().get();
+        if (activity == null) return null;
+        if (!(activity instanceof ChromeActivity)) return null;
+
+        return (ChromeActivity) activity;
     }
 
     private void setLowEndTheme() {

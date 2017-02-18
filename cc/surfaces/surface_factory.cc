@@ -38,9 +38,7 @@ SurfaceFactory::~SurfaceFactory() {
 void SurfaceFactory::EvictSurface() {
   if (!current_surface_)
     return;
-  if (manager_)
-    manager_->Destroy(std::move(current_surface_));
-  current_surface_.reset();
+  Destroy(std::move(current_surface_));
 }
 
 void SurfaceFactory::Reset() {
@@ -65,14 +63,9 @@ void SurfaceFactory::SubmitCompositorFrame(
     surface = std::move(current_surface_);
   } else {
     surface = Create(local_surface_id);
-    gfx::Size frame_size;
-    // CompositorFrames may not be populated with a RenderPass in unit tests.
-    if (!frame.render_pass_list.empty())
-      frame_size = frame.render_pass_list.back()->output_rect.size();
-    manager_->SurfaceCreated(SurfaceInfo(
-        surface->surface_id(), frame.metadata.device_scale_factor, frame_size));
   }
   surface->QueueFrame(std::move(frame), callback);
+
   if (!manager_->SurfaceModified(SurfaceId(frame_sink_id_, local_surface_id))) {
     TRACE_EVENT_INSTANT0("cc", "Damage not visible.", TRACE_EVENT_SCOPE_THREAD);
     surface->RunDrawCallbacks();
@@ -120,17 +113,54 @@ void SurfaceFactory::UnrefResources(const ReturnedResourceArray& resources) {
   holder_.UnrefResources(resources);
 }
 
+void SurfaceFactory::OnReferencedSurfacesChanged(
+    Surface* surface,
+    const std::vector<SurfaceId>* active_referenced_surfaces,
+    const std::vector<SurfaceId>* pending_referenced_surfaces) {
+  client_->ReferencedSurfacesChanged(surface->surface_id().local_surface_id(),
+                                     active_referenced_surfaces,
+                                     pending_referenced_surfaces);
+}
+
+void SurfaceFactory::OnSurfaceActivated(Surface* surface) {
+  DCHECK(surface->HasActiveFrame());
+  if (seen_first_frame_activation_)
+    return;
+
+  seen_first_frame_activation_ = true;
+
+  const CompositorFrame& frame = surface->GetActiveFrame();
+  // CompositorFrames might not be populated with a RenderPass in unit tests.
+  gfx::Size frame_size;
+  if (!frame.render_pass_list.empty())
+    frame_size = frame.render_pass_list.back()->output_rect.size();
+
+  // SurfaceCreated only applies for the first Surface activation. Thus,
+  // SurfaceFactory stops observing new activations after the first one.
+  manager_->SurfaceCreated(SurfaceInfo(
+      surface->surface_id(), frame.metadata.device_scale_factor, frame_size));
+}
+
+void SurfaceFactory::OnSurfaceDependenciesChanged(
+    Surface* surface,
+    const SurfaceDependencies& added_dependencies,
+    const SurfaceDependencies& removed_dependencies) {}
+
+void SurfaceFactory::OnSurfaceDiscarded(Surface* surface) {}
+
 std::unique_ptr<Surface> SurfaceFactory::Create(
     const LocalSurfaceId& local_surface_id) {
   auto surface = base::MakeUnique<Surface>(
       SurfaceId(frame_sink_id_, local_surface_id), weak_factory_.GetWeakPtr());
+  seen_first_frame_activation_ = false;
   manager_->RegisterSurface(surface.get());
+  surface->AddObserver(this);
   return surface;
 }
 
 void SurfaceFactory::Destroy(std::unique_ptr<Surface> surface) {
-  if (manager_)
-    manager_->Destroy(std::move(surface));
+  surface->RemoveObserver(this);
+  manager_->Destroy(std::move(surface));
 }
 
 }  // namespace cc

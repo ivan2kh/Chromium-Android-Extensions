@@ -29,6 +29,8 @@
  */
 #include "modules/serviceworkers/ServiceWorkerContainer.h"
 
+#include <memory>
+#include <utility>
 #include "bindings/core/v8/CallbackPromiseAdapter.h"
 #include "bindings/core/v8/ScriptPromise.h"
 #include "bindings/core/v8/ScriptPromiseResolver.h"
@@ -42,6 +44,7 @@
 #include "core/dom/ExecutionContext.h"
 #include "core/dom/MessagePort.h"
 #include "core/events/MessageEvent.h"
+#include "core/frame/Deprecation.h"
 #include "core/frame/LocalDOMWindow.h"
 #include "core/frame/UseCounter.h"
 #include "core/frame/csp/ContentSecurityPolicy.h"
@@ -59,8 +62,6 @@
 #include "public/platform/modules/serviceworker/WebServiceWorkerProvider.h"
 #include "public/platform/modules/serviceworker/WebServiceWorkerRegistration.h"
 #include "wtf/PtrUtil.h"
-#include <memory>
-#include <utility>
 
 namespace blink {
 
@@ -444,18 +445,29 @@ void ServiceWorkerContainer::setController(
 void ServiceWorkerContainer::dispatchMessageEvent(
     std::unique_ptr<WebServiceWorker::Handle> handle,
     const WebString& message,
-    const WebMessagePortChannelArray& webChannels) {
+    WebMessagePortChannelArray webChannels) {
   if (!getExecutionContext() || !getExecutionContext()->executingWindow())
     return;
 
-  MessagePortArray* ports =
-      MessagePort::toMessagePortArray(getExecutionContext(), webChannels);
+  MessagePortArray* ports = MessagePort::toMessagePortArray(
+      getExecutionContext(), std::move(webChannels));
   RefPtr<SerializedScriptValue> value = SerializedScriptValue::create(message);
   ServiceWorker* source = ServiceWorker::from(
       getExecutionContext(), WTF::wrapUnique(handle.release()));
   dispatchEvent(MessageEvent::create(
       ports, value, getExecutionContext()->getSecurityOrigin()->toString(),
       String() /* lastEventId */, source, String() /* suborigin */));
+}
+
+void ServiceWorkerContainer::countFeature(uint32_t feature) {
+  if (!getExecutionContext())
+    return;
+  UseCounter::Feature useCounterFeature =
+      static_cast<UseCounter::Feature>(feature);
+  if (Deprecation::deprecationMessage(useCounterFeature).isEmpty())
+    UseCounter::count(getExecutionContext(), useCounterFeature);
+  else
+    Deprecation::countDeprecation(getExecutionContext(), useCounterFeature);
 }
 
 const AtomicString& ServiceWorkerContainer::interfaceName() const {

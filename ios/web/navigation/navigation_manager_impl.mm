@@ -32,10 +32,7 @@ bool AreURLsInPageNavigation(const GURL& existing_url, const GURL& new_url) {
   if (existing_url == new_url || !new_url.has_ref())
     return false;
 
-  url::Replacements<char> replacements;
-  replacements.ClearRef();
-  return existing_url.ReplaceComponents(replacements) ==
-         new_url.ReplaceComponents(replacements);
+  return existing_url.EqualsIgnoringRef(new_url);
 }
 
 }  // anonymous namespace
@@ -86,6 +83,7 @@ void NavigationManagerImpl::SetDelegate(NavigationManagerDelegate* delegate) {
 
 void NavigationManagerImpl::SetBrowserState(BrowserState* browser_state) {
   browser_state_ = browser_state;
+  [session_controller_ setBrowserState:browser_state];
 }
 
 void NavigationManagerImpl::SetSessionController(
@@ -222,7 +220,7 @@ NavigationItem* NavigationManagerImpl::GetTransientItem() const {
 }
 
 void NavigationManagerImpl::DiscardNonCommittedItems() {
-  [session_controller_ discardNonCommittedEntries];
+  [session_controller_ discardNonCommittedItems];
 }
 
 void NavigationManagerImpl::LoadIfNecessary() {
@@ -258,9 +256,9 @@ int NavigationManagerImpl::GetCurrentItemIndex() const {
 }
 
 int NavigationManagerImpl::GetPendingItemIndex() const {
-  if ([session_controller_ hasPendingEntry]) {
-    if ([session_controller_ pendingEntryIndex] != -1) {
-      return [session_controller_ pendingEntryIndex];
+  if ([session_controller_ pendingEntry]) {
+    if ([session_controller_ pendingItemIndex] != -1) {
+      return [session_controller_ pendingItemIndex];
     }
     // TODO(crbug.com/665189): understand why current item index is
     // returned here.
@@ -284,7 +282,7 @@ bool NavigationManagerImpl::RemoveItemAtIndex(int index) {
   if (idx >= entries.count)
     return false;
 
-  [session_controller_ removeEntryAtIndex:index];
+  [session_controller_ removeItemAtIndex:index];
   return true;
 }
 
@@ -341,12 +339,12 @@ void NavigationManagerImpl::CopyState(
 }
 
 int NavigationManagerImpl::GetIndexForOffset(int offset) const {
-  int result = [session_controller_ pendingEntryIndex] == -1
+  int result = [session_controller_ pendingItemIndex] == -1
                    ? GetCurrentItemIndex()
-                   : static_cast<int>([session_controller_ pendingEntryIndex]);
+                   : static_cast<int>([session_controller_ pendingItemIndex]);
 
   if (offset < 0) {
-    if (GetTransientItem() && [session_controller_ pendingEntryIndex] == -1) {
+    if (GetTransientItem() && [session_controller_ pendingItemIndex] == -1) {
       // Going back from transient item that added to the end navigation stack
       // is a matter of discarding it as there is no need to move navigation
       // index back.
@@ -370,7 +368,7 @@ int NavigationManagerImpl::GetIndexForOffset(int offset) const {
     if (result > GetItemCount() /* overflow */)
       result = INT_MIN;
   } else if (offset > 0) {
-    if (GetPendingItem() && [session_controller_ pendingEntryIndex] == -1) {
+    if (GetPendingItem() && [session_controller_ pendingItemIndex] == -1) {
       // Chrome for iOS does not allow forward navigation if there is another
       // pending navigation in progress. Returning invalid index indicates that
       // forward navigation will not be allowed (and |INT_MAX| works for that).

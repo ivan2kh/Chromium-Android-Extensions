@@ -14,6 +14,7 @@
 #include "base/message_loop/message_loop.h"
 #include "base/run_loop.h"
 #include "base/single_thread_task_runner.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/threading/worker_pool.h"
@@ -137,8 +138,8 @@ void PrintJob::StartPrinting() {
   is_job_pending_ = true;
 
   // Tell everyone!
-  scoped_refptr<JobEventDetails> details(
-      new JobEventDetails(JobEventDetails::NEW_DOC, document_.get(), nullptr));
+  scoped_refptr<JobEventDetails> details(new JobEventDetails(
+      JobEventDetails::NEW_DOC, 0, document_.get(), nullptr));
   content::NotificationService::current()->Notify(
       chrome::NOTIFICATION_PRINT_JOB_EVENT,
       content::Source<PrintJob>(this),
@@ -183,7 +184,7 @@ void PrintJob::Cancel() {
   }
   // Make sure a Cancel() is broadcast.
   scoped_refptr<JobEventDetails> details(
-      new JobEventDetails(JobEventDetails::FAILED, nullptr, nullptr));
+      new JobEventDetails(JobEventDetails::FAILED, 0, nullptr, nullptr));
   content::NotificationService::current()->Notify(
       chrome::NOTIFICATION_PRINT_JOB_EVENT,
       content::Source<PrintJob>(this),
@@ -408,8 +409,8 @@ void PrintJob::OnDocumentDone() {
   // Stop the worker thread.
   Stop();
 
-  scoped_refptr<JobEventDetails> details(
-      new JobEventDetails(JobEventDetails::JOB_DONE, document_.get(), nullptr));
+  scoped_refptr<JobEventDetails> details(new JobEventDetails(
+      JobEventDetails::JOB_DONE, 0, document_.get(), nullptr));
   content::NotificationService::current()->Notify(
       chrome::NOTIFICATION_PRINT_JOB_EVENT,
       content::Source<PrintJob>(this),
@@ -466,12 +467,10 @@ void PrintJob::Quit() {
 
 // Takes settings_ ownership and will be deleted in the receiving thread.
 JobEventDetails::JobEventDetails(Type type,
+                                 int job_id,
                                  PrintedDocument* document,
                                  PrintedPage* page)
-    : document_(document),
-      page_(page),
-      type_(type) {
-}
+    : document_(document), page_(page), type_(type), job_id_(job_id) {}
 
 JobEventDetails::~JobEventDetails() {
 }

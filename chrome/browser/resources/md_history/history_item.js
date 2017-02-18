@@ -100,13 +100,6 @@ cr.define('md_history', function() {
         reflectToAttribute: true,
       },
 
-      // True if the item is being displayed embedded in another element and
-      // should not manage its own borders or size.
-      embedded: {
-        type: Boolean,
-        reflectToAttribute: true,
-      },
-
       /** @type {Element} */
       lastFocused: {
         type: Object,
@@ -116,6 +109,11 @@ cr.define('md_history', function() {
       ironListTabIndex: {
         type: Number,
         observer: 'ironListTabIndexChanged_',
+      },
+
+      selectionNotAllowed_: {
+        type: Boolean,
+        value: !loadTimeData.getBoolean('allowDeletingHistory'),
       },
 
       hasTimeGap: Boolean,
@@ -196,7 +194,7 @@ cr.define('md_history', function() {
         }
       }
 
-      if (this.selectionNotAllowed_())
+      if (this.selectionNotAllowed_)
         return;
 
       this.$.checkbox.focus();
@@ -307,10 +305,6 @@ cr.define('md_history', function() {
      */
     showIcon_: function() {
       this.$.icon.style.backgroundImage = cr.icon.getFavicon(this.item.url);
-    },
-
-    selectionNotAllowed_: function() {
-      return !loadTimeData.getBoolean('allowDeletingHistory');
     },
 
     /**

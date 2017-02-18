@@ -68,7 +68,39 @@ public class ImeTest extends ContentShellTestBase {
         mSelectionPopupController = mContentViewCore.getSelectionPopupControllerForTesting();
         mWebContents = getWebContents();
 
-        mInputMethodManagerWrapper = new TestInputMethodManagerWrapper(mContentViewCore);
+        mInputMethodManagerWrapper = new TestInputMethodManagerWrapper(mContentViewCore) {
+            private boolean mExpectsSelectionOutsideComposition;
+
+            @Override
+            public void expectsSelectionOutsideComposition() {
+                mExpectsSelectionOutsideComposition = true;
+            }
+
+            @Override
+            public void onUpdateSelection(
+                    Range oldSel, Range oldComp, Range newSel, Range newComp) {
+                // We expect that selection will be outside composition in some cases. Keyboard
+                // app will not finish composition in this case.
+                if (mExpectsSelectionOutsideComposition) {
+                    mExpectsSelectionOutsideComposition = false;
+                    return;
+                }
+                if (oldComp == null || oldComp.start() == oldComp.end()
+                        || newComp.start() == newComp.end()) {
+                    return;
+                }
+                // This emulates keyboard app's behavior that finishes composition when
+                // selection is outside composition.
+                if (!newSel.intersects(newComp)) {
+                    try {
+                        finishComposingText();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        fail();
+                    }
+                }
+            }
+        };
         getImeAdapter().setInputMethodManagerWrapperForTest(mInputMethodManagerWrapper);
         assertEquals(0, mInputMethodManagerWrapper.getShowSoftInputCounter());
         mConnectionFactory =
@@ -213,6 +245,25 @@ public class ImeTest extends ContentShellTestBase {
 
     @SmallTest
     @Feature({"TextInput", "Main"})
+    public void testKeyboardAppFinishesCompositionOnUnexpectedSelectionChange() throws Throwable {
+        focusElementAndWaitForStateUpdate("textarea");
+        commitText("12345", 1);
+        setSelection(3, 3);
+        setComposingRegion(2, 3);
+
+        waitAndVerifyUpdateSelection(0, 5, 5, -1, -1);
+        waitAndVerifyUpdateSelection(1, 3, 3, -1, -1);
+        waitAndVerifyUpdateSelection(2, 3, 3, 2, 3);
+
+        // Unexpected selection change occurs, e.g., the user clicks on an area.
+        DOMUtils.clickNode(this, mContentViewCore, "textarea");
+        waitAndVerifyUpdateSelection(3, 5, 5, 2, 3);
+        // Keyboard app finishes composition. We emulate this in TestInputMethodManagerWrapper.
+        waitAndVerifyUpdateSelection(4, 5, 5, -1, -1);
+    }
+
+    @SmallTest
+    @Feature({"TextInput", "Main"})
     public void testSetComposingTextForNewCursorPositions() throws Throwable {
         // Cursor is on the right of composing text when newCursorPosition > 0.
         setComposingText("ab", 1);
@@ -226,9 +277,11 @@ public class ImeTest extends ContentShellTestBase {
         waitAndVerifyUpdateSelection(2, 0, 0, 2, 6);
 
         // Cursor is on the left boundary.
+        mInputMethodManagerWrapper.expectsSelectionOutsideComposition();
         setComposingText("cd", -2);
         waitAndVerifyUpdateSelection(3, 0, 0, 2, 4);
 
+        mInputMethodManagerWrapper.expectsSelectionOutsideComposition();
         // Cursor is between the left boundary and the composing text.
         setComposingText("cd", -1);
         waitAndVerifyUpdateSelection(4, 1, 1, 2, 4);
@@ -244,14 +297,17 @@ public class ImeTest extends ContentShellTestBase {
         setComposingText("ef", 1);
         waitAndVerifyUpdateSelection(7, 4, 4, 2, 4);
 
+        mInputMethodManagerWrapper.expectsSelectionOutsideComposition();
         // Cursor is between the composing text and the right boundary.
         setComposingText("ef", 2);
         waitAndVerifyUpdateSelection(8, 5, 5, 2, 4);
 
+        mInputMethodManagerWrapper.expectsSelectionOutsideComposition();
         // Cursor is on the right boundary.
         setComposingText("ef", 3);
         waitAndVerifyUpdateSelection(9, 6, 6, 2, 4);
 
+        mInputMethodManagerWrapper.expectsSelectionOutsideComposition();
         // Cursor exceeds the right boundary.
         setComposingText("efgh", 100);
         waitAndVerifyUpdateSelection(10, 8, 8, 2, 6);
@@ -436,16 +492,45 @@ public class ImeTest extends ContentShellTestBase {
         focusElement("input_text");
         // showSoftInput() on input_text. restartInput() on input_number1 due to focus change,
         // and restartInput() on input_text later.
-        // TODO(changwan): reduce unnecessary restart input.
-        waitForKeyboardStates(3, 1, 5, new Integer[] {
-                TextInputType.NUMBER, TextInputType.NUMBER, TextInputType.NUMBER,
-                TextInputType.TEXT});
+        waitForKeyboardStates(3, 1, 4,
+                new Integer[] {TextInputType.NUMBER, TextInputType.NUMBER, TextInputType.TEXT});
+
+        resetUpdateSelectionList();
+        setComposingText("a", 1);
+        waitAndVerifyUpdateSelection(0, 1, 1, 0, 1);
+        resetUpdateSelectionList();
+
+        // JavaScript changes focus.
+        String code = "(function() { "
+                + "var textarea = document.getElementById('textarea');"
+                + "textarea.focus();"
+                + "})();";
+        JavaScriptUtils.executeJavaScriptAndWaitForResult(
+                getContentViewCore().getWebContents(), code);
+        waitAndVerifyUpdateSelection(0, 0, 0, -1, -1);
+        resetUpdateSelectionList();
+
+        waitForKeyboardStates(4, 1, 5, new Integer[] {
+                TextInputType.NUMBER, TextInputType.NUMBER, TextInputType.TEXT,
+                TextInputType.TEXT_AREA});
+        assertEquals(0, mConnectionFactory.getOutAttrs().initialSelStart);
+        assertEquals(0, mConnectionFactory.getOutAttrs().initialSelEnd);
+
+        setComposingText("aa", 1);
+        waitAndVerifyUpdateSelection(0, 2, 2, 0, 2);
+
+        focusElement("input_text");
+        waitForKeyboardStates(5, 1, 6, new Integer[] {
+                TextInputType.NUMBER, TextInputType.NUMBER, TextInputType.TEXT,
+                TextInputType.TEXT_AREA, TextInputType.TEXT});
+        assertEquals(1, mConnectionFactory.getOutAttrs().initialSelStart);
+        assertEquals(1, mConnectionFactory.getOutAttrs().initialSelEnd);
 
         focusElement("input_radio", false);
         // hideSoftInput(), restartInput()
-        waitForKeyboardStates(3, 2, 6, new Integer[] {
-                TextInputType.NUMBER, TextInputType.NUMBER, TextInputType.NUMBER,
-                TextInputType.TEXT});
+        waitForKeyboardStates(5, 2, 7, new Integer[] {
+                TextInputType.NUMBER, TextInputType.NUMBER, TextInputType.TEXT,
+                TextInputType.TEXT_AREA, TextInputType.TEXT});
     }
 
     private void assertTextsAroundCursor(
@@ -743,12 +828,11 @@ public class ImeTest extends ContentShellTestBase {
 
         paste();
         // Paste is a two step process when there is a non-zero selection.
-        waitAndVerifyUpdateSelection(2, 3, 3, -1, -1);
-        waitAndVerifyUpdateSelection(3, 8, 8, -1, -1);
+        waitAndVerifyUpdateSelection(2, 8, 8, -1, -1);
         assertTextsAroundCursor("blablarg", null, "");
 
         paste();
-        waitAndVerifyUpdateSelection(4, 13, 13, -1, -1);
+        waitAndVerifyUpdateSelection(3, 13, 13, -1, -1);
         assertTextsAroundCursor("blablargblarg", null, "");
     }
 
@@ -1211,9 +1295,8 @@ public class ImeTest extends ContentShellTestBase {
 
         finishComposingText();
         waitAndVerifyUpdateSelection(1, 1, 1, -1, -1);
-        // TODO(changwan): reduce the number of selection changes.
         waitForEventLogs(
-                "compositionupdate(a),input,compositionend(a),selectionchange,selectionchange");
+                "compositionend(a)");
     }
 
     @MediumTest
@@ -1228,9 +1311,7 @@ public class ImeTest extends ContentShellTestBase {
 
         finishComposingText();
         waitAndVerifyUpdateSelection(1, 1, 1, -1, -1);
-        // TODO(changwan): reduce the number of selection changes.
-        waitForEventLogs("compositionupdate(a),input,compositionend(a),selectionchange,"
-                + "selectionchange,selectionchange");
+        waitForEventLogs("compositionend(a)");
     }
 
     @MediumTest
@@ -1275,8 +1356,7 @@ public class ImeTest extends ContentShellTestBase {
         deleteSurroundingText(1, 1);
         waitAndVerifyUpdateSelection(2, 1, 1, -1, -1);
         // TODO(yabinh): It should only fire 1 input and 1 selectionchange events.
-        waitForEventLogs("keydown(229),input,input,keyup(229),selectionchange,selectionchange,"
-                + "selectionchange,selectionchange");
+        waitForEventLogs("keydown(229),input,input,keyup(229),selectionchange,selectionchange");
     }
 
     @MediumTest
@@ -1295,8 +1375,7 @@ public class ImeTest extends ContentShellTestBase {
         deleteSurroundingText(1, 1);
         waitAndVerifyUpdateSelection(2, 1, 1, -1, -1);
         // TODO(yabinh): It should only fire 1 input and 1 selectionchange events.
-        waitForEventLogs("keydown(229),input,input,keyup(229),selectionchange,selectionchange,"
-                + "selectionchange,selectionchange");
+        waitForEventLogs("keydown(229),input,input,keyup(229),selectionchange,selectionchange");
     }
 
     @MediumTest
@@ -1730,6 +1809,7 @@ public class ImeTest extends ContentShellTestBase {
      */
     private void focusElementAndWaitForStateUpdate(String id)
             throws InterruptedException, TimeoutException {
+        resetUpdateSelectionList();
         focusElement(id);
         waitAndVerifyUpdateSelection(0, 0, 0, -1, -1);
         resetUpdateSelectionList();

@@ -80,6 +80,16 @@ std::string SurfaceManager::SurfaceReferencesToString() {
 }
 #endif
 
+void SurfaceManager::SetDependencyTracker(
+    std::unique_ptr<SurfaceDependencyTracker> dependency_tracker) {
+  dependency_tracker_ = std::move(dependency_tracker);
+}
+
+void SurfaceManager::RequestSurfaceResolution(Surface* pending_surface) {
+  if (dependency_tracker_)
+    dependency_tracker_->RequestSurfaceResolution(pending_surface);
+}
+
 void SurfaceManager::RegisterSurface(Surface* surface) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(surface);
@@ -146,21 +156,13 @@ void SurfaceManager::AddSurfaceReference(const SurfaceId& parent_id,
     return;
   }
 
-  // We trust that |parent_id| either exists or is about to exist, since is not
-  // sent over IPC. We don't trust |child_id|, since it is sent over IPC.
-  if (surface_map_.count(child_id) == 0) {
-    DLOG(ERROR) << "No surface in map for " << child_id.ToString();
-    return;
-  }
-
   // There could be a temporary reference to |child_id| which we should now
   // remove because a real reference is being added to it. To find out whether
   // or not a temporary reference exists, we need to first look up the
   // FrameSinkId of |child_id| in |temp_references_|, which returns a vector of
   // LocalSurfaceIds, and then search for the LocalSurfaceId of |child_id| in
-  // the
-  // said vector. If there is no temporary reference, we can immediately add the
-  // reference from |parent_id| and return.
+  // the said vector. If there is no temporary reference, we can immediately add
+  // the reference from |parent_id| and return.
   auto refs_iter = temp_references_.find(child_id.frame_sink_id());
   if (refs_iter == temp_references_.end()) {
     AddSurfaceReferenceImpl(parent_id, child_id);
@@ -317,7 +319,12 @@ SurfaceManager::SurfaceIdSet SurfaceManager::GetLiveSurfacesForSequences() {
     Surface* surf = surface_map_[live_surfaces[i]];
     DCHECK(surf);
 
-    for (const SurfaceId& id : surf->referenced_surfaces()) {
+    // TODO(fsamuel): We should probably keep alive pending referenced surfaces
+    // too.
+    if (!surf->active_referenced_surfaces())
+      continue;
+
+    for (const SurfaceId& id : *surf->active_referenced_surfaces()) {
       if (live_surfaces_set.count(id))
         continue;
 
@@ -570,15 +577,23 @@ void SurfaceManager::SurfaceCreated(const SurfaceInfo& surface_info) {
   CHECK(thread_checker_.CalledOnValidThread());
 
   if (lifetime_type_ == LifetimeType::REFERENCES) {
-    // We can get into a situation where multiple CompositorFrames arrive for a
-    // CompositorFrameSink before the client can add any references for the
+    // We can get into a situation where multiple CompositorFrames arrive for
+    // a CompositorFrameSink before the client can add any references for the
     // frame. When the second frame with a new size arrives, the first will be
     // destroyed in SurfaceFactory and then if there are no references it will
-    // be deleted during surface GC. A temporary reference, removed when a real
-    // reference is received, is added to prevent this from happening.
-    AddSurfaceReferenceImpl(GetRootSurfaceId(), surface_info.id());
-    temp_references_[surface_info.id().frame_sink_id()].push_back(
-        surface_info.id().local_surface_id());
+    // be deleted during surface GC. A temporary reference, removed when a
+    // real reference is received, is added to prevent this from happening.
+    auto it = child_to_parent_refs_.find(surface_info.id());
+    // TODO(fsamuel): Tests create empty sets and so we also need to check that
+    // they're not empty here. Ideally tests shouldn't do that and we shouldn't
+    // use array notation into maps in tests (see https://crbug.com/691115).
+    bool has_real_reference =
+        it != child_to_parent_refs_.end() && !it->second.empty();
+    if (!has_real_reference) {
+      AddSurfaceReferenceImpl(GetRootSurfaceId(), surface_info.id());
+      temp_references_[surface_info.id().frame_sink_id()].push_back(
+          surface_info.id().local_surface_id());
+    }
   }
 
   for (auto& observer : observer_list_)
@@ -597,10 +612,19 @@ void SurfaceManager::SurfaceReferencesToStringImpl(const SurfaceId& surface_id,
     *str << surface->surface_id().ToString();
     *str << (surface->destroyed() ? " destroyed " : " live ");
 
-    if (surface->HasFrame()) {
+    if (surface->HasPendingFrame()) {
       // This provides the surface size from the root render pass.
-      const CompositorFrame& frame = surface->GetEligibleFrame();
-      *str << frame.render_pass_list.back()->output_rect.size().ToString();
+      const CompositorFrame& frame = surface->GetPendingFrame();
+      *str << "pending "
+           << frame.render_pass_list.back()->output_rect.size().ToString()
+           << " ";
+    }
+
+    if (surface->HasActiveFrame()) {
+      // This provides the surface size from the root render pass.
+      const CompositorFrame& frame = surface->GetActiveFrame();
+      *str << "active "
+           << frame.render_pass_list.back()->output_rect.size().ToString();
     }
   } else {
     *str << surface_id;

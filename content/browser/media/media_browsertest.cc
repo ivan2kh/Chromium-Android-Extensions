@@ -20,10 +20,18 @@
 
 namespace content {
 
+// TODO(sandersd): Change the tests to use a more unique message.
+// See http://crbug.com/592067
+
 // Common test results.
-const char MediaBrowserTest::kEnded[] = "ENDED";
-const char MediaBrowserTest::kError[] = "ERROR";
 const char MediaBrowserTest::kFailed[] = "FAILED";
+
+// Upper case event name set by Utils.installTitleEventHandler().
+const char MediaBrowserTest::kEnded[] = "ENDED";
+const char MediaBrowserTest::kErrorEvent[] = "ERROR";
+
+// Lower case event name as set by Utils.failTest().
+const char MediaBrowserTest::kError[] = "error";
 
 void MediaBrowserTest::SetUpCommandLine(base::CommandLine* command_line) {
   command_line->AppendSwitch(
@@ -65,6 +73,7 @@ std::string MediaBrowserTest::RunTest(const GURL& gurl,
 void MediaBrowserTest::AddTitlesToAwait(content::TitleWatcher* title_watcher) {
   title_watcher->AlsoWaitForTitle(base::ASCIIToUTF16(kEnded));
   title_watcher->AlsoWaitForTitle(base::ASCIIToUTF16(kError));
+  title_watcher->AlsoWaitForTitle(base::ASCIIToUTF16(kErrorEvent));
   title_watcher->AlsoWaitForTitle(base::ASCIIToUTF16(kFailed));
 }
 
@@ -232,6 +241,10 @@ IN_PROC_BROWSER_TEST_P(MediaTest, VideoBearWavGsmms) {
 
 IN_PROC_BROWSER_TEST_P(MediaTest, AudioBearFlac) {
   PlayAudio("bear.flac", GetParam());
+}
+
+IN_PROC_BROWSER_TEST_P(MediaTest, AudioBearFlacOgg) {
+  PlayVideo("bear-flac.ogg", GetParam());
 }
 
 IN_PROC_BROWSER_TEST_P(MediaTest, VideoBearWavAlaw) {

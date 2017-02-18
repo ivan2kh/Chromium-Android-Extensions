@@ -6,7 +6,7 @@ package org.chromium.chrome.browser.widget;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Region;
 import android.support.annotation.IntDef;
@@ -22,11 +22,19 @@ import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 
 import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.base.ObserverList;
+import org.chromium.base.VisibleForTesting;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.NativePageHost;
+import org.chromium.chrome.browser.TabLoadStatus;
 import org.chromium.chrome.browser.fullscreen.ChromeFullscreenManager;
+import org.chromium.chrome.browser.ntp.NativePageFactory;
 import org.chromium.chrome.browser.suggestions.SuggestionsBottomSheetContent;
+import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.util.MathUtils;
+import org.chromium.content_public.browser.LoadUrlParams;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -41,7 +49,9 @@ import java.lang.annotation.RetentionPolicy;
  * All the computation in this file is based off of the bottom of the screen instead of the top
  * for simplicity. This means that the bottom of the screen is 0 on the Y axis.
  */
-public class BottomSheet extends FrameLayout {
+
+public class BottomSheet
+        extends FrameLayout implements FadingBackgroundView.FadingViewObserver, NativePageHost {
     /** The different states that the bottom sheet can have. */
     @IntDef({SHEET_STATE_PEEK, SHEET_STATE_HALF, SHEET_STATE_FULL})
     @Retention(RetentionPolicy.SOURCE)
@@ -76,6 +86,9 @@ public class BottomSheet extends FrameLayout {
     /** The interpolator that the height animator uses. */
     private final Interpolator mInterpolator = new DecelerateInterpolator(1.0f);
 
+    /** The list of observers of this sheet. */
+    private final ObserverList<BottomSheetObserver> mObservers = new ObserverList<>();
+
     /** This is a cached array for getting the window location of different views. */
     private final int[] mLocationArray = new int[2];
 
@@ -89,7 +102,7 @@ public class BottomSheet extends FrameLayout {
     private VelocityTracker mVelocityTracker;
 
     /** The animator used to move the sheet to a fixed state when released by the user. */
-    private ObjectAnimator mSettleAnimator;
+    private ValueAnimator mSettleAnimator;
 
     /** The height of the toolbar. */
     private float mToolbarHeight;
@@ -125,12 +138,18 @@ public class BottomSheet extends FrameLayout {
     private FrameLayout mBottomSheetContentContainer;
 
     /**
+     * The last ratio sent to observers of onTransitionPeekToHalf(). This is used to ensure the
+     * final value sent to these observers is 1.0f.
+     */
+    private float mLastPeekToHalfRatioSent;
+
+    /**
      * An interface defining content that can be displayed inside of the bottom sheet for Chrome
      * Home.
      */
     public interface BottomSheetContent {
         /**
-         * Gets the {@link ScrollingView} that holds the content to be displayed in the Chrome Home
+         * Gets the {@link RecyclerView} that holds the content to be displayed in the Chrome Home
          * bottom sheet.
          * @return The scrolling content view.
          */
@@ -170,7 +189,6 @@ public class BottomSheet extends FrameLayout {
 
             // Cancel the settling animation if it is running so it doesn't conflict with where the
             // user wants to move the sheet.
-            boolean wasSettleAnimatorRunning = isRunningSettleAnimation();
             cancelAnimation();
 
             mVelocityTracker.addMovement(e2);
@@ -178,8 +196,7 @@ public class BottomSheet extends FrameLayout {
             float currentShownRatio =
                     mContainerHeight > 0 ? getSheetOffsetFromBottom() / mContainerHeight : 0;
             boolean isSheetInMaxPosition =
-                    MathUtils.areFloatsEqual(currentShownRatio,
-                            mStateRatios[mStateRatios.length - 1]);
+                    MathUtils.areFloatsEqual(currentShownRatio, getFullRatio());
 
             RecyclerView scrollingView = null;
             if (mSheetContent != null) scrollingView = mSheetContent.getScrollingContentView();
@@ -199,15 +216,9 @@ public class BottomSheet extends FrameLayout {
             }
 
             // Similarly, if the sheet is in the min position, don't move if the scroll is downward.
-            if (currentShownRatio <= mStateRatios[0] && distanceY < 0) {
+            if (currentShownRatio <= getPeekRatio() && distanceY < 0) {
                 mIsScrolling = false;
                 return false;
-            }
-
-            // Send a notification that the sheet is exiting the peeking state into something that
-            // will show content.
-            if (!mIsScrolling && mCurrentState == SHEET_STATE_PEEK && !wasSettleAnimatorRunning) {
-                onExitPeekState();
             }
 
             float newOffset = getSheetOffsetFromBottom() + distanceY;
@@ -225,6 +236,7 @@ public class BottomSheet extends FrameLayout {
             // Figure out the projected state of the sheet and animate there. Note that a swipe up
             // will have a negative velocity, swipe down will have a positive velocity. Negate this
             // values so that the logic is more intuitive.
+            @SheetState
             int targetState = getTargetSheetState(
                     getSheetOffsetFromBottom() + getFlingDistance(-velocityY), -velocityY);
             setSheetState(targetState, true);
@@ -281,6 +293,7 @@ public class BottomSheet extends FrameLayout {
             if (mSettleAnimator == null) {
                 // Negate velocity so a positive number indicates a swipe up.
                 float currentVelocity = -mVelocityTracker.getYVelocity();
+                @SheetState
                 int targetState = getTargetSheetState(getSheetOffsetFromBottom(), currentVelocity);
 
                 setSheetState(targetState, true);
@@ -316,13 +329,15 @@ public class BottomSheet extends FrameLayout {
      * @return Whether or not the toolbar Android View is hidden due to being scrolled off-screen.
      */
     private boolean isToolbarAndroidViewHidden() {
-        return mFullscreenManager == null || mFullscreenManager.getBottomControlOffset() > 0;
+        return mFullscreenManager == null || mFullscreenManager.getBottomControlOffset() > 0
+                || mControlContainer.getVisibility() != VISIBLE;
     }
 
     /**
      * Adds layout change listeners to the views that the bottom sheet depends on. Namely the
      * heights of the root view and control container are important as they are used in many of the
      * calculations in this class.
+     * @param activity An activity for loading native pages.
      * @param root The container of the bottom sheet.
      * @param controlContainer The container for the toolbar.
      */
@@ -377,6 +392,45 @@ public class BottomSheet extends FrameLayout {
         mBottomSheetContentContainer.addView(mPlaceholder, placeHolderParams);
     }
 
+    @Override
+    public int loadUrl(LoadUrlParams params) {
+        // Native page URLs in this context do not need to communicate with the tab.
+        if (NativePageFactory.isNativePageUrl(params.getUrl(), isIncognito())) {
+            return TabLoadStatus.PAGE_LOAD_FAILED;
+        }
+
+        // In all non-native cases, minimize the sheet.
+        setSheetState(SHEET_STATE_PEEK, true);
+
+        assert mTabModelSelector != null;
+
+        // First try to get the tab behind the sheet.
+        if (mTabModelSelector.getCurrentTab() != null) {
+            return mTabModelSelector.getCurrentTab().loadUrl(params);
+        }
+
+        // If no tab is active behind the sheet, open a new one.
+        mTabModelSelector.openNewTab(
+                params, TabModel.TabLaunchType.FROM_CHROME_UI, null, isIncognito());
+        return TabLoadStatus.DEFAULT_PAGE_LOAD;
+    }
+
+    @Override
+    public boolean isIncognito() {
+        if (getActiveTab() == null) return false;
+        return getActiveTab().isIncognito();
+    }
+
+    @Override
+    public int getParentId() {
+        return Tab.INVALID_TAB_ID;
+    }
+
+    @Override
+    public Tab getActiveTab() {
+        return mTabModelSelector.getCurrentTab();
+    }
+
     /**
      * Determines if a touch event is inside the toolbar. This assumes the toolbar is the full
      * width of the screen and that the toolbar is at the top of the bottom sheet.
@@ -397,8 +451,7 @@ public class BottomSheet extends FrameLayout {
     private void onExitPeekState() {
         if (mSuggestionsContent == null) {
             mSuggestionsContent = new SuggestionsBottomSheetContent(
-                        mTabModelSelector.getCurrentTab().getActivity(),
-                        mTabModelSelector.getCurrentTab(), mTabModelSelector);
+                    mTabModelSelector.getCurrentTab().getActivity(), this, mTabModelSelector);
         }
 
         showContent(mSuggestionsContent);
@@ -406,7 +459,7 @@ public class BottomSheet extends FrameLayout {
 
     /**
      * Show content in the bottom sheet's content area.
-     * @param page The BottomSheetContent to show.
+     * @param content The {@link BottomSheetContent} to show.
      */
     private void showContent(BottomSheetContent content) {
         // If the desired content is already showing, do nothing.
@@ -450,8 +503,7 @@ public class BottomSheet extends FrameLayout {
         mStateRatios[0] = mToolbarHeight / mContainerHeight;
 
         // Compute the height that the content section of the bottom sheet.
-        float contentHeight =
-                (mContainerHeight * mStateRatios[mStateRatios.length - 1]) - mToolbarHeight;
+        float contentHeight = (mContainerHeight * getFullRatio()) - mToolbarHeight;
 
         MarginLayoutParams sheetContentParams =
                 (MarginLayoutParams) mBottomSheetContentContainer.getLayoutParams();
@@ -481,8 +533,8 @@ public class BottomSheet extends FrameLayout {
      */
     private void createSettleAnimation(@SheetState int targetState) {
         mCurrentState = targetState;
-        mSettleAnimator = ObjectAnimator.ofFloat(
-                this, View.TRANSLATION_Y, mContainerHeight - getSheetHeightForState(targetState));
+        mSettleAnimator = ValueAnimator.ofFloat(getSheetOffsetFromBottom(),
+                getSheetHeightForState(targetState));
         mSettleAnimator.setDuration(BASE_ANIMATION_DURATION_MS);
         mSettleAnimator.setInterpolator(mInterpolator);
 
@@ -491,6 +543,13 @@ public class BottomSheet extends FrameLayout {
             @Override
             public void onAnimationEnd(Animator animator) {
                 mSettleAnimator = null;
+            }
+        });
+
+        mSettleAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                setSheetOffsetFromBottom((Float) animator.getAnimatedValue());
             }
         });
 
@@ -514,7 +573,7 @@ public class BottomSheet extends FrameLayout {
      * @return The max offset.
      */
     private float getMaxOffset() {
-        return mStateRatios[mStateRatios.length - 1] * mContainerHeight;
+        return getFullRatio() * mContainerHeight;
     }
 
     /**
@@ -522,7 +581,7 @@ public class BottomSheet extends FrameLayout {
      * @return The min offset.
      */
     private float getMinOffset() {
-        return mStateRatios[0] * mContainerHeight;
+        return getPeekRatio() * mContainerHeight;
     }
 
     /**
@@ -538,7 +597,58 @@ public class BottomSheet extends FrameLayout {
      * @param offset The offset that the sheet should be.
      */
     private void setSheetOffsetFromBottom(float offset) {
+        if (MathUtils.areFloatsEqual(getSheetOffsetFromBottom(), getMinOffset())
+                && offset > getMinOffset()) {
+            onExitPeekState();
+        }
+
         setTranslationY(mContainerHeight - offset);
+        sendUpdatePeekToHalfEvent();
+    }
+
+    /**
+     * @return The ratio of the height of the screen that the peeking state is.
+     */
+    private float getPeekRatio() {
+        return mStateRatios[0];
+    }
+
+    /**
+     * @return The ratio of the height of the screen that the half expanded state is.
+     */
+    private float getHalfRatio() {
+        return mStateRatios[1];
+    }
+
+    /**
+     * @return The ratio of the height of the screen that the fully expanded state is.
+     */
+    private float getFullRatio() {
+        return mStateRatios[2];
+    }
+
+    /**
+     * Sends a notification if the sheet is transitioning from the peeking to half expanded state.
+     * This method only sends events when the sheet is between the peeking and half states.
+     */
+    private void sendUpdatePeekToHalfEvent() {
+        float screenRatio =
+                mContainerHeight > 0 ? getSheetOffsetFromBottom() / mContainerHeight : 0;
+
+        // This ratio is relative to the peek and half positions of the sheet rather than the height
+        // of the screen.
+        float peekHalfRatio = MathUtils.clamp(
+                (screenRatio - getPeekRatio()) / (getHalfRatio() - getPeekRatio()), 0, 1);
+
+        // If the ratio is close enough to zero, just set it to zero.
+        if (MathUtils.areFloatsEqual(peekHalfRatio, 0f)) peekHalfRatio = 0f;
+
+        for (BottomSheetObserver o : mObservers) {
+            if (mLastPeekToHalfRatioSent < 1f || peekHalfRatio < 1f) {
+                mLastPeekToHalfRatioSent = peekHalfRatio;
+                o.onTransitionPeekToHalf(peekHalfRatio);
+            }
+        }
     }
 
     /**
@@ -573,6 +683,11 @@ public class BottomSheet extends FrameLayout {
         return mSettleAnimator != null;
     }
 
+    @VisibleForTesting
+    public BottomSheetContent getCurrentSheetContent() {
+        return mSheetContent;
+    }
+
     /**
      * Gets the height of the bottom sheet based on a provided state.
      * @param state The state to get the height from.
@@ -580,6 +695,14 @@ public class BottomSheet extends FrameLayout {
      */
     private float getSheetHeightForState(@SheetState int state) {
         return mStateRatios[state] * mContainerHeight;
+    }
+
+    /**
+     * Adds an observer to the bottom sheet.
+     * @param observer The observer to add.
+     */
+    public void addObserver(BottomSheetObserver observer) {
+        mObservers.addObserver(observer);
     }
 
     /**
@@ -595,7 +718,10 @@ public class BottomSheet extends FrameLayout {
         if (sheetHeight >= getMaxOffset()) return SHEET_STATE_FULL;
 
         // First, find the two states that the sheet height is between.
+        @SheetState
         int nextState = sStates[0];
+
+        @SheetState
         int prevState = nextState;
         for (int i = 0; i < sStates.length; i++) {
             prevState = nextState;
@@ -621,4 +747,12 @@ public class BottomSheet extends FrameLayout {
         }
         return prevState;
     }
+
+    @Override
+    public void onFadingViewClick() {
+        setSheetState(SHEET_STATE_PEEK, true);
+    }
+
+    @Override
+    public void onFadingViewVisibilityChanged(boolean visible) {}
 }

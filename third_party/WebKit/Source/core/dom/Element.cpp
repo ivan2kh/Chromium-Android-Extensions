@@ -249,7 +249,7 @@ bool Element::layoutObjectIsFocusable() const {
          layoutObject()->style()->visibility() == EVisibility::kVisible;
 }
 
-Node* Element::cloneNode(bool deep) {
+Node* Element::cloneNode(bool deep, ExceptionState&) {
   return deep ? cloneElementWithChildren() : cloneElementWithoutChildren();
 }
 
@@ -604,6 +604,12 @@ void Element::callApplyScroll(ScrollState& scrollState) {
   // Hits ASSERTs when trying to determine whether we need to scroll on main
   // or CC. http://crbug.com/625676.
   DisableCompositingQueryAsserts disabler;
+
+  if (!document().frameHost()) {
+    // We should always have a frameHost if we're scrolling. See
+    // crbug.com/689074 for details.
+    return;
+  }
 
   ScrollStateCallback* callback =
       scrollCustomizationCallbacks().getApplyScroll(this);
@@ -2636,6 +2642,11 @@ void Element::focus(const FocusParams& params) {
     return;
 
   if (!document().isActive())
+    return;
+
+  if (isFrameOwnerElement() &&
+      toHTMLFrameOwnerElement(this)->contentDocument() &&
+      toHTMLFrameOwnerElement(this)->contentDocument()->unloadStarted())
     return;
 
   document().updateStyleAndLayoutIgnorePendingStylesheetsForNode(this);

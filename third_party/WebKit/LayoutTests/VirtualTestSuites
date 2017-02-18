@@ -99,9 +99,9 @@
     "args": ["--stable-release-mode"]
   },
   {
-    "prefix": "stable",
+    "prefix": "disable-spinvalidation",
     "base": "paint/invalidation",
-    "args": ["--stable-release-mode"]
+    "args": ["--disable-slimming-paint-invalidation"]
   },
   {
     "prefix": "stable",
@@ -360,5 +360,10 @@
     "prefix": "mojo-localstorage",
     "base": "storage/domstorage/localstorage",
     "args": ["--mojo-local-storage"]
+  },
+  {
+    "prefix": "print_browser",
+    "base": "print_testharness",
+    "args": ["--enable-print-browser"]
   }
 ]

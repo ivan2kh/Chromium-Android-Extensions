@@ -4,7 +4,7 @@
 
 #include "ash/common/wm/dock/docked_window_layout_manager.h"
 
-#include "ash/common/material_design/material_design_controller.h"
+#include "ash/animation/animation_change_type.h"
 #include "ash/common/shelf/shelf_background_animator.h"
 #include "ash/common/shelf/shelf_background_animator_observer.h"
 #include "ash/common/shelf/shelf_constants.h"
@@ -25,12 +25,9 @@
 #include "grit/ash_resources.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/compositor/paint_recorder.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
-#include "ui/gfx/canvas.h"
-#include "ui/gfx/image/image_skia_operations.h"
 #include "ui/views/background.h"
 
 namespace ash {
@@ -57,10 +54,9 @@ class DockedBackgroundWidget : public views::Widget,
       : manager_(manager),
         alignment_(DOCKED_ALIGNMENT_NONE),
         background_animator_(SHELF_BACKGROUND_DEFAULT, nullptr),
-        asset_background_alpha_(0),
         opaque_background_(ui::LAYER_SOLID_COLOR),
         visible_background_type_(manager_->shelf()->GetBackgroundType()),
-        visible_background_change_type_(BACKGROUND_CHANGE_IMMEDIATE) {
+        visible_background_change_type_(AnimationChangeType::IMMEDIATE) {
     manager_->shelf()->AddObserver(this);
     InitWidget(manager_->dock_container());
 
@@ -86,50 +82,15 @@ class DockedBackgroundWidget : public views::Widget,
     UpdateBackground();
   }
 
-  void OnNativeWidgetPaint(const ui::PaintContext& context) override {
-    gfx::Rect local_window_bounds(GetWindowBoundsInScreen().size());
-    ui::PaintRecorder recorder(context, local_window_bounds.size());
-
-    if (!MaterialDesignController::IsShelfMaterial()) {
-      const gfx::ImageSkia& shelf_background(alignment_ == DOCKED_ALIGNMENT_LEFT
-                                                 ? shelf_background_left_
-                                                 : shelf_background_right_);
-      cc::PaintFlags paint;
-      paint.setAlpha(asset_background_alpha_);
-      recorder.canvas()->DrawImageInt(
-          shelf_background, 0, 0, shelf_background.width(),
-          shelf_background.height(),
-          alignment_ == DOCKED_ALIGNMENT_LEFT
-              ? local_window_bounds.width() - shelf_background.width()
-              : 0,
-          0, shelf_background.width(), local_window_bounds.height(), false,
-          paint);
-      recorder.canvas()->DrawImageInt(
-          shelf_background,
-          alignment_ == DOCKED_ALIGNMENT_LEFT ? 0
-                                              : shelf_background.width() - 1,
-          0, 1, shelf_background.height(),
-          alignment_ == DOCKED_ALIGNMENT_LEFT ? 0 : shelf_background.width(), 0,
-          local_window_bounds.width() - shelf_background.width(),
-          local_window_bounds.height(), false, paint);
-    }
-  }
-
   // ShelfBackgroundAnimatorObserver:
-  void UpdateShelfOpaqueBackground(int alpha) override {
+  void UpdateShelfBackground(int alpha) override {
     const float kMaxAlpha = 255.0f;
     opaque_background_.SetOpacity(alpha / kMaxAlpha);
   }
 
-  void UpdateShelfAssetBackground(int alpha) override {
-    asset_background_alpha_ = alpha;
-    SchedulePaintInRect(gfx::Rect(GetWindowBoundsInScreen().size()));
-  }
-
   // WmShelfObserver:
-  void OnBackgroundTypeChanged(
-      ShelfBackgroundType background_type,
-      BackgroundAnimatorChangeType change_type) override {
+  void OnBackgroundTypeChanged(ShelfBackgroundType background_type,
+                               AnimationChangeType change_type) override {
     // Sets the background type. Starts an animation to transition to
     // |background_type| if the widget is visible. If the widget is not visible,
     // the animation is postponed till the widget becomes visible.
@@ -158,16 +119,6 @@ class DockedBackgroundWidget : public views::Widget,
     opaque_background_.SetOpacity(0.0f);
     wm_window->GetLayer()->Add(&opaque_background_);
 
-    if (!MaterialDesignController::IsShelfMaterial()) {
-      ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-      gfx::ImageSkia shelf_background =
-          *rb.GetImageSkiaNamed(IDR_ASH_SHELF_BACKGROUND);
-      shelf_background_left_ = gfx::ImageSkiaOperations::CreateRotatedImage(
-          shelf_background, SkBitmapOperations::ROTATION_90_CW);
-      shelf_background_right_ = gfx::ImageSkiaOperations::CreateRotatedImage(
-          shelf_background, SkBitmapOperations::ROTATION_270_CW);
-    }
-
     // This background should be explicitly stacked below any windows already in
     // the dock, otherwise the z-order is set by the order in which windows were
     // added to the container, and UpdateStacking only manages user windows, not
@@ -180,9 +131,9 @@ class DockedBackgroundWidget : public views::Widget,
   void UpdateBackground() {
     ShelfBackgroundType background_type =
         IsVisible() ? visible_background_type_ : SHELF_BACKGROUND_DEFAULT;
-    BackgroundAnimatorChangeType change_type =
-        IsVisible() ? visible_background_change_type_
-                    : BACKGROUND_CHANGE_IMMEDIATE;
+    AnimationChangeType change_type = IsVisible()
+                                          ? visible_background_change_type_
+                                          : AnimationChangeType::IMMEDIATE;
     background_animator_.PaintBackground(background_type, change_type);
     SchedulePaintInRect(gfx::Rect(GetWindowBoundsInScreen().size()));
   }
@@ -194,25 +145,16 @@ class DockedBackgroundWidget : public views::Widget,
   // The animator for the background transitions.
   ShelfBackgroundAnimator background_animator_;
 
-  // The alpha to use for drawing image assets covering the docked background.
-  int asset_background_alpha_;
-
   // TODO(bruthig): Remove opaque_background_ (see https://crbug.com/621551).
   // Solid black background that can be made fully opaque.
   ui::Layer opaque_background_;
-
-  // Backgrounds created from shelf background by 90 or 270 degree rotation.
-  // TODO(tdanderson): These members can be removed once the material design
-  // shelf is enabled by default. See crbug.com/614453.
-  gfx::ImageSkia shelf_background_left_;
-  gfx::ImageSkia shelf_background_right_;
 
   // The background type to use when the widget is visible. When not visible,
   // the widget uses SHELF_BACKGROUND_DEFAULT.
   ShelfBackgroundType visible_background_type_;
 
   // Whether the widget should animate to |visible_background_type_|.
-  BackgroundAnimatorChangeType visible_background_change_type_;
+  AnimationChangeType visible_background_change_type_;
 
   DISALLOW_COPY_AND_ASSIGN(DockedBackgroundWidget);
 };

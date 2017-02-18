@@ -26,7 +26,9 @@
 
 #include "core/dom/MessagePort.h"
 
+#include <memory>
 #include "bindings/core/v8/ExceptionState.h"
+#include "bindings/core/v8/ScriptState.h"
 #include "bindings/core/v8/SerializedScriptValue.h"
 #include "bindings/core/v8/SerializedScriptValueFactory.h"
 #include "core/dom/ExceptionCode.h"
@@ -40,7 +42,6 @@
 #include "wtf/Functional.h"
 #include "wtf/PtrUtil.h"
 #include "wtf/text/AtomicString.h"
-#include <memory>
 
 namespace blink {
 
@@ -57,7 +58,7 @@ MessagePort::~MessagePort() {
   DCHECK(!m_started || !isEntangled());
 }
 
-void MessagePort::postMessage(ExecutionContext* context,
+void MessagePort::postMessage(ScriptState* scriptState,
                               PassRefPtr<SerializedScriptValue> message,
                               const MessagePortArray& ports,
                               ExceptionState& exceptionState) {
@@ -75,39 +76,34 @@ void MessagePort::postMessage(ExecutionContext* context,
       return;
     }
   }
-  std::unique_ptr<MessagePortChannelArray> channels =
-      MessagePort::disentanglePorts(context, ports, exceptionState);
+  MessagePortChannelArray channels =
+      MessagePort::disentanglePorts(scriptState->getExecutionContext(), ports,
+                                    exceptionState);
   if (exceptionState.hadException())
     return;
 
   WebString messageString = message->toWireString();
-  std::unique_ptr<WebMessagePortChannelArray> webChannels =
+  WebMessagePortChannelArray webChannels =
       toWebMessagePortChannelArray(std::move(channels));
-  m_entangledChannel->postMessage(messageString, webChannels.release());
+  m_entangledChannel->postMessage(messageString, std::move(webChannels));
 }
 
 // static
-std::unique_ptr<WebMessagePortChannelArray>
-MessagePort::toWebMessagePortChannelArray(
-    std::unique_ptr<MessagePortChannelArray> channels) {
-  std::unique_ptr<WebMessagePortChannelArray> webChannels;
-  if (channels && channels->size()) {
-    webChannels =
-        WTF::wrapUnique(new WebMessagePortChannelArray(channels->size()));
-    for (size_t i = 0; i < channels->size(); ++i)
-      (*webChannels)[i] = (*channels)[i].release();
-  }
+WebMessagePortChannelArray MessagePort::toWebMessagePortChannelArray(
+    MessagePortChannelArray channels) {
+  WebMessagePortChannelArray webChannels(channels.size());
+  for (size_t i = 0; i < channels.size(); ++i)
+    webChannels[i] = std::move(channels[i]);
   return webChannels;
 }
 
 // static
 MessagePortArray* MessagePort::toMessagePortArray(
     ExecutionContext* context,
-    const WebMessagePortChannelArray& webChannels) {
-  std::unique_ptr<MessagePortChannelArray> channels =
-      WTF::wrapUnique(new MessagePortChannelArray(webChannels.size()));
+    WebMessagePortChannelArray webChannels) {
+  MessagePortChannelArray channels(webChannels.size());
   for (size_t i = 0; i < webChannels.size(); ++i)
-    (*channels)[i] = WebMessagePortChannelUniquePtr(webChannels[i]);
+    channels[i] = std::move(webChannels[i]);
   return MessagePort::entanglePorts(*context, std::move(channels));
 }
 
@@ -163,27 +159,25 @@ const AtomicString& MessagePort::interfaceName() const {
   return EventTargetNames::MessagePort;
 }
 
-static bool tryGetMessageFrom(
-    WebMessagePortChannel& webChannel,
-    RefPtr<SerializedScriptValue>& message,
-    std::unique_ptr<MessagePortChannelArray>& channels) {
+static bool tryGetMessageFrom(WebMessagePortChannel& webChannel,
+                              RefPtr<SerializedScriptValue>& message,
+                              MessagePortChannelArray& channels) {
   WebString messageString;
   WebMessagePortChannelArray webChannels;
   if (!webChannel.tryGetMessage(&messageString, webChannels))
     return false;
 
   if (webChannels.size()) {
-    channels = WTF::wrapUnique(new MessagePortChannelArray(webChannels.size()));
+    channels.resize(webChannels.size());
     for (size_t i = 0; i < webChannels.size(); ++i)
-      (*channels)[i] = WebMessagePortChannelUniquePtr(webChannels[i]);
+      channels[i] = std::move(webChannels[i]);
   }
   message = SerializedScriptValue::create(messageString);
   return true;
 }
 
-bool MessagePort::tryGetMessage(
-    RefPtr<SerializedScriptValue>& message,
-    std::unique_ptr<MessagePortChannelArray>& channels) {
+bool MessagePort::tryGetMessage(RefPtr<SerializedScriptValue>& message,
+                                MessagePortChannelArray& channels) {
   if (!m_entangledChannel)
     return false;
   return tryGetMessageFrom(*m_entangledChannel, message, channels);
@@ -212,7 +206,7 @@ void MessagePort::dispatchMessages() {
     }
 
     RefPtr<SerializedScriptValue> message;
-    std::unique_ptr<MessagePortChannelArray> channels;
+    MessagePortChannelArray channels;
     if (!tryGetMessage(message, channels))
       break;
 
@@ -233,12 +227,12 @@ bool MessagePort::hasPendingActivity() const {
   return m_started && isEntangled();
 }
 
-std::unique_ptr<MessagePortChannelArray> MessagePort::disentanglePorts(
+MessagePortChannelArray MessagePort::disentanglePorts(
     ExecutionContext* context,
     const MessagePortArray& ports,
     ExceptionState& exceptionState) {
   if (!ports.size())
-    return nullptr;
+    return MessagePortChannelArray();
 
   HeapHashSet<Member<MessagePort>> visited;
 
@@ -257,7 +251,7 @@ std::unique_ptr<MessagePortChannelArray> MessagePort::disentanglePorts(
       exceptionState.throwDOMException(
           DataCloneError,
           "Port at index " + String::number(i) + " is " + type + ".");
-      return nullptr;
+      return MessagePortChannelArray();
     }
     visited.insert(port);
   }
@@ -265,25 +259,20 @@ std::unique_ptr<MessagePortChannelArray> MessagePort::disentanglePorts(
   UseCounter::count(context, UseCounter::MessagePortsTransferred);
 
   // Passed-in ports passed validity checks, so we can disentangle them.
-  std::unique_ptr<MessagePortChannelArray> portArray =
-      WTF::wrapUnique(new MessagePortChannelArray(ports.size()));
+  MessagePortChannelArray portArray(ports.size());
   for (unsigned i = 0; i < ports.size(); ++i)
-    (*portArray)[i] = ports[i]->disentangle();
+    portArray[i] = ports[i]->disentangle();
   return portArray;
 }
 
-MessagePortArray* MessagePort::entanglePorts(
-    ExecutionContext& context,
-    std::unique_ptr<MessagePortChannelArray> channels) {
+MessagePortArray* MessagePort::entanglePorts(ExecutionContext& context,
+                                             MessagePortChannelArray channels) {
   // https://html.spec.whatwg.org/multipage/comms.html#message-ports
   // |ports| should be an empty array, not null even when there is no ports.
-  if (!channels || !channels->size())
-    return new MessagePortArray;
-
-  MessagePortArray* portArray = new MessagePortArray(channels->size());
-  for (unsigned i = 0; i < channels->size(); ++i) {
+  MessagePortArray* portArray = new MessagePortArray(channels.size());
+  for (unsigned i = 0; i < channels.size(); ++i) {
     MessagePort* port = MessagePort::create(context);
-    port->entangle(std::move((*channels)[i]));
+    port->entangle(std::move(channels[i]));
     (*portArray)[i] = port;
   }
   return portArray;

@@ -18,6 +18,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
+#include "components/data_reduction_proxy/core/common/data_reduction_proxy_server.h"
 #include "net/base/net_errors.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/network_interfaces.h"
@@ -86,7 +87,8 @@ enum SecureProxyCheckFetchResult {
 // This object lives on the IO thread and all of its methods are expected to be
 // called from there.
 class DataReductionProxyConfig
-    : public net::NetworkChangeNotifier::IPAddressObserver {
+    : public net::NetworkChangeNotifier::IPAddressObserver,
+      public net::NetworkChangeNotifier::ConnectionTypeObserver {
  public:
   // The caller must ensure that all parameters remain alive for the lifetime
   // of the |DataReductionProxyConfig| instance, with the exception of
@@ -202,6 +204,10 @@ class DataReductionProxyConfig
   // This should only be used for logging purposes.
   net::ProxyConfig ProxyConfigIgnoringHoldback() const;
 
+  bool secure_proxy_allowed() const;
+
+  std::vector<DataReductionProxyServer> GetProxiesForHttp() const;
+
  protected:
   // Virtualized for mocking. Returns the list of network interfaces in use.
   // |interfaces| can be null.
@@ -250,6 +256,8 @@ class DataReductionProxyConfig
 
   // NetworkChangeNotifier::IPAddressObserver:
   void OnIPAddressChanged() override;
+  void OnConnectionTypeChanged(
+      net::NetworkChangeNotifier::ConnectionType type) override;
 
   // Populates the parameters for the Lo-Fi field trial if the session is part
   // of either Lo-Fi enabled or Lo-Fi control field trial group.
@@ -372,9 +380,13 @@ class DataReductionProxyConfig
   // than |auto_lofi_hysteresis_|.
   bool network_prohibitively_slow_;
 
-  // Set to the connection type reported by NetworkChangeNotifier when the
-  // network quality was last checked.
+  // The current connection type.
   net::NetworkChangeNotifier::ConnectionType connection_type_;
+
+  // True if the connection type changed since the last call to
+  // IsNetworkQualityProhibitivelySlow(). This call happens only on main frame
+  // requests.
+  bool connection_type_changed_;
 
   // If true, Lo-Fi is turned off for the rest of the session. This is set to
   // true if Lo-Fi is disabled via flags or if the user implicitly opts out.

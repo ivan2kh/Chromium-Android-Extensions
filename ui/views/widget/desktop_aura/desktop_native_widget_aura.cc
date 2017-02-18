@@ -239,7 +239,6 @@ DesktopNativeWidgetAura::DesktopNativeWidgetAura(
     internal::NativeWidgetDelegate* delegate)
     : desktop_window_tree_host_(NULL),
       ownership_(Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET),
-      content_window_container_(NULL),
       content_window_(new aura::Window(this)),
       native_widget_delegate_(delegate),
       last_drop_operation_(ui::DragDropTypes::DRAG_NONE),
@@ -390,12 +389,6 @@ void DesktopNativeWidgetAura::HandleActivationChanged(bool active) {
   }
 }
 
-void DesktopNativeWidgetAura::SetNativeWindowProperty(const char* name,
-                                                      void* value) {
-  if (content_window_)
-    content_window_->SetNativeWindowProperty(name, value);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // DesktopNativeWidgetAura, internal::NativeWidgetPrivate implementation:
 
@@ -417,11 +410,6 @@ void DesktopNativeWidgetAura::InitNativeWidget(
   content_window_->Init(params.layer_type);
   wm::SetShadowElevation(content_window_, wm::ShadowElevation::NONE);
 
-  content_window_container_ = new aura::Window(NULL);
-  content_window_container_->Init(ui::LAYER_NOT_DRAWN);
-  content_window_container_->Show();
-  content_window_container_->AddChild(content_window_);
-
   if (!desktop_window_tree_host_) {
     desktop_window_tree_host_ =
         params.desktop_window_tree_host
@@ -431,7 +419,7 @@ void DesktopNativeWidgetAura::InitNativeWidget(
   }
   desktop_window_tree_host_->Init(content_window_, params);
 
-  host_->window()->AddChild(content_window_container_);
+  host_->window()->AddChild(content_window_);
   host_->window()->SetProperty(kDesktopNativeWidgetAuraKey, this);
 
   host_->window()->AddObserver(new RootWindowDestructionObserver(this));
@@ -513,13 +501,12 @@ void DesktopNativeWidgetAura::InitNativeWidget(
     host_->window()->AddPreTargetHandler(tooltip_controller_.get());
   }
 
-  if (params.opacity == Widget::InitParams::TRANSLUCENT_WINDOW) {
-    visibility_controller_.reset(new wm::VisibilityController);
+  if (params.opacity == Widget::InitParams::TRANSLUCENT_WINDOW &&
+      desktop_window_tree_host_->ShouldCreateVisibilityController()) {
+    visibility_controller_ = base::MakeUnique<wm::VisibilityController>();
     aura::client::SetVisibilityClient(host_->window(),
                                       visibility_controller_.get());
     wm::SetChildWindowVisibilityChangesAnimated(host_->window());
-    wm::SetChildWindowVisibilityChangesAnimated(
-        content_window_container_);
   }
 
   if (params.type == Widget::InitParams::TYPE_WINDOW) {
@@ -599,6 +586,12 @@ void DesktopNativeWidgetAura::ReorderNativeViews() {
 void DesktopNativeWidgetAura::ViewRemoved(View* view) {
   DCHECK(drop_helper_.get() != NULL);
   drop_helper_->ResetTargetViewIfEquals(view);
+}
+
+void DesktopNativeWidgetAura::SetNativeWindowProperty(const char* name,
+                                                      void* value) {
+  if (content_window_)
+    content_window_->SetNativeWindowProperty(name, value);
 }
 
 void* DesktopNativeWidgetAura::GetNativeWindowProperty(const char* name) const {
@@ -1167,9 +1160,6 @@ void DesktopNativeWidgetAura::OnHostResized(const aura::WindowTreeHost* host) {
 
   gfx::Rect new_bounds = gfx::Rect(host->window()->bounds().size());
   content_window_->SetBounds(new_bounds);
-  // Can be NULL at start.
-  if (content_window_container_)
-    content_window_container_->SetBounds(new_bounds);
   native_widget_delegate_->OnNativeWidgetSizeChanged(new_bounds.size());
 }
 

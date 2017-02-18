@@ -7,18 +7,17 @@
 
 #import <UIKit/UIKit.h>
 
+#include "components/autofill/core/browser/autofill_manager.h"
 #import "ios/chrome/browser/chrome_coordinator.h"
 #import "ios/chrome/browser/payments/payment_items_display_coordinator.h"
 #import "ios/chrome/browser/payments/payment_method_selection_coordinator.h"
+#include "ios/chrome/browser/payments/payment_request.h"
 #import "ios/chrome/browser/payments/payment_request_view_controller.h"
 #import "ios/chrome/browser/payments/shipping_address_selection_coordinator.h"
 #import "ios/chrome/browser/payments/shipping_option_selection_coordinator.h"
-#include "ios/web/public/payments/payment_request.h"
 
-namespace autofill {
-class AutofillProfile;
-class CreditCard;
-class PersonalDataManager;
+namespace ios {
+class ChromeBrowserState;
 }
 
 @class PaymentRequestCoordinator;
@@ -57,16 +56,20 @@ class PersonalDataManager;
 // Creates a Payment Request coordinator that will present UI on
 // |viewController| using data available from |personalDataManager|.
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                       personalDataManager:
-                           (autofill::PersonalDataManager*)personalDataManager
     NS_DESIGNATED_INITIALIZER;
 
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-    NS_UNAVAILABLE;
+// The PaymentRequest object owning an instance of web::PaymentRequest as
+// provided by the page invoking the Payment Request API. This pointer is not
+// owned by this class and should outlive it.
+@property(nonatomic, assign) PaymentRequest* paymentRequest;
 
-// The PaymentRequest object as provided by the page invoking the Payment
-// Request API. Should be set before calling |start|.
-@property(nonatomic, assign) web::PaymentRequest paymentRequest;
+// An instance of autofill::AutofillManager used for credit card unmasking. This
+// reference is not owned by this class.
+@property(nonatomic, assign) autofill::AutofillManager* autofillManager;
+
+// An ios::ChromeBrowserState instance. This reference is not owned by this
+// class.
+@property(nonatomic, assign) ios::ChromeBrowserState* browserState;
 
 // The favicon of the page invoking the PaymentRequest API. Should be set before
 // calling |start|.
@@ -80,22 +83,15 @@ class PersonalDataManager;
 // calling |start|.
 @property(nonatomic, copy) NSString* pageHost;
 
-// The currently selected shipping address, if any.
-@property(nonatomic, readonly)
-    autofill::AutofillProfile* selectedShippingAddress;
-
-// The currently selected shipping option, if any.
-@property(nonatomic, readonly)
-    web::PaymentShippingOption* selectedShippingOption;
-
-// The payment method selected by the user, if any.
-@property(nonatomic, readonly) autofill::CreditCard* selectedPaymentMethod;
-
 // The delegate to be notified when the user confirms or cancels the request.
 @property(nonatomic, weak) id<PaymentRequestCoordinatorDelegate> delegate;
 
 // Updates the payment details of the PaymentRequest and updates the UI.
 - (void)updatePaymentDetails:(web::PaymentDetails)paymentDetails;
+
+// Called when a credit card has been successfully unmasked.
+- (void)fullCardRequestDidSucceedWithCard:(const autofill::CreditCard&)card
+                                      CVC:(const base::string16&)cvc;
 
 @end
 

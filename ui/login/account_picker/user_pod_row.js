@@ -677,7 +677,7 @@ cr.define('login', function() {
       // instead of showing the tooltip bubble here (crbug.com/409427).
       /** @const */ var BUBBLE_PADDING = 8 + (this.iconId_ ? 0 : 23);
       $('bubble').showContentForElement(this,
-                                        cr.ui.Bubble.Attachment.RIGHT,
+                                        cr.ui.Bubble.Attachment.LEFT,
                                         bubbleContent,
                                         BUBBLE_OFFSET,
                                         BUBBLE_PADDING);
@@ -2034,8 +2034,8 @@ cr.define('login', function() {
 
       var self = this;
       this.classList.add('animating');
-      this.addEventListener('webkitTransitionEnd', function f(e) {
-        self.removeEventListener('webkitTransitionEnd', f);
+      this.addEventListener('transitionend', function f(e) {
+        self.removeEventListener('transitionend', f);
         self.classList.remove('animating');
 
         // Accessibility focus indicator does not move with the focused
@@ -2248,9 +2248,9 @@ cr.define('login', function() {
       setTimeout(function() {
         pod.classList.add('advanced');
         pod.makeSpaceForExpandedPod_();
-        languageAndInputSection.addEventListener('webkitTransitionEnd',
+        languageAndInputSection.addEventListener('transitionend',
                                                  function observer() {
-          languageAndInputSection.removeEventListener('webkitTransitionEnd',
+          languageAndInputSection.removeEventListener('transitionend',
                                                       observer);
           pod.classList.remove('transitioning-to-advanced');
           pod.querySelector('.language-select').focus();
@@ -3347,6 +3347,8 @@ cr.define('login', function() {
         this.firstShown_ = false;
         this.lastFocusedPod_ = podToFocus;
         this.scrollFocusedPodIntoView();
+      } else {
+        chrome.send('noPodFocused');
       }
       this.insideFocusPod_ = false;
     },
@@ -3664,8 +3666,8 @@ cr.define('login', function() {
       if (focusedPod) {
         var screen = this.parentNode;
         var self = this;
-        focusedPod.addEventListener('webkitTransitionEnd', function f(e) {
-          focusedPod.removeEventListener('webkitTransitionEnd', f);
+        focusedPod.addEventListener('transitionend', function f(e) {
+          focusedPod.removeEventListener('transitionend', f);
           focusedPod.reset(true);
           // Notify screen that it is ready.
           screen.onShow();

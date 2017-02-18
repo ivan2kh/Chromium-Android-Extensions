@@ -7,6 +7,7 @@
 #include "android_webview/common/aw_descriptors.h"
 #include "android_webview/common/aw_paths.h"
 #include "android_webview/common/aw_version_info_values.h"
+#include "android_webview/common/crash_reporter/crash_keys.h"
 #include "base/android/build_info.h"
 #include "base/base_paths_android.h"
 #include "base/debug/dump_without_crashing.h"
@@ -34,8 +35,22 @@ class AwCrashReporterClient : public ::crash_reporter::CrashReporterClient {
   void set_crash_signal_fd(int fd) { crash_signal_fd_ = fd; }
 
   // crash_reporter::CrashReporterClient implementation.
+  size_t RegisterCrashKeys() override;
+
   bool IsRunningUnattended() override { return false; }
-  bool GetCollectStatsConsent() override { return false; }
+  bool GetCollectStatsConsent() override {
+#if defined(GOOGLE_CHROME_BUILD)
+    // TODO(gsennton): Enabling minidump-generation unconditionally means we
+    // will generate minidumps even if the user doesn't consent to minidump
+    // uploads. However, we will check user-consent before uploading any
+    // minidumps, if we do not have user consent we will delete the minidumps.
+    // We should investigate whether we can avoid generating minidumps
+    // altogether if we don't have user consent, see crbug.com/692485
+    return true;
+#else
+    return false;
+#endif  // defined(GOOGLE_CHROME_BUILD)
+  }
 
   void GetProductNameAndVersion(const char** product_name,
                                 const char** version) override {
@@ -66,6 +81,10 @@ class AwCrashReporterClient : public ::crash_reporter::CrashReporterClient {
   int crash_signal_fd_;
   DISALLOW_COPY_AND_ASSIGN(AwCrashReporterClient);
 };
+
+size_t AwCrashReporterClient::RegisterCrashKeys() {
+  return crash_keys::RegisterWebViewCrashKeys();
+}
 
 base::LazyInstance<AwCrashReporterClient>::Leaky g_crash_reporter_client =
     LAZY_INSTANCE_INITIALIZER;
@@ -149,6 +168,11 @@ void EnableCrashReporter(const std::string& process_type, int crash_signal_fd) {
     client->set_crash_signal_fd(crash_signal_fd);
   }
   ::crash_reporter::SetCrashReporterClient(client);
+  breakpad::SetShouldSanitizeDumps(true);
+#if !defined(COMPONENT_BUILD)
+  breakpad::SetSkipDumpIfPrincipalMappingNotReferenced(
+        reinterpret_cast<uintptr_t>(&EnableCrashReporter));
+#endif
 
   bool is_browser_process =
       process_type.empty() ||

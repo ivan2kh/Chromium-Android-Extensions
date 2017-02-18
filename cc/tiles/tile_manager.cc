@@ -425,7 +425,6 @@ void TileManager::SetResources(ResourcePool* resource_pool,
 void TileManager::Release(Tile* tile) {
   FreeResourcesForTile(tile);
   tiles_.erase(tile->id());
-  pending_gpu_work_tiles_.erase(tile);
 }
 
 void TileManager::DidFinishRunningTileTasksRequiredForActivation() {
@@ -669,8 +668,6 @@ TileManager::PrioritizedWorkToSchedule TileManager::AssignGpuMemoryToTiles() {
               tile->content_rect(), tile->contents_scale(), &color);
       if (is_solid_color) {
         tile->draw_info().set_solid_color(color);
-        if (!tile_is_needed_now)
-          tile->draw_info().set_was_a_prepaint_tile();
         client_->NotifyTileStateChanged(tile);
         continue;
       }
@@ -730,13 +727,6 @@ TileManager::PrioritizedWorkToSchedule TileManager::AssignGpuMemoryToTiles() {
 
     memory_usage += memory_required_by_tile_to_be_scheduled;
     work_to_schedule.tiles_to_raster.push_back(prioritized_tile);
-
-    // Since we scheduled the tile, set whether it was a prepaint or not
-    // assuming that the tile will successfully finish running. We don't have
-    // priority information at the time the tile completes, so it should be done
-    // here.
-    if (!tile_is_needed_now)
-      tile->draw_info().set_was_a_prepaint_tile();
   }
 
   // Debugging to check that remaining tiles in the priority queue are not in
@@ -802,8 +792,10 @@ TileManager::PrioritizedWorkToSchedule TileManager::AssignGpuMemoryToTiles() {
 void TileManager::FreeResourcesForTile(Tile* tile) {
   TileDrawInfo& draw_info = tile->draw_info();
   Resource* resource = draw_info.TakeResource();
-  if (resource)
+  if (resource) {
     resource_pool_->ReleaseResource(resource);
+    pending_gpu_work_tiles_.erase(tile);
+  }
 }
 
 void TileManager::FreeResourcesForTileAndNotifyClientIfTileWasReadyToDraw(
@@ -1313,6 +1305,7 @@ void TileManager::CheckPendingGpuWorkTiles(bool issue_signals) {
        it != pending_gpu_work_tiles_.end();) {
     Tile* tile = *it;
     const Resource* resource = tile->draw_info().resource();
+    DCHECK(resource);
 
     if (global_state_.tree_priority != SMOOTHNESS_TAKES_PRIORITY ||
         raster_buffer_provider_->IsResourceReadyToDraw(resource->id())) {

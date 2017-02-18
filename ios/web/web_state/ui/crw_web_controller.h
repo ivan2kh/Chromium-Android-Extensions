@@ -29,9 +29,6 @@ enum LoadPhase {
   PAGE_LOADED = 2
 };
 
-// The accessibility identifier of the top-level container view.
-extern NSString* const kContainerViewID;
-
 }  // namespace web
 
 @class CRWJSInjectionReceiver;
@@ -226,6 +223,10 @@ class WebStateImpl;
 // containing a password field.
 - (void)didShowPasswordInputOnHTTP;
 
+// Notifies the CRWWebController that the current page is an HTTP page
+// containing a credit card field.
+- (void)didShowCreditCardInputOnHTTP;
+
 // Notifies the CRWWebController that it has been hidden.
 - (void)wasHidden;
 
@@ -285,7 +286,6 @@ class WebStateImpl;
 - (NSUInteger)observerCount;
 - (void)setURLOnStartLoading:(const GURL&)url;
 - (void)simulateLoadRequestWithURL:(const GURL&)URL;
-- (NSString*)externalRequestWindowName;
 
 // Returns the header height.
 - (CGFloat)headerHeight;

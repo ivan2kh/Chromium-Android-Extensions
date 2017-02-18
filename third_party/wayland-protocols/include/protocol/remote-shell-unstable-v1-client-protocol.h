@@ -188,6 +188,10 @@ enum zcr_remote_shell_v1_state_type {
 	 * trusted pinned window state
 	 */
 	ZCR_REMOTE_SHELL_V1_STATE_TYPE_TRUSTED_PINNED = 6,
+	/**
+	 * moving window state
+	 */
+	ZCR_REMOTE_SHELL_V1_STATE_TYPE_MOVING = 7,
 };
 #endif /* ZCR_REMOTE_SHELL_V1_STATE_TYPE_ENUM */
 
@@ -394,8 +398,8 @@ struct zcr_remote_surface_v1_listener {
 	/**
 	 * surface state type changed
 	 *
-	 * The state_type_changed event is sent by the compositor when
-	 * the surface state changed.
+	 * [Deprecated] The state_type_changed event is sent by the
+	 * compositor when the surface state changed.
 	 *
 	 * This is an event to notify that the window state changed in
 	 * compositor. The state change may be triggered by a client's
@@ -416,6 +420,10 @@ struct zcr_remote_surface_v1_listener {
 	 * positions in set_window_geometry requests by this origin in
 	 * order to convert between coordinate spaces.
 	 *
+	 * The states listed in the event are state_type values, and might
+	 * change due to a client request or an event directly handled by
+	 * the compositor.
+	 *
 	 * Clients should arrange their surface for the new state, and then
 	 * send an ack_configure request with the serial sent in this
 	 * configure event at some point before committing the new surface.
@@ -423,12 +431,13 @@ struct zcr_remote_surface_v1_listener {
 	 * If the client receives multiple configure events before it can
 	 * respond to one, it is free to discard all but the last event it
 	 * received.
-	 * @since 2
+	 * @since 3
 	 */
 	void (*configure)(void *data,
 			  struct zcr_remote_surface_v1 *zcr_remote_surface_v1,
 			  int32_t origin_x,
 			  int32_t origin_y,
+			  struct wl_array *states,
 			  uint32_t serial);
 };
 
@@ -461,9 +470,9 @@ zcr_remote_surface_v1_add_listener(struct zcr_remote_surface_v1 *zcr_remote_surf
 #define ZCR_REMOTE_SURFACE_V1_UNPIN 15
 #define ZCR_REMOTE_SURFACE_V1_SET_SYSTEM_MODAL 16
 #define ZCR_REMOTE_SURFACE_V1_UNSET_SYSTEM_MODAL 17
-#define ZCR_REMOTE_SURFACE_V1_ACK_CONFIGURE 18
-#define ZCR_REMOTE_SURFACE_V1_SET_MOVING 19
-#define ZCR_REMOTE_SURFACE_V1_UNSET_MOVING 20
+#define ZCR_REMOTE_SURFACE_V1_SET_RECTANGULAR_SURFACE_SHADOW 18
+#define ZCR_REMOTE_SURFACE_V1_ACK_CONFIGURE 19
+#define ZCR_REMOTE_SURFACE_V1_MOVE 20
 
 /**
  * @ingroup iface_zcr_remote_surface_v1
@@ -476,7 +485,7 @@ zcr_remote_surface_v1_add_listener(struct zcr_remote_surface_v1 *zcr_remote_surf
 /**
  * @ingroup iface_zcr_remote_surface_v1
  */
-#define ZCR_REMOTE_SURFACE_V1_CONFIGURE_SINCE_VERSION 2
+#define ZCR_REMOTE_SURFACE_V1_CONFIGURE_SINCE_VERSION 3
 
 /**
  * @ingroup iface_zcr_remote_surface_v1
@@ -553,15 +562,15 @@ zcr_remote_surface_v1_add_listener(struct zcr_remote_surface_v1 *zcr_remote_surf
 /**
  * @ingroup iface_zcr_remote_surface_v1
  */
-#define ZCR_REMOTE_SURFACE_V1_ACK_CONFIGURE_SINCE_VERSION 2
+#define ZCR_REMOTE_SURFACE_V1_SET_RECTANGULAR_SURFACE_SHADOW_SINCE_VERSION 2
 /**
  * @ingroup iface_zcr_remote_surface_v1
  */
-#define ZCR_REMOTE_SURFACE_V1_SET_MOVING_SINCE_VERSION 2
+#define ZCR_REMOTE_SURFACE_V1_ACK_CONFIGURE_SINCE_VERSION 3
 /**
  * @ingroup iface_zcr_remote_surface_v1
  */
-#define ZCR_REMOTE_SURFACE_V1_UNSET_MOVING_SINCE_VERSION 2
+#define ZCR_REMOTE_SURFACE_V1_MOVE_SINCE_VERSION 3
 
 /** @ingroup iface_zcr_remote_surface_v1 */
 static inline void
@@ -655,7 +664,7 @@ zcr_remote_surface_v1_set_scale(struct zcr_remote_surface_v1 *zcr_remote_surface
 /**
  * @ingroup iface_zcr_remote_surface_v1
  *
- * Request that surface needs a rectangular shadow.
+ * [Deprecated] Request that surface needs a rectangular shadow.
  *
  * This is only a request that the surface should have a rectangular
  * shadow. The compositor may choose to ignore this request.
@@ -879,6 +888,25 @@ zcr_remote_surface_v1_unset_system_modal(struct zcr_remote_surface_v1 *zcr_remot
 /**
  * @ingroup iface_zcr_remote_surface_v1
  *
+ * Request that surface needs a rectangular shadow.
+ *
+ * This is only a request that the surface should have a rectangular
+ * shadow. The compositor may choose to ignore this request.
+ *
+ * The arguments are given in the remote surface coordinate space and
+ * specifies inner bounds of the shadow. Specifying zero width and height
+ * will disable the shadow.
+ */
+static inline void
+zcr_remote_surface_v1_set_rectangular_surface_shadow(struct zcr_remote_surface_v1 *zcr_remote_surface_v1, int32_t x, int32_t y, int32_t width, int32_t height)
+{
+	wl_proxy_marshal((struct wl_proxy *) zcr_remote_surface_v1,
+			 ZCR_REMOTE_SURFACE_V1_SET_RECTANGULAR_SURFACE_SHADOW, x, y, width, height);
+}
+
+/**
+ * @ingroup iface_zcr_remote_surface_v1
+ *
  * When a configure event is received, if a client commits the
  * surface in response to the configure event, then the client
  * must make an ack_configure request sometime before the commit
@@ -909,30 +937,22 @@ zcr_remote_surface_v1_ack_configure(struct zcr_remote_surface_v1 *zcr_remote_sur
 /**
  * @ingroup iface_zcr_remote_surface_v1
  *
- * Notifies the compositor when an interactive, user-driven move of the
- * surface starts. The compositor may assume that subsequent
- * set_window_geometry requests are position updates until it receives a
- * unset_moving request.
- */
-static inline void
-zcr_remote_surface_v1_set_moving(struct zcr_remote_surface_v1 *zcr_remote_surface_v1)
-{
-	wl_proxy_marshal((struct wl_proxy *) zcr_remote_surface_v1,
-			 ZCR_REMOTE_SURFACE_V1_SET_MOVING);
-}
-
-/**
- * @ingroup iface_zcr_remote_surface_v1
+ * Start an interactive, user-driven move of the surface.
  *
- * Notifies the compositor when an interactive, user-driven move of the
- * surface stops. The compositor may choose to stop the move regardless
- * of this request.
+ * The compositor responds to this request with a configure event that
+ * transitions to the "moving" state. The client must only initiate motion
+ * after acknowledging the state change. The compositor can assume that
+ * subsequent set_window_geometry requests are position updates until the
+ * next state transition is acknowledged.
+ *
+ * The compositor may ignore move requests depending on the state of the
+ * surface, e.g. fullscreen or maximized.
  */
 static inline void
-zcr_remote_surface_v1_unset_moving(struct zcr_remote_surface_v1 *zcr_remote_surface_v1)
+zcr_remote_surface_v1_move(struct zcr_remote_surface_v1 *zcr_remote_surface_v1)
 {
 	wl_proxy_marshal((struct wl_proxy *) zcr_remote_surface_v1,
-			 ZCR_REMOTE_SURFACE_V1_UNSET_MOVING);
+			 ZCR_REMOTE_SURFACE_V1_MOVE);
 }
 
 #define ZCR_NOTIFICATION_SURFACE_V1_DESTROY 0

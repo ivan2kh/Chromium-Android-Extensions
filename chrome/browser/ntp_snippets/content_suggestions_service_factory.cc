@@ -10,6 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/singleton.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/time/default_clock.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
@@ -95,6 +96,18 @@ using suggestions::ImageDecoderImpl;
 using syncer::SyncService;
 using translate::LanguageModel;
 
+// For now, ContentSuggestionsService must only be instantiated on Android.
+// See also crbug.com/688366.
+#if defined(OS_ANDROID)
+#define CONTENT_SUGGESTIONS_ENABLED 1
+#else
+#define CONTENT_SUGGESTIONS_ENABLED 0
+#endif  // OS_ANDROID
+
+// The actual #if that does the work is below in BuildServiceInstanceFor. This
+// one is just required to avoid "unused code" compiler errors.
+#if CONTENT_SUGGESTIONS_ENABLED
+
 namespace {
 
 #if defined(OS_ANDROID)
@@ -121,9 +134,10 @@ void RegisterDownloadsProvider(OfflinePageModel* offline_page_model,
                                PrefService* pref_service) {
   auto provider = base::MakeUnique<DownloadSuggestionsProvider>(
       service, offline_page_model, download_manager, download_history,
-      pref_service);
+      pref_service, base::MakeUnique<base::DefaultClock>());
   service->RegisterProvider(std::move(provider));
 }
+
 #endif  // OS_ANDROID
 
 void RegisterBookmarkProvider(BookmarkModel* bookmark_model,
@@ -150,6 +164,7 @@ void RegisterPhysicalWebPageProvider(
       service, physical_web_data_source, pref_service);
   service->RegisterProvider(std::move(provider));
 }
+
 #endif  // OS_ANDROID
 
 void RegisterArticleProvider(SigninManagerBase* signin_manager,
@@ -171,15 +186,15 @@ void RegisterArticleProvider(SigninManagerBase* signin_manager,
               base::SequencedWorkerPool::CONTINUE_ON_SHUTDOWN);
   bool is_stable_channel =
       chrome::GetChannel() == version_info::Channel::STABLE;
+  auto suggestions_fetcher = base::MakeUnique<RemoteSuggestionsFetcher>(
+      signin_manager, token_service, request_context, pref_service,
+      language_model, base::Bind(&safe_json::SafeJsonParser::Parse),
+      is_stable_channel ? google_apis::GetAPIKey()
+                        : google_apis::GetNonStableAPIKey(),
+      service->user_classifier());
   auto provider = base::MakeUnique<RemoteSuggestionsProviderImpl>(
       service, pref_service, g_browser_process->GetApplicationLocale(),
-      service->category_ranker(),
-      base::MakeUnique<RemoteSuggestionsFetcher>(
-          signin_manager, token_service, request_context, pref_service,
-          language_model, base::Bind(&safe_json::SafeJsonParser::Parse),
-          is_stable_channel ? google_apis::GetAPIKey()
-                            : google_apis::GetNonStableAPIKey(),
-          service->user_classifier()),
+      service->category_ranker(), std::move(suggestions_fetcher),
       base::MakeUnique<ImageFetcherImpl>(base::MakeUnique<ImageDecoderImpl>(),
                                          request_context.get()),
       base::MakeUnique<ImageDecoderImpl>(),
@@ -212,6 +227,8 @@ void RegisterForeignSessionsProvider(SyncService* sync_service,
 }
 
 }  // namespace
+
+#endif  // CONTENT_SUGGESTIONS_ENABLED
 
 // static
 ContentSuggestionsServiceFactory*
@@ -251,6 +268,8 @@ ContentSuggestionsServiceFactory::~ContentSuggestionsServiceFactory() = default;
 
 KeyedService* ContentSuggestionsServiceFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
+#if CONTENT_SUGGESTIONS_ENABLED
+
   using State = ContentSuggestionsService::State;
   Profile* profile = Profile::FromBrowserContext(context);
   DCHECK(!profile->IsOffTheRecord());
@@ -329,4 +348,8 @@ KeyedService* ContentSuggestionsServiceFactory::BuildServiceInstanceFor(
   }
 
   return service;
+
+#else
+  return nullptr;
+#endif  // CONTENT_SUGGESTIONS_ENABLED
 }

@@ -29,12 +29,10 @@
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/font.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/range/range.h"
-#include "ui/views/border.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/image_view.h"
@@ -106,11 +104,10 @@ std::unique_ptr<views::Button> CreatePaymentSheetRow(
 
   // The rows have extra inset compared to the header so that their right edge
   // lines up with the close button's X rather than its invisible right edge.
-  constexpr int kRowExtraRightInset = 8;
-  layout->SetInsets(kPaymentRequestRowVerticalInsets,
-                    kPaymentRequestRowHorizontalInsets,
-                    kPaymentRequestRowVerticalInsets,
-                    kPaymentRequestRowHorizontalInsets + kRowExtraRightInset);
+  layout->SetInsets(
+      kPaymentRequestRowVerticalInsets, kPaymentRequestRowHorizontalInsets,
+      kPaymentRequestRowVerticalInsets,
+      kPaymentRequestRowHorizontalInsets + kPaymentRequestRowExtraRightInset);
   row->SetLayoutManager(layout);
 
   views::ColumnSet* columns = layout->AddColumnSet(0);
@@ -204,10 +201,6 @@ std::unique_ptr<views::View> PaymentSheetViewController::CreateView() {
 void PaymentSheetViewController::ButtonPressed(
     views::Button* sender, const ui::Event& event) {
   switch (sender->tag()) {
-    case static_cast<int>(PaymentRequestCommonTags::CLOSE_BUTTON_TAG):
-      dialog()->CloseDialog();
-      break;
-
     case static_cast<int>(
         PaymentSheetViewControllerTags::SHOW_ORDER_SUMMARY_BUTTON):
       dialog()->ShowOrderSummary();
@@ -228,7 +221,8 @@ void PaymentSheetViewController::ButtonPressed(
       break;
 
     default:
-      NOTREACHED();
+      PaymentRequestSheetController::ButtonPressed(sender, event);
+      break;
   }
 }
 
@@ -269,7 +263,7 @@ PaymentSheetViewController::CreatePaymentSheetSummaryRow() {
 
 std::unique_ptr<views::View>
 PaymentSheetViewController::CreateShippingSectionContent() {
-  auto profile = request()->selected_shipping_profile();
+  auto* profile = request()->selected_shipping_profile();
 
   // TODO(tmartino): Empty string param is app locale; this should be passed
   // at construct-time and stored as a member in a future CL.
@@ -329,18 +323,8 @@ PaymentSheetViewController::CreatePaymentMethodRow() {
             autofill::AutofillType(autofill::CREDIT_CARD_NAME_FULL),
             g_browser_process->GetApplicationLocale())));
 
-    card_icon_view = base::MakeUnique<views::ImageView>();
-    card_icon_view->set_interactive(false);
-    card_icon_view->SetImage(
-      ResourceBundle::GetSharedInstance()
-          .GetImageNamed(autofill::data_util::GetPaymentRequestData(
-              selected_card->type()).icon_resource_id)
-          .AsImageSkia());
-    card_icon_view->SetBorder(
-        views::CreateRoundedRectBorder(1, 3, SK_ColorLTGRAY));
-
-    constexpr gfx::Size kCardIconSize = gfx::Size(32, 20);
-    card_icon_view->SetImageSize(kCardIconSize);
+    card_icon_view = CreateCardIconView(selected_card->type());
+    card_icon_view->SetImageSize(gfx::Size(32, 20));
   }
 
   std::unique_ptr<views::Button> section = CreatePaymentSheetRow(
@@ -359,7 +343,7 @@ PaymentSheetViewController::CreatePaymentMethodRow() {
 
 std::unique_ptr<views::View>
 PaymentSheetViewController::CreateContactInfoSectionContent() {
-  auto profile = request()->selected_contact_profile();
+  auto* profile = request()->selected_contact_profile();
   // TODO(tmartino): Replace empty string with app locale.
   return profile ? payments::GetContactInfoLabel(AddressStyleType::SUMMARY,
                                                  std::string(), *profile, true,

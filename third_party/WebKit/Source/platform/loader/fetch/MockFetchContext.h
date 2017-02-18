@@ -21,8 +21,6 @@ class WebTaskRunner;
 struct ResourceLoaderOptions;
 
 // Mocked FetchContext for testing.
-// TODO(toyoshim): Use this class by other unit tests that currently have own
-// mocked FetchContext respectively.
 class MockFetchContext : public FetchContext {
  public:
   enum LoadPolicy {
@@ -53,7 +51,7 @@ class MockFetchContext : public FetchContext {
       const ResourceRequest&,
       const KURL&,
       const ResourceLoaderOptions&,
-      bool forPreload,
+      SecurityViolationReportingPolicy,
       FetchRequest::OriginRestriction) const override {
     return ResourceRequestBlockedReason::None;
   }

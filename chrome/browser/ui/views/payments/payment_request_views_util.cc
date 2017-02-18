@@ -9,21 +9,24 @@
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/views/payments/payment_request_sheet_controller.h"
+#include "components/autofill/core/browser/autofill_data_util.h"
 #include "components/autofill/core/browser/autofill_profile.h"
 #include "components/autofill/core/browser/autofill_type.h"
+#include "components/autofill/core/browser/credit_card.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/background.h"
+#include "ui/vector_icons/vector_icons.h"
 #include "ui/views/border.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/vector_icon_button.h"
+#include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/layout/grid_layout.h"
@@ -101,7 +104,7 @@ std::unique_ptr<views::View> CreateSheetHeaderView(
     layout->SkipColumns(1);
   } else {
     views::VectorIconButton* back_arrow = new views::VectorIconButton(delegate);
-    back_arrow->SetIcon(kNavigateBackIcon);
+    back_arrow->SetIcon(ui::kBackArrowIcon);
     back_arrow->SetSize(back_arrow->GetPreferredSize());
     back_arrow->set_tag(static_cast<int>(
         PaymentRequestCommonTags::BACK_BUTTON_TAG));
@@ -115,36 +118,22 @@ std::unique_ptr<views::View> CreateSheetHeaderView(
   return container;
 }
 
-
-std::unique_ptr<views::View> CreatePaymentView(
-    std::unique_ptr<views::View> header_view,
-    std::unique_ptr<views::View> content_view) {
-  std::unique_ptr<views::View> view = base::MakeUnique<views::View>();
-  view->set_background(views::Background::CreateSolidBackground(SK_ColorWHITE));
-
-  // Paint the sheets to layers, otherwise the MD buttons (which do paint to a
-  // layer) won't do proper clipping.
-  view->SetPaintToLayer();
-
-  views::GridLayout* layout = new views::GridLayout(view.get());
-  view->SetLayoutManager(layout);
-
-  constexpr int kTopInsetSize = 9;
-  constexpr int kBottomInsetSize = 18;
-  layout->SetInsets(kTopInsetSize, 0, kBottomInsetSize, 0);
-  views::ColumnSet* columns = layout->AddColumnSet(0);
-  columns->AddColumn(views::GridLayout::FILL, views::GridLayout::CENTER,
-                     1, views::GridLayout::USE_PREF, 0, 0);
-
-  layout->StartRow(0, 0);
-  // |header_view| will be deleted when |view| is.
-  layout->AddView(header_view.release());
-
-  layout->StartRow(0, 0);
-  // |content_view| will be deleted when |view| is.
-  layout->AddView(content_view.release());
-
-  return view;
+std::unique_ptr<views::ImageView> CreateCardIconView(
+    const std::string& card_type) {
+  std::unique_ptr<views::ImageView> card_icon_view =
+      base::MakeUnique<views::ImageView>();
+  card_icon_view->set_interactive(false);
+  card_icon_view->SetImage(
+      ResourceBundle::GetSharedInstance()
+          .GetImageNamed(autofill::data_util::GetPaymentRequestData(card_type)
+                             .icon_resource_id)
+          .AsImageSkia());
+  card_icon_view->SetTooltipText(
+      autofill::CreditCard::TypeForDisplay(card_type));
+  card_icon_view->SetBorder(views::CreateRoundedRectBorder(
+      1, 3, card_icon_view->GetNativeTheme()->GetSystemColor(
+                ui::NativeTheme::kColorId_UnfocusedBorderColor)));
+  return card_icon_view;
 }
 
 std::unique_ptr<views::View> GetShippingAddressLabel(

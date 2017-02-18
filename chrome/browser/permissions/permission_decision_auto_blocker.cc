@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/feature_list.h"
-#include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
@@ -272,11 +271,7 @@ void PermissionDecisionAutoBlocker::UpdateEmbargoedStatus(
     const GURL& request_origin,
     content::WebContents* web_contents,
     base::Callback<void(bool)> callback) {
-  // Check if origin is currently under embargo for the requested permission.
-  if (IsUnderEmbargo(permission, request_origin)) {
-    callback.Run(true /* permission_blocked */);
-    return;
-  }
+  DCHECK(!IsUnderEmbargo(permission, request_origin));
 
   if (base::FeatureList::IsEnabled(features::kPermissionsBlacklist) &&
       db_manager_) {

@@ -1423,19 +1423,19 @@ TEST_F(TileManagerTilePriorityQueueTest, NoRasterTasksforSolidColorTiles) {
   std::unique_ptr<FakeRecordingSource> recording_source =
       FakeRecordingSource::CreateFilledRecordingSource(layer_bounds);
 
-  PaintFlags solid_paint;
+  PaintFlags solid_flags;
   SkColor solid_color = SkColorSetARGB(255, 12, 23, 34);
-  solid_paint.setColor(solid_color);
-  recording_source->add_draw_rect_with_paint(gfx::Rect(layer_bounds),
-                                             solid_paint);
+  solid_flags.setColor(solid_color);
+  recording_source->add_draw_rect_with_flags(gfx::Rect(layer_bounds),
+                                             solid_flags);
 
   // Create non solid tile as well, otherwise tilings wouldnt be created.
   SkColor non_solid_color = SkColorSetARGB(128, 45, 56, 67);
-  PaintFlags non_solid_paint;
-  non_solid_paint.setColor(non_solid_color);
+  PaintFlags non_solid_flags;
+  non_solid_flags.setColor(non_solid_color);
 
-  recording_source->add_draw_rect_with_paint(gfx::Rect(0, 0, 10, 10),
-                                             non_solid_paint);
+  recording_source->add_draw_rect_with_flags(gfx::Rect(0, 0, 10, 10),
+                                             non_solid_flags);
   recording_source->Rerecord();
 
   scoped_refptr<RasterSource> raster_source =
@@ -1444,8 +1444,8 @@ TEST_F(TileManagerTilePriorityQueueTest, NoRasterTasksforSolidColorTiles) {
   FakePictureLayerTilingClient tiling_client;
   tiling_client.SetTileSize(size);
 
-  std::unique_ptr<PictureLayerImpl> layer_impl =
-      PictureLayerImpl::Create(host_impl()->active_tree(), 1, false);
+  std::unique_ptr<PictureLayerImpl> layer_impl = PictureLayerImpl::Create(
+      host_impl()->active_tree(), 1, Layer::LayerMaskType::NOT_MASK);
   layer_impl->set_is_drawn_render_surface_layer_list_member(true);
   PictureLayerTilingSet* tiling_set = layer_impl->picture_layer_tiling_set();
 
@@ -1636,9 +1636,9 @@ TEST_F(TileManagerTest, LowResHasNoImage) {
     recording_source->SetBackgroundColor(SK_ColorTRANSPARENT);
     recording_source->SetRequiresClear(true);
     recording_source->SetClearCanvasWithDebugColor(false);
-    PaintFlags paint;
-    paint.setColor(SK_ColorGREEN);
-    recording_source->add_draw_rect_with_paint(gfx::Rect(size), paint);
+    PaintFlags flags;
+    flags.setColor(SK_ColorGREEN);
+    recording_source->add_draw_rect_with_flags(gfx::Rect(size), flags);
     recording_source->add_draw_image(std::move(blue_image), gfx::Point());
     recording_source->Rerecord();
     scoped_refptr<RasterSource> raster =
@@ -1647,8 +1647,8 @@ TEST_F(TileManagerTest, LowResHasNoImage) {
     FakePictureLayerTilingClient tiling_client;
     tiling_client.SetTileSize(size);
 
-    std::unique_ptr<PictureLayerImpl> layer =
-        PictureLayerImpl::Create(host_impl()->active_tree(), 1, false);
+    std::unique_ptr<PictureLayerImpl> layer = PictureLayerImpl::Create(
+        host_impl()->active_tree(), 1, Layer::LayerMaskType::NOT_MASK);
     PictureLayerTilingSet* tiling_set = layer->picture_layer_tiling_set();
     layer->set_is_drawn_render_surface_layer_list_member(true);
 
@@ -1728,11 +1728,11 @@ TEST_F(ActivationTasksDoNotBlockReadyToDrawTest,
   std::unique_ptr<FakeRecordingSource> active_tree_recording_source =
       FakeRecordingSource::CreateFilledRecordingSource(layer_bounds);
 
-  PaintFlags solid_paint;
+  PaintFlags solid_flags;
   SkColor solid_color = SkColorSetARGB(255, 12, 23, 34);
-  solid_paint.setColor(solid_color);
-  active_tree_recording_source->add_draw_rect_with_paint(
-      gfx::Rect(layer_bounds), solid_paint);
+  solid_flags.setColor(solid_color);
+  active_tree_recording_source->add_draw_rect_with_flags(
+      gfx::Rect(layer_bounds), solid_flags);
 
   active_tree_recording_source->Rerecord();
 
@@ -1740,11 +1740,11 @@ TEST_F(ActivationTasksDoNotBlockReadyToDrawTest,
   std::unique_ptr<FakeRecordingSource> pending_tree_recording_source =
       FakeRecordingSource::CreateFilledRecordingSource(layer_bounds);
   SkColor non_solid_color = SkColorSetARGB(128, 45, 56, 67);
-  PaintFlags non_solid_paint;
-  non_solid_paint.setColor(non_solid_color);
+  PaintFlags non_solid_flags;
+  non_solid_flags.setColor(non_solid_color);
 
-  pending_tree_recording_source->add_draw_rect_with_paint(
-      gfx::Rect(5, 5, 10, 10), non_solid_paint);
+  pending_tree_recording_source->add_draw_rect_with_flags(
+      gfx::Rect(5, 5, 10, 10), non_solid_flags);
   pending_tree_recording_source->Rerecord();
 
   scoped_refptr<RasterSource> active_tree_raster_source =
@@ -1981,24 +1981,24 @@ class TileManagerReadyToDrawTest : public TileManagerTest {
     solid_color_recording_source_ =
         FakeRecordingSource::CreateFilledRecordingSource(layer_bounds);
 
-    SkPaint solid_paint;
+    PaintFlags solid_flags;
     SkColor solid_color = SkColorSetARGB(255, 12, 23, 34);
-    solid_paint.setColor(solid_color);
-    solid_color_recording_source_->add_draw_rect_with_paint(
-        gfx::Rect(layer_bounds), solid_paint);
+    solid_flags.setColor(solid_color);
+    solid_color_recording_source_->add_draw_rect_with_flags(
+        gfx::Rect(layer_bounds), solid_flags);
 
     solid_color_recording_source_->Rerecord();
 
     recording_source_ =
         FakeRecordingSource::CreateFilledRecordingSource(layer_bounds);
     SkColor non_solid_color = SkColorSetARGB(128, 45, 56, 67);
-    SkPaint non_solid_paint;
-    non_solid_paint.setColor(non_solid_color);
+    PaintFlags non_solid_flags;
+    non_solid_flags.setColor(non_solid_color);
 
     for (int i = 0; i < 100; ++i) {
       for (int j = 0; j < 100; ++j) {
-        recording_source_->add_draw_rect_with_paint(
-            gfx::Rect(10 * i, 10 * j, 5, 5), non_solid_paint);
+        recording_source_->add_draw_rect_with_flags(
+            gfx::Rect(10 * i, 10 * j, 5, 5), non_solid_flags);
       }
     }
     recording_source_->Rerecord();

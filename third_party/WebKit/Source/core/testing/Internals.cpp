@@ -159,17 +159,29 @@ namespace blink {
 
 namespace {
 
-class InternalsIterationSource final
-    : public ValueIterable<int>::IterationSource {
+class UseCounterObserverImpl final : public UseCounter::Observer {
+  WTF_MAKE_NONCOPYABLE(UseCounterObserverImpl);
+
  public:
-  bool next(ScriptState* scriptState,
-            int& value,
-            ExceptionState& exceptionState) override {
-    if (m_index >= 5)
+  UseCounterObserverImpl(ScriptPromiseResolver* resolver,
+                         UseCounter::Feature feature)
+      : m_resolver(resolver), m_feature(feature) {}
+
+  bool onCountFeature(UseCounter::Feature feature) final {
+    if (m_feature != feature)
       return false;
-    value = m_index * m_index;
+    m_resolver->resolve(feature);
     return true;
   }
+
+  DEFINE_INLINE_VIRTUAL_TRACE() {
+    UseCounter::Observer::trace(visitor);
+    visitor->trace(m_resolver);
+  }
+
+ private:
+  Member<ScriptPromiseResolver> m_resolver;
+  UseCounter::Feature m_feature;
 };
 
 }  // namespace
@@ -1541,7 +1553,7 @@ static PaintLayer* findLayerForGraphicsLayer(PaintLayer* searchRoot,
     // If the |graphicsLayer| sets the scrollingContent layer as its
     // scroll parent, consider it belongs to the scrolling layer and
     // mark the layer type as "scrolling".
-    if (!searchRoot->layoutObject()->hasTransformRelatedProperty() &&
+    if (!searchRoot->layoutObject().hasTransformRelatedProperty() &&
         searchRoot->scrollParent() &&
         searchRoot->parent() == searchRoot->scrollParent()) {
       *layerType = "scrolling";
@@ -1552,15 +1564,15 @@ static PaintLayer* findLayerForGraphicsLayer(PaintLayer* searchRoot,
       // Only when the element's offsetParent == scroller's offsetParent we
       // can compute the element's relative position to the scrolling content
       // in this way.
-      if (searchRoot->layoutObject()->offsetParent() ==
-          searchRoot->parent()->layoutObject()->offsetParent()) {
-        LayoutBoxModelObject* current = searchRoot->layoutObject();
-        LayoutBoxModelObject* parent = searchRoot->parent()->layoutObject();
-        layerOffset->setWidth((parent->offsetLeft(parent->offsetParent()) -
-                               current->offsetLeft(parent->offsetParent()))
+      if (searchRoot->layoutObject().offsetParent() ==
+          searchRoot->parent()->layoutObject().offsetParent()) {
+        LayoutBoxModelObject& current = searchRoot->layoutObject();
+        LayoutBoxModelObject& parent = searchRoot->parent()->layoutObject();
+        layerOffset->setWidth((parent.offsetLeft(parent.offsetParent()) -
+                               current.offsetLeft(parent.offsetParent()))
                                   .toInt());
-        layerOffset->setHeight((parent->offsetTop(parent->offsetParent()) -
-                                current->offsetTop(parent->offsetParent()))
+        layerOffset->setHeight((parent.offsetTop(parent.offsetParent()) -
+                                current.offsetTop(parent.offsetParent()))
                                    .toInt());
         return searchRoot->parent();
       }
@@ -1568,7 +1580,7 @@ static PaintLayer* findLayerForGraphicsLayer(PaintLayer* searchRoot,
 
     LayoutRect rect;
     PaintLayer::mapRectInPaintInvalidationContainerToBacking(
-        *searchRoot->layoutObject(), rect);
+        searchRoot->layoutObject(), rect);
     rect.move(searchRoot->compositedLayerMapping()
                   ->contentOffsetInCompositingLayer());
 
@@ -1594,7 +1606,7 @@ static PaintLayer* findLayerForGraphicsLayer(PaintLayer* searchRoot,
       *layerType = "squashing";
       LayoutRect rect;
       PaintLayer::mapRectInPaintInvalidationContainerToBacking(
-          *searchRoot->layoutObject(), rect);
+          searchRoot->layoutObject(), rect);
       *layerOffset = IntSize(rect.x().toInt(), rect.y().toInt());
       return searchRoot;
     }
@@ -1696,7 +1708,7 @@ static void accumulateLayerRectList(PaintLayerCompositor* compositor,
     IntSize layerOffset;
     PaintLayer* paintLayer = findLayerForGraphicsLayer(
         compositor->rootLayer(), graphicsLayer, &layerOffset, &layerType);
-    Node* node = paintLayer ? paintLayer->layoutObject()->node() : 0;
+    Node* node = paintLayer ? paintLayer->layoutObject().node() : 0;
     for (size_t i = 0; i < layerRects.size(); ++i) {
       if (!layerRects[i].isEmpty()) {
         rects->append(node, layerType, layerOffset.width(),
@@ -2590,9 +2602,37 @@ void Internals::forceReload(bool bypassCache) {
   if (!frame())
     return;
 
-  frame()->reload(
-      bypassCache ? FrameLoadTypeReloadBypassingCache : FrameLoadTypeReload,
-      ClientRedirectPolicy::NotClientRedirect);
+  frame()->reload(bypassCache ? FrameLoadTypeReloadBypassingCache
+                              : FrameLoadTypeReloadMainResource,
+                  ClientRedirectPolicy::NotClientRedirect);
+}
+
+Node* Internals::visibleSelectionAnchorNode() {
+  if (!frame())
+    return nullptr;
+  Position position = frame()->selection().base();
+  return position.isNull() ? nullptr : position.computeContainerNode();
+}
+
+unsigned Internals::visibleSelectionAnchorOffset() {
+  if (!frame())
+    return 0;
+  Position position = frame()->selection().base();
+  return position.isNull() ? 0 : position.computeOffsetInContainerNode();
+}
+
+Node* Internals::visibleSelectionFocusNode() {
+  if (!frame())
+    return nullptr;
+  Position position = frame()->selection().extent();
+  return position.isNull() ? nullptr : position.computeContainerNode();
+}
+
+unsigned Internals::visibleSelectionFocusOffset() {
+  if (!frame())
+    return 0;
+  Position position = frame()->selection().extent();
+  return position.isNull() ? 0 : position.computeOffsetInContainerNode();
 }
 
 ClientRect* Internals::selectionBounds(ExceptionState& exceptionState) {
@@ -2991,22 +3031,44 @@ float Internals::visualViewportScrollY() {
   return frame()->view()->getScrollableArea()->getScrollOffset().height();
 }
 
-ValueIterable<int>::IterationSource* Internals::startIteration(
-    ScriptState*,
-    ExceptionState&) {
-  return new InternalsIterationSource();
-}
-
-bool Internals::isUseCounted(Document* document, int useCounterId) {
-  if (useCounterId < 0 || useCounterId >= UseCounter::NumberOfFeatures)
+bool Internals::isUseCounted(Document* document, uint32_t feature) {
+  if (feature >= UseCounter::NumberOfFeatures)
     return false;
   return UseCounter::isCounted(*document,
-                               static_cast<UseCounter::Feature>(useCounterId));
+                               static_cast<UseCounter::Feature>(feature));
 }
 
 bool Internals::isCSSPropertyUseCounted(Document* document,
                                         const String& propertyName) {
   return UseCounter::isCounted(*document, propertyName);
+}
+
+ScriptPromise Internals::observeUseCounter(ScriptState* scriptState,
+                                           Document* document,
+                                           uint32_t feature) {
+  ScriptPromiseResolver* resolver = ScriptPromiseResolver::create(scriptState);
+  ScriptPromise promise = resolver->promise();
+  if (feature >= UseCounter::NumberOfFeatures) {
+    resolver->reject();
+    return promise;
+  }
+
+  UseCounter::Feature useCounterFeature =
+      static_cast<UseCounter::Feature>(feature);
+  if (UseCounter::isCounted(*document, useCounterFeature)) {
+    resolver->resolve();
+    return promise;
+  }
+
+  Frame* frame = document->frame();
+  if (!frame || !frame->host()) {
+    resolver->reject();
+    return promise;
+  }
+
+  frame->host()->useCounter().addObserver(
+      new UseCounterObserverImpl(resolver, useCounterFeature));
+  return promise;
 }
 
 String Internals::unscopableAttribute() {

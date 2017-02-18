@@ -74,7 +74,7 @@ void SetArcCpuRestrictionCallback(bool success) {
 // WindowPositioner functionality since we do not have an Aura::Window yet.
 gfx::Rect GetTargetRect(const gfx::Size& size) {
   // Make sure that the window will fit into our workspace.
-  // Note that Arc++ will always be on the primary screen (for now).
+  // Note that ARC will always be on the primary screen (for now).
   // Note that Android's coordinate system is only valid inside the working
   // area. We can therefore ignore the provided left / top offsets.
   aura::Window* root = ash::Shell::GetPrimaryRootWindow();
@@ -240,6 +240,17 @@ bool LaunchAndroidSettingsApp(content::BrowserContext* context,
                         event_flags);
 }
 
+bool LaunchPlayStoreWithUrl(const std::string& url) {
+  arc::mojom::IntentHelperInstance* instance =
+      GET_INTENT_HELPER_INSTANCE(HandleUrl);
+  if (!instance) {
+    VLOG(1) << "Cannot find a mojo instance, ARC is unreachable";
+    return false;
+  }
+  instance->HandleUrl(url, kPlayStorePackage);
+  return true;
+}
+
 bool LaunchApp(content::BrowserContext* context,
                const std::string& app_id,
                int event_flags) {
@@ -258,14 +269,14 @@ bool LaunchApp(content::BrowserContext* context,
     DCHECK(arc_session_manager);
 
     bool arc_activated = false;
-    if (!arc_session_manager->IsArcEnabled()) {
+    if (!arc_session_manager->IsArcPlayStoreEnabled()) {
       if (!prefs->IsDefault(app_id)) {
         NOTREACHED();
         return false;
       }
 
-      arc_session_manager->EnableArc();
-      if (!arc_session_manager->IsArcEnabled()) {
+      arc_session_manager->SetArcPlayStoreEnabled(true);
+      if (!arc_session_manager->IsArcPlayStoreEnabled()) {
         NOTREACHED();
         return false;
       }
@@ -274,7 +285,7 @@ bool LaunchApp(content::BrowserContext* context,
 
     // PlayStore item has special handling for shelf controllers. In order to
     // avoid unwanted initial animation for PlayStore item do not create
-    // deferred launch request when PlayStore item enables Arc.
+    // deferred launch request when PlayStore item enables ARC.
     if (!arc_activated || app_id != kPlayStoreAppId) {
       ChromeLauncherController* chrome_controller =
           ChromeLauncherController::instance();

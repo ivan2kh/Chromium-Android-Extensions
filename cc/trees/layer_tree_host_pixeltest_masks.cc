@@ -43,19 +43,19 @@ class MaskContentLayerClient : public ContentLayerClient {
     PaintCanvas* canvas =
         recorder.beginRecording(gfx::RectToSkRect(gfx::Rect(bounds_)));
 
-    PaintFlags paint;
-    paint.setStyle(PaintFlags::kStroke_Style);
-    paint.setStrokeWidth(SkIntToScalar(2));
-    paint.setColor(SK_ColorWHITE);
+    PaintFlags flags;
+    flags.setStyle(PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(SkIntToScalar(2));
+    flags.setColor(SK_ColorWHITE);
 
     canvas->clear(SK_ColorTRANSPARENT);
     gfx::Rect inset_rect(bounds_);
     while (!inset_rect.IsEmpty()) {
       inset_rect.Inset(3, 3, 2, 2);
       canvas->drawRect(
-          SkRect::MakeXYWH(inset_rect.x(), inset_rect.y(),
-                           inset_rect.width(), inset_rect.height()),
-          paint);
+          SkRect::MakeXYWH(inset_rect.x(), inset_rect.y(), inset_rect.width(),
+                           inset_rect.height()),
+          flags);
       inset_rect.Inset(3, 3, 2, 2);
     }
 
@@ -84,7 +84,7 @@ TEST_P(LayerTreeHostMasksPixelTest, MaskOfLayer) {
   scoped_refptr<PictureLayer> mask = PictureLayer::Create(&client);
   mask->SetBounds(mask_bounds);
   mask->SetIsDrawable(true);
-  mask->SetIsMask(true);
+  mask->SetLayerMaskType(Layer::LayerMaskType::MULTI_TEXTURE_MASK);
   green->SetMaskLayer(mask.get());
 
   RunPixelResourceTest(background,
@@ -99,7 +99,7 @@ TEST_P(LayerTreeHostMasksPixelTest, ImageMaskOfLayer) {
 
   scoped_refptr<PictureImageLayer> mask = PictureImageLayer::Create();
   mask->SetIsDrawable(true);
-  mask->SetIsMask(true);
+  mask->SetLayerMaskType(Layer::LayerMaskType::MULTI_TEXTURE_MASK);
   mask->SetBounds(mask_bounds);
 
   sk_sp<SkSurface> surface = SkSurface::MakeRasterN32Premul(200, 200);
@@ -141,7 +141,7 @@ TEST_P(LayerTreeHostMasksPixelTest, MaskOfClippedLayer) {
   scoped_refptr<PictureLayer> mask = PictureLayer::Create(&client);
   mask->SetBounds(mask_bounds);
   mask->SetIsDrawable(true);
-  mask->SetIsMask(true);
+  mask->SetLayerMaskType(Layer::LayerMaskType::MULTI_TEXTURE_MASK);
   green->SetMaskLayer(mask.get());
 
   RunPixelResourceTest(
@@ -165,18 +165,18 @@ class CheckerContentLayerClient : public ContentLayerClient {
     PaintCanvas* canvas =
         recorder.beginRecording(gfx::RectToSkRect(gfx::Rect(bounds_)));
 
-    PaintFlags paint;
-    paint.setStyle(PaintFlags::kStroke_Style);
-    paint.setStrokeWidth(SkIntToScalar(4));
-    paint.setColor(color_);
+    PaintFlags flags;
+    flags.setStyle(PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(SkIntToScalar(4));
+    flags.setColor(color_);
     canvas->clear(SK_ColorTRANSPARENT);
     if (vertical_) {
       for (int i = 4; i < bounds_.width(); i += 16) {
-        canvas->drawLine(i, 0, i, bounds_.height(), paint);
+        canvas->drawLine(i, 0, i, bounds_.height(), flags);
       }
     } else {
       for (int i = 4; i < bounds_.height(); i += 16) {
-        canvas->drawLine(0, i, bounds_.width(), i, paint);
+        canvas->drawLine(0, i, bounds_.width(), i, flags);
       }
     }
 
@@ -208,14 +208,12 @@ class CircleContentLayerClient : public ContentLayerClient {
     PaintCanvas* canvas =
         recorder.beginRecording(gfx::RectToSkRect(gfx::Rect(bounds_)));
 
-    PaintFlags paint;
-    paint.setStyle(PaintFlags::kFill_Style);
-    paint.setColor(SK_ColorWHITE);
+    PaintFlags flags;
+    flags.setStyle(PaintFlags::kFill_Style);
+    flags.setColor(SK_ColorWHITE);
     canvas->clear(SK_ColorTRANSPARENT);
-    canvas->drawCircle(bounds_.width() / 2,
-                       bounds_.height() / 2,
-                       bounds_.width() / 4,
-                       paint);
+    canvas->drawCircle(bounds_.width() / 2, bounds_.height() / 2,
+                       bounds_.width() / 4, flags);
 
     auto display_list = make_scoped_refptr(new DisplayItemList);
     display_list->CreateAndAppendDrawingItem<DrawingDisplayItem>(
@@ -268,7 +266,7 @@ TEST_P(LayerTreeHostMasksForBackgroundFiltersPixelTest,
   scoped_refptr<PictureLayer> mask = PictureLayer::Create(&mask_client);
   mask->SetBounds(mask_bounds);
   mask->SetIsDrawable(true);
-  mask->SetIsMask(true);
+  mask->SetLayerMaskType(Layer::LayerMaskType::MULTI_TEXTURE_MASK);
   blur->SetMaskLayer(mask.get());
 
   float percentage_pixels_large_error = 2.5f;  // 2.5%, ~250px / (100*100)
@@ -319,7 +317,7 @@ TEST_P(LayerTreeHostMasksForBackgroundFiltersPixelTest,
   scoped_refptr<PictureLayer> mask = PictureLayer::Create(&mask_client);
   mask->SetBounds(mask_bounds);
   mask->SetIsDrawable(true);
-  mask->SetIsMask(true);
+  mask->SetLayerMaskType(Layer::LayerMaskType::MULTI_TEXTURE_MASK);
   picture_horizontal->SetMaskLayer(mask.get());
 
   float percentage_pixels_large_error = 0.04f;  // 0.04%, ~6px / (128*128)

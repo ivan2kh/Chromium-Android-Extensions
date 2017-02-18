@@ -45,6 +45,7 @@
 #include "core/page/Page.h"
 #include "platform/geometry/IntSize.h"
 #include "platform/testing/URLTestHelpers.h"
+#include "platform/testing/UnitTestHelpers.h"
 #include "public/web/WebFrame.h"
 #include "public/web/WebSettings.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -53,6 +54,8 @@
 #include "web/tests/FrameTestHelpers.h"
 
 namespace blink {
+
+namespace {
 
 KeyboardEvent* createKeyboardEventWithLocation(
     KeyboardEvent::KeyLocationCode location) {
@@ -68,6 +71,15 @@ int getModifiersForKeyLocationCode(KeyboardEvent::KeyLocationCode location) {
   WebKeyboardEventBuilder convertedEvent(*event);
   return convertedEvent.modifiers();
 }
+
+void registerMockedURL(const std::string& baseURL,
+                       const std::string& fileName) {
+  URLTestHelpers::registerMockedURLLoadFromBase(WebString::fromUTF8(baseURL),
+                                                testing::webTestDataPath(),
+                                                WebString::fromUTF8(fileName));
+}
+
+}  // namespace
 
 TEST(WebInputEventConversionTest, WebKeyboardEventBuilder) {
   // Test key location conversion.
@@ -106,9 +118,7 @@ TEST(WebInputEventConversionTest, InputEventsScaling) {
   const std::string baseURL("http://www.test1.com/");
   const std::string fileName("fixed_layout.html");
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(baseURL.c_str()),
-      WebString::fromUTF8("fixed_layout.html"));
+  registerMockedURL(baseURL, fileName);
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webViewImpl =
       webViewHelper.initializeAndLoad(baseURL + fileName, true);
@@ -308,6 +318,8 @@ TEST(WebInputEventConversionTest, InputEventsScaling) {
     webTouchEvent.touches[0].position.y = 10.4f;
     webTouchEvent.touches[0].radiusX = 10.6f;
     webTouchEvent.touches[0].radiusY = 10.4f;
+    webTouchEvent.touches[0].movementX = 20;
+    webTouchEvent.touches[0].movementY = 20;
 
     EXPECT_FLOAT_EQ(10.6f, webTouchEvent.touches[0].screenPosition.x);
     EXPECT_FLOAT_EQ(10.4f, webTouchEvent.touches[0].screenPosition.y);
@@ -315,6 +327,8 @@ TEST(WebInputEventConversionTest, InputEventsScaling) {
     EXPECT_FLOAT_EQ(10.4f, webTouchEvent.touches[0].position.y);
     EXPECT_FLOAT_EQ(10.6f, webTouchEvent.touches[0].radiusX);
     EXPECT_FLOAT_EQ(10.4f, webTouchEvent.touches[0].radiusY);
+    EXPECT_EQ(20, webTouchEvent.touches[0].movementX);
+    EXPECT_EQ(20, webTouchEvent.touches[0].movementY);
 
     WebTouchEvent transformedEvent =
         TransformWebTouchEvent(view, webTouchEvent);
@@ -325,6 +339,8 @@ TEST(WebInputEventConversionTest, InputEventsScaling) {
     EXPECT_FLOAT_EQ(5.2f, transformedPoint.position.y);
     EXPECT_FLOAT_EQ(5.3f, transformedPoint.radiusX);
     EXPECT_FLOAT_EQ(5.2f, transformedPoint.radiusY);
+    EXPECT_EQ(10, transformedPoint.movementX);
+    EXPECT_EQ(10, transformedPoint.movementY);
   }
 }
 
@@ -332,9 +348,7 @@ TEST(WebInputEventConversionTest, InputEventsTransform) {
   const std::string baseURL("http://www.test2.com/");
   const std::string fileName("fixed_layout.html");
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(baseURL.c_str()),
-      WebString::fromUTF8("fixed_layout.html"));
+  registerMockedURL(baseURL, fileName);
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webViewImpl =
       webViewHelper.initializeAndLoad(baseURL + fileName, true);
@@ -614,9 +628,7 @@ TEST(WebInputEventConversionTest, InputEventsConversions) {
   const std::string baseURL("http://www.test3.com/");
   const std::string fileName("fixed_layout.html");
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(baseURL.c_str()),
-      WebString::fromUTF8("fixed_layout.html"));
+  registerMockedURL(baseURL, fileName);
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webViewImpl =
       webViewHelper.initializeAndLoad(baseURL + fileName, true);
@@ -655,9 +667,7 @@ TEST(WebInputEventConversionTest, VisualViewportOffset) {
   const std::string baseURL("http://www.test4.com/");
   const std::string fileName("fixed_layout.html");
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(baseURL.c_str()),
-      WebString::fromUTF8("fixed_layout.html"));
+  registerMockedURL(baseURL, fileName);
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webViewImpl =
       webViewHelper.initializeAndLoad(baseURL + fileName, true);
@@ -766,9 +776,7 @@ TEST(WebInputEventConversionTest, ElasticOverscroll) {
   const std::string baseURL("http://www.test5.com/");
   const std::string fileName("fixed_layout.html");
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(baseURL.c_str()),
-      WebString::fromUTF8("fixed_layout.html"));
+  registerMockedURL(baseURL, fileName);
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webViewImpl =
       webViewHelper.initializeAndLoad(baseURL + fileName, true);
@@ -845,9 +853,7 @@ TEST(WebInputEventConversionTest, ElasticOverscrollWithPageReload) {
   const std::string baseURL("http://www.test6.com/");
   const std::string fileName("fixed_layout.html");
 
-  URLTestHelpers::registerMockedURLFromBaseURL(
-      WebString::fromUTF8(baseURL.c_str()),
-      WebString::fromUTF8("fixed_layout.html"));
+  registerMockedURL(baseURL, fileName);
   FrameTestHelpers::WebViewHelper webViewHelper;
   WebViewImpl* webViewImpl =
       webViewHelper.initializeAndLoad(baseURL + fileName, true);

@@ -535,7 +535,7 @@ void {{v8_class_or_partial}}::{{cpp_class}}OriginSafeMethodSetterCallback(v8::Lo
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-const WrapperTypeInfo {{v8_class}}Constructor::wrapperTypeInfo = { gin::kEmbedderBlink, {{v8_class}}Constructor::domTemplate, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func}}, "{{interface_name}}", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{event_target_inheritance}}, WrapperTypeInfo::{{lifetime}} };
+const WrapperTypeInfo {{v8_class}}Constructor::wrapperTypeInfo = { gin::kEmbedderBlink, {{v8_class}}Constructor::domTemplate, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func}}, "{{interface_name}}", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{lifetime}} };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -862,70 +862,33 @@ v8::Local<v8::Object> {{v8_class}}::findInstanceInPrototypeChain(v8::Local<v8::V
 
 
 {##############################################################################}
-{% block prepare_prototype_and_interface_object %}
-{% from 'methods.cpp.tmpl' import install_conditionally_enabled_methods with context %}
-{% if has_prepare_prototype_and_interface_object %}
-void {{v8_class}}::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
-  v8::Isolate* isolate = context->GetIsolate();
-{% if unscopables %}
-  {{install_unscopables() | indent(2)}}
-{% endif %}
-{% if has_conditional_attributes_on_prototype %}
-  {{install_conditionally_enabled_attributes_on_prototype() | indent(2)}}
-{% endif %}
-{% if methods | conditionally_exposed(is_partial) %}
-  {{install_conditionally_enabled_methods() | indent(2)}}
-{% endif %}
-}
-
-{% endif %}
-{% endblock %}
-
-
-{##############################################################################}
-{% macro install_unscopables() %}
-v8::Local<v8::Name> unscopablesSymbol(v8::Symbol::GetUnscopables(isolate));
-v8::Local<v8::Object> unscopables;
-if (v8CallBoolean(prototypeObject->HasOwnProperty(context, unscopablesSymbol)))
-  unscopables = prototypeObject->Get(context, unscopablesSymbol).ToLocalChecked().As<v8::Object>();
-else
-  unscopables = v8::Object::New(isolate);
-{% for name, runtime_enabled_feature_name in unscopables %}
-{% filter runtime_enabled(runtime_enabled_feature_name) %}
-unscopables->CreateDataProperty(context, v8AtomicString(isolate, "{{name}}"), v8::True(isolate)).FromJust();
-{% endfilter %}
-{% endfor %}
-prototypeObject->CreateDataProperty(context, unscopablesSymbol, unscopables).FromJust();
-{% endmacro %}
-
-
-{##############################################################################}
-{% macro install_conditionally_enabled_attributes_on_prototype() %}
-{% from 'attributes.cpp.tmpl' import attribute_configuration with context %}
-ExecutionContext* executionContext = toExecutionContext(context);
-v8::Local<v8::Signature> signature = v8::Signature::New(isolate, interfaceTemplate);
-{% for attribute in attributes if (attribute.exposed_test or attribute.secure_context_test) and attribute.on_prototype %}
-{% filter exposed(attribute.exposed_test) %}
-{% filter secure_context(attribute.secure_context_test) %}
-{% filter runtime_enabled(attribute.runtime_enabled_feature_name) %}
-const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {{attribute_configuration(attribute)}};
-V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
-{% endfilter %}{# runtime_enabled #}
-{% endfilter %}{# secure_context #}
-{% endfilter %}{# exposed #}
-{% endfor %}
-{% endmacro %}
-
-
-{##############################################################################}
 {% block partial_interface %}
 {% if has_partial_interface %}
-InstallTemplateFunction {{v8_class}}::install{{v8_class}}TemplateFunction = (InstallTemplateFunction)&{{v8_class}}::install{{v8_class}}Template;
+{% if needs_runtime_enabled_installer %}
+InstallRuntimeEnabledFunction {{v8_class}}::install{{v8_class}}RuntimeEnabledFunction =
+    &{{v8_class}}::installRuntimeEnabledFeatures;
+{% endif %}
 
-void {{v8_class}}::updateWrapperTypeInfo(InstallTemplateFunction installTemplateFunction, PreparePrototypeAndInterfaceObjectFunction preparePrototypeAndInterfaceObjectFunction) {
-  {{v8_class}}::install{{v8_class}}TemplateFunction = installTemplateFunction;
-  if (preparePrototypeAndInterfaceObjectFunction)
-    {{v8_class}}::wrapperTypeInfo.preparePrototypeAndInterfaceObjectFunction = preparePrototypeAndInterfaceObjectFunction;
+InstallTemplateFunction {{v8_class}}::install{{v8_class}}TemplateFunction =
+    &{{v8_class}}::install{{v8_class}}Template;
+
+void {{v8_class}}::updateWrapperTypeInfo(
+    InstallTemplateFunction installTemplateFunction,
+    InstallRuntimeEnabledFunction installRuntimeEnabledFunction,
+    PreparePrototypeAndInterfaceObjectFunction preparePrototypeAndInterfaceObjectFunction) {
+  ALLOW_UNUSED_LOCAL(installRuntimeEnabledFunction);
+
+  {{v8_class}}::install{{v8_class}}TemplateFunction =
+      installTemplateFunction;
+  {% if needs_runtime_enabled_installer %}
+  CHECK(installRuntimeEnabledFunction);
+  {{v8_class}}::install{{v8_class}}RuntimeEnabledFunction =
+      installRuntimeEnabledFunction;
+  {% endif %}
+  if (preparePrototypeAndInterfaceObjectFunction) {
+    {{v8_class}}::wrapperTypeInfo.preparePrototypeAndInterfaceObjectFunction =
+        preparePrototypeAndInterfaceObjectFunction;
+  }
 }
 
 {% for method in methods if method.overloads and method.overloads.has_partial_overloads %}

@@ -30,25 +30,16 @@ void ChromeLauncherController::Init() {
   // Start observing the shelf controller.
   if (ConnectToShelfController()) {
     ash::mojom::ShelfObserverAssociatedPtrInfo ptr_info;
-    observer_binding_.Bind(&ptr_info, shelf_controller_.associated_group());
+    observer_binding_.Bind(&ptr_info);
     shelf_controller_->AddObserver(std::move(ptr_info));
   }
   OnInit();
 }
 
-void ChromeLauncherController::LaunchApp(const std::string& app_id,
-                                         ash::LaunchSource source,
+void ChromeLauncherController::LaunchApp(ash::AppLauncherId id,
+                                         ash::ShelfLaunchSource source,
                                          int event_flags) {
-  launcher_controller_helper_->LaunchApp(app_id, source, event_flags);
-}
-
-void ChromeLauncherController::LaunchAppWithLaunchId(
-    const std::string& app_id,
-    const std::string& launch_id,
-    ash::LaunchSource source,
-    int event_flags) {
-  launcher_controller_helper_->LaunchAppWithLaunchId(app_id, launch_id, source,
-                                                     event_flags);
+  launcher_controller_helper_->LaunchApp(id, source, event_flags);
 }
 
 ChromeLauncherController::ChromeLauncherController() : observer_binding_(this) {

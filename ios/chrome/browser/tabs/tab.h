@@ -19,10 +19,8 @@
 @class AutoReloadBridge;
 @class CastController;
 @protocol CRWNativeContentProvider;
-@class CRWSessionEntry;
 @class CRWWebController;
 @class ExternalAppLauncher;
-@class FindInPageController;
 @class FormInputAccessoryViewController;
 @class FullScreenController;
 @protocol FullScreenControllerDelegate;
@@ -58,6 +56,7 @@ struct SessionTab;
 }
 
 namespace web {
+class NavigationItem;
 class NavigationManagerImpl;
 struct Referrer;
 class WebState;
@@ -165,7 +164,13 @@ extern NSString* const kProxyPassthroughHeaderValue;
 
 // Create a new tab with given web state and tab model. All must be non-nil.
 - (instancetype)initWithWebState:(std::unique_ptr<web::WebState>)webState
+                           model:(TabModel*)parentModel;
+
+// Create a new tab with given web state and tab model, optionally attaching
+// the tab helpers (controlled by |attachTabHelpers|). All must be non-nil.
+- (instancetype)initWithWebState:(std::unique_ptr<web::WebState>)webState
                            model:(TabModel*)parentModel
+                attachTabHelpers:(BOOL)attachTabHelpers
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -241,8 +246,8 @@ extern NSString* const kProxyPassthroughHeaderValue;
             (const std::vector<sessions::SerializedNavigationEntry>&)navigations
                          currentIndex:(NSInteger)currentIndex;
 
-// Navigate forwards or backwards to |entry|.
-- (void)goToEntry:(CRWSessionEntry*)entry;
+// Navigate forwards or backwards to |item|.
+- (void)goToItem:(const web::NavigationItem*)item;
 - (void)reload;
 
 // Navigates forwards or backwards.
@@ -278,9 +283,6 @@ extern NSString* const kProxyPassthroughHeaderValue;
 // Remove the UIWebView and reload the current url.  Used by request desktop
 // so the updated user agent is used.
 - (void)reloadForDesktopUserAgent;
-
-// Accessor for Find in Page Controller.
-- (FindInPageController*)findInPageController;
 
 // Ensures the toolbar visibility matches |visible|.
 - (void)updateFullscreenWithToolbarVisible:(BOOL)visible;

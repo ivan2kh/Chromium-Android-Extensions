@@ -28,6 +28,9 @@
 
 #include "core/layout/LayoutObject.h"
 
+#include <algorithm>
+#include <memory>
+
 #include "core/animation/ElementAnimations.h"
 #include "core/css/resolver/StyleResolver.h"
 #include "core/dom/AXObjectCache.h"
@@ -85,8 +88,6 @@
 #include "wtf/allocator/Partitions.h"
 #include "wtf/text/StringBuilder.h"
 #include "wtf/text/WTFString.h"
-#include <algorithm>
-#include <memory>
 #ifndef NDEBUG
 #include <stdio.h>
 #endif
@@ -98,11 +99,6 @@ namespace {
 static bool gModifyLayoutTreeStructureAnyState = false;
 
 }  // namespace
-
-const LayoutUnit& caretWidth() {
-  static LayoutUnit gCaretWidth(1);
-  return gCaretWidth;
-}
 
 #if DCHECK_IS_ON()
 
@@ -922,9 +918,9 @@ LayoutBlock* LayoutObject::containingBlock(AncestorSkipInfo* skipInfo) const {
   if (!object && isLayoutScrollbarPart())
     object = toLayoutScrollbarPart(this)->scrollbarStyleSource();
   if (!isTextOrSVGChild()) {
-    if (m_style->position() == FixedPosition)
+    if (m_style->position() == EPosition::kFixed)
       return containerForFixedPosition(skipInfo);
-    if (m_style->position() == AbsolutePosition)
+    if (m_style->position() == EPosition::kAbsolute)
       return containingBlockForAbsolutePosition(skipInfo);
   }
   if (isColumnSpanAll()) {
@@ -989,10 +985,10 @@ IntRect LayoutObject::absoluteBoundingBoxRectIgnoringTransforms() const {
 
 IntRect LayoutObject::absoluteElementBoundingBoxRect() const {
   Vector<LayoutRect> rects;
-  const LayoutBoxModelObject* container = enclosingLayer()->layoutObject();
+  const LayoutBoxModelObject& container = enclosingLayer()->layoutObject();
   addElementVisualOverflowRects(
-      rects, LayoutPoint(localToAncestorPoint(FloatPoint(), container)));
-  return container->localToAbsoluteQuad(FloatQuad(FloatRect(unionRect(rects))))
+      rects, LayoutPoint(localToAncestorPoint(FloatPoint(), &container)));
+  return container.localToAbsoluteQuad(FloatQuad(FloatRect(unionRect(rects))))
       .enclosingBoundingBox();
 }
 
@@ -1059,7 +1055,7 @@ const LayoutBoxModelObject* LayoutObject::enclosingCompositedContainer() const {
     if (PaintLayer* compositingLayer =
             paintingLayer
                 ->enclosingLayerForPaintInvalidationCrossingFrameBoundaries())
-      container = compositingLayer->layoutObject();
+      container = &compositingLayer->layoutObject();
   }
   return container;
 }
@@ -1189,7 +1185,7 @@ PaintInvalidationReason LayoutObject::invalidatePaintIfNeeded(
 
   if (styleRef().hasOutline()) {
     PaintLayer& layer = paintInvalidationState.paintingLayer();
-    if (layer.layoutObject() != this)
+    if (&layer.layoutObject() != this)
       layer.setNeedsPaintPhaseDescendantOutlines();
   }
 
@@ -1514,13 +1510,11 @@ StyleDifference LayoutObject::adjustStyleDifference(
   // needed if we have style or text affected by these properties.
   if (diff.textDecorationOrColorChanged() && !diff.needsPaintInvalidation()) {
     if (style()->hasBorder() || style()->hasOutline() ||
-        style()->hasBackgroundRelatedColorReferencingCurrentColor()
+        style()->hasBackgroundRelatedColorReferencingCurrentColor() ||
         // Skip any text nodes that do not contain text boxes. Whitespace cannot
         // be skipped or we will miss invalidating decorations (e.g.,
         // underlines).
-        || (isText() && !isBR() && toLayoutText(this)->hasTextBoxes())
-        // Caret is painted in text color.
-        || (isLayoutBlock() && toLayoutBlock(this)->hasCaret()) ||
+        (isText() && !isBR() && toLayoutText(this)->hasTextBoxes()) ||
         (isSVG() && style()->svgStyle().isFillColorCurrentColor()) ||
         (isSVG() && style()->svgStyle().isStrokeColorCurrentColor()) ||
         isListMarker())
@@ -2117,8 +2111,9 @@ void LayoutObject::mapLocalToAncestor(const LayoutBoxModelObject* ancestor,
                                    : TransformState::FlattenTransform);
     // If the ancestor is fixed, then the rect is already in its coordinates so
     // doesn't need viewport-adjusting.
-    if (ancestor->style()->position() != FixedPosition &&
-        container->isLayoutView() && styleRef().position() == FixedPosition) {
+    if (ancestor->style()->position() != EPosition::kFixed &&
+        container->isLayoutView() &&
+        styleRef().position() == EPosition::kFixed) {
       LayoutSize adjustment = toLayoutView(container)->offsetForFixedPosition();
       transformState.move(adjustment.width(), adjustment.height());
     }
@@ -2196,8 +2191,9 @@ void LayoutObject::mapAncestorToLocal(const LayoutBoxModelObject* ancestor,
     transformState.move(-containerOffset.width(), -containerOffset.height());
     // If the ancestor is fixed, then the rect is already in its coordinates so
     // doesn't need viewport-adjusting.
-    if (ancestor->style()->position() != FixedPosition &&
-        container->isLayoutView() && styleRef().position() == FixedPosition) {
+    if (ancestor->style()->position() != EPosition::kFixed &&
+        container->isLayoutView() &&
+        styleRef().position() == EPosition::kFixed) {
       LayoutSize adjustment = toLayoutView(container)->offsetForFixedPosition();
       transformState.move(adjustment.width(), adjustment.height());
     }
@@ -2366,12 +2362,12 @@ void LayoutObject::computeLayerHitTestRects(
     LayoutObject* container = this->container();
     currentLayer = container->enclosingLayer();
     if (container && currentLayer->layoutObject() != container) {
-      layerOffset.move(
-          container->offsetFromAncestorContainer(currentLayer->layoutObject()));
+      layerOffset.move(container->offsetFromAncestorContainer(
+          &currentLayer->layoutObject()));
       // If the layer itself is scrolled, we have to undo the subtraction of its
       // scroll offset since we want the offset relative to the scrolling
       // content, not the element itself.
-      if (currentLayer->layoutObject()->hasOverflowClip())
+      if (currentLayer->layoutObject().hasOverflowClip())
         layerOffset.move(currentLayer->layoutBox()->scrolledContentOffset());
     }
   }
@@ -2487,10 +2483,10 @@ LayoutObject* LayoutObject::container(AncestorSkipInfo* skipInfo) const {
     return parent();
 
   EPosition pos = m_style->position();
-  if (pos == FixedPosition)
+  if (pos == EPosition::kFixed)
     return containerForFixedPosition(skipInfo);
 
-  if (pos == AbsolutePosition) {
+  if (pos == EPosition::kAbsolute) {
     return containerForAbsolutePosition(skipInfo);
   }
 

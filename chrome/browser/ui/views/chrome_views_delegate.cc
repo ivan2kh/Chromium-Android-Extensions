@@ -12,6 +12,7 @@
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -450,23 +451,20 @@ void ChromeViewsDelegate::OnBeforeWidgetInit(
   // While the majority of the time, context wasn't plumbed through due to the
   // existence of a global WindowParentingClient, if this window is toplevel,
   // it's possible that there is no contextual state that we can use.
-  gfx::NativeWindow parent_or_context =
-      params->parent ? params->parent : params->context;
-  void* profile =
-      parent_or_context
-          ? parent_or_context->GetNativeWindowProperty(Profile::kProfileKey)
-          : nullptr;
-  if ((!params->parent && !params->context && !params->child) ||
-      !use_non_toplevel_window) {
-    views::DesktopNativeWidgetAura* native_widget =
-        new views::DesktopNativeWidgetAura(delegate);
-    params->native_widget = native_widget;
-    native_widget->SetNativeWindowProperty(Profile::kProfileKey, profile);
-  } else {
+  if (params->parent == NULL && params->context == NULL && !params->child) {
+    params->native_widget = new views::DesktopNativeWidgetAura(delegate);
+  } else if (use_non_toplevel_window) {
     views::NativeWidgetAura* native_widget =
         new views::NativeWidgetAura(delegate);
+    if (params->parent) {
+      Profile* parent_profile = reinterpret_cast<Profile*>(
+          params->parent->GetNativeWindowProperty(Profile::kProfileKey));
+      native_widget->SetNativeWindowProperty(Profile::kProfileKey,
+                                             parent_profile);
+    }
     params->native_widget = native_widget;
-    native_widget->SetNativeWindowProperty(Profile::kProfileKey, profile);
+  } else {
+    params->native_widget = new views::DesktopNativeWidgetAura(delegate);
   }
 #endif
 }
@@ -542,8 +540,17 @@ ChromeViewsDelegate::GetBlockingPoolTaskRunner() {
 }
 
 gfx::Insets ChromeViewsDelegate::GetDialogButtonInsets() const {
-  return gfx::Insets(LayoutDelegate::Get()->GetMetric(
-      LayoutDelegate::Metric::DIALOG_BUTTON_MARGIN));
+  const LayoutDelegate* layout_delegate = LayoutDelegate::Get();
+  const int top = layout_delegate->GetMetric(
+      LayoutDelegate::Metric::DIALOG_BUTTON_TOP_SPACING);
+  const int margin = layout_delegate->GetMetric(
+      LayoutDelegate::Metric::DIALOG_BUTTON_MARGIN);
+  return gfx::Insets(top, margin, margin, margin);
+}
+
+int ChromeViewsDelegate::GetDialogCloseButtonMargin() const {
+  return LayoutDelegate::Get()->GetMetric(
+      LayoutDelegate::Metric::DIALOG_CLOSE_BUTTON_MARGIN);
 }
 
 int ChromeViewsDelegate::GetDialogRelatedButtonHorizontalSpacing() const {

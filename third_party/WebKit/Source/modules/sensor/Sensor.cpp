@@ -6,7 +6,6 @@
 
 #include "core/dom/Document.h"
 #include "core/dom/ExceptionCode.h"
-#include "core/dom/ExecutionContextTask.h"
 #include "core/dom/TaskRunnerHelper.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/timing/DOMWindowPerformance.h"
@@ -62,24 +61,24 @@ Sensor::Sensor(ExecutionContext* executionContext,
 
 Sensor::~Sensor() = default;
 
-void Sensor::start(ScriptState* scriptState, ExceptionState& exceptionState) {
+void Sensor::start() {
   if (m_state != Sensor::SensorState::Unconnected &&
       m_state != Sensor::SensorState::Idle &&
       m_state != Sensor::SensorState::Errored)
     return;
 
   initSensorProxyIfNeeded();
-
   if (!m_sensorProxy) {
-    exceptionState.throwDOMException(
-        InvalidStateError, "The Sensor is no longer associated to a frame.");
+    reportError(InvalidStateError,
+                "The Sensor is no longer associated to a frame.");
     return;
   }
+
   m_lastUpdateTimestamp = WTF::monotonicallyIncreasingTime();
   startListening();
 }
 
-void Sensor::stop(ScriptState*, ExceptionState& exceptionState) {
+void Sensor::stop() {
   if (m_state == Sensor::SensorState::Unconnected ||
       m_state == Sensor::SensorState::Idle ||
       m_state == Sensor::SensorState::Errored)
@@ -279,10 +278,9 @@ void Sensor::updateState(Sensor::SensorState newState) {
     // so that the first reading update will be notified considering the given
     // frequency hint.
     m_lastUpdateTimestamp = WTF::monotonicallyIncreasingTime();
-    getExecutionContext()->postTask(
-        TaskType::Sensor, BLINK_FROM_HERE,
-        createSameThreadTask(&Sensor::notifyOnActivate,
-                             wrapWeakPersistent(this)));
+    TaskRunnerHelper::get(TaskType::Sensor, getExecutionContext())
+        ->postTask(BLINK_FROM_HERE, WTF::bind(&Sensor::notifyOnActivate,
+                                              wrapWeakPersistent(this)));
   }
 
   m_state = newState;
@@ -295,9 +293,9 @@ void Sensor::reportError(ExceptionCode code,
   if (getExecutionContext()) {
     auto error =
         DOMException::create(code, sanitizedMessage, unsanitizedMessage);
-    getExecutionContext()->postTask(
-        TaskType::Sensor, BLINK_FROM_HERE,
-        createSameThreadTask(&Sensor::notifyError, wrapWeakPersistent(this),
+    TaskRunnerHelper::get(TaskType::Sensor, getExecutionContext())
+        ->postTask(BLINK_FROM_HERE,
+                   WTF::bind(&Sensor::notifyError, wrapWeakPersistent(this),
                              wrapPersistent(error)));
   }
 }

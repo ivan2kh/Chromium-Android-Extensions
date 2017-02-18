@@ -102,9 +102,6 @@ struct ContentSettingWithExceptions {
 typedef bool (*AppFilter)(const extensions::Extension& app,
                           content::BrowserContext* profile);
 
-const char kExceptionsLearnMoreUrl[] =
-    "https://support.google.com/chrome/?p=settings_manage_exceptions";
-
 const char kAppName[] = "appName";
 const char kAppId[] = "appId";
 const char kZoom[] = "zoom";
@@ -419,11 +416,13 @@ void ContentSettingsHandler::GetLocalizedValues(
     {"notificationsAllow", IDS_NOTIFICATIONS_ALLOW_RADIO},
     {"notificationsAsk", IDS_NOTIFICATIONS_ASK_RADIO},
     {"notificationsBlock", IDS_NOTIFICATIONS_BLOCK_RADIO},
-#if defined(OS_CHROMEOS) || defined(OS_WIN)
     // Protected Content filter
     {"protectedContentTabLabel", IDS_PROTECTED_CONTENT_TAB_LABEL},
+    {"protectedContentEnableCheckbox", IDS_PROTECTED_CONTENT_ENABLE_CHECKBOX},
+#if defined(OS_CHROMEOS) || defined(OS_WIN)
     {"protectedContentInfo", IDS_PROTECTED_CONTENT_INFO},
-    {"protectedContentEnable", IDS_PROTECTED_CONTENT_ENABLE},
+    {"protectedContentEnableIdentifiersCheckbox",
+     IDS_PROTECTED_CONTENT_ENABLE_IDENTIFIERS_CHECKBOX},
     {"protectedContentHeader", IDS_PROTECTED_CONTENT_HEADER},
 #endif  // defined(OS_CHROMEOS) || defined(OS_WIN)
     // Microphone filter.
@@ -554,7 +553,7 @@ void ContentSettingsHandler::GetLocalizedValues(
                 IDS_ZOOMLEVELS_HEADER_AND_TAB_LABEL);
 
   localized_strings->SetString("exceptionsLearnMoreUrl",
-                               kExceptionsLearnMoreUrl);
+                               chrome::kContentSettingsExceptionsLearnMoreURL);
 }
 
 void ContentSettingsHandler::InitializeHandler() {

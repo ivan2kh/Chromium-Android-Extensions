@@ -4,6 +4,7 @@
 
 #include "core/css/parser/CSSPropertyParser.h"
 
+#include <memory>
 #include "core/StylePropertyShorthand.h"
 #include "core/css/CSSBasicShapeValues.h"
 #include "core/css/CSSBorderImage.h"
@@ -42,6 +43,7 @@
 #include "core/css/parser/CSSVariableParser.h"
 #include "core/css/parser/FontVariantLigaturesParser.h"
 #include "core/css/parser/FontVariantNumericParser.h"
+#include "core/css/properties/CSSPropertyAPI.h"
 #include "core/css/properties/CSSPropertyAlignmentUtils.h"
 #include "core/css/properties/CSSPropertyColumnUtils.h"
 #include "core/css/properties/CSSPropertyDescriptor.h"
@@ -53,7 +55,6 @@
 #include "core/layout/LayoutTheme.h"
 #include "core/svg/SVGPathUtilities.h"
 #include "wtf/text/StringBuilder.h"
-#include <memory>
 
 namespace blink {
 
@@ -125,8 +126,8 @@ bool CSSPropertyParser::parseValue(
   }
 
   // This doesn't count UA style sheets
-  if (parseSuccess && context->isUseCounterRecordingEnabled())
-    context->useCounter()->count(context->mode(), unresolvedProperty);
+  if (parseSuccess)
+    context->count(context->mode(), unresolvedProperty);
 
   if (!parseSuccess)
     parsedProperties.shrink(parsedPropertiesSize);
@@ -496,8 +497,7 @@ static CSSValue* consumeAnimationName(CSSParserTokenRange& range,
 
   if (allowQuotedName && range.peek().type() == StringToken) {
     // Legacy support for strings in prefixed animations.
-    if (context->isUseCounterRecordingEnabled())
-      context->useCounter()->count(UseCounter::QuotedAnimationName);
+    context->count(UseCounter::QuotedAnimationName);
 
     const CSSParserToken& token = range.consumeIncludingWhitespace();
     if (equalIgnoringASCIICase(token.value(), "none"))
@@ -792,8 +792,7 @@ static CSSFunctionValue* consumeFilterFunction(
     parsedValue = parseSingleShadow(args, context->mode(), false, false);
   } else {
     if (args.atEnd()) {
-      if (context->isUseCounterRecordingEnabled())
-        context->useCounter()->count(UseCounter::CSSFilterFunctionNoArguments);
+      context->count(UseCounter::CSSFilterFunctionNoArguments);
       return filterValue;
     }
     if (filterType == CSSValueBrightness) {
@@ -933,12 +932,11 @@ static CSSValue* consumeOffsetPath(CSSParserTokenRange& range,
   CSSValue* value = consumePathOrNone(range);
 
   // Count when we receive a valid path other than 'none'.
-  if (context->isUseCounterRecordingEnabled() && value &&
-      !value->isIdentifierValue()) {
+  if (value && !value->isIdentifierValue()) {
     if (isMotionPath) {
-      context->useCounter()->count(UseCounter::CSSMotionInEffect);
+      context->count(UseCounter::CSSMotionInEffect);
     } else {
-      context->useCounter()->count(UseCounter::CSSOffsetInEffect);
+      context->count(UseCounter::CSSOffsetInEffect);
     }
   }
   return value;
@@ -1012,10 +1010,7 @@ static bool consumePerspective(CSSParserTokenRange& args,
     double perspective;
     if (!consumeNumberRaw(args, perspective) || perspective < 0)
       return false;
-    if (context->isUseCounterRecordingEnabled()) {
-      context->useCounter()->count(
-          UseCounter::UnitlessPerspectiveInTransformProperty);
-    }
+    context->count(UseCounter::UnitlessPerspectiveInTransformProperty);
     parsedValue = CSSPrimitiveValue::create(
         perspective, CSSPrimitiveValue::UnitType::Pixels);
   }
@@ -1161,10 +1156,7 @@ static CSSValue* consumePerspective(CSSParserTokenRange& range,
     double perspective;
     if (!consumeNumberRaw(range, perspective))
       return nullptr;
-    if (context->isUseCounterRecordingEnabled()) {
-      context->useCounter()->count(
-          UseCounter::UnitlessPerspectiveInPerspectiveProperty);
-    }
+    context->count(UseCounter::UnitlessPerspectiveInPerspectiveProperty);
     parsedValue = CSSPrimitiveValue::create(
         perspective, CSSPrimitiveValue::UnitType::Pixels);
   }
@@ -1743,7 +1735,7 @@ static bool parseGridTemplateAreasRow(const String& gridRowNames,
 
     NamedGridAreaMap::iterator gridAreaIt = gridAreaMap.find(gridAreaName);
     if (gridAreaIt == gridAreaMap.end()) {
-      gridAreaMap.add(
+      gridAreaMap.insert(
           gridAreaName,
           GridArea(GridSpan::translatedDefiniteGridSpan(rowCount, rowCount + 1),
                    GridSpan::translatedDefiniteGridSpan(currentColumn,
@@ -2015,21 +2007,20 @@ static void countKeywordOnlyPropertyUsage(CSSPropertyID property,
         else
           feature = UseCounter::CSSValueAppearanceOthers;
       }
-      context->useCounter()->count(feature);
+      context->count(feature);
       break;
     }
 
     case CSSPropertyWebkitUserModify: {
       switch (valueID) {
         case CSSValueReadOnly:
-          context->useCounter()->count(UseCounter::CSSValueUserModifyReadOnly);
+          context->count(UseCounter::CSSValueUserModifyReadOnly);
           break;
         case CSSValueReadWrite:
-          context->useCounter()->count(UseCounter::CSSValueUserModifyReadWrite);
+          context->count(UseCounter::CSSValueUserModifyReadWrite);
           break;
         case CSSValueReadWritePlaintextOnly:
-          context->useCounter()->count(
-              UseCounter::CSSValueUserModifyReadWritePlaintextOnly);
+          context->count(UseCounter::CSSValueUserModifyReadWritePlaintextOnly);
           break;
         default:
           NOTREACHED();
@@ -2054,8 +2045,8 @@ const CSSValue* CSSPropertyParser::parseSingleValue(
     return consumeIdent(m_range);
   }
 
-  // Gets the parsing function for our current property from the property API.
-  // If it has been implemented, we call this function, otherwise we manually
+  // Gets the parsing method for our current property from the property API.
+  // If it has been implemented, we call this method, otherwise we manually
   // parse this value in the switch statement below. As we implement APIs for
   // other properties, those properties will be taken out of the switch
   // statement.
@@ -3524,6 +3515,16 @@ bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty,
                                        bool important) {
   CSSPropertyID property = resolveCSSPropertyID(unresolvedProperty);
 
+  // Gets the parsing method for our current property from the property API.
+  // If it has been implemented, we call this method, otherwise we manually
+  // parse this value in the switch statement below. As we implement APIs for
+  // other properties, those properties will be taken out of the switch
+  // statement.
+  const CSSPropertyDescriptor& cssPropertyDesc =
+      CSSPropertyDescriptor::get(property);
+  if (cssPropertyDesc.parseShorthand)
+    return cssPropertyDesc.parseShorthand(important, m_range, m_context);
+
   switch (property) {
     case CSSPropertyWebkitMarginCollapse: {
       CSSValueID id = m_range.consumeIncludingWhitespace().id();
@@ -3534,6 +3535,19 @@ bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty,
       addProperty(CSSPropertyWebkitMarginBeforeCollapse,
                   CSSPropertyWebkitMarginCollapse, *beforeCollapse, important);
       if (m_range.atEnd()) {
+        addProperty(CSSPropertyWebkitMarginAfterCollapse,
+                    CSSPropertyWebkitMarginCollapse, *beforeCollapse,
+                    important);
+        if (m_range.atEnd()) {
+          addProperty(CSSPropertyWebkitMarginAfterCollapse,
+                      CSSPropertyWebkitMarginCollapse, *beforeCollapse,
+                      important);
+          return true;
+        }
+        id = m_range.consumeIncludingWhitespace().id();
+        if (!CSSParserFastPaths::isValidKeywordPropertyAndValue(
+                CSSPropertyWebkitMarginAfterCollapse, id, m_context->mode()))
+          return false;
         addProperty(CSSPropertyWebkitMarginAfterCollapse,
                     CSSPropertyWebkitMarginCollapse, *beforeCollapse,
                     important);
@@ -3559,11 +3573,13 @@ bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty,
 
       CSSValue* overflowXValue = nullptr;
 
-      // FIXME: -webkit-paged-x or -webkit-paged-y only apply to overflow-y. If
+      // FIXME: -webkit-paged-x or -webkit-paged-y only apply to overflow-y.
+      // If
       // this value has been set using the shorthand, then for now overflow-x
       // will default to auto, but once we implement pagination controls, it
       // should default to hidden. If the overflow-y value is anything but
-      // paged-x or paged-y, then overflow-x and overflow-y should have the same
+      // paged-x or paged-y, then overflow-x and overflow-y should have the
+      // same
       // value.
       if (id == CSSValueWebkitPagedX || id == CSSValueWebkitPagedY)
         overflowXValue = CSSIdentifierValue::create(CSSValueAuto);

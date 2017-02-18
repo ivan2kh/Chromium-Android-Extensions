@@ -10,29 +10,28 @@ import android.support.v7.widget.RecyclerView.ViewHolder;
 import android.view.View;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.RetryOnFailure;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.ntp.ContextMenuManager;
-import org.chromium.chrome.browser.ntp.FakeMostVisitedSites;
 import org.chromium.chrome.browser.ntp.NTPTileSource;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.ntp.NewTabPageView;
+import org.chromium.chrome.browser.ntp.snippets.CategoryInt;
 import org.chromium.chrome.browser.ntp.snippets.CategoryStatus;
 import org.chromium.chrome.browser.ntp.snippets.ContentSuggestionsCardLayout;
-import org.chromium.chrome.browser.ntp.snippets.FakeSuggestionsSource;
 import org.chromium.chrome.browser.ntp.snippets.KnownCategories;
 import org.chromium.chrome.browser.ntp.snippets.SnippetArticle;
+import org.chromium.chrome.browser.suggestions.FakeMostVisitedSites;
 import org.chromium.chrome.browser.suggestions.TileGroupDelegateImpl;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeTabbedActivityTestBase;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.NewTabPageTestUtils;
-import org.chromium.content.browser.test.util.Criteria;
-import org.chromium.content.browser.test.util.CriteriaHelper;
+import org.chromium.chrome.test.util.browser.RecyclerViewTestUtils;
+import org.chromium.chrome.test.util.browser.suggestions.FakeSuggestionsSource;
 import org.chromium.content.browser.test.util.TestTouchUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
@@ -50,25 +49,34 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
     private static final String[] FAKE_MOST_VISITED_TITLES = new String[] {"Simple"};
     private static final String[] FAKE_MOST_VISITED_WHITELIST_ICON_PATHS = new String[] {""};
     private static final int[] FAKE_MOST_VISITED_SOURCES = new int[] {NTPTileSource.TOP_SITES};
+    private static final long FAKE_PUBLISH_TIMESTAMP = 1466614774;
+    private static final long FAKE_FETCH_TIMESTAMP = 1466634774;
+    private static final float FAKE_SNIPPET_SCORE = 10f;
+
+    // TODO(dgn): Properly bypass the native code when testing with a fake suggestions source.
+    // We currently mix the fake and the snippets bridge, resulting in crashes with unregistered
+    // categories.
+    @CategoryInt
+    private static final int TEST_CATEGORY = KnownCategories.BOOKMARKS;
 
     private Tab mTab;
     private NewTabPage mNtp;
-    private String[] mFakeMostVisitedUrls;
-    private FakeMostVisitedSites mFakeMostVisitedSites;
+    private String[] mSiteSuggestionUrls;
+    private FakeMostVisitedSites mMostVisitedSites;
     private EmbeddedTestServer mTestServer;
     private FakeSuggestionsSource mSource;
 
     @Override
     protected void setUp() throws Exception {
         mTestServer = EmbeddedTestServer.createAndStartServer(getInstrumentation().getContext());
-        mFakeMostVisitedUrls = new String[] {mTestServer.getURL(TEST_PAGE)};
+        mSiteSuggestionUrls = new String[] {mTestServer.getURL(TEST_PAGE)};
 
         mSource = new FakeSuggestionsSource();
-        mSource.setInfoForCategory(KnownCategories.ARTICLES,
-                new SuggestionsCategoryInfo(KnownCategories.ARTICLES, "Articles test title",
+        mSource.setInfoForCategory(TEST_CATEGORY,
+                new SuggestionsCategoryInfo(TEST_CATEGORY, "Suggestions test title",
                         ContentSuggestionsCardLayout.FULL_CARD, /*hasFetchAction=*/true,
                         /*hasViewAllAction=*/false, /*showIfEmpty=*/true, "noSuggestionsMessage"));
-        mSource.setStatusForCategory(KnownCategories.ARTICLES, CategoryStatus.INITIALIZING);
+        mSource.setStatusForCategory(TEST_CATEGORY, CategoryStatus.INITIALIZING);
         NewTabPage.setSuggestionsSourceForTests(mSource);
 
         super.setUp();
@@ -93,12 +101,12 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
             public void run() {
                 // Create FakeMostVisitedSites after starting the activity, since it depends on
                 // native code.
-                mFakeMostVisitedSites = new FakeMostVisitedSites(mTab.getProfile(),
-                        FAKE_MOST_VISITED_TITLES, mFakeMostVisitedUrls,
+                mMostVisitedSites = new FakeMostVisitedSites(mTab.getProfile());
+                mMostVisitedSites.setTileSuggestions(FAKE_MOST_VISITED_TITLES, mSiteSuggestionUrls,
                         FAKE_MOST_VISITED_WHITELIST_ICON_PATHS, FAKE_MOST_VISITED_SOURCES);
             }
         });
-        TileGroupDelegateImpl.setMostVisitedSitesForTests(mFakeMostVisitedSites);
+        TileGroupDelegateImpl.setMostVisitedSitesForTests(mMostVisitedSites);
 
         loadUrl(UrlConstants.NTP_URL);
         NewTabPageTestUtils.waitForNtpLoaded(mTab);
@@ -112,8 +120,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
     @CommandLineFlags.Add("enable-features=NTPSnippets")
     public void testClickSuggestion() throws InterruptedException {
         setSuggestionsAndWaitForUpdate(10);
-        List<SnippetArticle> suggestions =
-                mSource.getSuggestionsForCategory(KnownCategories.ARTICLES);
+        List<SnippetArticle> suggestions = mSource.getSuggestionsForCategory(TEST_CATEGORY);
 
         // Scroll the last suggestion into view and click it.
         SnippetArticle suggestion = suggestions.get(suggestions.size() - 1);
@@ -133,11 +140,11 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
     @CommandLineFlags.Add("enable-features=NTPSnippets,NTPSuggestionsSectionDismissal")
     public void testAllDismissed() throws InterruptedException, TimeoutException {
         setSuggestionsAndWaitForUpdate(3);
-        assertEquals(3, mSource.getSuggestionsForCategory(KnownCategories.ARTICLES).size());
+        assertEquals(3, mSource.getSuggestionsForCategory(TEST_CATEGORY).size());
         assertEquals(RecyclerView.NO_POSITION,
                 getAdapter().getFirstPositionForType(ItemViewType.ALL_DISMISSED));
         assertEquals(1, mSource.getCategories().length);
-        assertEquals(KnownCategories.ARTICLES, mSource.getCategories()[0]);
+        assertEquals(TEST_CATEGORY, mSource.getCategories()[0]);
 
         // Dismiss the sign in promo.
         int signinPromoPosition = getAdapter().getFirstPositionForType(ItemViewType.PROMO);
@@ -156,9 +163,9 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
         assertTrue(allDismissedPosition != RecyclerView.NO_POSITION);
         View allDismissedView = getViewHolderAtPosition(allDismissedPosition).itemView;
         singleClickView(allDismissedView.findViewById(R.id.action_button));
-        waitForViewToDetach(allDismissedView);
+        RecyclerViewTestUtils.waitForViewToDetach(getRecyclerView(), allDismissedView);
         assertEquals(1, mSource.getCategories().length);
-        assertEquals(KnownCategories.ARTICLES, mSource.getCategories()[0]);
+        assertEquals(TEST_CATEGORY, mSource.getCategories()[0]);
     }
 
     @MediumTest
@@ -166,8 +173,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
     @CommandLineFlags.Add("enable-features=NTPSnippets")
     public void testDismissArticleWithContextMenu() throws InterruptedException, TimeoutException {
         setSuggestionsAndWaitForUpdate(10);
-        List<SnippetArticle> suggestions =
-                mSource.getSuggestionsForCategory(KnownCategories.ARTICLES);
+        List<SnippetArticle> suggestions = mSource.getSuggestionsForCategory(TEST_CATEGORY);
         assertEquals(10, suggestions.size());
 
         // Scroll a suggestion into view.
@@ -176,9 +182,9 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
 
         // Dismiss the suggestion using the context menu.
         invokeContextMenu(suggestionView, ContextMenuManager.ID_REMOVE);
-        waitForViewToDetach(suggestionView);
+        RecyclerViewTestUtils.waitForViewToDetach(getRecyclerView(), suggestionView);
 
-        suggestions = mSource.getSuggestionsForCategory(KnownCategories.ARTICLES);
+        suggestions = mSource.getSuggestionsForCategory(TEST_CATEGORY);
         assertEquals(9, suggestions.size());
     }
 
@@ -188,7 +194,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
     public void testDismissStatusCardWithContextMenu()
             throws InterruptedException, TimeoutException {
         setSuggestionsAndWaitForUpdate(0);
-        assertArrayEquals(new int[] {KnownCategories.ARTICLES}, mSource.getCategories());
+        assertArrayEquals(new int[] {TEST_CATEGORY}, mSource.getCategories());
 
         // Scroll the status card into view.
         int cardPosition = getAdapter().getFirstCardPosition();
@@ -198,7 +204,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
 
         // Dismiss the status card using the context menu.
         invokeContextMenu(statusCardView, ContextMenuManager.ID_REMOVE);
-        waitForViewToDetach(statusCardView);
+        RecyclerViewTestUtils.waitForViewToDetach(getRecyclerView(), statusCardView);
 
         assertArrayEquals(new int[0], mSource.getCategories());
     }
@@ -209,7 +215,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
     public void testDismissActionItemWithContextMenu()
             throws InterruptedException, TimeoutException {
         setSuggestionsAndWaitForUpdate(0);
-        assertArrayEquals(new int[] {KnownCategories.ARTICLES}, mSource.getCategories());
+        assertArrayEquals(new int[] {TEST_CATEGORY}, mSource.getCategories());
 
         // Scroll the action item into view.
         int actionItemPosition = getAdapter().getFirstCardPosition() + 1;
@@ -218,7 +224,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
 
         // Dismiss the action item using the context menu.
         invokeContextMenu(actionItemView, ContextMenuManager.ID_REMOVE);
-        waitForViewToDetach(actionItemView);
+        RecyclerViewTestUtils.waitForViewToDetach(getRecyclerView(), actionItemView);
 
         assertArrayEquals(new int[0], mSource.getCategories());
     }
@@ -261,7 +267,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
                                 R.dimen.tab_strip_height));
             }
         });
-        return waitForView(position);
+        return RecyclerViewTestUtils.waitForView(getRecyclerView(), position);
     }
 
     /**
@@ -279,7 +285,7 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
                 getRecyclerView().dismissItemWithAnimation(viewHolder);
             }
         });
-        waitForViewToDetach(viewHolder.itemView);
+        RecyclerViewTestUtils.waitForViewToDetach(getRecyclerView(), (viewHolder.itemView));
     }
 
     private void setSuggestionsAndWaitForUpdate(final int suggestionsCount) {
@@ -288,20 +294,20 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
         ThreadUtils.runOnUiThreadBlocking(new Runnable() {
             @Override
             public void run() {
-                source.setStatusForCategory(KnownCategories.ARTICLES, CategoryStatus.AVAILABLE);
-                source.setSuggestionsForCategory(
-                        KnownCategories.ARTICLES, buildSuggestions(suggestionsCount));
+                source.setStatusForCategory(TEST_CATEGORY, CategoryStatus.AVAILABLE);
+                source.setSuggestionsForCategory(TEST_CATEGORY, buildSuggestions(suggestionsCount));
             }
         });
-        waitForStableRecyclerView();
+        RecyclerViewTestUtils.waitForStableRecyclerView(getRecyclerView());
     }
 
     private List<SnippetArticle> buildSuggestions(int suggestionsCount) {
         List<SnippetArticle> suggestions = new ArrayList<>();
         for (int i = 0; i < suggestionsCount; i++) {
             String url = mTestServer.getURL(TEST_PAGE) + "#" + i;
-            suggestions.add(new SnippetArticle(KnownCategories.ARTICLES, "id" + i, "title" + i,
-                    "publisher" + i, "previewText" + i, url, 1466614774 + i, 10f));
+            suggestions.add(new SnippetArticle(TEST_CATEGORY, "id" + i, "title" + i,
+                    "publisher" + i, "previewText" + i, url, FAKE_PUBLISH_TIMESTAMP + i,
+                    FAKE_SNIPPET_SCORE, FAKE_FETCH_TIMESTAMP));
         }
         return suggestions;
     }
@@ -312,81 +318,6 @@ public class NewTabPageRecyclerViewTest extends ChromeTabbedActivityTestBase {
                 getInstrumentation().invokeContextMenuAction(getActivity(), contextMenuItemId, 0));
     }
 
-    private ViewHolder waitForView(final int position) {
-        final NewTabPageRecyclerView recyclerView = getRecyclerView();
-
-        CriteriaHelper.pollUiThread(new Criteria() {
-            @Override
-            public boolean isSatisfied() {
-                ViewHolder viewHolder = recyclerView.findViewHolderForAdapterPosition(position);
-
-                if (viewHolder == null) {
-                    updateFailureReason("Cannot find view holder for position " + position + ".");
-                    return false;
-                }
-
-                if (viewHolder.itemView.getParent() == null) {
-                    updateFailureReason("The view is not attached for position " + position + ".");
-                    return false;
-                }
-
-                return true;
-            }
-        });
-
-        waitForStableRecyclerView();
-
-        return recyclerView.findViewHolderForAdapterPosition(position);
-    }
-
-    private void waitForViewToDetach(final View view)
-            throws InterruptedException, TimeoutException {
-        final RecyclerView recyclerView = getRecyclerView();
-        final CallbackHelper callback = new CallbackHelper();
-
-        recyclerView.addOnChildAttachStateChangeListener(
-                new RecyclerView.OnChildAttachStateChangeListener() {
-                    @Override
-                    public void onChildViewAttachedToWindow(View view) {}
-
-                    @Override
-                    public void onChildViewDetachedFromWindow(View detachedView) {
-                        if (detachedView == view) {
-                            recyclerView.removeOnChildAttachStateChangeListener(this);
-                            callback.notifyCalled();
-                        }
-                    }
-                });
-        callback.waitForCallback("The view did not detach.", 0);
-
-        waitForStableRecyclerView();
-    }
-
-    private void waitForStableRecyclerView() {
-        final RecyclerView recyclerView = getRecyclerView();
-
-        CriteriaHelper.pollUiThread(new Criteria() {
-            @Override
-            public boolean isSatisfied() {
-                if (recyclerView.isComputingLayout()) {
-                    updateFailureReason("The recycler view is computing layout.");
-                    return false;
-                }
-
-                if (recyclerView.isLayoutFrozen()) {
-                    updateFailureReason("The recycler view layout is frozen.");
-                    return false;
-                }
-
-                if (recyclerView.isAnimating()) {
-                    updateFailureReason("The recycler view is animating.");
-                    return false;
-                }
-
-                return true;
-            }
-        });
-    }
 
     private static void assertArrayEquals(int[] expected, int[] actual) {
         assertEquals(Arrays.toString(expected), Arrays.toString(actual));

@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Åpne alle</translation>
 <translation id="1430915738399379752">Skriv ut</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> elementer</translation>
+<translation id="1491277525950327607">Dobbelttrykk for å slå innstillingen av/på</translation>
 <translation id="1540800554400757039">Adresse 1</translation>
 <translation id="1545749641540134597">Skann en QR-kode</translation>
 <translation id="1580783302095112590">E-posten er sendt.</translation>
@@ -65,7 +66,6 @@ Noen nettsteder kan for eksempel svare på forespørselen ved å vise deg annons
 <translation id="2068952045031577364">Den siste uken</translation>
 <translation id="2079545284768500474">Angre</translation>
 <translation id="209018056901015185">Bruk skrivebordsversjon</translation>
-<translation id="2100215774115172756">Leselisten din er tilgjengelig uten nett.</translation>
 <translation id="2103075008456228677">Åpne history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> elementer er flyttet</translation>
 <translation id="2149973817440762519">Rediger bokmerke</translation>
@@ -120,7 +120,6 @@ Noen nettsteder kan for eksempel svare på forespørselen ved å vise deg annons
 <translation id="3175081911749765310">Nettjenester</translation>
 <translation id="3207960819495026254">Bokmerket</translation>
 <translation id="3210163015918861891">Synkronisering er av</translation>
-<translation id="3237561509210981547">For å legge til en side i leselisten din, trykk på <ph name="BEGIN_BOLD_FONT" />Del &gt; Les senere<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Linken er kopiert</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> av <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Noen nettsteder kan for eksempel svare på forespørselen ved å vise deg annons
 <translation id="3414292259312108062">Chrome lagrer dette i <ph name="BEGIN_LINK" />Google-lagrede passord<ph name="END_LINK" />. Deretter legges det inn automatisk, slik at du ikke trenger å huske det selv.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Delt visning</translation>
-<translation id="3474068797193663261">For å legge til en side i leselisten din, trykk på <ph name="BEGIN_BOLD_FONT" />Meny &gt; Del &gt; Les senere<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Skjemaene er fylt ut.</translation>
 <translation id="3478058380795961209">Utløpsmåned</translation>
 <translation id="3482959374254649722">Fanene dine synkroniseres …</translation>
@@ -171,6 +169,7 @@ Hvis du vil endre søkeordet, kan du trykke på det og holde for å merke det. H
 <translation id="4121993058175073134">For å sende data for netteksport må du konfigurere e-postkontoen din i Innstillinger-appen.</translation>
 <translation id="4124987746317609294">Tidsperiode</translation>
 <translation id="4172051516777682613">Vis alltid</translation>
+<translation id="418156467088430727">Se versjonen uten nett i en ny fane</translation>
 <translation id="424315890655130736">Skriv inn passordfrasen</translation>
 <translation id="4272631900155121838">For å skanne QR-koder, slå på kameraet i innstillingene</translation>
 <translation id="4281844954008187215">Vilkår for bruk</translation>
@@ -178,7 +177,6 @@ Hvis du vil endre søkeordet, kan du trykke på det og holde for å merke det. H
 <translation id="4359125752503270327">Denne siden åpnes i et annet program.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Merknad om personvern</translation>
-<translation id="4426508677408162512">Alle bokmerker</translation>
 <translation id="4473991315115669931">Slå på inkognitomodus</translation>
 <translation id="4526249700380860531">Se på og administrer lagrede passord på <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Prøv å logge på igjen.</translation>
@@ -218,6 +216,7 @@ Dataene dine er kryptert med passordfrasen din for synkronisering. Skriv den inn
 <translation id="5300589172476337783">Vis</translation>
 <translation id="5317780077021120954">Lagre</translation>
 <translation id="5327248766486351172">Navn</translation>
+<translation id="5332219387342487447">Leveringsmetode</translation>
 <translation id="5388358297987318779">Åpne bildet</translation>
 <translation id="5409365236829784218">Ingen av de installerte appene kan åpne denne filen.</translation>
 <translation id="54401264925851789">Sikkerhetsinformasjon for siden</translation>
@@ -270,6 +269,7 @@ Handoff må også være aktivert i Generelt-delen av Innstillinger, og enhetene 
 <translation id="6255097610484507482">Rediger kredittkort</translation>
 <translation id="6308436439357671616">Dette gjør at du kan ta og laste opp bilder.</translation>
 <translation id="6314335155547195432">Generer passord</translation>
+<translation id="6324528485781869530">Bytt synkroniseringskonto</translation>
 <translation id="6324669097367352121">Påloggingsinnstillinger</translation>
 <translation id="6337234675334993532">Kryptering</translation>
 <translation id="633809752005859102">Noe gikk veldig galt. Vi skal jobbe med saken.</translation>

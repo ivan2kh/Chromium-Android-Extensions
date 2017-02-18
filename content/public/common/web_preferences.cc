@@ -80,6 +80,7 @@ WebPreferences::WebPreferences()
       loads_images_automatically(true),
       images_enabled(true),
       plugins_enabled(true),
+      encrypted_media_enabled(true),
       dom_paste_enabled(false),  // enables execCommand("paste")
       shrinks_standalone_images_to_fit(true),
       text_areas_are_resizable(true),
@@ -226,7 +227,8 @@ WebPreferences::WebPreferences()
       max_keyframe_distance_to_disable_background_video(
           base::TimeDelta::FromSeconds(10)),
       enable_instant_source_buffer_gc(false),
-      presentation_receiver(false) {
+      presentation_receiver(false),
+      media_controls_enabled(true) {
   standard_font_family_map[kCommonScript] =
       base::ASCIIToUTF16("Times New Roman");
   fixed_font_family_map[kCommonScript] = base::ASCIIToUTF16("Courier New");

@@ -30,6 +30,7 @@
 #include "content/browser/browser_child_process_host_impl.h"
 #include "content/browser/gpu/compositor_util.h"
 #include "content/browser/gpu/gpu_data_manager_impl.h"
+#include "content/browser/gpu/gpu_main_thread_factory.h"
 #include "content/browser/gpu/gpu_process_host_ui_shim.h"
 #include "content/browser/gpu/shader_cache_factory.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
@@ -115,6 +116,7 @@ static const char* const kSwitchNames[] = {
     switches::kDisableAcceleratedVideoDecode,
     switches::kDisableBreakpad,
     switches::kDisableES3GLContext,
+    switches::kDisableGpuRasterization,
     switches::kDisableGpuSandbox,
     switches::kDisableGpuWatchdog,
     switches::kDisableGLExtensions,
@@ -126,6 +128,7 @@ static const char* const kSwitchNames[] = {
 #if defined(OS_WIN)
     switches::kEnableAcceleratedVpxDecode,
 #endif
+    switches::kEnableGpuRasterization,
     switches::kEnableHeapProfiling,
     switches::kEnableLogging,
 #if defined(OS_CHROMEOS)
@@ -422,21 +425,6 @@ void GpuProcessHost::SendOnIO(GpuProcessKind kind,
   }
 }
 
-GpuMainThreadFactoryFunction g_gpu_main_thread_factory = NULL;
-
-GpuProcessHost::EstablishChannelRequest::EstablishChannelRequest()
-    : client_id(0) {}
-
-GpuProcessHost::EstablishChannelRequest::EstablishChannelRequest(
-    const EstablishChannelRequest& other) = default;
-
-GpuProcessHost::EstablishChannelRequest::~EstablishChannelRequest() {}
-
-void GpuProcessHost::RegisterGpuMainThreadFactory(
-    GpuMainThreadFactoryFunction create) {
-  g_gpu_main_thread_factory = create;
-}
-
 service_manager::InterfaceProvider* GpuProcessHost::GetRemoteInterfaces() {
   return process_->child_connection()->GetRemoteInterfaces();
 }
@@ -462,7 +450,8 @@ GpuProcessHost::GpuProcessHost(int host_id, GpuProcessKind kind)
       kind_(kind),
       process_launched_(false),
       initialized_(false),
-      gpu_host_binding_(this) {
+      gpu_host_binding_(this),
+      weak_ptr_factory_(this) {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kSingleProcess) ||
       base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -596,8 +585,8 @@ bool GpuProcessHost::Init() {
   gpu::GpuPreferences gpu_preferences = GetGpuPreferencesFromCommandLine();
   if (in_process_) {
     DCHECK_CURRENTLY_ON(BrowserThread::IO);
-    DCHECK(g_gpu_main_thread_factory);
-    in_process_gpu_thread_.reset(g_gpu_main_thread_factory(
+    DCHECK(GetGpuMainThreadFactory());
+    in_process_gpu_thread_.reset(GetGpuMainThreadFactory()(
         InProcessChildThreadParams(
             base::ThreadTaskRunnerHandle::Get(),
             process_->child_connection()->service_token()),
@@ -671,7 +660,6 @@ bool GpuProcessHost::OnMessageReceived(const IPC::Message& message) {
   DCHECK(CalledOnValidThread());
   IPC_BEGIN_MESSAGE_MAP(GpuProcessHost, message)
     IPC_MESSAGE_HANDLER(GpuHostMsg_Initialized, OnInitialized)
-    IPC_MESSAGE_HANDLER(GpuHostMsg_ChannelEstablished, OnChannelEstablished)
     IPC_MESSAGE_HANDLER(GpuHostMsg_GpuMemoryBufferCreated,
                         OnGpuMemoryBufferCreated)
 #if defined(OS_ANDROID)
@@ -711,21 +699,15 @@ void GpuProcessHost::EstablishGpuChannel(
     return;
   }
 
-  EstablishChannelParams params;
-  params.client_id = client_id;
-  params.client_tracing_id = client_tracing_id;
-  params.preempts = preempts;
-  params.allow_view_command_buffers = allow_view_command_buffers;
-  params.allow_real_time_streams = allow_real_time_streams;
-  if (Send(new GpuMsg_EstablishChannel(params))) {
-    EstablishChannelRequest request;
-    request.client_id = client_id;
-    request.callback = callback;
-    channel_requests_.push(request);
-  } else {
-    DVLOG(1) << "Failed to send GpuMsg_EstablishChannel.";
-    callback.Run(IPC::ChannelHandle(), gpu::GPUInfo());
-  }
+  DCHECK_EQ(preempts, allow_view_command_buffers);
+  DCHECK_EQ(preempts, allow_real_time_streams);
+  bool is_gpu_host = preempts;
+
+  channel_requests_.push(callback);
+  gpu_service_ptr_->EstablishGpuChannel(
+      client_id, client_tracing_id, is_gpu_host,
+      base::Bind(&GpuProcessHost::OnChannelEstablished,
+                 weak_ptr_factory_.GetWeakPtr(), client_id, callback));
 
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
       switches::kDisableGpuShaderDiskCache)) {
@@ -783,44 +765,44 @@ void GpuProcessHost::SendDestroyingVideoSurface(int surface_id,
 }
 #endif
 
-void GpuProcessHost::OnInitialized(bool result, const gpu::GPUInfo& gpu_info) {
+void GpuProcessHost::OnInitialized(
+    bool result,
+    const gpu::GPUInfo& gpu_info,
+    const gpu::GpuFeatureInfo& gpu_feature_info) {
   UMA_HISTOGRAM_BOOLEAN("GPU.GPUProcessInitialized", result);
   initialized_ = result;
   gpu_info_ = gpu_info;
 
-  if (!initialized_)
+  if (!initialized_) {
     GpuDataManagerImpl::GetInstance()->OnGpuProcessInitFailure();
-  else
-    GpuDataManagerImpl::GetInstance()->UpdateGpuInfo(gpu_info);
+    return;
+  }
+  GpuDataManagerImpl::GetInstance()->UpdateGpuInfo(gpu_info);
+  GpuDataManagerImpl::GetInstance()->UpdateGpuFeatureInfo(gpu_feature_info);
 }
 
 void GpuProcessHost::OnChannelEstablished(
-    const IPC::ChannelHandle& channel_handle) {
+    int client_id,
+    const EstablishChannelCallback& callback,
+    mojo::ScopedMessagePipeHandle channel_handle) {
   TRACE_EVENT0("gpu", "GpuProcessHost::OnChannelEstablished");
-
-  if (channel_requests_.empty()) {
-    // This happens when GPU process is compromised.
-    RouteOnUIThread(GpuHostMsg_OnLogMessage(
-        logging::LOG_WARNING, "WARNING",
-        "Received a ChannelEstablished message but no requests in queue."));
-    return;
-  }
-  EstablishChannelRequest request = channel_requests_.front();
+  DCHECK(!channel_requests_.empty());
+  DCHECK(channel_requests_.front().Equals(callback));
   channel_requests_.pop();
 
   // Currently if any of the GPU features are blacklisted, we don't establish a
   // GPU channel.
-  if (channel_handle.mojo_handle.is_valid() &&
-      !GpuDataManagerImpl::GetInstance()->GpuAccessAllowed(NULL)) {
-    Send(new GpuMsg_CloseChannel(request.client_id));
-    request.callback.Run(IPC::ChannelHandle(), gpu::GPUInfo());
+  if (channel_handle.is_valid() &&
+      !GpuDataManagerImpl::GetInstance()->GpuAccessAllowed(nullptr)) {
+    Send(new GpuMsg_CloseChannel(client_id));
+    callback.Run(IPC::ChannelHandle(), gpu::GPUInfo());
     RouteOnUIThread(
         GpuHostMsg_OnLogMessage(logging::LOG_WARNING, "WARNING",
                                 "Hardware acceleration is unavailable."));
     return;
   }
 
-  request.callback.Run(channel_handle, gpu_info_);
+  callback.Run(IPC::ChannelHandle(channel_handle.release()), gpu_info_);
 }
 
 void GpuProcessHost::OnGpuMemoryBufferCreated(
@@ -1045,8 +1027,8 @@ bool GpuProcessHost::LaunchGpuProcess(gpu::GpuPreferences* gpu_preferences) {
   GpuDataManagerImpl::GetInstance()->AppendGpuCommandLine(cmd_line.get(),
                                                           gpu_preferences);
   if (cmd_line->HasSwitch(switches::kUseGL)) {
-    swiftshader_rendering_ =
-        (cmd_line->GetSwitchValueASCII(switches::kUseGL) == "swiftshader");
+    swiftshader_rendering_ = (cmd_line->GetSwitchValueASCII(switches::kUseGL) ==
+                              gl::kGLImplementationSwiftShaderForWebGLName);
   }
 
   bool current_gpu_type_enabled =
@@ -1075,11 +1057,12 @@ bool GpuProcessHost::LaunchGpuProcess(gpu::GpuPreferences* gpu_preferences) {
 
 void GpuProcessHost::SendOutstandingReplies() {
   valid_ = false;
+
   // First send empty channel handles for all EstablishChannel requests.
   while (!channel_requests_.empty()) {
-    EstablishChannelRequest request = channel_requests_.front();
+    auto callback = channel_requests_.front();
     channel_requests_.pop();
-    request.callback.Run(IPC::ChannelHandle(), gpu::GPUInfo());
+    callback.Run(IPC::ChannelHandle(), gpu::GPUInfo());
   }
 
   while (!create_gpu_memory_buffer_requests_.empty()) {

@@ -170,6 +170,8 @@ component("gfx") {
     "shadow_value.h",
     "skbitmap_operations.cc",
     "skbitmap_operations.h",
+    "skia_color_space_util.cc",
+    "skia_color_space_util.h",
     "skia_util.cc",
     "skia_util.h",
     "switches.cc",
@@ -555,6 +557,8 @@ source_set("memory_buffer_sources") {
 static_library("test_support") {
   testonly = true
   sources = [
+    "geometry/test/rect_test_util.cc",
+    "geometry/test/rect_test_util.h",
     "image/image_unittest_util.cc",
     "image/image_unittest_util.h",
     "image/image_unittest_util_ios.mm",

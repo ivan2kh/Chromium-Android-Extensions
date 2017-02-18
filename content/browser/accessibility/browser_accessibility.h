@@ -155,8 +155,7 @@ class CONTENT_EXPORT BrowserAccessibility {
   // role is WebAXRoleStaticText.
   gfx::Rect GetPageBoundsForRange(int start, int len) const;
 
-  // Same as GetPageBoundsForRange, in screen coordinates. Only valid when
-  // the role is WebAXRoleStaticText.
+  // Same as |GetPageBoundsForRange| but in screen coordinates.
   gfx::Rect GetScreenBoundsForRange(int start, int len) const;
 
   // Convert a bounding rectangle from this node's coordinate system
@@ -236,7 +235,7 @@ class CONTENT_EXPORT BrowserAccessibility {
   int32_t GetId() const;
   const ui::AXNodeData& GetData() const;
   gfx::RectF GetLocation() const;
-  int32_t GetRole() const;
+  ui::AXRole GetRole() const;
   int32_t GetState() const;
 
   typedef base::StringPairs HtmlAttributes;

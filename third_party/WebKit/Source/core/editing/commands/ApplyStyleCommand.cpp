@@ -37,6 +37,7 @@
 #include "core/dom/Range.h"
 #include "core/dom/Text.h"
 #include "core/editing/EditingStyle.h"
+#include "core/editing/EditingStyleUtilities.h"
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/PlainTextRange.h"
 #include "core/editing/VisibleUnits.h"
@@ -55,22 +56,6 @@ namespace blink {
 
 using namespace HTMLNames;
 
-static String& styleSpanClassString() {
-  DEFINE_STATIC_LOCAL(String, styleSpanClassString, ((AppleStyleSpanClass)));
-  return styleSpanClassString;
-}
-
-bool isLegacyAppleHTMLSpanElement(const Node* node) {
-  if (!isHTMLSpanElement(node))
-    return false;
-
-  const HTMLSpanElement& span = toHTMLSpanElement(*node);
-  if (span.getAttribute(classAttr) != styleSpanClassString())
-    return false;
-  UseCounter::count(span.document(), UseCounter::EditingAppleStyleSpanClass);
-  return true;
-}
-
 static bool hasNoAttributeOrOnlyStyleAttribute(
     const HTMLElement* element,
     ShouldStyleAttributeBeEmpty shouldStyleAttributeBeEmpty) {
@@ -79,8 +64,6 @@ static bool hasNoAttributeOrOnlyStyleAttribute(
     return true;
 
   unsigned matchedAttributes = 0;
-  if (element->getAttribute(classAttr) == styleSpanClassString())
-    matchedAttributes++;
   if (element->hasAttribute(styleAttr) &&
       (shouldStyleAttributeBeEmpty == AllowNonEmptyStyleAttribute ||
        !element->inlineStyle() || element->inlineStyle()->isEmpty()))
@@ -656,7 +639,7 @@ static HTMLElement* highestEmbeddingAncestor(Node* startNode,
                                              Node* enclosingNode) {
   for (Node* n = startNode; n && n != enclosingNode; n = n->parentNode()) {
     if (n->isHTMLElement() &&
-        EditingStyle::isEmbedOrIsolate(getIdentifierValue(
+        EditingStyleUtilities::isEmbedOrIsolate(getIdentifierValue(
             CSSComputedStyleDeclaration::create(n), CSSPropertyUnicodeBidi))) {
       return toHTMLElement(n);
     }

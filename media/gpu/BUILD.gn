@@ -211,7 +211,7 @@ component("gpu") {
     }
   }
 
-  if (is_chromeos || is_win) {
+  if (is_chromeos || is_mac || is_win) {
     sources += [
       "accelerated_video_decoder.h",
       "h264_decoder.cc",
@@ -513,4 +513,24 @@ if (is_chromeos) {
       deps += [ "//ui/ozone" ]
     }
   }
+}
+
+test("video_decode_accelerator_service_unittest") {
+  sources = [
+    "ipc/service/gpu_jpeg_decode_accelerator_unittest.cc",
+  ]
+
+  deps = [
+    ":gpu",
+    "//base",
+    "//base/test:run_all_unittests",
+    "//base/test:test_support",
+    "//gpu:test_support",
+    "//media/gpu/ipc/common",
+    "//media/gpu/ipc/service",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/gfx:test_support",
+    "//ui/gfx/geometry",
+  ]
 }

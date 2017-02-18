@@ -98,6 +98,10 @@ class CORE_EXPORT HTMLMediaElement
   // by the page).
   static bool mediaTracksEnabledInternally();
 
+  // Notify the HTMLMediaElement that the media controls settings have changed
+  // for the given document.
+  static void onMediaControlsEnabledChange(Document*);
+
   DECLARE_VIRTUAL_TRACE();
 
   DECLARE_VIRTUAL_TRACE_WRAPPERS();
@@ -487,8 +491,6 @@ class CORE_EXPORT HTMLMediaElement
 
   void changeNetworkStateFromLoadingToIdle();
 
-  bool isAutoplaying() const { return m_autoplaying; }
-
   WebMediaPlayer::CORSMode corsMode() const;
 
   // Returns the "direction of playback" value as specified in the HTML5 spec.
@@ -639,7 +641,7 @@ class CORE_EXPORT HTMLMediaElement
   bool m_playing : 1;
   bool m_shouldDelayLoadEvent : 1;
   bool m_haveFiredLoadedData : 1;
-  bool m_autoplaying : 1;
+  bool m_canAutoplay : 1;
   bool m_muted : 1;
   bool m_paused : 1;
   bool m_seeking : 1;

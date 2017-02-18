@@ -41,6 +41,8 @@ class SearchBoxClientFactoryImpl
   chrome::mojom::SearchBox* GetSearchBox() override;
 
  private:
+  void OnConnectionError();
+
   content::WebContents* web_contents_;
   chrome::mojom::SearchBoxAssociatedPtr search_box_;
 
@@ -60,6 +62,9 @@ chrome::mojom::SearchBox* SearchBoxClientFactoryImpl::GetSearchBox() {
   if (id != last_connected_rfh_) {
     if (IsRenderedInInstantProcess(web_contents_)) {
       frame->GetRemoteAssociatedInterfaces()->GetInterface(&search_box_);
+      search_box_.set_connection_error_handler(
+          base::Bind(&SearchBoxClientFactoryImpl::OnConnectionError,
+                     base::Unretained(this)));
     } else {
       // Renderer is not an instant process. We'll create a connection that
       // drops all messages.
@@ -68,6 +73,13 @@ chrome::mojom::SearchBox* SearchBoxClientFactoryImpl::GetSearchBox() {
     last_connected_rfh_ = id;
   }
   return search_box_.get();
+}
+
+void SearchBoxClientFactoryImpl::OnConnectionError() {
+  search_box_.reset();
+  last_connected_rfh_ = std::make_pair(
+      content::ChildProcessHost::kInvalidUniqueID,
+      MSG_ROUTING_NONE);
 }
 
 }  // namespace
@@ -192,8 +204,7 @@ void SearchIPCRouter::FocusOmnibox(int page_seq_no, OmniboxFocusState state) {
   delegate_->FocusOmnibox(state);
 }
 
-void SearchIPCRouter::SearchBoxDeleteMostVisitedItem(int page_seq_no,
-                                                     const GURL& url) {
+void SearchIPCRouter::DeleteMostVisitedItem(int page_seq_no, const GURL& url) {
   if (!IsRenderedInInstantProcess(web_contents()))
     return;
   if (page_seq_no != commit_counter_)
@@ -206,8 +217,8 @@ void SearchIPCRouter::SearchBoxDeleteMostVisitedItem(int page_seq_no,
   delegate_->OnDeleteMostVisitedItem(url);
 }
 
-void SearchIPCRouter::SearchBoxUndoMostVisitedDeletion(int page_seq_no,
-                                                       const GURL& url) {
+void SearchIPCRouter::UndoMostVisitedDeletion(int page_seq_no,
+                                              const GURL& url) {
   if (!IsRenderedInInstantProcess(web_contents()))
     return;
   if (page_seq_no != commit_counter_)
@@ -220,7 +231,7 @@ void SearchIPCRouter::SearchBoxUndoMostVisitedDeletion(int page_seq_no,
   delegate_->OnUndoMostVisitedDeletion(url);
 }
 
-void SearchIPCRouter::SearchBoxUndoAllMostVisitedDeletions(int page_seq_no) {
+void SearchIPCRouter::UndoAllMostVisitedDeletions(int page_seq_no) {
   if (!IsRenderedInInstantProcess(web_contents()))
     return;
   if (page_seq_no != commit_counter_)

@@ -17,7 +17,6 @@
 #include "chrome/common/file_patcher.mojom.h"
 #include "chrome/common/safe_browsing/zip_analyzer.h"
 #include "chrome/common/safe_browsing/zip_analyzer_results.h"
-#include "chrome/utility/chrome_content_utility_ipc_whitelist.h"
 #include "chrome/utility/utility_message_handler.h"
 #include "components/safe_json/utility/safe_json_parser_mojo_impl.h"
 #include "content/public/child/image_decoder_utils.h"
@@ -51,7 +50,6 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/utility/extensions/extensions_handler.h"
-#include "chrome/utility/image_writer/image_writer_handler.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW) || \
@@ -149,10 +147,9 @@ std::unique_ptr<service_manager::Service> CreateImageDecoderService() {
 }  // namespace
 
 ChromeContentUtilityClient::ChromeContentUtilityClient()
-    : filter_messages_(false) {
+    : utility_process_running_elevated_(false) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   handlers_.push_back(new extensions::ExtensionsHandler());
-  handlers_.push_back(new image_writer::ImageWriterHandler());
 #endif
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW) || \
@@ -165,30 +162,22 @@ ChromeContentUtilityClient::ChromeContentUtilityClient()
 #endif
 }
 
-ChromeContentUtilityClient::~ChromeContentUtilityClient() {
-}
+ChromeContentUtilityClient::~ChromeContentUtilityClient() = default;
 
 void ChromeContentUtilityClient::UtilityThreadStarted() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   extensions::UtilityHandler::UtilityThreadStarted();
 #endif
 
-  if (kMessageWhitelistSize > 0) {
-    base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-    if (command_line->HasSwitch(switches::kUtilityProcessRunningElevated)) {
-      message_id_whitelist_.insert(kMessageWhitelist,
-                                   kMessageWhitelist + kMessageWhitelistSize);
-      filter_messages_ = true;
-    }
-  }
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(switches::kUtilityProcessRunningElevated))
+    utility_process_running_elevated_ = true;
 }
 
 bool ChromeContentUtilityClient::OnMessageReceived(
     const IPC::Message& message) {
-  if (filter_messages_ &&
-      !base::ContainsKey(message_id_whitelist_, message.type())) {
+  if (utility_process_running_elevated_)
     return false;
-  }
 
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(ChromeContentUtilityClient, message)
@@ -210,11 +199,6 @@ bool ChromeContentUtilityClient::OnMessageReceived(
     return true;
 
   for (auto* handler : handlers_) {
-    // At least one of the utility process handlers adds a new handler to
-    // |handlers_| when it handles a message. This causes any iterator over
-    // |handlers_| to become invalid. Therefore, it is necessary to break the
-    // loop at this point instead of evaluating it as a loop condition (if the
-    // for loop was using iterators explicitly, as originally done).
     if (handler->OnMessageReceived(message))
       return true;
   }
@@ -224,17 +208,13 @@ bool ChromeContentUtilityClient::OnMessageReceived(
 
 void ChromeContentUtilityClient::ExposeInterfacesToBrowser(
     service_manager::InterfaceRegistry* registry) {
-  const bool running_elevated =
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kUtilityProcessRunningElevated);
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  ChromeContentUtilityClient* utility_client = this;
   extensions::ExtensionsHandler::ExposeInterfacesToBrowser(
-      registry, utility_client, running_elevated);
+      registry, utility_process_running_elevated_);
 #endif
   // If our process runs with elevated privileges, only add elevated Mojo
   // services to the interface registry.
-  if (running_elevated)
+  if (utility_process_running_elevated_)
     return;
 
   registry->AddInterface(base::Bind(&FilePatcherImpl::Create));
@@ -256,11 +236,6 @@ void ChromeContentUtilityClient::RegisterServices(StaticServiceMap* services) {
   image_decoder_info.factory = base::Bind(&CreateImageDecoderService);
   services->insert(
       std::make_pair(image_decoder::mojom::kServiceName, image_decoder_info));
-}
-
-void ChromeContentUtilityClient::AddHandler(
-    std::unique_ptr<UtilityMessageHandler> handler) {
-  handlers_.push_back(std::move(handler));
 }
 
 // static

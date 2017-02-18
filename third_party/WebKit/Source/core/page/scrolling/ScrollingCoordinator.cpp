@@ -284,10 +284,10 @@ static WebLayerPositionConstraint computePositionConstraint(
     const PaintLayer* layer) {
   DCHECK(layer->hasCompositedLayerMapping());
   do {
-    if (layer->layoutObject()->style()->position() == FixedPosition) {
-      const LayoutObject* fixedPositionObject = layer->layoutObject();
-      bool fixedToRight = !fixedPositionObject->style()->right().isAuto();
-      bool fixedToBottom = !fixedPositionObject->style()->bottom().isAuto();
+    if (layer->layoutObject().style()->position() == EPosition::kFixed) {
+      const LayoutObject& fixedPositionObject = layer->layoutObject();
+      bool fixedToRight = !fixedPositionObject.style()->right().isAuto();
+      bool fixedToBottom = !fixedPositionObject.style()->bottom().isAuto();
       return WebLayerPositionConstraint::fixedPosition(fixedToRight,
                                                        fixedToBottom);
     }
@@ -398,7 +398,7 @@ WebScrollbarLayer* ScrollingCoordinator::addWebScrollbarLayer(
   ScrollbarMap& scrollbars = orientation == HorizontalScrollbar
                                  ? m_horizontalScrollbars
                                  : m_verticalScrollbars;
-  return scrollbars.add(scrollableArea, std::move(scrollbarLayer))
+  return scrollbars.insert(scrollableArea, std::move(scrollbarLayer))
       .storedValue->value.get();
 }
 
@@ -487,9 +487,9 @@ bool ScrollingCoordinator::scrollableAreaScrollLayerDidChange(
   WebLayer* containerLayer = toWebLayer(scrollableArea->layerForContainer());
   if (webLayer) {
     webLayer->setScrollClipLayer(containerLayer);
-    DoublePoint scrollPosition(FloatPoint(scrollableArea->scrollOrigin()) +
-                               scrollableArea->getScrollOffset());
-    webLayer->setScrollPositionDouble(scrollPosition);
+    FloatPoint scrollPosition(scrollableArea->scrollOrigin() +
+                              scrollableArea->getScrollOffset());
+    webLayer->setScrollPosition(scrollPosition);
 
     webLayer->setBounds(scrollableArea->contentsSize());
     bool canScrollX = scrollableArea->userInputScrollable(HorizontalScrollbar);
@@ -558,7 +558,7 @@ static void makeLayerChildFrameMap(const LocalFrame* currentFrame,
     const PaintLayer* containingLayer = ownerLayoutItem.enclosingLayer();
     LayerFrameMap::iterator iter = map->find(containingLayer);
     if (iter == map->end())
-      map->add(containingLayer, HeapVector<Member<const LocalFrame>>())
+      map->insert(containingLayer, HeapVector<Member<const LocalFrame>>())
           .storedValue->value.push_back(toLocalFrame(child));
     else
       iter->value.push_back(toLocalFrame(child));
@@ -573,8 +573,8 @@ static void projectRectsToGraphicsLayerSpaceRecursive(
     HashSet<const PaintLayer*>& layersWithRects,
     LayerFrameMap& layerChildFrameMap) {
   // If this layer is throttled, ignore it.
-  if (curLayer->layoutObject()->frameView() &&
-      curLayer->layoutObject()->frameView()->shouldThrottleRendering())
+  if (curLayer->layoutObject().frameView() &&
+      curLayer->layoutObject().frameView()->shouldThrottleRendering())
     return;
   // Project any rects for the current layer
   LayerHitTestRects::const_iterator layerIter = layerRects.find(curLayer);
@@ -588,13 +588,13 @@ static void projectRectsToGraphicsLayerSpaceRecursive(
 
     // Find the appropriate GraphicsLayer for the composited Layer.
     GraphicsLayer* graphicsLayer =
-        compositedLayer->graphicsLayerBacking(curLayer->layoutObject());
+        compositedLayer->graphicsLayerBacking(&curLayer->layoutObject());
 
     GraphicsLayerHitTestRects::iterator glIter =
         graphicsRects.find(graphicsLayer);
     Vector<LayoutRect>* glRects;
     if (glIter == graphicsRects.end())
-      glRects = &graphicsRects.add(graphicsLayer, Vector<LayoutRect>())
+      glRects = &graphicsRects.insert(graphicsLayer, Vector<LayoutRect>())
                      .storedValue->value;
     else
       glRects = &glIter->value;
@@ -604,16 +604,16 @@ static void projectRectsToGraphicsLayerSpaceRecursive(
       LayoutRect rect = layerIter->value[i];
       if (compositedLayer != curLayer) {
         FloatQuad compositorQuad = geometryMap.mapToAncestor(
-            FloatRect(rect), compositedLayer->layoutObject());
+            FloatRect(rect), &compositedLayer->layoutObject());
         rect = LayoutRect(compositorQuad.boundingBox());
         // If the enclosing composited layer itself is scrolled, we have to undo
         // the subtraction of its scroll offset since we want the offset
         // relative to the scrolling content, not the element itself.
-        if (compositedLayer->layoutObject()->hasOverflowClip())
+        if (compositedLayer->layoutObject().hasOverflowClip())
           rect.move(compositedLayer->layoutBox()->scrolledContentOffset());
       }
       PaintLayer::mapRectInPaintInvalidationContainerToBacking(
-          *compositedLayer->layoutObject(), rect);
+          compositedLayer->layoutObject(), rect);
       rect.move(-graphicsLayer->offsetFromLayoutObject());
 
       glRects->push_back(rect);
@@ -677,7 +677,7 @@ static void projectRectsToGraphicsLayerSpace(
         layer = layer->parent();
       } else {
         LayoutItem parentDocLayoutItem =
-            layer->layoutObject()->frame()->ownerLayoutItem();
+            layer->layoutObject().frame()->ownerLayoutItem();
         if (!parentDocLayoutItem.isNull()) {
           layer = parentDocLayoutItem.enclosingLayer();
           touchHandlerInChildFrame = true;
@@ -736,9 +736,26 @@ void ScrollingCoordinator::setTouchEventTargetRects(
     LayerHitTestRects& layerRects) {
   TRACE_EVENT0("input", "ScrollingCoordinator::setTouchEventTargetRects");
 
-  // Update the list of layers with touch hit rects.
-  HashSet<const PaintLayer*> oldLayersWithTouchRects;
-  m_layersWithTouchRects.swap(oldLayersWithTouchRects);
+  // Ensure we have an entry for each composited layer that previously had rects
+  // (so that old ones will get cleared out). Note that ideally we'd track this
+  // on GraphicsLayer instead of Layer, but we have no good hook into the
+  // lifetime of a GraphicsLayer.
+  GraphicsLayerHitTestRects graphicsLayerRects;
+  for (const PaintLayer* layer : m_layersWithTouchRects) {
+    if (layer->layoutObject().frameView() &&
+        layer->layoutObject().frameView()->shouldThrottleRendering()) {
+      continue;
+    }
+    GraphicsLayer* mainGraphicsLayer =
+        layer->graphicsLayerBacking(&layer->layoutObject());
+    if (mainGraphicsLayer)
+      graphicsLayerRects.insert(mainGraphicsLayer, Vector<LayoutRect>());
+    GraphicsLayer* scrollingContentsLayer = layer->graphicsLayerBacking();
+    if (scrollingContentsLayer && scrollingContentsLayer != mainGraphicsLayer)
+      graphicsLayerRects.insert(scrollingContentsLayer, Vector<LayoutRect>());
+  }
+
+  m_layersWithTouchRects.clear();
   for (const auto& layerRect : layerRects) {
     if (!layerRect.value.isEmpty()) {
       const PaintLayer* compositedLayer =
@@ -749,16 +766,7 @@ void ScrollingCoordinator::setTouchEventTargetRects(
     }
   }
 
-  // Ensure we have an entry for each composited layer that previously had rects
-  // (so that old ones will get cleared out). Note that ideally we'd track this
-  // on GraphicsLayer instead of Layer, but we have no good hook into the
-  // lifetime of a GraphicsLayer.
-  for (const PaintLayer* layer : oldLayersWithTouchRects) {
-    if (!layerRects.contains(layer))
-      layerRects.add(layer, Vector<LayoutRect>());
-  }
 
-  GraphicsLayerHitTestRects graphicsLayerRects;
   projectRectsToGraphicsLayerSpace(m_page->deprecatedLocalMainFrame(),
                                    layerRects, graphicsLayerRects);
 
@@ -816,7 +824,7 @@ void ScrollingCoordinator::updateClipParentForGraphicsLayer(
 }
 
 void ScrollingCoordinator::willDestroyLayer(PaintLayer* layer) {
-  m_layersWithTouchRects.remove(layer);
+  m_layersWithTouchRects.erase(layer);
 }
 
 void ScrollingCoordinator::setShouldUpdateScrollLayerPositionOnMainThread(

@@ -9,7 +9,6 @@
 #include "core/dom/DOMArrayBufferView.h"
 #include "core/dom/Document.h"
 #include "core/dom/ExceptionCode.h"
-#include "core/dom/ExecutionContextTask.h"
 #include "core/dom/TaskRunnerHelper.h"
 #include "core/events/Event.h"
 #include "core/events/MessageEvent.h"
@@ -165,8 +164,7 @@ void PresentationConnection::bindProxy(
   DCHECK(proxy);
   // TODO(zhaobin): Restore to DCHECK(!m_proxy) when reconnect() is properly
   // implemented.
-  if (!m_proxy)
-    m_proxy = std::move(proxy);
+  m_proxy = std::move(proxy);
 }
 
 // static
@@ -205,13 +203,10 @@ PresentationConnection* PresentationConnection::take(
   // Fire onconnectionavailable event asynchronously.
   auto* event = PresentationConnectionAvailableEvent::create(
       EventTypeNames::connectionavailable, connection);
-  request->getExecutionContext()->postTask(
-      TaskType::Presentation, BLINK_FROM_HERE,
-      createSameThreadTask(&PresentationConnection::dispatchEventAsync,
+  TaskRunnerHelper::get(TaskType::Presentation, request->getExecutionContext())
+      ->postTask(BLINK_FROM_HERE,
+                 WTF::bind(&PresentationConnection::dispatchEventAsync,
                            wrapPersistent(request), wrapPersistent(event)));
-
-  // Fire onconnect event asynchronously, after onconnectionavailable.
-  connection->didChangeState(WebPresentationConnectionState::Connected);
 
   return connection;
 }
@@ -492,9 +487,9 @@ void PresentationConnection::didFailLoadingBlob(
 }
 
 void PresentationConnection::dispatchStateChangeEvent(Event* event) {
-  getExecutionContext()->postTask(
-      TaskType::Presentation, BLINK_FROM_HERE,
-      createSameThreadTask(&PresentationConnection::dispatchEventAsync,
+  TaskRunnerHelper::get(TaskType::Presentation, getExecutionContext())
+      ->postTask(BLINK_FROM_HERE,
+                 WTF::bind(&PresentationConnection::dispatchEventAsync,
                            wrapPersistent(this), wrapPersistent(event)));
 }
 

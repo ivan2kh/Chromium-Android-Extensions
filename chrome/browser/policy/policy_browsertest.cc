@@ -31,6 +31,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/test_file_util.h"
 #include "base/threading/sequenced_worker_pool.h"
 #include "base/time/time.h"
@@ -40,6 +41,7 @@
 #include "chrome/browser/background/background_contents_service.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_notification_types.h"
+#include "chrome/browser/component_updater/chrome_component_updater_configurator.h"
 #include "chrome/browser/content_settings/tab_specific_content_settings.h"
 #include "chrome/browser/devtools/devtools_window_testing.h"
 #include "chrome/browser/download/download_prefs.h"
@@ -82,6 +84,7 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension_constants.h"
@@ -3828,9 +3831,16 @@ void ComponentUpdaterPolicyTest::OnDemandComplete(update_client::Error error) {
 void ComponentUpdaterPolicyTest::BeginTest() {
   cus_ = g_browser_process->component_updater();
 
+  const auto config = component_updater::MakeChromeComponentUpdaterConfigurator(
+      base::CommandLine::ForCurrentProcess(), nullptr,
+      g_browser_process->local_state());
+  const auto urls = config->UpdateUrl();
+  ASSERT_TRUE(urls.size());
+  const GURL url = urls.front();
+
   interceptor_factory_ =
       base::MakeUnique<update_client::URLRequestPostInterceptorFactory>(
-          "https", "clients2.google.com",
+          url.scheme(), url.host(),
           BrowserThread::GetTaskRunnerForThread(BrowserThread::IO));
 
   post_interceptor_ = interceptor_factory_->CreateInterceptor(
@@ -4160,13 +4170,17 @@ IN_PROC_BROWSER_TEST_F(ArcPolicyTest, ArcEnabled) {
 
 // Test ArcBackupRestoreEnabled policy.
 IN_PROC_BROWSER_TEST_F(ArcPolicyTest, ArcBackupRestoreEnabled) {
-  const PrefService* const pref = browser()->profile()->GetPrefs();
+  PrefService* const pref = browser()->profile()->GetPrefs();
 
-  // ARC Backup & Restore is switched on by default.
-  EXPECT_TRUE(pref->GetBoolean(prefs::kArcBackupRestoreEnabled));
+  // ARC Backup & Restore is switched off by default.
+  EXPECT_FALSE(pref->GetBoolean(prefs::kArcBackupRestoreEnabled));
   EXPECT_FALSE(pref->IsManagedPreference(prefs::kArcBackupRestoreEnabled));
 
-  // Disable ARC Backup & Restore.
+  // Switch on ARC Backup & Restore in the user prefs.
+  pref->SetBoolean(prefs::kArcBackupRestoreEnabled, true);
+  EXPECT_TRUE(pref->GetBoolean(prefs::kArcBackupRestoreEnabled));
+
+  // Disable ARC Backup & Restore through the policy.
   PolicyMap policies;
   policies.Set(key::kArcBackupRestoreEnabled, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
@@ -4175,7 +4189,7 @@ IN_PROC_BROWSER_TEST_F(ArcPolicyTest, ArcBackupRestoreEnabled) {
   EXPECT_FALSE(pref->GetBoolean(prefs::kArcBackupRestoreEnabled));
   EXPECT_TRUE(pref->IsManagedPreference(prefs::kArcBackupRestoreEnabled));
 
-  // Enable ARC Backup & Restore.
+  // Enable ARC Backup & Restore through the policy.
   policies.Set(key::kArcBackupRestoreEnabled, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
                base::MakeUnique<base::FundamentalValue>(true), nullptr);
@@ -4184,39 +4198,74 @@ IN_PROC_BROWSER_TEST_F(ArcPolicyTest, ArcBackupRestoreEnabled) {
   EXPECT_TRUE(pref->IsManagedPreference(prefs::kArcBackupRestoreEnabled));
 }
 
-// Test ArcLocationServiceEnabled policy.
+// Test ArcLocationServiceEnabled policy and its interplay with the
+// DefaultGeolocationSetting policy.
 IN_PROC_BROWSER_TEST_F(ArcPolicyTest, ArcLocationServiceEnabled) {
-  const PrefService* const pref = browser()->profile()->GetPrefs();
+  PrefService* const pref = browser()->profile()->GetPrefs();
 
-  // ARC Location Service is switched on by default.
-  EXPECT_TRUE(pref->GetBoolean(prefs::kArcLocationServiceEnabled));
-  EXPECT_FALSE(pref->IsManagedPreference(prefs::kArcLocationServiceEnabled));
+  // Values of the ArcLocationServiceEnabled policy to be tested.
+  const std::vector<base::Value> test_policy_values = {
+      base::Value(),                  // unset
+      base::FundamentalValue(false),  // disabled
+      base::FundamentalValue(true),   // enabled
+  };
+  // Values of the DefaultGeolocationSetting policy to be tested.
+  const std::vector<base::Value> test_default_geo_policy_values = {
+      base::Value(),              // unset
+      base::FundamentalValue(1),  // 'AllowGeolocation'
+      base::FundamentalValue(2),  // 'BlockGeolocation'
+      base::FundamentalValue(3),  // 'AskGeolocation'
+  };
 
-  // Managed Location Service.
-  PolicyMap policies;
-  // AllowGeolocation
-  policies.Set(key::kDefaultGeolocationSetting, POLICY_LEVEL_MANDATORY,
-               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::MakeUnique<base::FundamentalValue>(1), nullptr);
-  UpdateProviderPolicy(policies);
-  EXPECT_TRUE(pref->GetBoolean(prefs::kArcLocationServiceEnabled));
-  EXPECT_FALSE(pref->IsManagedPreference(prefs::kArcLocationServiceEnabled));
-
-  // BlockGeolocation
-  policies.Set(key::kDefaultGeolocationSetting, POLICY_LEVEL_MANDATORY,
-               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::MakeUnique<base::FundamentalValue>(2), nullptr);
-  UpdateProviderPolicy(policies);
+  // The pref is switched off by default.
   EXPECT_FALSE(pref->GetBoolean(prefs::kArcLocationServiceEnabled));
-  EXPECT_TRUE(pref->IsManagedPreference(prefs::kArcLocationServiceEnabled));
-
-  // AskGeolocation
-  policies.Set(key::kDefaultGeolocationSetting, POLICY_LEVEL_MANDATORY,
-               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
-               base::MakeUnique<base::FundamentalValue>(3), nullptr);
-  UpdateProviderPolicy(policies);
-  EXPECT_TRUE(pref->GetBoolean(prefs::kArcLocationServiceEnabled));
   EXPECT_FALSE(pref->IsManagedPreference(prefs::kArcLocationServiceEnabled));
+
+  // Switch on the pref in the user prefs.
+  pref->SetBoolean(prefs::kArcLocationServiceEnabled, true);
+  EXPECT_TRUE(pref->GetBoolean(prefs::kArcLocationServiceEnabled));
+
+  for (const auto& test_policy_value : test_policy_values) {
+    for (const auto& test_default_geo_policy_value :
+         test_default_geo_policy_values) {
+      PolicyMap policies;
+      if (test_policy_value.is_bool()) {
+        policies.Set(key::kArcLocationServiceEnabled, POLICY_LEVEL_MANDATORY,
+                     POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
+                     test_policy_value.CreateDeepCopy(), nullptr);
+      }
+      if (test_default_geo_policy_value.is_int()) {
+        policies.Set(key::kDefaultGeolocationSetting, POLICY_LEVEL_MANDATORY,
+                     POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
+                     test_default_geo_policy_value.CreateDeepCopy(), nullptr);
+      }
+      UpdateProviderPolicy(policies);
+
+      const bool should_be_disabled_by_policy =
+          test_policy_value.is_bool() && !test_policy_value.GetBool();
+      const bool should_be_disabled_by_default_geo_policy =
+          test_default_geo_policy_value.is_int() &&
+          test_default_geo_policy_value.GetInt() == 2;
+      const bool expected_pref_value =
+          !(should_be_disabled_by_policy ||
+            should_be_disabled_by_default_geo_policy);
+      EXPECT_EQ(expected_pref_value,
+                pref->GetBoolean(prefs::kArcLocationServiceEnabled))
+          << "ArcLocationServiceEnabled policy is set to " << test_policy_value
+          << "DefaultGeolocationSetting policy is set to "
+          << test_default_geo_policy_value;
+
+      const bool expected_pref_managed =
+          test_policy_value.is_bool() ||
+          (test_default_geo_policy_value.is_int() &&
+           test_default_geo_policy_value.GetInt() == 2);
+      EXPECT_EQ(expected_pref_managed,
+                pref->IsManagedPreference(prefs::kArcLocationServiceEnabled))
+          << "ArcLocationServiceEnabled policy is set to " << test_policy_value
+          << "DefaultGeolocationSetting policy is set to "
+          << test_default_geo_policy_value;
+    }
+  }
 }
 
 namespace {
@@ -4317,6 +4366,9 @@ class ChromeOSPolicyTest : public PolicyTest {
 };
 
 IN_PROC_BROWSER_TEST_F(ChromeOSPolicyTest, SystemTimezoneAutomaticDetection) {
+  base::test::ScopedFeatureList disable_md_settings;
+  disable_md_settings.InitAndDisableFeature(features::kMaterialDesignSettings);
+
   ui_test_utils::NavigateToURL(browser(), GURL("chrome://settings"));
   chromeos::system::TimeZoneResolverManager* manager =
       g_browser_process->platform_part()->GetTimezoneResolverManager();
@@ -4342,6 +4394,11 @@ IN_PROC_BROWSER_TEST_F(ChromeOSPolicyTest, SystemTimezoneAutomaticDetection) {
   EXPECT_TRUE(manager->TimeZoneResolverShouldBeRunningForTests());
 
   policy_value = 3 /* SEND_WIFI_ACCESS_POINTS */;
+  SetAndTestSystemTimezoneAutomaticDetectionPolicy(policy_value);
+  EXPECT_TRUE(CheckResolveTimezoneByGeolocation(true, true));
+  EXPECT_TRUE(manager->TimeZoneResolverShouldBeRunningForTests());
+
+  policy_value = 4 /* SEND_ALL_LOCATION_INFO */;
   SetAndTestSystemTimezoneAutomaticDetectionPolicy(policy_value);
   EXPECT_TRUE(CheckResolveTimezoneByGeolocation(true, true));
   EXPECT_TRUE(manager->TimeZoneResolverShouldBeRunningForTests());

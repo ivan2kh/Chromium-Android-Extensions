@@ -12,7 +12,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task_runner_util.h"
+#include "base/task_scheduler/post_task.h"
 #include "chrome/browser/chromeos/arc/arc_util.h"
 #include "chrome/browser/chromeos/arc/policy/arc_policy_util.h"
 #include "chrome/browser/profiles/profile.h"
@@ -115,7 +115,6 @@ bool InstallIconFromFileThread(const std::string& app_id,
                                ui::ScaleFactor scale_factor,
                                const base::FilePath& icon_path,
                                const std::vector<uint8_t>& content_png) {
-  DCHECK(content::BrowserThread::GetBlockingPool()->RunsTasksOnCurrentThread());
   DCHECK(!content_png.empty());
 
   base::CreateDirectory(icon_path.DirName());
@@ -136,7 +135,6 @@ bool InstallIconFromFileThread(const std::string& app_id,
 }
 
 void DeleteAppFolderFromFileThread(const base::FilePath& path) {
-  DCHECK(content::BrowserThread::GetBlockingPool()->RunsTasksOnCurrentThread());
   DCHECK(path.DirName().BaseName().MaybeAsASCII() == prefs::kArcApps &&
          (!base::PathExists(path) || base::DirectoryExists(path)));
   const bool deleted = base::DeleteFile(path, true);
@@ -144,11 +142,8 @@ void DeleteAppFolderFromFileThread(const base::FilePath& path) {
 }
 
 bool IsArcEnabled() {
-  arc::ArcSessionManager* arc_session_manager = arc::ArcSessionManager::Get();
-  return arc_session_manager &&
-         arc_session_manager->state() !=
-             arc::ArcSessionManager::State::NOT_INITIALIZED &&
-         arc_session_manager->IsArcEnabled();
+  const auto* arc_session_manager = arc::ArcSessionManager::Get();
+  return arc_session_manager && arc_session_manager->IsArcPlayStoreEnabled();
 }
 
 bool GetInt64FromPref(const base::DictionaryValue* dict,
@@ -268,9 +263,8 @@ void ArcAppListPrefs::StartPrefs() {
   arc::ArcSessionManager* arc_session_manager = arc::ArcSessionManager::Get();
   CHECK(arc_session_manager);
 
-  if (arc_session_manager->state() !=
-      arc::ArcSessionManager::State::NOT_INITIALIZED)
-    OnArcOptInChanged(arc_session_manager->IsArcEnabled());
+  if (arc_session_manager->profile())
+    OnArcPlayStoreEnabledChanged(arc_session_manager->IsArcPlayStoreEnabled());
   arc_session_manager->AddObserver(this);
 
   app_instance_holder_->AddObserver(this);
@@ -424,7 +418,7 @@ std::unique_ptr<ArcAppListPrefs::PackageInfo> ArcAppListPrefs::GetPackage(
 
 std::vector<std::string> ArcAppListPrefs::GetAppIds() const {
   if (!IsArcEnabled()) {
-    // Default Arc apps available before OptIn.
+    // Default ARC apps available before OptIn.
     std::vector<std::string> ids;
     for (const auto& default_app : default_apps_.app_map()) {
       if (default_apps_.HasApp(default_app.first))
@@ -455,7 +449,7 @@ std::vector<std::string> ArcAppListPrefs::GetAppIdsNoArcEnabledCheck() const {
 
 std::unique_ptr<ArcAppListPrefs::AppInfo> ArcAppListPrefs::GetApp(
     const std::string& app_id) const {
-  // Information for default app is available before Arc enabled.
+  // Information for default app is available before ARC enabled.
   if (!IsArcEnabled() && !default_apps_.HasApp(app_id))
     return std::unique_ptr<AppInfo>();
 
@@ -598,7 +592,7 @@ void ArcAppListPrefs::RemoveAllApps() {
   DCHECK(ready_apps_.empty());
 }
 
-void ArcAppListPrefs::OnArcOptInChanged(bool enabled) {
+void ArcAppListPrefs::OnArcPlayStoreEnabledChanged(bool enabled) {
   UpdateDefaultAppsHiddenState();
 
   if (enabled)
@@ -839,8 +833,10 @@ void ArcAppListPrefs::RemoveApp(const std::string& app_id) {
   tracked_apps_.erase(app_id);
 
   // Remove local data on file system.
-  content::BrowserThread::GetBlockingPool()->PostTask(
-      FROM_HERE, base::Bind(&DeleteAppFolderFromFileThread, app_path));
+  base::PostTaskWithTraits(
+      FROM_HERE, base::TaskTraits().MayBlock().WithPriority(
+                     base::TaskPriority::BACKGROUND),
+      base::Bind(&DeleteAppFolderFromFileThread, app_path));
 }
 
 void ArcAppListPrefs::AddOrUpdatePackagePrefs(
@@ -1276,8 +1272,9 @@ void ArcAppListPrefs::InstallIcon(const std::string& app_id,
                                   ui::ScaleFactor scale_factor,
                                   const std::vector<uint8_t>& content_png) {
   base::FilePath icon_path = GetIconPath(app_id, scale_factor);
-  base::PostTaskAndReplyWithResult(
-      content::BrowserThread::GetBlockingPool(), FROM_HERE,
+  base::PostTaskWithTraitsAndReplyWithResult(
+      FROM_HERE, base::TaskTraits().MayBlock().WithPriority(
+                     base::TaskPriority::BACKGROUND),
       base::Bind(&InstallIconFromFileThread, app_id, scale_factor, icon_path,
                  content_png),
       base::Bind(&ArcAppListPrefs::OnIconInstalled,

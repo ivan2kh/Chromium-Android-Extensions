@@ -36,6 +36,12 @@ public class SnippetArticle {
     /** The score expressing relative quality of the article for the user. */
     public final float mScore;
 
+    /**
+     * The time when the article was fetched from the server. This field is only used for remote
+     * suggestions.
+     */
+    public final long mFetchTimestampMilliseconds;
+
     /** The rank of this article within its section. */
     private int mPerSectionRank = -1;
 
@@ -49,7 +55,7 @@ public class SnippetArticle {
     private boolean mImpressionTracked;
 
     /** Whether the linked article represents an asset download. */
-    public boolean mIsAssetDownload;
+    private boolean mIsAssetDownload;
 
     /** The path to the asset download (only for asset download articles). */
     private File mAssetDownloadFile;
@@ -67,15 +73,17 @@ public class SnippetArticle {
      * Creates a SnippetArticleListItem object that will hold the data.
      */
     public SnippetArticle(int category, String idWithinCategory, String title, String publisher,
-            String previewText, String url, long timestamp, float score) {
+            String previewText, String url, long publishTimestamp, float score,
+            long fetchTimestamp) {
         mCategory = category;
         mIdWithinCategory = idWithinCategory;
         mTitle = title;
         mPublisher = publisher;
         mPreviewText = previewText;
         mUrl = url;
-        mPublishTimestampMilliseconds = timestamp;
+        mPublishTimestampMilliseconds = publishTimestamp;
         mScore = score;
+        mFetchTimestampMilliseconds = fetchTimestamp;
     }
 
     @Override
@@ -114,6 +122,11 @@ public class SnippetArticle {
     /** @return whether a snippet is either offline page or asset download. */
     public boolean isDownload() {
         return mCategory == KnownCategories.DOWNLOADS;
+    }
+
+    /** @return whether a snippet is asset download. */
+    public boolean isAssetDownload() {
+        return mIsAssetDownload;
     }
 
     /**

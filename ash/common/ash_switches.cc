@@ -51,9 +51,6 @@ const char kAshEnableFullscreenAppList[] = "ash-enable-fullscreen-app-list";
 const char kAshEnableMagnifierKeyScroller[] =
     "ash-enable-magnifier-key-scroller";
 
-// Enables the palette next to the status area.
-const char kAshEnablePalette[] = "ash-enable-palette";
-
 // Enables the palette on every display, instead of only the internal one.
 const char kAshEnablePaletteOnAllDisplays[] =
     "ash-enable-palette-on-all-displays";
@@ -68,17 +65,13 @@ const char kAshEnableTouchView[] = "enable-touchview";
 // Enables mirrored screen.
 const char kAshEnableMirroredScreen[] = "ash-enable-mirrored-screen";
 
+// Enables the palette next to the status area.
+const char kAshForceEnablePalette[] = "ash-force-enable-palette";
+
 // Hides notifications that are irrelevant to Chrome OS device factory testing,
 // such as battery level updates.
 const char kAshHideNotificationsForFactory[] =
     "ash-hide-notifications-for-factory";
-
-// Specifies if Material Design elements in Chrome OS system UI are enabled.
-// Can be disabled / enabled / experimental allowing to launch incrementally.
-const char kAshMaterialDesign[] = "ash-md";
-const char kAshMaterialDesignDisabled[] = "disabled";
-const char kAshMaterialDesignEnabled[] = "enabled";
-const char kAshMaterialDesignExperimental[] = "experimental";
 
 // Enables the heads-up display for tracking touch points.
 const char kAshTouchHud[] = "ash-touch-hud";

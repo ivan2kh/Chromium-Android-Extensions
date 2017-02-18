@@ -146,6 +146,10 @@ void WindowTreeHostMus::SetHitTestMask(const base::Optional<gfx::Rect>& rect) {
   delegate_->OnWindowTreeHostHitTestMaskWillChange(this, rect);
 }
 
+void WindowTreeHostMus::SetOpacity(float value) {
+  delegate_->OnWindowTreeHostSetOpacity(this, value);
+}
+
 void WindowTreeHostMus::DeactivateWindow() {
   delegate_->OnWindowTreeHostDeactivateWindow(this);
 }
@@ -210,6 +214,15 @@ void WindowTreeHostMus::OnCloseRequest() {
 gfx::ICCProfile WindowTreeHostMus::GetICCProfileForCurrentDisplay() {
   // TODO: This should read the profile from mus. crbug.com/647510
   return gfx::ICCProfile();
+}
+
+void WindowTreeHostMus::MoveCursorToScreenLocationInPixels(
+    const gfx::Point& location_in_pixels) {
+  // TODO: this needs to message the server http://crbug.com/693340. Setting
+  // the location is really only appropriate in tests, outside of tests this
+  // value is ignored.
+  NOTIMPLEMENTED();
+  Env::GetInstance()->set_last_mouse_location(location_in_pixels);
 }
 
 }  // namespace aura

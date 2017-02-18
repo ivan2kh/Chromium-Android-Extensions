@@ -15,7 +15,6 @@
 #include "cc/playback/skip_image_canvas.h"
 #include "skia/ext/analysis_canvas.h"
 #include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkClipStack.h"
 #include "third_party/skia/include/core/SkPictureRecorder.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
@@ -217,7 +216,7 @@ sk_sp<SkPicture> RasterSource::GetFlattenedPicture() {
   return recorder.finishRecordingAsPicture();
 }
 
-size_t RasterSource::GetPictureMemoryUsage() const {
+size_t RasterSource::GetMemoryUsage() const {
   if (!display_list_)
     return 0;
   return display_list_->ApproximateMemoryUsage() +

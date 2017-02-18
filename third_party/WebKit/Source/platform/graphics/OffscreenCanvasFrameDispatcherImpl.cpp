@@ -410,7 +410,9 @@ void OffscreenCanvasFrameDispatcherImpl::ReclaimResources(
   }
 }
 
-void OffscreenCanvasFrameDispatcherImpl::WillDrawSurface() {
+void OffscreenCanvasFrameDispatcherImpl::WillDrawSurface(
+    const cc::LocalSurfaceId& localSurfaceId,
+    ::gfx::mojom::blink::RectPtr damageRect) {
   // TODO(fsamuel, staraz): Implement this.
 }
 
@@ -422,7 +424,7 @@ void OffscreenCanvasFrameDispatcherImpl::reclaimResource(unsigned resourceId) {
   // resource lock being lifted, and the second will delete
   // the resource for real.
   if (m_spareResourceLocks.contains(resourceId)) {
-    m_spareResourceLocks.remove(resourceId);
+    m_spareResourceLocks.erase(resourceId);
     return;
   }
   m_cachedImages.erase(resourceId);

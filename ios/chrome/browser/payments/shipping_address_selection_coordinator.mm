@@ -6,11 +6,11 @@
 
 #import "base/ios/weak_nsobject.h"
 #include "base/mac/scoped_nsobject.h"
+#include "base/strings/sys_string_conversions.h"
 #include "components/autofill/core/browser/autofill_profile.h"
-#import "ios/chrome/browser/payments/shipping_address_selection_view_controller.h"
+#include "ios/chrome/browser/payments/payment_request.h"
 
-@interface ShippingAddressSelectionCoordinator ()<
-    ShippingAddressSelectionViewControllerDelegate> {
+@interface ShippingAddressSelectionCoordinator () {
   base::WeakNSProtocol<id<ShippingAddressSelectionCoordinatorDelegate>>
       _delegate;
   base::scoped_nsobject<ShippingAddressSelectionViewController> _viewController;
@@ -20,14 +20,14 @@
 // UI is locked so that the user can't interact with it, then the delegate is
 // notified. The delay is here to let the user get a visual feedback of the
 // selection before this view disappears.
-- (void)delayedNotifyDelegateOfSelection;
+- (void)delayedNotifyDelegateOfSelection:
+    (autofill::AutofillProfile*)shippingAddress;
 
 @end
 
 @implementation ShippingAddressSelectionCoordinator
 
-@synthesize shippingAddresses = _shippingAddresses;
-@synthesize selectedShippingAddress = _selectedShippingAddress;
+@synthesize paymentRequest = _paymentRequest;
 
 - (id<ShippingAddressSelectionCoordinatorDelegate>)delegate {
   return _delegate.get();
@@ -38,9 +38,8 @@
 }
 
 - (void)start {
-  _viewController.reset([[ShippingAddressSelectionViewController alloc] init]);
-  [_viewController setShippingAddresses:_shippingAddresses];
-  [_viewController setSelectedShippingAddress:_selectedShippingAddress];
+  _viewController.reset([[ShippingAddressSelectionViewController alloc]
+      initWithPaymentRequest:_paymentRequest]);
   [_viewController setDelegate:self];
   [_viewController loadModel];
 
@@ -55,14 +54,26 @@
   _viewController.reset();
 }
 
+- (void)stopSpinnerAndDisplayError {
+  // Re-enable user interactions that were disabled earlier in
+  // delayedNotifyDelegateOfSelection.
+  _viewController.get().view.userInteractionEnabled = YES;
+
+  [_viewController setIsLoading:NO];
+  [_viewController
+      setErrorMessage:base::SysUTF16ToNSString(
+                          _paymentRequest->payment_details().error)];
+  [_viewController loadModel];
+  [[_viewController collectionView] reloadData];
+}
+
 #pragma mark - ShippingAddressSelectionViewControllerDelegate
 
 - (void)shippingAddressSelectionViewController:
             (ShippingAddressSelectionViewController*)controller
-                       selectedShippingAddress:
-                           (autofill::AutofillProfile*)shippingAddress {
-  _selectedShippingAddress = shippingAddress;
-  [self delayedNotifyDelegateOfSelection];
+                      didSelectShippingAddress:
+                          (autofill::AutofillProfile*)shippingAddress {
+  [self delayedNotifyDelegateOfSelection:shippingAddress];
 }
 
 - (void)shippingAddressSelectionViewControllerDidReturn:
@@ -70,11 +81,13 @@
   [_delegate shippingAddressSelectionCoordinatorDidReturn:self];
 }
 
-- (void)delayedNotifyDelegateOfSelection {
+- (void)delayedNotifyDelegateOfSelection:
+    (autofill::AutofillProfile*)shippingAddress {
   _viewController.get().view.userInteractionEnabled = NO;
   base::WeakNSObject<ShippingAddressSelectionCoordinator> weakSelf(self);
   dispatch_after(
-      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(.2 * NSEC_PER_SEC)),
+      dispatch_time(DISPATCH_TIME_NOW,
+                    static_cast<int64_t>(0.2 * NSEC_PER_SEC)),
       dispatch_get_main_queue(), ^{
         base::scoped_nsobject<ShippingAddressSelectionCoordinator> strongSelf(
             [weakSelf retain]);
@@ -82,10 +95,12 @@
         if (!strongSelf)
           return;
 
-        _viewController.get().view.userInteractionEnabled = YES;
-        [_delegate
-            shippingAddressSelectionCoordinator:self
-                       didSelectShippingAddress:_selectedShippingAddress];
+        [_viewController setIsLoading:YES];
+        [_viewController loadModel];
+        [[_viewController collectionView] reloadData];
+
+        [_delegate shippingAddressSelectionCoordinator:self
+                              didSelectShippingAddress:shippingAddress];
       });
 }
 

@@ -98,7 +98,10 @@ bool ExecutionContext::shouldSanitizeScriptError(
     AccessControlStatus corsStatus) {
   if (corsStatus == OpaqueResource)
     return true;
-  return !(getSecurityOrigin()->canRequestNoSuborigin(completeURL(sourceURL)) ||
+  const KURL& url = completeURL(sourceURL);
+  if (url.protocolIsData())
+    return false;
+  return !(getSecurityOrigin()->canRequestNoSuborigin(url) ||
            corsStatus == SharableCrossOrigin);
 }
 
@@ -193,22 +196,13 @@ String ExecutionContext::outgoingReferrer() const {
 
 void ExecutionContext::parseAndSetReferrerPolicy(const String& policies,
                                                  bool supportLegacyKeywords) {
-  ReferrerPolicy referrerPolicy = ReferrerPolicyDefault;
+  ReferrerPolicy referrerPolicy;
 
-  Vector<String> tokens;
-  policies.split(',', true, tokens);
-  for (const auto& token : tokens) {
-    ReferrerPolicy currentResult;
-    if ((supportLegacyKeywords
-             ? SecurityPolicy::referrerPolicyFromStringWithLegacyKeywords(
-                   token, &currentResult)
-             : SecurityPolicy::referrerPolicyFromString(token,
-                                                        &currentResult))) {
-      referrerPolicy = currentResult;
-    }
-  }
-
-  if (referrerPolicy == ReferrerPolicyDefault) {
+  if (!SecurityPolicy::referrerPolicyFromHeaderValue(
+          policies,
+          supportLegacyKeywords ? SupportReferrerPolicyLegacyKeywords
+                                : DoNotSupportReferrerPolicyLegacyKeywords,
+          &referrerPolicy)) {
     addConsoleMessage(ConsoleMessage::create(
         RenderingMessageSource, ErrorMessageLevel,
         "Failed to set referrer policy: The value '" + policies +

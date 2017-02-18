@@ -77,7 +77,7 @@ class GPU_EXPORT FeatureInfo : public base::RefCounted<FeatureInfo> {
     bool map_buffer_range = false;
     bool ext_discard_framebuffer = false;
     bool angle_depth_texture = false;
-    bool is_swiftshader = false;
+    bool is_swiftshader_for_webgl = false;
     bool angle_texture_usage = false;
     bool ext_texture_storage = false;
     bool chromium_path_rendering = false;
@@ -102,6 +102,10 @@ class GPU_EXPORT FeatureInfo : public base::RefCounted<FeatureInfo> {
     bool angle_webgl_compatibility = false;
     bool ext_srgb_write_control = false;
     bool ext_srgb = false;
+    bool chromium_copy_texture = false;
+    bool chromium_copy_compressed_texture = false;
+    bool angle_framebuffer_multisample = false;
+    bool ext_disjoint_timer_query = false;
   };
 
   FeatureInfo();

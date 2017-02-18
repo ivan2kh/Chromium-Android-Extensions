@@ -2,19 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/subresource_filter/content/browser/content_subresource_filter_driver_factory.h"
+
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/field_trial.h"
 #include "base/test/histogram_tester.h"
 #include "components/safe_browsing_db/util.h"
-#include "components/subresource_filter/content/browser/content_subresource_filter_driver.h"
-#include "components/subresource_filter/content/browser/content_subresource_filter_driver_factory.h"
 #include "components/subresource_filter/content/common/subresource_filter_messages.h"
 #include "components/subresource_filter/core/browser/subresource_filter_client.h"
 #include "components/subresource_filter/core/browser/subresource_filter_features.h"
 #include "components/subresource_filter/core/browser/subresource_filter_features_test_support.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/browser_side_navigation_policy.h"
+#include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -135,21 +136,6 @@ const ActivationLevelTestData kActivationLevelTestData[] = {
     {false /* expected_activation */, kActivationLevelDisabled},
 };
 
-class MockSubresourceFilterDriver : public ContentSubresourceFilterDriver {
- public:
-  explicit MockSubresourceFilterDriver(
-      content::RenderFrameHost* render_frame_host)
-      : ContentSubresourceFilterDriver(render_frame_host) {}
-
-  ~MockSubresourceFilterDriver() override = default;
-
-  MOCK_METHOD3(ActivateForProvisionalLoad,
-               void(ActivationLevel, const GURL&, bool));
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(MockSubresourceFilterDriver);
-};
-
 class MockSubresourceFilterClient : public SubresourceFilterClient {
  public:
   MockSubresourceFilterClient() {}
@@ -177,22 +163,12 @@ class ContentSubresourceFilterDriverFactoryTest
     client_ = new MockSubresourceFilterClient();
     ContentSubresourceFilterDriverFactory::CreateForWebContents(
         web_contents(), base::WrapUnique(client()));
-    driver_ = new MockSubresourceFilterDriver(main_rfh());
-    SetDriverForFrameHostForTesting(main_rfh(), driver());
+
     // Add a subframe.
     content::RenderFrameHostTester* rfh_tester =
         content::RenderFrameHostTester::For(main_rfh());
     rfh_tester->InitializeRenderFrameIfNeeded();
     subframe_rfh_ = rfh_tester->AppendChild("Child");
-    subframe_driver_ = new MockSubresourceFilterDriver(subframe_rfh());
-    SetDriverForFrameHostForTesting(subframe_rfh(), subframe_driver());
-  }
-
-  void SetDriverForFrameHostForTesting(
-      content::RenderFrameHost* render_frame_host,
-      ContentSubresourceFilterDriver* driver) {
-    factory()->SetDriverForFrameHostForTesting(render_frame_host,
-                                               base::WrapUnique(driver));
   }
 
   ContentSubresourceFilterDriverFactory* factory() {
@@ -201,16 +177,44 @@ class ContentSubresourceFilterDriverFactoryTest
   }
 
   MockSubresourceFilterClient* client() { return client_; }
-  MockSubresourceFilterDriver* driver() { return driver_; }
-
-  MockSubresourceFilterDriver* subframe_driver() { return subframe_driver_; }
   content::RenderFrameHost* subframe_rfh() { return subframe_rfh_; }
+
+  void ExpectActivationSignalForFrame(content::RenderFrameHost* rfh,
+                                      bool expect_activation) {
+    content::MockRenderProcessHost* render_process_host =
+        static_cast<content::MockRenderProcessHost*>(rfh->GetProcess());
+    const IPC::Message* message =
+        render_process_host->sink().GetFirstMessageMatching(
+            SubresourceFilterMsg_ActivateForNextCommittedLoad::ID);
+    ASSERT_EQ(expect_activation, !!message);
+    if (expect_activation) {
+      std::tuple<ActivationLevel, bool> args;
+      SubresourceFilterMsg_ActivateForNextCommittedLoad::Read(message, &args);
+      EXPECT_NE(ActivationLevel::DISABLED, std::get<0>(args));
+    }
+    render_process_host->sink().ClearMessages();
+  }
+
+  void SimulateNavigationCommit(content::RenderFrameHost* rfh,
+                                const GURL& url,
+                                const content::Referrer& referrer,
+                                const ui::PageTransition transition) {
+    // TODO(crbug.com/688393): Once WCO::ReadyToCommitNavigation is invoked
+    // consistently for tests in PlzNavigate and non-PlzNavigate, remove this.
+    if (!content::IsBrowserSideNavigationEnabled()) {
+      factory()->ReadyToCommitNavigationInternal(rfh, url, referrer, transition,
+                                                 false /* failed_navigation */);
+    }
+    content::RenderFrameHostTester::For(rfh)->SimulateNavigationCommit(url);
+  }
 
   void BlacklistURLWithRedirectsNavigateAndCommit(
       const std::vector<bool>& blacklisted_urls,
       const std::vector<GURL>& navigation_chain,
       safe_browsing::SBThreatType threat_type,
       safe_browsing::ThreatPatternType threat_type_metadata,
+      const content::Referrer& referrer,
+      ui::PageTransition transition,
       RedirectChainMatchPattern expected_pattern,
       bool expected_activation) {
     base::HistogramTester tester;
@@ -234,17 +238,10 @@ class ContentSubresourceFilterDriverFactoryTest
       }
       rfh_tester->SimulateRedirect(url);
     }
-    EXPECT_CALL(*driver(),
-                ActivateForProvisionalLoad(::testing::_, ::testing::_,
-                                           expected_measure_performance()))
-        .Times(expected_activation);
-    if (!content::IsBrowserSideNavigationEnabled()) {
-      factory()->ReadyToCommitNavigationInternal(main_rfh(),
-                                                 navigation_chain.back());
-    }
 
-    rfh_tester->SimulateNavigationCommit(navigation_chain.back());
-    ::testing::Mock::VerifyAndClearExpectations(driver());
+    SimulateNavigationCommit(main_rfh(), navigation_chain.back(), referrer,
+                             transition);
+    ExpectActivationSignalForFrame(main_rfh(), expected_activation);
 
     if (expected_pattern != EMPTY) {
       EXPECT_THAT(tester.GetAllSamples(kMatchesPatternHistogramName),
@@ -262,14 +259,13 @@ class ContentSubresourceFilterDriverFactoryTest
   }
 
   void NavigateAndCommitSubframe(const GURL& url, bool expected_activation) {
-    EXPECT_CALL(*subframe_driver(),
-                ActivateForProvisionalLoad(::testing::_, ::testing::_,
-                                           expected_measure_performance()))
-        .Times(expected_activation);
     EXPECT_CALL(*client(), ToggleNotificationVisibility(::testing::_)).Times(0);
 
-    factory()->ReadyToCommitNavigationInternal(subframe_rfh(), url);
-    ::testing::Mock::VerifyAndClearExpectations(subframe_driver());
+    content::RenderFrameHostTester::For(subframe_rfh())
+        ->SimulateNavigationStart(url);
+    SimulateNavigationCommit(subframe_rfh(), url, content::Referrer(),
+                             ui::PAGE_TRANSITION_LINK);
+    ExpectActivationSignalForFrame(subframe_rfh(), expected_activation);
     ::testing::Mock::VerifyAndClearExpectations(client());
   }
 
@@ -278,11 +274,13 @@ class ContentSubresourceFilterDriverFactoryTest
       const std::vector<GURL>& navigation_chain,
       safe_browsing::SBThreatType threat_type,
       safe_browsing::ThreatPatternType threat_type_metadata,
+      const content::Referrer& referrer,
+      ui::PageTransition transition,
       RedirectChainMatchPattern expected_pattern,
       bool expected_activation) {
     BlacklistURLWithRedirectsNavigateAndCommit(
         blacklisted_urls, navigation_chain, threat_type, threat_type_metadata,
-        expected_pattern, expected_activation);
+        referrer, transition, expected_pattern, expected_activation);
 
     NavigateAndCommitSubframe(GURL(kExampleLoginUrl), expected_activation);
   }
@@ -295,7 +293,8 @@ class ContentSubresourceFilterDriverFactoryTest
         blacklisted_urls, navigation_chain,
         safe_browsing::SB_THREAT_TYPE_URL_PHISHING,
         safe_browsing::ThreatPatternType::SOCIAL_ENGINEERING_ADS,
-        expected_pattern, expected_activation);
+        content::Referrer(), ui::PAGE_TRANSITION_LINK, expected_pattern,
+        expected_activation);
   }
 
   void EmulateDidDisallowFirstSubresourceMessage() {
@@ -303,6 +302,21 @@ class ContentSubresourceFilterDriverFactoryTest
         SubresourceFilterHostMsg_DidDisallowFirstSubresource(
             main_rfh()->GetRoutingID()),
         main_rfh());
+  }
+
+  void EmulateFailedNavigationAndExpectNoActivation(const GURL& url) {
+    EXPECT_CALL(*client(), ToggleNotificationVisibility(false)).Times(1);
+
+    // ReadyToCommitNavigation with browser-side navigation disabled is not
+    // called in production code for failed navigations (e.g. network errors).
+    // It is called with browser-side navigation enabled, in which case
+    // RenderFrameHostTester already calls it, no need to call it manually.
+    content::RenderFrameHostTester* rfh_tester =
+        content::RenderFrameHostTester::For(main_rfh());
+    rfh_tester->SimulateNavigationStart(url);
+    rfh_tester->SimulateNavigationError(url, 403);
+    ExpectActivationSignalForFrame(main_rfh(), false);
+    ::testing::Mock::VerifyAndClearExpectations(client());
   }
 
   void EmulateInPageNavigation(const std::vector<bool>& blacklisted_urls,
@@ -318,13 +332,10 @@ class ContentSubresourceFilterDriverFactoryTest
 
     NavigateAndExpectActivation(blacklisted_urls, {GURL(kExampleUrl)},
                                 expected_pattern, expected_activation);
-    EXPECT_CALL(*driver(), ActivateForProvisionalLoad(
-                               ::testing::_, ::testing::_, ::testing::_))
-        .Times(0);
     EXPECT_CALL(*client(), ToggleNotificationVisibility(::testing::_)).Times(0);
     content::RenderFrameHostTester::For(main_rfh())
         ->SimulateNavigationCommit(GURL(kExampleUrl));
-    ::testing::Mock::VerifyAndClearExpectations(driver());
+    ExpectActivationSignalForFrame(main_rfh(), false);
     ::testing::Mock::VerifyAndClearExpectations(client());
   }
 
@@ -338,10 +349,8 @@ class ContentSubresourceFilterDriverFactoryTest
 
   // Owned by the factory.
   MockSubresourceFilterClient* client_;
-  MockSubresourceFilterDriver* driver_;
 
   content::RenderFrameHost* subframe_rfh_;
-  MockSubresourceFilterDriver* subframe_driver_;
 
   DISALLOW_COPY_AND_ASSIGN(ContentSubresourceFilterDriverFactoryTest);
 };
@@ -442,6 +451,17 @@ TEST_F(ContentSubresourceFilterDriverFactoryTest,
                           true /* expected_activation */);
 }
 
+TEST_F(ContentSubresourceFilterDriverFactoryTest, FailedNavigation) {
+  base::FieldTrialList field_trial_list(nullptr);
+  testing::ScopedSubresourceFilterFeatureToggle scoped_feature_toggle(
+      base::FeatureList::OVERRIDE_ENABLE_FEATURE, kActivationLevelEnabled,
+      kActivationScopeAllSites);
+  const GURL url(kExampleUrl);
+  NavigateAndExpectActivation({false}, {url}, EMPTY,
+                              true /* expected_activation */);
+  EmulateFailedNavigationAndExpectNoActivation(url);
+}
+
 TEST_F(ContentSubresourceFilterDriverFactoryTest, RedirectPatternTest) {
   base::FieldTrialList field_trial_list(nullptr);
   testing::ScopedSubresourceFilterFeatureToggle scoped_feature_toggle(
@@ -506,6 +526,7 @@ TEST_F(ContentSubresourceFilterDriverFactoryTest, RedirectPatternTest) {
         test_data.blacklisted_urls, test_data.navigation_chain,
         safe_browsing::SB_THREAT_TYPE_URL_PHISHING,
         safe_browsing::ThreatPatternType::SOCIAL_ENGINEERING_ADS,
+        content::Referrer(), ui::PAGE_TRANSITION_LINK,
         test_data.hit_expected_pattern, test_data.expected_activation);
     NavigateAndExpectActivation({false}, {GURL("https://dummy.com")}, EMPTY,
                                 false);
@@ -539,6 +560,50 @@ TEST_F(ContentSubresourceFilterDriverFactoryTest,
   EmulateDidDisallowFirstSubresourceMessage();
 }
 
+TEST_F(ContentSubresourceFilterDriverFactoryTest, WhitelistSiteOnReload) {
+  // TODO(crbug.com/688393): enable this test for PlzNavigate once
+  // WCO::ReadyToCommitNavigation is invoked consistently for tests in
+  // PlzNavigate and non-PlzNavigate.
+  if (content::IsBrowserSideNavigationEnabled())
+    return;
+
+  const struct {
+    content::Referrer referrer;
+    ui::PageTransition transition;
+    bool expect_activation;
+  } kTestCases[] = {
+      {content::Referrer(), ui::PAGE_TRANSITION_LINK, true},
+      {content::Referrer(GURL(kUrlA), blink::WebReferrerPolicyDefault),
+       ui::PAGE_TRANSITION_LINK, true},
+      {content::Referrer(GURL(kExampleUrl), blink::WebReferrerPolicyDefault),
+       ui::PAGE_TRANSITION_LINK, false},
+      {content::Referrer(), ui::PAGE_TRANSITION_RELOAD, false}};
+
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(::testing::Message("referrer = \"")
+                 << test_case.referrer.url << "\""
+                 << " transition = \"" << test_case.transition << "\"");
+
+    base::FieldTrialList field_trial_list(nullptr);
+    testing::ScopedSubresourceFilterFeatureToggle scoped_feature_toggle(
+        base::FeatureList::OVERRIDE_ENABLE_FEATURE, kActivationLevelEnabled,
+        kActivationScopeAllSites, "" /* activation_lists */,
+        "" /* performance_measurement_rate */, "" /* suppress_notifications */,
+        "true" /* whitelist_site_on_reload */);
+
+    NavigateAndExpectActivation(
+        {false}, {GURL(kExampleUrl)},
+        safe_browsing::SB_THREAT_TYPE_URL_PHISHING,
+        safe_browsing::ThreatPatternType::SOCIAL_ENGINEERING_ADS,
+        test_case.referrer, test_case.transition, EMPTY,
+        test_case.expect_activation);
+    // Verify that if the first URL failed to activate, subsequent same-origin
+    // navigations also fail to activate.
+    NavigateAndExpectActivation({false}, {GURL(kExampleUrlWithParams)}, EMPTY,
+                                test_case.expect_activation);
+  }
+}
+
 TEST_P(ContentSubresourceFilterDriverFactoryActivationLevelTest,
        ActivateForFrameState) {
   const ActivationLevelTestData& test_data = GetParam();
@@ -570,12 +635,12 @@ TEST_P(ContentSubresourceFilterDriverFactoryThreatTypeTest,
   const GURL test_url("https://example.com/nonsoceng?q=engsocnon");
   std::vector<GURL> navigation_chain;
 
-  NavigateAndExpectActivation({false, false, false, true},
-                              {GURL(kUrlA), GURL(kUrlB), GURL(kUrlC), test_url},
-                              test_data.threat_type,
-                              test_data.threat_type_metadata,
-                              test_data.expected_activation ? F0M0L1 : EMPTY,
-                              test_data.expected_activation);
+  NavigateAndExpectActivation(
+      {false, false, false, true},
+      {GURL(kUrlA), GURL(kUrlB), GURL(kUrlC), test_url}, test_data.threat_type,
+      test_data.threat_type_metadata, content::Referrer(),
+      ui::PAGE_TRANSITION_LINK, test_data.expected_activation ? F0M0L1 : EMPTY,
+      test_data.expected_activation);
 };
 
 TEST_P(ContentSubresourceFilterDriverFactoryActivationScopeTest,
@@ -599,6 +664,39 @@ TEST_P(ContentSubresourceFilterDriverFactoryActivationScopeTest,
     NavigateAndExpectActivation({test_data.url_matches_activation_list},
                                 {GURL(kExampleUrlWithParams)}, expected_pattern,
                                 false /* expected_activation */);
+  }
+};
+
+// Only main frames with http/https schemes should activate, unless the
+// activation scope is for all sites.
+TEST_P(ContentSubresourceFilterDriverFactoryActivationScopeTest,
+       ActivateForSupportedUrlScheme) {
+  const ActivationScopeTestData& test_data = GetParam();
+  base::FieldTrialList field_trial_list(nullptr);
+  testing::ScopedSubresourceFilterFeatureToggle scoped_feature_toggle(
+      base::FeatureList::OVERRIDE_ENABLE_FEATURE, kActivationLevelEnabled,
+      test_data.activation_scope,
+      kActivationListSocialEngineeringAdsInterstitial);
+
+  const char* unsupported_urls[] = {
+      "data:text/html,<p>Hello", "ftp://example.com/", "chrome://settings",
+      "chrome-extension://some-extension", "file:///var/www/index.html"};
+  const char* supported_urls[] = {"http://example.test",
+                                  "https://example.test"};
+  for (const auto url : unsupported_urls) {
+    SCOPED_TRACE(url);
+    RedirectChainMatchPattern expected_pattern = EMPTY;
+    NavigateAndExpectActivation({test_data.url_matches_activation_list},
+                                {GURL(url)}, expected_pattern,
+                                false /* expected_activation */);
+  }
+  for (const auto url : supported_urls) {
+    SCOPED_TRACE(url);
+    RedirectChainMatchPattern expected_pattern =
+        test_data.url_matches_activation_list ? NO_REDIRECTS_HIT : EMPTY;
+    NavigateAndExpectActivation({test_data.url_matches_activation_list},
+                                {GURL(url)}, expected_pattern,
+                                test_data.expected_activation);
   }
 };
 

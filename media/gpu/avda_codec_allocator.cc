@@ -16,7 +16,7 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "base/trace_event/trace_event.h"
-#include "media/base/android/sdk_media_codec_bridge.h"
+#include "media/base/android/media_codec_bridge_impl.h"
 #include "media/base/limits.h"
 #include "media/base/media.h"
 #include "media/base/timestamp_constants.h"
@@ -25,9 +25,6 @@
 namespace media {
 
 namespace {
-
-base::LazyInstance<AVDACodecAllocator>::Leaky g_avda_codec_allocator =
-    LAZY_INSTANCE_INITIALIZER;
 
 // Give tasks 800ms before considering them hung. MediaCodec.configure() calls
 // typically take 100-200ms on a N5, so 800ms is expected to very rarely result
@@ -75,7 +72,8 @@ bool AVDACodecAllocator::HangDetector::IsThreadLikelyHung() {
 
 // static
 AVDACodecAllocator* AVDACodecAllocator::Instance() {
-  return g_avda_codec_allocator.Pointer();
+  static AVDACodecAllocator* allocator = new AVDACodecAllocator();
+  return allocator;
 }
 
 bool AVDACodecAllocator::StartThread(AVDACodecAllocatorClient* client) {

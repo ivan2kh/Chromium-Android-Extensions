@@ -43,14 +43,12 @@ class AppWindowLauncherItemController : public LauncherItemController,
   ui::BaseWindow* GetAppWindow(aura::Window* window);
 
   // LauncherItemController overrides:
-  void Launch(ash::LaunchSource source, int event_flags) override;
-  ash::ShelfItemDelegate::PerformedAction Activate(
-      ash::LaunchSource source) override;
-  ChromeLauncherAppMenuItems GetApplicationList(int event_flags) override;
   AppWindowLauncherItemController* AsAppWindowLauncherItemController() override;
-  ash::ShelfItemDelegate::PerformedAction ItemSelected(
-      const ui::Event& event) override;
-  ui::SimpleMenuModel* CreateApplicationMenu(int event_flags) override;
+  ash::ShelfAction ItemSelected(ui::EventType event_type,
+                                int event_flags,
+                                int64_t display_id,
+                                ash::ShelfLaunchSource source) override;
+  ash::ShelfAppMenuItemList GetAppMenuItems(int event_flags) override;
   void Close() override;
 
   // aura::WindowObserver overrides:
@@ -74,16 +72,15 @@ class AppWindowLauncherItemController : public LauncherItemController,
   // Called when app window is removed from controller.
   virtual void OnWindowRemoved(ui::BaseWindow* window) {}
 
-  // Returns the action performed. Should be one of kNoAction,
-  // kExistingWindowActivated, or kExistingWindowMinimized.
-  ash::ShelfItemDelegate::PerformedAction ShowAndActivateOrMinimize(
-      ui::BaseWindow* window);
+  // Returns the action performed. Should be one of SHELF_ACTION_NONE,
+  // SHELF_ACTION_WINDOW_ACTIVATED, or SHELF_ACTION_WINDOW_MINIMIZED.
+  ash::ShelfAction ShowAndActivateOrMinimize(ui::BaseWindow* window);
 
   // Activate the given |window_to_show|, or - if already selected - advance to
   // the next window of similar type.
-  // Returns the action performed. Should be one of kNoAction,
-  // kExistingWindowActivated, or kExistingWindowMinimized.
-  ash::ShelfItemDelegate::PerformedAction ActivateOrAdvanceToNextAppWindow(
+  // Returns the action performed. Should be one of SHELF_ACTION_NONE,
+  // SHELF_ACTION_WINDOW_ACTIVATED, or SHELF_ACTION_WINDOW_MINIMIZED.
+  ash::ShelfAction ActivateOrAdvanceToNextAppWindow(
       ui::BaseWindow* window_to_show);
 
  private:

@@ -12,15 +12,12 @@
 #include "V8TestInterface2Partial.h"
 
 #include "bindings/core/v8/ExceptionState.h"
-#include "bindings/core/v8/GeneratedCodeHelper.h"
 #include "bindings/core/v8/V8DOMConfiguration.h"
-#include "bindings/core/v8/V8GCController.h"
 #include "bindings/core/v8/V8ObjectConstructor.h"
 #include "bindings/core/v8/V8TestInterface2.h"
 #include "bindings/tests/idls/modules/TestInterface2Partial.h"
 #include "bindings/tests/idls/modules/TestInterface2Partial2.h"
 #include "core/dom/Document.h"
-#include "core/dom/Element.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "wtf/GetPtr.h"
 #include "wtf/RefPtr.h"
@@ -99,6 +96,7 @@ void V8TestInterface2Partial::initialize() {
   // Should be invoked from ModulesInitializer.
   V8TestInterface2::updateWrapperTypeInfo(
       &V8TestInterface2Partial::installV8TestInterface2Template,
+      nullptr,
       nullptr);
 }
 

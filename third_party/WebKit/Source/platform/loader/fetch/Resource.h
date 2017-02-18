@@ -264,7 +264,7 @@ class PLATFORM_EXPORT Resource : public GarbageCollectedFinalized<Resource>,
   bool canUseCacheValidator() const;
   bool isCacheValidator() const { return m_isRevalidating; }
   bool hasCacheControlNoStoreHeader() const;
-  bool hasVaryHeader() const;
+  bool mustReloadDueToVaryHeader(const ResourceRequest& newRequest) const;
 
   bool isEligibleForIntegrityCheck(SecurityOrigin*) const;
 
@@ -425,7 +425,7 @@ class PLATFORM_EXPORT Resource : public GarbageCollectedFinalized<Resource>,
   String reasonNotDeletable() const;
 
   // MemoryCoordinatorClient overrides:
-  void onMemoryStateChange(MemoryState) override;
+  void onPurgeMemory() override;
 
   Member<CachedMetadataHandlerImpl> m_cacheHandler;
   RefPtr<SecurityOrigin> m_fetcherSecurityOrigin;

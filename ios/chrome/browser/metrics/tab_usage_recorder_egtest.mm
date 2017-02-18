@@ -40,6 +40,10 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
 namespace {
 
 const char kTestUrl1[] =
@@ -159,29 +163,21 @@ void SwitchToNormalMode() {
   GREYAssertTrue(chrome_test_util::IsIncognitoMode(),
                  @"Switching to normal mode is only allowed from Incognito.");
   if (IsIPadIdiom()) {
-    if (experimental_flags::IsTabSwitcherEnabled()) {
-      // Enter the tab switcher.
-      id<GREYMatcher> tabSwitcherEnterButton =
-          grey_accessibilityLabel(l10n_util::GetNSStringWithFixup(
-              IDS_IOS_TAB_STRIP_ENTER_TAB_SWITCHER));
-      [[EarlGrey selectElementWithMatcher:tabSwitcherEnterButton]
-          performAction:grey_tap()];
+    // Enter the tab switcher.
+    id<GREYMatcher> tabSwitcherEnterButton = grey_accessibilityLabel(
+        l10n_util::GetNSStringWithFixup(IDS_IOS_TAB_STRIP_ENTER_TAB_SWITCHER));
+    [[EarlGrey selectElementWithMatcher:tabSwitcherEnterButton]
+        performAction:grey_tap()];
 
-      // Select the non incognito panel.
-      id<GREYMatcher> tabSwitcherHeaderPanelButton =
-          grey_accessibilityLabel(l10n_util::GetNSStringWithFixup(
-              IDS_IOS_TAB_SWITCHER_HEADER_NON_INCOGNITO_TABS));
-      [[EarlGrey selectElementWithMatcher:tabSwitcherHeaderPanelButton]
-          performAction:grey_tap()];
+    // Select the non incognito panel.
+    id<GREYMatcher> tabSwitcherHeaderPanelButton =
+        grey_accessibilityLabel(l10n_util::GetNSStringWithFixup(
+            IDS_IOS_TAB_SWITCHER_HEADER_NON_INCOGNITO_TABS));
+    [[EarlGrey selectElementWithMatcher:tabSwitcherHeaderPanelButton]
+        performAction:grey_tap()];
 
-      // Leave the tab switcher.
-      CloseTabSwitcher();
-    } else {
-      [[EarlGrey selectElementWithMatcher:
-                     chrome_test_util::ButtonWithAccessibilityLabelId(
-                         IDS_IOS_SWITCH_BROWSER_MODE_LEAVE_INCOGNITO)]
-          performAction:grey_tap()];
-    }
+    // Leave the tab switcher.
+    CloseTabSwitcher();
   } else {
     [[EarlGrey selectElementWithMatcher:
                    chrome_test_util::ButtonWithAccessibilityLabelId(
@@ -332,11 +328,11 @@ void SelectTabUsingUI(NSString* title) {
   // Reload each tab.
   for (NSUInteger i = 0; i < numberOfTabs; i++) {
     chrome_test_util::SelectTabAtIndexInCurrentMode(i);
-    // Clear the page so that we can check when pade reload is complete.
+    // Clear the page so that we can check when page reload is complete.
     __block bool finished = false;
     chrome_test_util::GetCurrentWebState()->ExecuteJavaScript(
         base::UTF8ToUTF16(kClearPageScript),
-        base::BindBlock(^(const base::Value*) {
+        base::BindBlockArc(^(const base::Value*) {
           finished = true;
         }));
 

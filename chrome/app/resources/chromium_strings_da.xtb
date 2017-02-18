@@ -61,6 +61,7 @@
 <translation id="2910007522516064972">Om &amp;Chromium</translation>
 <translation id="3032787606318309379">Føjer til Chromium...</translation>
 <translation id="3046695367536568084">Du skal være logget ind på Chromium, før du kan bruge apps. Det gør det muligt for Chromium at synkronisere dine apps, bogmærker, historik, adgangskoder og andre indstillinger på alle enheder.</translation>
+<translation id="3064346599913645280">Du ser en sikker Chromium-side</translation>
 <translation id="3068515742935458733">Hjælp med at gøre Chromium bedre ved at sende fejlrapporter og <ph name="UMA_LINK" /> til Google</translation>
 <translation id="3103660991484857065">Installationsprogrammet kunne ikke pakke arkivet ud. Download Chromium igen.</translation>
 <translation id="3130323860337406239">Chromium bruger din mikrofon.</translation>
@@ -82,7 +83,6 @@
 <translation id="358997566136285270">Chromium-logo</translation>
 <translation id="3645040538872234961">Denne handling sletter dine browserdata permanent fra denne enhed. Hvis du senere vil hente dine data igen, skal du logge ind i Chromium som $2.</translation>
 <translation id="3738139272394829648">Tryk for at søge</translation>
-<translation id="3748537968684000502">Du får vist en sikker Chromium-side.</translation>
 <translation id="378917192836375108">Med Chromium kan du klikke på et telefonnummer på nettet og ringe op til det via Skype!</translation>
 <translation id="3848258323044014972"><ph name="PAGE_TITLE" /> – Chromium</translation>
 <translation id="3849925841547750267">Dine indstillinger i Mozilla Firefox-indstillinger er desværre ikke tilgængelige, når browseren kører. Hvis du vil importere disse indstillinger til Chromium, skal du gemme dit arbejde og lukke alle Firefox-vinduer. Derefter klikker du på Fortsæt.</translation>
@@ -136,6 +136,7 @@
 <translation id="5620765574781326016">Læs om emner på websites uden at forlade siden.</translation>
 <translation id="5634636535844844681">Chromium kræver Windows 7 eller nyere.</translation>
 <translation id="5680901439334282664">log ind på Chromium</translation>
+<translation id="5684733627009686897">Chromium er din standardbrowser.</translation>
 <translation id="5698481217667032250">Vis Chromium på dette sprog</translation>
 <translation id="5726838626470692954">Din administrator skal fjerne dig fra Chromium og tilføje dig igen.</translation>
 <translation id="5768914737813585044">Vis Chromium OS på dette sprog</translation>

@@ -283,7 +283,7 @@ void Resource::ResourceCallback::schedule(Resource* resource) {
 }
 
 void Resource::ResourceCallback::cancel(Resource* resource) {
-  m_resourcesWithPendingClients.remove(resource);
+  m_resourcesWithPendingClients.erase(resource);
   if (m_taskHandle.isActive() && m_resourcesWithPendingClients.isEmpty())
     m_taskHandle.cancel();
 }
@@ -433,8 +433,7 @@ void Resource::finish(double loadFinishTime) {
 }
 
 AtomicString Resource::httpContentType() const {
-  return extractMIMETypeFromMediaType(
-      response().httpHeaderField(HTTPNames::Content_Type).lower());
+  return response().httpContentType();
 }
 
 bool Resource::passesAccessControlCheck(SecurityOrigin* securityOrigin) const {
@@ -842,9 +841,7 @@ void Resource::prune() {
   destroyDecodedDataIfPossible();
 }
 
-void Resource::onMemoryStateChange(MemoryState state) {
-  if (state != MemoryState::SUSPENDED)
-    return;
+void Resource::onPurgeMemory() {
   prune();
   if (!m_cacheHandler)
     return;
@@ -983,8 +980,24 @@ bool Resource::hasCacheControlNoStoreHeader() const {
          resourceRequest().cacheControlContainsNoStore();
 }
 
-bool Resource::hasVaryHeader() const {
-  return !response().httpHeaderField(HTTPNames::Vary).isNull();
+bool Resource::mustReloadDueToVaryHeader(
+    const ResourceRequest& newRequest) const {
+  const AtomicString& vary = response().httpHeaderField(HTTPNames::Vary);
+  if (vary.isNull())
+    return false;
+  if (vary == "*")
+    return true;
+
+  CommaDelimitedHeaderSet varyHeaders;
+  parseCommaDelimitedHeader(vary, varyHeaders);
+  for (const String& header : varyHeaders) {
+    AtomicString atomicHeader(header);
+    if (resourceRequest().httpHeaderField(atomicHeader) !=
+        newRequest.httpHeaderField(atomicHeader)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool Resource::mustRevalidateDueToCacheHeaders() const {

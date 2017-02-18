@@ -47,15 +47,20 @@
 #include "content/public/common/resource_response.h"
 #include "net/base/net_errors.h"
 #include "url/gurl.h"
+#include "url/url_util.h"
 
 namespace content {
 
 namespace {
 
 FrameMsg_Navigate_Type::Value GetNavigationType(
-    BrowserContext* browser_context,
+    const GURL& old_url,
+    const GURL& new_url,
+    ReloadType reload_type,
     const NavigationEntryImpl& entry,
-    ReloadType reload_type) {
+    const FrameNavigationEntry& frame_entry,
+    bool is_same_document_history_load) {
+  // Reload navigations
   switch (reload_type) {
     case ReloadType::NORMAL:
       return FrameMsg_Navigate_Type::RELOAD;
@@ -73,10 +78,36 @@ FrameMsg_Navigate_Type::Value GetNavigationType(
   if (entry.restore_type() == RestoreType::LAST_SESSION_EXITED_CLEANLY) {
     if (entry.GetHasPostData())
       return FrameMsg_Navigate_Type::RESTORE_WITH_POST;
-    return FrameMsg_Navigate_Type::RESTORE;
+    else
+      return FrameMsg_Navigate_Type::RESTORE;
   }
 
-  return FrameMsg_Navigate_Type::NORMAL;
+  // History navigations.
+  if (frame_entry.page_state().IsValid()) {
+    if (is_same_document_history_load)
+      return FrameMsg_Navigate_Type::HISTORY_SAME_DOCUMENT;
+    else
+      return FrameMsg_Navigate_Type::HISTORY_DIFFERENT_DOCUMENT;
+  }
+  DCHECK(!is_same_document_history_load);
+
+  // A same-document fragment-navigation happens when the only part of the url
+  // that is modified is after the '#' character.
+  //
+  // Be careful not to consider history navigations. For instance, if the
+  // history is: 'A#bar' -> 'B' -> 'A#foo'. Then an history navigation from
+  // 'A#foo' to 'A#bar' is not a same-document navigation, but a
+  // different-document one! The two FrameNavigationEntry doesn't share the same
+  // document_sequence_number.
+  //
+  // When modifying this condition, please take a look at:
+  // FrameLoader::shouldPerformFragmentNavigation.
+  if (new_url.has_ref() && old_url.EqualsIgnoringRef(new_url) &&
+      frame_entry.method() == "GET") {
+    return FrameMsg_Navigate_Type::SAME_DOCUMENT;
+  } else {
+    return FrameMsg_Navigate_Type::DIFFERENT_DOCUMENT;
+  }
 }
 
 }  // namespace
@@ -138,6 +169,7 @@ NavigationController* NavigatorImpl::GetController() {
 void NavigatorImpl::DidStartProvisionalLoad(
     RenderFrameHostImpl* render_frame_host,
     const GURL& url,
+    const std::vector<GURL>& redirect_chain,
     const base::TimeTicks& navigation_start) {
   bool is_main_frame = render_frame_host->frame_tree_node()->IsMainFrame();
   bool is_error_page = (url.spec() == kUnreachableWebDataURL);
@@ -158,12 +190,6 @@ void NavigatorImpl::DidStartProvisionalLoad(
     DidStartMainFrameNavigation(validated_url,
                                 render_frame_host->GetSiteInstance(),
                                 render_frame_host->navigation_handle());
-  }
-
-  if (delegate_) {
-    // Notify the observer about the start of the provisional load.
-    delegate_->DidStartProvisionalLoad(render_frame_host, validated_url,
-                                       is_error_page);
   }
 
   if (is_error_page || IsBrowserSideNavigationEnabled())
@@ -198,12 +224,14 @@ void NavigatorImpl::DidStartProvisionalLoad(
     started_from_context_menu = pending_entry->has_started_from_context_menu();
   }
 
+  std::vector<GURL> validated_redirect_chain = redirect_chain;
+  for (size_t i = 0; i < validated_redirect_chain.size(); ++i)
+    render_process_host->FilterURL(false, &validated_redirect_chain[i]);
   render_frame_host->SetNavigationHandle(NavigationHandleImpl::Create(
-      validated_url, render_frame_host->frame_tree_node(),
-      is_renderer_initiated,
+      validated_url, validated_redirect_chain,
+      render_frame_host->frame_tree_node(), is_renderer_initiated,
       false,  // is_same_page
-      navigation_start, pending_nav_entry_id,
-      started_from_context_menu));
+      navigation_start, pending_nav_entry_id, started_from_context_menu));
 }
 
 void NavigatorImpl::DidFailProvisionalLoadWithError(
@@ -414,15 +442,20 @@ bool NavigatorImpl::NavigateToEntry(
           navigation_start, dest_url, entry.restore_type()));
       // Create the navigation parameters.
       FrameMsg_Navigate_Type::Value navigation_type = GetNavigationType(
-          controller_->GetBrowserContext(), entry, reload_type);
+          frame_tree_node->current_url(),  // old_url
+          dest_url,                        // new_url
+          reload_type,                     // reload_type
+          entry,                           // entry
+          frame_entry,                     // frame_entry
+          is_same_document_history_load);  // is_same_document_history_load
+
       dest_render_frame_host->Navigate(
           entry.ConstructCommonNavigationParams(
               frame_entry, post_body, dest_url, dest_referrer, navigation_type,
               previews_state, navigation_start),
           entry.ConstructStartNavigationParams(),
           entry.ConstructRequestNavigationParams(
-              frame_entry, is_same_document_history_load,
-              is_history_navigation_in_new_child,
+              frame_entry, is_history_navigation_in_new_child,
               entry.GetSubframeUniqueNames(frame_tree_node),
               frame_tree_node->has_committed_real_load(),
               controller_->GetPendingEntryIndex() == -1,
@@ -579,7 +612,7 @@ void NavigatorImpl::DidNavigate(
   // <meta> elements - we need to reset CSP and Feature Policy.
   if (!is_navigation_within_page) {
     render_frame_host->frame_tree_node()->ResetContentSecurityPolicy();
-    render_frame_host->frame_tree_node()->ResetFeaturePolicy();
+    render_frame_host->frame_tree_node()->ResetFeaturePolicyHeader();
   }
 
   // When using --site-per-process, we notify the RFHM for all navigations,
@@ -649,27 +682,18 @@ void NavigatorImpl::DidNavigate(
   if (!params.url_is_unreachable)
     render_frame_host->set_last_successful_url(params.url);
 
+  // After setting the last committed origin, reset the feature policy in the
+  // RenderFrameHost to a blank policy based on the parent frame.
+  render_frame_host->ResetFeaturePolicy();
+
   // Send notification about committed provisional loads. This notification is
   // different from the NAV_ENTRY_COMMITTED notification which doesn't include
   // the actual URL navigated to and isn't sent for AUTO_SUBFRAME navigations.
   if (details.type != NAVIGATION_TYPE_NAV_IGNORE && delegate_) {
     DCHECK_EQ(!render_frame_host->GetParent(),
               did_navigate ? details.is_main_frame : false);
-    ui::PageTransition transition_type = params.transition;
-    // Whether or not a page transition was triggered by going backward or
-    // forward in the history is only stored in the navigation controller's
-    // entry list.
-    if (did_navigate &&
-        (controller_->GetLastCommittedEntry()->GetTransitionType() &
-            ui::PAGE_TRANSITION_FORWARD_BACK)) {
-      transition_type = ui::PageTransitionFromInt(
-          params.transition | ui::PAGE_TRANSITION_FORWARD_BACK);
-    }
-
-    delegate_->DidCommitProvisionalLoad(render_frame_host,
-                                        params.url,
-                                        transition_type);
-    navigation_handle->DidCommitNavigation(params, is_navigation_within_page,
+    navigation_handle->DidCommitNavigation(params, details.did_replace_entry,
+                                           details.previous_url, details.type,
                                            render_frame_host);
     navigation_handle.reset();
   }
@@ -1129,8 +1153,13 @@ void NavigatorImpl::RequestNavigation(FrameTreeNode* frame_tree_node,
   bool should_dispatch_beforeunload =
       !is_same_document_history_load &&
       frame_tree_node->current_frame_host()->ShouldDispatchBeforeUnload();
-  FrameMsg_Navigate_Type::Value navigation_type =
-      GetNavigationType(controller_->GetBrowserContext(), entry, reload_type);
+  FrameMsg_Navigate_Type::Value navigation_type = GetNavigationType(
+      frame_tree_node->current_url(),  // old_url
+      dest_url,                        // new_url
+      reload_type,                     // reload_type
+      entry,                           // entry
+      frame_entry,                     // frame_entry
+      is_same_document_history_load);  // is_same_document_history_load
   std::unique_ptr<NavigationRequest> scoped_request =
       NavigationRequest::CreateBrowserInitiated(
           frame_tree_node, dest_url, dest_referrer, frame_entry, entry,
@@ -1239,11 +1268,20 @@ void NavigatorImpl::DidStartMainFrameNavigation(
   bool has_browser_initiated_pending_entry =
       pending_entry && !pending_entry->is_renderer_initiated();
 
+  // PlzNavigate
+  // A pending navigation entry is created in OnBeginNavigation(). The renderer
+  // sends a provisional load notification after that. We don't want to create
+  // a duplicate navigation entry here.
+  bool renderer_provisional_load_to_pending_url =
+      pending_entry && pending_entry->is_renderer_initiated() &&
+      (pending_entry->GetURL() == url);
+
   // If there is a transient entry, creating a new pending entry will result
   // in deleting it, which leads to inconsistent state.
   bool has_transient_entry = !!controller_->GetTransientEntry();
 
-  if (!has_browser_initiated_pending_entry && !has_transient_entry) {
+  if (!has_browser_initiated_pending_entry && !has_transient_entry &&
+      !renderer_provisional_load_to_pending_url) {
     std::unique_ptr<NavigationEntryImpl> entry =
         NavigationEntryImpl::FromNavigationEntry(
             controller_->CreateNavigationEntry(

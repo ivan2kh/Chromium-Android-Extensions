@@ -12,10 +12,13 @@
 #include "base/memory/ptr_util.h"
 #include "base/strings/sys_string_conversions.h"
 #import "base/values.h"
+#include "components/autofill/core/browser/autofill_manager.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/ios/browser/autofill_driver_ios.h"
 #include "ios/chrome/browser/autofill/personal_data_manager_factory.h"
 #include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/payments/js_payment_request_manager.h"
+#include "ios/chrome/browser/payments/payment_request.h"
 #import "ios/chrome/browser/payments/payment_request_coordinator.h"
 #include "ios/web/public/favicon_status.h"
 #include "ios/web/public/navigation_item.h"
@@ -49,6 +52,12 @@ const NSTimeInterval kTimeoutInterval = 60.0;
 
   // PersonalDataManager used to manage user credit cards and addresses.
   autofill::PersonalDataManager* _personalDataManager;
+
+  // Object that owns an instance of web::PaymentRequest as provided by the page
+  // invoking the PaymentRequest API. Also caches credit cards and addresses
+  // provided by the _personalDataManager and manages selected ones for the
+  // current PaymentRequest flow.
+  std::unique_ptr<PaymentRequest> _paymentRequest;
 
   // WebState for the tab this object is attached to.
   web::WebState* _webState;
@@ -121,12 +130,15 @@ const NSTimeInterval kTimeoutInterval = 60.0;
 
 @synthesize enabled = _enabled;
 @synthesize webState = _webState;
+@synthesize browserState = _browserState;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                               browserState:
                                   (ios::ChromeBrowserState*)browserState {
   if ((self = [super init])) {
     _baseViewController.reset(viewController);
+
+    _browserState = browserState;
 
     _personalDataManager =
         autofill::PersonalDataManagerFactory::GetForBrowserState(
@@ -177,10 +189,13 @@ const NSTimeInterval kTimeoutInterval = 60.0;
 }
 
 - (void)cancelRequest {
+  [self cancelRequestWithErrorMessage:@"Request canceled."];
+}
+
+- (void)cancelRequestWithErrorMessage:(NSString*)errorMessage {
   [self dismissUI];
-  [_paymentRequestJsManager
-      rejectRequestPromiseWithErrorMessage:@"Request cancelled by user."
-                         completionHandler:nil];
+  [_paymentRequestJsManager rejectRequestPromiseWithErrorMessage:errorMessage
+                                               completionHandler:nil];
 }
 
 - (void)close {
@@ -256,6 +271,9 @@ const NSTimeInterval kTimeoutInterval = 60.0;
   if (command == "paymentRequest.requestShow") {
     return [self handleRequestShow:JSONCommand];
   }
+  if (command == "paymentRequest.requestCancel") {
+    return [self handleRequestCancel];
+  }
   if (command == "paymentRequest.responseComplete") {
     return [self handleResponseComplete];
   }
@@ -282,6 +300,10 @@ const NSTimeInterval kTimeoutInterval = 60.0;
     return NO;
   }
 
+  _paymentRequest.reset(
+      new PaymentRequest(base::MakeUnique<web::PaymentRequest>(paymentRequest),
+                         _personalDataManager));
+
   UIImage* pageFavicon = nil;
   web::NavigationItem* navigationItem =
       [self webState]->GetNavigationManager()->GetVisibleItem();
@@ -290,16 +312,30 @@ const NSTimeInterval kTimeoutInterval = 60.0;
   NSString* pageTitle = base::SysUTF16ToNSString([self webState]->GetTitle());
   NSString* pageHost =
       base::SysUTF8ToNSString([self webState]->GetLastCommittedURL().host());
+  autofill::AutofillManager* autofillManager =
+      autofill::AutofillDriverIOS::FromWebState(_webState)->autofill_manager();
   _paymentRequestCoordinator.reset([[PaymentRequestCoordinator alloc]
-      initWithBaseViewController:_baseViewController
-             personalDataManager:_personalDataManager]);
-  [_paymentRequestCoordinator setPaymentRequest:paymentRequest];
+      initWithBaseViewController:_baseViewController]);
+  [_paymentRequestCoordinator setPaymentRequest:_paymentRequest.get()];
+  [_paymentRequestCoordinator setAutofillManager:autofillManager];
+  [_paymentRequestCoordinator setBrowserState:_browserState];
   [_paymentRequestCoordinator setPageFavicon:pageFavicon];
   [_paymentRequestCoordinator setPageTitle:pageTitle];
   [_paymentRequestCoordinator setPageHost:pageHost];
   [_paymentRequestCoordinator setDelegate:self];
 
   [_paymentRequestCoordinator start];
+
+  return YES;
+}
+
+- (BOOL)handleRequestCancel {
+  // TODO(crbug.com/602666): Check that there is already a pending request.
+
+  [_unblockEventQueueTimer invalidate];
+  [_paymentResponseTimeoutTimer invalidate];
+
+  [self cancelRequestWithErrorMessage:@"Request canceled by the page."];
 
   return YES;
 }
@@ -383,7 +419,7 @@ const NSTimeInterval kTimeoutInterval = 60.0;
 
 - (void)paymentRequestCoordinatorDidCancel:
     (PaymentRequestCoordinator*)coordinator {
-  [self cancelRequest];
+  [self cancelRequestWithErrorMessage:@"Request canceled by user."];
 }
 
 - (void)paymentRequestCoordinator:(PaymentRequestCoordinator*)coordinator
@@ -391,7 +427,6 @@ const NSTimeInterval kTimeoutInterval = 60.0;
   [_paymentRequestJsManager
       resolveRequestPromiseWithPaymentResponse:paymentResponse
                              completionHandler:nil];
-
   [self setUnblockEventQueueTimer];
   [self setPaymentResponseTimeoutTimer];
 }

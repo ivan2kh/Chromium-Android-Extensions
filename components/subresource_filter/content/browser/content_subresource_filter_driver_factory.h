@@ -15,8 +15,9 @@
 #include "base/supports_user_data.h"
 #include "base/time/time.h"
 #include "components/safe_browsing_db/util.h"
-#include "components/subresource_filter/content/common/document_load_statistics.h"
+#include "components/subresource_filter/core/common/document_load_statistics.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -91,6 +92,8 @@ class ContentSubresourceFilterDriverFactory
   ContentSubresourceFilterDriver* DriverFromFrameHost(
       content::RenderFrameHost* render_frame_host);
 
+  void ResetActivationState();
+
   void OnFirstSubresourceLoadDisallowed();
 
   void OnDocumentLoadStatistics(const DocumentLoadStatistics& statistics);
@@ -115,13 +118,17 @@ class ContentSubresourceFilterDriverFactory
   // activation signal should be sent.
   bool ShouldActivateForMainFrameURL(const GURL& url) const;
   void ActivateForFrameHostIfNeeded(content::RenderFrameHost* render_frame_host,
-                                    const GURL& url);
+                                    const GURL& url,
+                                    bool failed_navigation);
 
   // Internal implementation of ReadyToCommitNavigation which doesn't use
   // NavigationHandle to ease unit tests.
   void ReadyToCommitNavigationInternal(
       content::RenderFrameHost* render_frame_host,
-      const GURL& url);
+      const GURL& url,
+      const content::Referrer& referrer,
+      ui::PageTransition page_transition,
+      bool failed_navigation);
 
   bool DidURLMatchCurrentActivationList(const GURL& url) const;
 

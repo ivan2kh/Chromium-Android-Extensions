@@ -4,21 +4,30 @@
 
 #include "headless/lib/headless_content_main_delegate.h"
 
+#include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/lazy_instance.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/trace_event/trace_event.h"
+#include "components/crash/content/app/breakpad_linux.h"
 #include "content/public/browser/browser_main_runner.h"
 #include "content/public/common/content_switches.h"
 #include "headless/lib/browser/headless_browser_impl.h"
 #include "headless/lib/browser/headless_content_browser_client.h"
+#include "headless/lib/headless_crash_reporter_client.h"
+#include "headless/lib/headless_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/switches.h"
 #include "ui/gl/gl_switches.h"
 #include "ui/ozone/public/ozone_switches.h"
+
+#ifdef HEADLESS_USE_EMBEDDED_RESOURCES
+#include "headless/embedded_resource_pak.h"
+#endif
 
 namespace headless {
 namespace {
@@ -27,6 +36,9 @@ namespace {
 const int kTraceEventBrowserProcessSortIndex = -6;
 
 HeadlessContentMainDelegate* g_current_headless_content_main_delegate = nullptr;
+
+base::LazyInstance<HeadlessCrashReporterClient>::Leaky g_headless_crash_client =
+    LAZY_INSTANCE_INITIALIZER;
 }  // namespace
 
 HeadlessContentMainDelegate::HeadlessContentMainDelegate(
@@ -73,8 +85,10 @@ bool HeadlessContentMainDelegate::BasicStartupComplete(int* exit_code) {
 
 void HeadlessContentMainDelegate::InitLogging(
     const base::CommandLine& command_line) {
+#if !defined(OS_WIN)
   if (!command_line.HasSwitch(switches::kEnableLogging))
     return;
+#endif
 
   logging::LoggingDestination log_mode;
   base::FilePath log_filename(FILE_PATH_LITERAL("chrome_debug.log"));
@@ -125,8 +139,36 @@ void HeadlessContentMainDelegate::InitLogging(
   DCHECK(success);
 }
 
+void HeadlessContentMainDelegate::InitCrashReporter(
+    const base::CommandLine& command_line) {
+  const std::string process_type =
+      command_line.GetSwitchValueASCII(switches::kProcessType);
+  crash_reporter::SetCrashReporterClient(g_headless_crash_client.Pointer());
+  g_headless_crash_client.Pointer()->set_crash_dumps_dir(
+      browser_->options()->crash_dumps_dir);
+
+  if (!browser_->options()->enable_crash_reporter) {
+    DCHECK(!breakpad::IsCrashReporterEnabled());
+    return;
+  }
+#if defined(HEADLESS_USE_BREAKPAD)
+  if (process_type != switches::kZygoteProcess)
+    breakpad::InitCrashReporter(process_type);
+#endif  // defined(HEADLESS_USE_BREAKPAD)
+}
+
 void HeadlessContentMainDelegate::PreSandboxStartup() {
-  InitLogging(*base::CommandLine::ForCurrentProcess());
+  const base::CommandLine& command_line(
+      *base::CommandLine::ForCurrentProcess());
+#if defined(OS_WIN)
+  // Windows always needs to initialize logging, otherwise you get a renderer
+  // crash.
+  InitLogging(command_line);
+#else
+  if (command_line.HasSwitch(switches::kEnableLogging))
+    InitLogging(command_line);
+#endif
+  InitCrashReporter(command_line);
   InitializeResourceBundle();
 }
 
@@ -157,7 +199,14 @@ int HeadlessContentMainDelegate::RunProcess(
 }
 
 void HeadlessContentMainDelegate::ZygoteForked() {
-  // TODO(skyostil): Disable the zygote host.
+  const base::CommandLine& command_line(
+      *base::CommandLine::ForCurrentProcess());
+  const std::string process_type =
+      command_line.GetSwitchValueASCII(switches::kProcessType);
+  // Unconditionally try to turn on crash reporting since we do not have access
+  // to the latest browser options at this point when testing. Breakpad will
+  // bail out gracefully if the browser process hasn't enabled crash reporting.
+  breakpad::InitCrashReporter(process_type);
 }
 
 // static
@@ -177,6 +226,13 @@ void HeadlessContentMainDelegate::InitializeResourceBundle() {
   ui::ResourceBundle::InitSharedInstanceWithLocale(
       locale, nullptr, ui::ResourceBundle::DO_NOT_LOAD_COMMON_RESOURCES);
 
+#ifdef HEADLESS_USE_EMBEDDED_RESOURCES
+  ResourceBundle::GetSharedInstance().AddDataPackFromBuffer(
+      base::StringPiece(
+          reinterpret_cast<const char*>(kHeadlessResourcePak.contents),
+          kHeadlessResourcePak.length),
+      ui::SCALE_FACTOR_NONE);
+#else
   // Try loading the headless library pak file first. If it doesn't exist (i.e.,
   // when we're running with the --headless switch), fall back to the browser's
   // resource pak.
@@ -185,6 +241,7 @@ void HeadlessContentMainDelegate::InitializeResourceBundle() {
     pak_file = dir_module.Append(FILE_PATH_LITERAL("resources.pak"));
   ResourceBundle::GetSharedInstance().AddDataPackFromPath(
       pak_file, ui::SCALE_FACTOR_NONE);
+#endif
 }
 
 content::ContentBrowserClient*

@@ -12,7 +12,6 @@
 #include "V8TestInterfaceSecureContext.h"
 
 #include "bindings/core/v8/ExceptionState.h"
-#include "bindings/core/v8/GeneratedCodeHelper.h"
 #include "bindings/core/v8/V8DOMConfiguration.h"
 #include "bindings/core/v8/V8ObjectConstructor.h"
 #include "core/dom/Document.h"
@@ -28,7 +27,7 @@ namespace blink {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-const WrapperTypeInfo V8TestInterfaceSecureContext::wrapperTypeInfo = { gin::kEmbedderBlink, V8TestInterfaceSecureContext::domTemplate, V8TestInterfaceSecureContext::trace, V8TestInterfaceSecureContext::traceWrappers, V8TestInterfaceSecureContext::preparePrototypeAndInterfaceObject, "TestInterfaceSecureContext", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::ObjectClassId, WrapperTypeInfo::NotInheritFromActiveScriptWrappable, WrapperTypeInfo::NotInheritFromEventTarget, WrapperTypeInfo::Independent };
+const WrapperTypeInfo V8TestInterfaceSecureContext::wrapperTypeInfo = { gin::kEmbedderBlink, V8TestInterfaceSecureContext::domTemplate, V8TestInterfaceSecureContext::trace, V8TestInterfaceSecureContext::traceWrappers, V8TestInterfaceSecureContext::preparePrototypeAndInterfaceObject, "TestInterfaceSecureContext", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::ObjectClassId, WrapperTypeInfo::NotInheritFromActiveScriptWrappable, WrapperTypeInfo::Independent };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -363,8 +362,10 @@ TestInterfaceSecureContext* V8TestInterfaceSecureContext::toImplWithTypeCheck(v8
 
 void V8TestInterfaceSecureContext::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
   v8::Isolate* isolate = context->GetIsolate();
-  ExecutionContext* executionContext = toExecutionContext(context);
   v8::Local<v8::Signature> signature = v8::Signature::New(isolate, interfaceTemplate);
+  ExecutionContext* executionContext = toExecutionContext(context);
+  DCHECK(executionContext);
+
   if (executionContext && (executionContext->isSecureContext())) {
     const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextAttribute", V8TestInterfaceSecureContext::secureContextAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
     V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
@@ -403,9 +404,6 @@ void V8TestInterfaceSecureContext::preparePrototypeAndInterfaceObject(v8::Local<
       }
     }
   }
-  v8::Local<v8::Signature> signature = v8::Signature::New(isolate, interfaceTemplate);
-  ExecutionContext* executionContext = toExecutionContext(prototypeObject->CreationContext());
-  DCHECK(executionContext);
   if (executionContext && (executionContext->isSecureContext())) {
     const V8DOMConfiguration::MethodConfiguration secureContextMethodMethodConfiguration = {"secureContextMethod", V8TestInterfaceSecureContext::secureContextMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
     V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextMethodMethodConfiguration);

@@ -217,7 +217,7 @@ bool Layer::IsPropertyChangeAllowed() const {
   return !layer_tree_host_->in_paint_layer_contents();
 }
 
-sk_sp<PaintRecord> Layer::GetPicture() const {
+sk_sp<SkPicture> Layer::GetPicture() const {
   return nullptr;
 }
 
@@ -419,7 +419,13 @@ void Layer::SetMaskLayer(Layer* mask_layer) {
     inputs_.mask_layer->RemoveFromParent();
     DCHECK(!inputs_.mask_layer->parent());
     inputs_.mask_layer->SetParent(this);
-    inputs_.mask_layer->SetIsMask(true);
+    if (inputs_.filters.IsEmpty()) {
+      inputs_.mask_layer->SetLayerMaskType(
+          Layer::LayerMaskType::MULTI_TEXTURE_MASK);
+    } else {
+      inputs_.mask_layer->SetLayerMaskType(
+          Layer::LayerMaskType::SINGLE_TEXTURE_MASK);
+    }
   }
   SetSubtreePropertyChanged();
   SetNeedsFullTreeSync();
@@ -430,6 +436,9 @@ void Layer::SetFilters(const FilterOperations& filters) {
   if (inputs_.filters == filters)
     return;
   inputs_.filters = filters;
+  if (inputs_.mask_layer)
+    inputs_.mask_layer->SetLayerMaskType(
+        Layer::LayerMaskType::SINGLE_TEXTURE_MASK);
   SetSubtreePropertyChanged();
   SetNeedsCommit();
 }
@@ -600,10 +609,6 @@ void Layer::SetPosition(const gfx::PointF& position) {
 }
 
 bool Layer::IsContainerForFixedPositionLayers() const {
-  if (!inputs_.transform.IsIdentityOrTranslation())
-    return true;
-  if (parent_ && !parent_->inputs_.transform.IsIdentityOrTranslation())
-    return true;
   return inputs_.is_container_for_fixed_position_layers;
 }
 
@@ -823,7 +828,8 @@ void Layer::SetScrollOffsetFromImplSide(
     property_trees->needs_rebuild = true;
 
   if (!inputs_.did_scroll_callback.is_null())
-    inputs_.did_scroll_callback.Run();
+    inputs_.did_scroll_callback.Run(scroll_offset);
+
   // The callback could potentially change the layer structure:
   // "this" may have been destroyed during the process.
 }

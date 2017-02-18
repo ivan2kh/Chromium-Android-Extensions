@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">فتح الكل</translation>
 <translation id="1430915738399379752">طباعة</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> من العناصر</translation>
+<translation id="1491277525950327607">انقر نقرًا مزدوجًا لتبديل الإعداد</translation>
 <translation id="1540800554400757039">العنوان 1</translation>
 <translation id="1545749641540134597">فحص رمز الاستجابة السريعة</translation>
 <translation id="1580783302095112590">تم إرسال البريد.</translation>
@@ -65,7 +66,6 @@
 <translation id="2068952045031577364">الأسبوع الماضي</translation>
 <translation id="2079545284768500474">تراجع</translation>
 <translation id="209018056901015185">طلب موقع سطح المكتب</translation>
-<translation id="2100215774115172756">قائمة القراءة متاحة بلا اتصال بالإنترنت.</translation>
 <translation id="2103075008456228677">‏فتح history.google.com</translation>
 <translation id="2116625576999540962">تم نقل <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> من العناصر</translation>
 <translation id="2149973817440762519">تعديل الإشارة</translation>
@@ -120,7 +120,6 @@
 <translation id="3175081911749765310">خدمات الويب</translation>
 <translation id="3207960819495026254">محدد بعلامة متابعة القراءة</translation>
 <translation id="3210163015918861891">تم إيقاف المزامنة</translation>
-<translation id="3237561509210981547">لإضافة صفحة إلى قائمة القراءة، انقر على <ph name="BEGIN_BOLD_FONT" />مشاركة &gt; القراءة لاحقًا<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">تم نسخ الرابط</translation>
 <translation id="3244271242291266297">الشهر</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />، و<ph name="ADDITIONAL_INFO" />، و<ph name="INDEX" /> من <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@
 <translation id="3414292259312108062">‏سيخزن Chrome ذلك في <ph name="BEGIN_LINK" />كلمات مرور Chrome المحفوظة<ph name="END_LINK" /> ويكتبها تلقائيًا بالنيابة عنك حتى لا تضطر لحفظها بنفسك.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> دقيقة</translation>
 <translation id="3448016392200048164">تقسيم العرض</translation>
-<translation id="3474068797193663261">لإضافة صفحة إلى قائمة القراءة، انقر على <ph name="BEGIN_BOLD_FONT" /> القائمة &gt; مشاركة &gt; القراءة لاحقًا<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">تم ملء النماذج.</translation>
 <translation id="3478058380795961209">شهر انتهاء الصلاحية</translation>
 <translation id="3482959374254649722">جارٍ مزامنة علامات التبويب الخاصة بك ...</translation>
@@ -171,6 +169,7 @@
 <translation id="4121993058175073134">لإرسال بيانات تصدير الشبكة، الرجاء تهيئة حساب بريدك الإلكتروني في التطبيق "الإعدادات".</translation>
 <translation id="4124987746317609294">النطاق الزمني</translation>
 <translation id="4172051516777682613">الإظهار دائمًا</translation>
+<translation id="418156467088430727">عرض إصدار بلا اتصال بالإنترنت في علامة تبويب جديدة</translation>
 <translation id="424315890655130736">إدخال عبارة المرور</translation>
 <translation id="4272631900155121838">لمسح رمز الاستجابة السريعة ضوئيًا، يمكنك تمكين الكاميرا من الإعدادات</translation>
 <translation id="4281844954008187215">شروط الخدمة</translation>
@@ -178,7 +177,6 @@
 <translation id="4359125752503270327">ستفتح هذه الصفحة في تطبيق آخر.</translation>
 <translation id="4378154925671717803">الهاتف</translation>
 <translation id="441868831736628555">إشعار الخصوصية</translation>
-<translation id="4426508677408162512">كل الإشارات المرجعية</translation>
 <translation id="4473991315115669931">الدخول إلى وضع التصفح المتخفي</translation>
 <translation id="4526249700380860531">‏عرض كلمات المرور المحفوظة وإدارتها في <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">حاول تسجيل الدخول مرة أخرى.</translation>
@@ -218,6 +216,7 @@
 <translation id="5300589172476337783">عرض</translation>
 <translation id="5317780077021120954">حفظ</translation>
 <translation id="5327248766486351172">الاسم</translation>
+<translation id="5332219387342487447">طريقة الشحن</translation>
 <translation id="5388358297987318779">فتح الصورة</translation>
 <translation id="5409365236829784218">لا تتوفر تطبيقات مثبتة يمكن من خلالها فتح هذا الملف.</translation>
 <translation id="54401264925851789">معلومات أمان الصفحة</translation>
@@ -256,6 +255,7 @@
 <translation id="6042308850641462728">المزيد</translation>
 <translation id="605721222689873409">العام</translation>
 <translation id="6066301408025741299">انقر للإلغاء.</translation>
+<translation id="60851516108411750">قائمة القراءة متاحة بلا اتصال بالإنترنت. لإضافة صفحة إلى قائمة القراءة، انقر على <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">متصل</translation>
 <translation id="6127379762771434464">أُزيلَ عنصر</translation>
 <translation id="6136914049981179737">قبل ثانية</translation>
@@ -270,6 +270,7 @@
 <translation id="6255097610484507482">تعديل بطاقة الائتمان</translation>
 <translation id="6308436439357671616">هذا يتيح لك التقاط الصور وتحميلها.</translation>
 <translation id="6314335155547195432">إنشاء كلمة المرور</translation>
+<translation id="6324528485781869530">تبديل حساب المزامنة</translation>
 <translation id="6324669097367352121">إعدادات تسجيل الدخول</translation>
 <translation id="6337234675334993532">تشفير</translation>
 <translation id="633809752005859102">حدث خطأ ما، وسنحاول حل المشكلة.</translation>

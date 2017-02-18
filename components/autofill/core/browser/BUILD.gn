@@ -146,6 +146,8 @@ static_library("browser") {
     "webdata/autofill_webdata_service.cc",
     "webdata/autofill_webdata_service.h",
     "webdata/autofill_webdata_service_observer.h",
+    "webdata/web_data_model_type_controller.cc",
+    "webdata/web_data_model_type_controller.h",
   ]
 
   if (is_ios) {
@@ -356,6 +358,7 @@ source_set("unit_tests") {
     "//components/sync:test_support_driver",
     "//components/sync:test_support_model",
     "//components/variations",
+    "//components/variations:test_support",
     "//components/webdata/common",
     "//components/webdata_services:test_support",
     "//google_apis",

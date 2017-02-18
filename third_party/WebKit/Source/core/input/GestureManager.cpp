@@ -14,6 +14,7 @@
 #include "core/frame/VisualViewport.h"
 #include "core/input/EventHandler.h"
 #include "core/input/EventHandlingUtil.h"
+#include "core/input/InputDeviceCapabilities.h"
 #include "core/page/ChromeClient.h"
 #include "core/page/Page.h"
 
@@ -154,7 +155,7 @@ WebInputEventResult GestureManager::handleGestureTap(
         WebInputEvent::MouseMove, gestureEvent,
         WebPointerProperties::Button::NoButton,
         /* clickCount */ 0,
-        static_cast<PlatformEvent::Modifiers>(
+        static_cast<WebInputEvent::Modifiers>(
             modifiers | WebInputEvent::Modifiers::IsCompatibilityEventForTouch),
         gestureEvent.timeStampSeconds());
     m_mouseEventManager->setMousePositionAndDispatchMouseEvent(
@@ -196,7 +197,7 @@ WebInputEventResult GestureManager::handleGestureTap(
   WebMouseEvent fakeMouseDown(
       WebInputEvent::MouseDown, gestureEvent,
       WebPointerProperties::Button::Left, gestureEvent.tapCount(),
-      static_cast<PlatformEvent::Modifiers>(
+      static_cast<WebInputEvent::Modifiers>(
           modifiers | WebInputEvent::Modifiers::LeftButtonDown |
           WebInputEvent::Modifiers::IsCompatibilityEventForTouch),
       gestureEvent.timeStampSeconds());
@@ -213,13 +214,17 @@ WebInputEventResult GestureManager::handleGestureTap(
             currentHitTest.innerNode(), currentHitTest.canvasRegionId(),
             EventTypeNames::mousedown, fakeMouseDown);
     m_selectionController->initializeSelectionState();
-    if (mouseDownEventResult == WebInputEventResult::NotHandled)
+    if (mouseDownEventResult == WebInputEventResult::NotHandled) {
       mouseDownEventResult = m_mouseEventManager->handleMouseFocus(
-          currentHitTest,
-          InputDeviceCapabilities::firesTouchEventsSourceCapabilities());
-    if (mouseDownEventResult == WebInputEventResult::NotHandled)
+          currentHitTest, m_frame->document()
+                              ->domWindow()
+                              ->getInputDeviceCapabilities()
+                              ->firesTouchEvents(true));
+    }
+    if (mouseDownEventResult == WebInputEventResult::NotHandled) {
       mouseDownEventResult = m_mouseEventManager->handleMousePressEvent(
           MouseEventWithHitTestResults(fakeMouseDown, currentHitTest));
+    }
   }
 
   if (currentHitTest.innerNode()) {
@@ -243,7 +248,7 @@ WebInputEventResult GestureManager::handleGestureTap(
   WebMouseEvent fakeMouseUp(
       WebInputEvent::MouseUp, gestureEvent, WebPointerProperties::Button::Left,
       gestureEvent.tapCount(),
-      static_cast<PlatformEvent::Modifiers>(
+      static_cast<WebInputEvent::Modifiers>(
           modifiers | WebInputEvent::Modifiers::IsCompatibilityEventForTouch),
       gestureEvent.timeStampSeconds());
   WebInputEventResult mouseUpEventResult =
@@ -365,7 +370,7 @@ WebInputEventResult GestureManager::sendContextMenuEventForGesture(
         WebInputEvent::MouseMove, gestureEvent,
         WebPointerProperties::Button::NoButton,
         /* clickCount */ 0,
-        static_cast<PlatformEvent::Modifiers>(
+        static_cast<WebInputEvent::Modifiers>(
             modifiers | WebInputEvent::IsCompatibilityEventForTouch),
         gestureEvent.timeStampSeconds());
     m_mouseEventManager->setMousePositionAndDispatchMouseEvent(
@@ -381,8 +386,8 @@ WebInputEventResult GestureManager::sendContextMenuEventForGesture(
   WebMouseEvent mouseEvent(
       eventType, gestureEvent, WebPointerProperties::Button::Right,
       /* clickCount */ 1,
-      static_cast<PlatformEvent::Modifiers>(
-          modifiers | PlatformEvent::Modifiers::RightButtonDown |
+      static_cast<WebInputEvent::Modifiers>(
+          modifiers | WebInputEvent::Modifiers::RightButtonDown |
           WebInputEvent::IsCompatibilityEventForTouch),
       gestureEvent.timeStampSeconds());
 
@@ -393,9 +398,11 @@ WebInputEventResult GestureManager::sendContextMenuEventForGesture(
     MouseEventWithHitTestResults mev =
         m_frame->document()->performMouseEventHitTest(request, documentPoint,
                                                       mouseEvent);
-    m_mouseEventManager->handleMouseFocus(
-        mev.hitTestResult(),
-        InputDeviceCapabilities::firesTouchEventsSourceCapabilities());
+    m_mouseEventManager->handleMouseFocus(mev.hitTestResult(),
+                                          m_frame->document()
+                                              ->domWindow()
+                                              ->getInputDeviceCapabilities()
+                                              ->firesTouchEvents(true));
   }
   return m_frame->eventHandler().sendContextMenuEvent(mouseEvent);
 }

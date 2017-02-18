@@ -275,7 +275,6 @@ class CONTENT_EXPORT RenderViewImpl
                      const blink::WebFloatPoint& positionInViewport,
                      const blink::WebFloatSize& velocityInViewport) override;
   void hasTouchEventHandlers(bool has_handlers) override;
-  void resetInputMethod() override;
   blink::WebScreenInfo screenInfo() override;
   void setToolTipText(const blink::WebString&,
                       blink::WebTextDirection hint) override;
@@ -300,7 +299,6 @@ class CONTENT_EXPORT RenderViewImpl
   bool enumerateChosenDirectory(
       const blink::WebString& path,
       blink::WebFileChooserCompletion* chooser_completion) override;
-  void didCancelCompositionOnSelectionChange() override;
   void SetValidationMessageDirection(base::string16* main_text,
                                      blink::WebTextDirection main_text_hint,
                                      base::string16* sub_text,
@@ -563,7 +561,6 @@ class CONTENT_EXPORT RenderViewImpl
   void OnUpdateBrowserControlsState(bool enable_hiding,
                                     bool enable_showing,
                                     bool animate);
-  void OnExtractSmartClipData(const gfx::Rect& rect);
 #elif defined(OS_MACOSX)
   void OnGetRenderedText();
 #endif

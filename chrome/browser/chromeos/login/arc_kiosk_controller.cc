@@ -7,6 +7,7 @@
 #include "base/bind.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/chromeos/app_mode/kiosk_app_launch_error.h"
 #include "chrome/browser/chromeos/login/auth/chrome_login_performer.h"
 #include "chrome/browser/chromeos/login/ui/login_display_host.h"
 #include "chrome/browser/chromeos/login/ui/webui_login_view.h"
@@ -19,7 +20,7 @@
 
 namespace chromeos {
 
-// ARC++ Kiosk splash screen minimum show time.
+// ARC Kiosk splash screen minimum show time.
 constexpr base::TimeDelta kArcKioskSplashScreenMinTime =
     base::TimeDelta::FromSeconds(3);
 
@@ -66,6 +67,7 @@ void ArcKioskController::CloseSplashScreen() {
 void ArcKioskController::OnAuthFailure(const AuthFailure& error) {
   LOG(ERROR) << "ARC Kiosk launch failed. Will now shut down, error="
              << error.GetErrorString();
+  KioskAppLaunchError::Save(KioskAppLaunchError::ARC_AUTH_FAILED);
   chrome::AttemptUserExit();
   CleanUp();
 }
@@ -88,6 +90,7 @@ void ArcKioskController::WhiteListCheckFailed(const std::string& email) {
 
 void ArcKioskController::PolicyLoadFailed() {
   LOG(ERROR) << "Policy load failed. Will now shut down";
+  KioskAppLaunchError::Save(KioskAppLaunchError::POLICY_LOAD_FAILED);
   CleanUp();
   chrome::AttemptUserExit();
 }
@@ -118,13 +121,14 @@ void ArcKioskController::OnAppWindowLaunched() {
   DVLOG(1) << "App window created, closing splash screen.";
   launched_ = true;
   // If timer is running, do not remove splash screen for a few
-  // more seconds to give the user ability to exit ARC++ kiosk.
+  // more seconds to give the user ability to exit ARC kiosk.
   if (splash_wait_timer_.IsRunning())
     return;
   CloseSplashScreen();
 }
 
 void ArcKioskController::OnCancelArcKioskLaunch() {
+  KioskAppLaunchError::Save(KioskAppLaunchError::USER_CANCEL);
   CleanUp();
   chrome::AttemptUserExit();
 }

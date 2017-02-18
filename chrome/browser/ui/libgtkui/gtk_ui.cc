@@ -364,25 +364,6 @@ float GetRawDeviceScaleFactor() {
   return GetDpi() / kDefaultDPI;
 }
 
-// Returns the font size for the *raw* device scale factor in points.
-// The |ui_device_scale_factor| is used to cancel the scale to be applied by UI
-// and to compensate the scale when the device_scale_factor is floored.
-double GetFontSizePixelsInPoint(float ui_device_scale_factor) {
-  // There are 72 points in an inch.
-  double point = GetDpi() / 72.0;
-
-  // Take device_scale_factor into account — if Chrome already scales the
-  // entire UI up by 2x, we should not also scale up.
-  point /= ui_device_scale_factor;
-
-  // Allow the scale lower than 1.0 only for fonts. Don't always use
-  // the raw value however, because the 1.0~1.3 is rounded to 1.0.
-  float raw_scale = GetRawDeviceScaleFactor();
-  if (raw_scale < 1.0f)
-    return point * raw_scale / ui_device_scale_factor;
-  return point;
-}
-
 views::LinuxUI::NonClientMiddleClickAction GetDefaultMiddleClickAction() {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   switch (base::nix::GetDesktopEnvironment(env.get())) {
@@ -841,10 +822,15 @@ void GtkUi::LoadGtkValues() {
   colors_[ThemeProperties::COLOR_BACKGROUND_TAB_TEXT] =
       color_utils::BlendTowardOppositeLuma(toolbar_text_color, 50);
 
-  inactive_selection_bg_color_ =
-      GetBgColor("GtkEntry#entry:backdrop #selection:selected");
+  SkColor location_bar_border =
+      GetBorderColor("GtkToolbar#toolbar GtkEntry#entry");
+  if (SkColorGetA(location_bar_border)) {
+    colors_[ThemeProperties::COLOR_LOCATION_BAR_BORDER] = location_bar_border;
+  }
+
+  inactive_selection_bg_color_ = GetSelectedBgColor("GtkEntry#entry:backdrop");
   inactive_selection_fg_color_ =
-      GetFgColor("GtkEntry#entry:backdrop #selection:selected");
+      GetSelectedTextColor("GtkEntry#entry:backdrop");
 
   SkColor toolbar_separator_horizontal =
       GetSeparatorColor("GtkToolbar#toolbar GtkSeparator#separator.horizontal");
@@ -880,10 +866,8 @@ void GtkUi::LoadGtkValues() {
         header_button_inactive_border;
   }
 
-  SkColor ntp_bg = GetBgColor("");
-  colors_[ThemeProperties::COLOR_NTP_BACKGROUND] = ntp_bg;
-  colors_[ThemeProperties::COLOR_NTP_TEXT] =
-      color_utils::GetReadableColor(GetFgColor("GtkLabel#label"), ntp_bg);
+  colors_[ThemeProperties::COLOR_NTP_BACKGROUND] = GetBgColor("GtkEntry#entry");
+  colors_[ThemeProperties::COLOR_NTP_TEXT] = GetFgColor("GtkEntry#entry");
   colors_[ThemeProperties::COLOR_NTP_HEADER] =
       GetBorderColor("GtkButton#button");
 #endif
@@ -891,13 +875,13 @@ void GtkUi::LoadGtkValues() {
   colors_[ThemeProperties::COLOR_TOOLBAR] = toolbar_color;
   colors_[ThemeProperties::COLOR_CONTROL_BACKGROUND] = toolbar_color;
 
-  colors_[ThemeProperties::COLOR_NTP_LINK] =
-      native_theme_->GetSystemColor(ui::NativeTheme::kColorId_LinkEnabled);
+  colors_[ThemeProperties::COLOR_NTP_LINK] = native_theme_->GetSystemColor(
+      ui::NativeTheme::kColorId_TextfieldSelectionBackgroundFocused);
 
   // Generate the colors that we pass to WebKit.
   SetScrollbarColors();
-  focus_ring_color_ = native_theme_->GetSystemColor(
-      ui::NativeTheme::kColorId_TextfieldSelectionBackgroundFocused);
+  focus_ring_color_ =
+      native_theme_->GetSystemColor(ui::NativeTheme::kColorId_LinkEnabled);
 
   // Some GTK themes only define the text selection colors on the GtkEntry
   // class, so we need to use that for getting selection colors.
@@ -990,8 +974,8 @@ void GtkUi::UpdateDefaultFont() {
     // Round the value when converting to pixels to match GTK's logic.
     const double size_points = pango_font_description_get_size(desc) /
                                static_cast<double>(PANGO_SCALE);
-    default_font_size_pixels_ = static_cast<int>(
-        GetFontSizePixelsInPoint(GetDeviceScaleFactor()) * size_points);
+    default_font_size_pixels_ =
+        static_cast<int>(kDefaultDPI / 72.0 * size_points + 0.5);
     query.point_size = static_cast<int>(size_points);
   }
 

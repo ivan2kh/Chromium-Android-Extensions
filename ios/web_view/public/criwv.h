@@ -8,8 +8,8 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 
-@protocol CRIWVDelegate;
-@class CRIWVWebView;
+@protocol CWVDelegate;
+@class CWVWebView;
 
 // Main interface for the CRIWV library.
 __attribute__((visibility("default")))
@@ -17,14 +17,14 @@ __attribute__((visibility("default")))
 
 // Initializes the CRIWV library.  This function should be called from
 // |application:didFinishLaunchingWithOptions:|.
-+ (void)configureWithDelegate:(id<CRIWVDelegate>)delegate;
++ (void)configureWithDelegate:(id<CWVDelegate>)delegate;
 
 // Shuts down the CRIWV library.  This function should be called from
 // |applicationwillTerminate:|.
 + (void)shutDown;
 
 // Creates and returns a web view.
-+ (CRIWVWebView*)webViewWithFrame:(CGRect)frame;
++ (CWVWebView*)webViewWithFrame:(CGRect)frame;
 
 @end
 

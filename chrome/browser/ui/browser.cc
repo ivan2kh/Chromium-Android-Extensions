@@ -38,6 +38,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_shutdown.h"
 #include "chrome/browser/chrome_notification_types.h"
+#include "chrome/browser/content_settings/mixed_content_settings_tab_helper.h"
 #include "chrome/browser/content_settings/tab_specific_content_settings.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
@@ -149,6 +150,7 @@
 #include "chrome/common/custom_handlers/protocol_handler.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/profiling.h"
+#include "chrome/common/ssl_insecure_content.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
@@ -204,7 +206,6 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/url_request/url_request_context.h"
-#include "third_party/WebKit/public/web/WebWindowFeatures.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/geometry/point.h"
@@ -241,7 +242,6 @@ using content::WebContents;
 using extensions::Extension;
 using ui::WebDialogDelegate;
 using web_modal::WebContentsModalDialogManager;
-using blink::WebWindowFeatures;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -510,8 +510,17 @@ Browser::~Browser() {
   // because the InstantController destructor depends on this profile.
   instant_controller_.reset();
 
+  // The system incognito profile should not try be destroyed using
+  // ProfileDestroyer::DestroyProfileWhenAppropriate(). This profile can be
+  // used, at least, by the user manager window. This window is not a browser,
+  // therefore, BrowserList::IsIncognitoSessionActiveForProfile(profile_)
+  // returns false, while the user manager window is still opened.
+  // This cannot be fixed in ProfileDestroyer::DestroyProfileWhenAppropriate(),
+  // because the ProfileManager needs to be able to destroy all profiles when
+  // it is destroyed. See crbug.com/527035
   if (profile_->IsOffTheRecord() &&
-      !BrowserList::IsIncognitoSessionActiveForProfile(profile_)) {
+      !BrowserList::IsIncognitoSessionActiveForProfile(profile_) &&
+      !profile_->GetOriginalProfile()->IsSystemProfile()) {
     if (profile_->IsGuestSession()) {
 // ChromeOS handles guest data independently.
 #if !defined(OS_CHROMEOS)
@@ -816,6 +825,11 @@ Browser::DownloadClosePreventionType Browser::OkToCloseWithInProgressDownloads(
 
 ////////////////////////////////////////////////////////////////////////////////
 // Browser, Tab adding/showing functions:
+
+void Browser::WindowFullscreenStateWillChange() {
+  exclusive_access_manager_->fullscreen_controller()
+      ->WindowFullscreenStateWillChange();
+}
 
 void Browser::WindowFullscreenStateChanged() {
   exclusive_access_manager_->fullscreen_controller()
@@ -1347,6 +1361,42 @@ void Browser::RequestAppBannerFromDevTools(content::WebContents* web_contents) {
   manager->RequestAppBanner(web_contents->GetLastCommittedURL(), true);
 }
 
+void Browser::PassiveInsecureContentFound(const GURL& resource_url) {
+  // Note: this implementation is a mirror of
+  // ContentSettingsObserver::passiveInsecureContentFound
+  ReportInsecureContent(SslInsecureContentType::DISPLAY);
+  FilteredReportInsecureContentDisplayed(resource_url);
+}
+
+bool Browser::ShouldAllowRunningInsecureContent(
+    content::WebContents* web_contents,
+    bool allowed_per_prefs,
+    const url::Origin& origin,
+    const GURL& resource_url) {
+  // Note: this implementation is a mirror of
+  // ContentSettingsObserver::allowRunningInsecureContent.
+  FilteredReportInsecureContentRan(resource_url);
+
+  MixedContentSettingsTabHelper* mixed_content_settings =
+      MixedContentSettingsTabHelper::FromWebContents(web_contents);
+  DCHECK(mixed_content_settings);
+  if (allowed_per_prefs ||
+      mixed_content_settings->is_running_insecure_content_allowed()) {
+    return true;
+  }
+
+  // Note: this is a browser-side-translation of the call to DidBlockContentType
+  // from inside ContentSettingsObserver::allowRunningInsecureContent.
+  if (!origin.host().empty()) {
+    TabSpecificContentSettings* tab_settings =
+        TabSpecificContentSettings::FromWebContents(web_contents);
+    DCHECK(tab_settings);
+    tab_settings->OnContentBlockedWithDetail(CONTENT_SETTINGS_TYPE_MIXEDSCRIPT,
+                                             base::UTF8ToUTF16(origin.host()));
+  }
+  return false;
+}
+
 bool Browser::IsMouseLocked() const {
   return exclusive_access_manager_->mouse_lock_controller()->IsMouseLocked();
 }
@@ -1405,8 +1455,8 @@ WebContents* Browser::OpenURLFromTab(WebContents* source,
         !params.user_gesture &&
         !base::CommandLine::ForCurrentProcess()->HasSwitch(
             switches::kDisablePopupBlocking)) {
-      if (popup_blocker_helper->MaybeBlockPopup(nav_params,
-                                                WebWindowFeatures())) {
+      if (popup_blocker_helper->MaybeBlockPopup(
+              nav_params, blink::mojom::WindowFeatures())) {
         return NULL;
       }
     }
@@ -1612,13 +1662,14 @@ bool Browser::ShouldCreateWebContents(
     int32_t route_id,
     int32_t main_frame_route_id,
     int32_t main_frame_widget_route_id,
-    WindowContainerType window_container_type,
+    content::mojom::WindowContainerType window_container_type,
     const GURL& opener_url,
     const std::string& frame_name,
     const GURL& target_url,
     const std::string& partition_id,
     content::SessionStorageNamespace* session_storage_namespace) {
-  if (window_container_type == WINDOW_CONTAINER_TYPE_BACKGROUND) {
+  if (window_container_type ==
+      content::mojom::WindowContainerType::BACKGROUND) {
     // If a BackgroundContents is created, suppress the normal WebContents.
     return !MaybeCreateBackgroundContents(
         source_site_instance, opener_url, route_id, main_frame_route_id,

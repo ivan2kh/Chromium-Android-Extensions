@@ -59,8 +59,10 @@ cr.define('site_list', function() {
           images: [],
           javascript: [],
           mic: [],
+          midiDevices: [],
           notifications: [],
           plugins: [],
+          protectedContent: [],
           popups: [],
           unsandboxed_plugins: [],
         }
@@ -150,6 +152,8 @@ cr.define('site_list', function() {
           mic: [],
           notifications: [],
           plugins: [],
+          midiDevices: [],
+          protectedContent: [],
           popups: [],
           unsandboxed_plugins: [],
         }
@@ -183,6 +187,7 @@ cr.define('site_list', function() {
           images: [],
           javascript: [],
           mic: [],
+          midiDevices: [],
           notifications: [
             {
               embeddingOrigin: 'https://google.com',
@@ -204,6 +209,7 @@ cr.define('site_list', function() {
             },
           ],
           plugins: [],
+          protectedContent: [],
           popups: [],
           unsandboxed_plugins: [],
         }
@@ -344,6 +350,9 @@ cr.define('site_list', function() {
 
       teardown(function() {
         closeActionMenu();
+        // The code being tested changes the Route. Reset so that state is not
+        // leaked across tests.
+        settings.resetRouteForTesting();
       });
 
       /**

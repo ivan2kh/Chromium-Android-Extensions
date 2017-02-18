@@ -27,8 +27,6 @@
 #include "base/time/time.h"
 #include "content/browser/bad_message.h"
 #include "content/browser/child_process_security_policy_impl.h"
-#include "content/browser/message_port_message_filter.h"
-#include "content/browser/message_port_service.h"
 #include "content/browser/service_worker/embedded_worker_instance.h"
 #include "content/browser/service_worker/embedded_worker_registry.h"
 #include "content/browser/service_worker/embedded_worker_status.h"
@@ -41,7 +39,6 @@
 #include "content/common/service_worker/embedded_worker_messages.h"
 #include "content/common/service_worker/embedded_worker_start_params.h"
 #include "content/common/service_worker/service_worker_messages.h"
-#include "content/common/service_worker/service_worker_type_converters.h"
 #include "content/common/service_worker/service_worker_utils.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
@@ -618,6 +615,14 @@ bool ServiceWorkerVersion::FinishExternalRequest(
   return true;
 }
 
+ServiceWorkerVersion::SimpleEventCallback
+ServiceWorkerVersion::CreateSimpleEventCallback(int request_id) {
+  // The weak reference to |this| is safe because storage of the callbacks, the
+  // pending responses of the ServiceWorkerEventDispatcher, is owned by |this|.
+  return base::Bind(&ServiceWorkerVersion::OnSimpleEventFinished,
+                    base::Unretained(this), request_id);
+}
+
 void ServiceWorkerVersion::RunAfterStartWorker(
     ServiceWorkerMetrics::EventType purpose,
     const base::Closure& task,
@@ -1097,6 +1102,13 @@ ServiceWorkerVersion::GetNavigationPreloadSupportStatus() const {
   return NavigationPreloadSupportStatus::NOT_SUPPORTED_FIELD_TRIAL_STOPPED;
 }
 
+void ServiceWorkerVersion::CountFeature(uint32_t feature) {
+  if (!used_features_.insert(feature).second)
+    return;
+  for (auto provider_host_by_uuid : controllee_map_)
+    provider_host_by_uuid.second->CountFeature(feature);
+}
+
 void ServiceWorkerVersion::OnSimpleEventResponse(
     int request_id,
     blink::WebServiceWorkerEventResult result,
@@ -1204,7 +1216,7 @@ void ServiceWorkerVersion::OnClearCachedMetadataFinished(int64_t callback_id,
 void ServiceWorkerVersion::OnPostMessageToClient(
     const std::string& client_uuid,
     const base::string16& message,
-    const std::vector<int>& sent_message_ports) {
+    const std::vector<MessagePort>& sent_message_ports) {
   if (!context_)
     return;
   TRACE_EVENT1("ServiceWorker",

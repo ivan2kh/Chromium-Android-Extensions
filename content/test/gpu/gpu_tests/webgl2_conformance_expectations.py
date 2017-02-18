@@ -52,16 +52,16 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         'integer-cubemap-specification-order-bug.html',
         bug=483282) # owner:cwallez, test might be buggy
 
+    # Win and Mac
+    self.Fail('deqp/functional/gles3/sync.html', ['win', 'mac'], bug=676848)
+
     # Windows only.
     self.Fail('conformance2/rendering/blitframebuffer-outside-readbuffer.html',
         ['win'], bug=644740)
-    self.Flaky('deqp/functional/gles3/sync.html', ['win'], bug=676848)
 
     # Win / NVidia
     self.Flaky('deqp/functional/gles3/fbomultisample*',
         ['win', 'nvidia'], bug=631317)
-    self.Fail('conformance/glsl/bugs/unary-minus-operator-float-bug.html',
-        ['win', 'nvidia'], bug=672380)
     self.Fail('conformance2/rendering/' +
         'draw-with-integer-texture-base-level.html',
         ['win', 'nvidia'], bug=679639)
@@ -212,6 +212,8 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
 
     self.Fail('conformance2/renderbuffers/framebuffer-test.html',
         ['mac'], bug=641149)
+    self.Fail('conformance2/rendering/framebuffer-texture-level1.html',
+        ['mac'], bug=680278)
 
     self.Fail('deqp/functional/gles3/framebufferblit/conversion_28.html',
         ['mac'], bug=654187)
@@ -503,6 +505,10 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         ['mac', 'amd'], bug=645298)
 
     # Mac Pro with AMD GPU
+    self.Fail('deqp/functional/gles3/fborender/recreate_color_02.html',
+        ['mac', ('amd', 0x679e)], bug=679682)
+    self.Fail('deqp/functional/gles3/fborender/resize_01.html',
+        ['mac', ('amd', 0x679e)], bug=679682)
     self.Flaky('deqp/functional/gles3/shaderindexing/mat_01.html',
         ['mac', ('amd', 0x679e)], bug=636648)
     self.Flaky('deqp/functional/gles3/shaderindexing/tmp.html',
@@ -513,10 +519,6 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         ['mac', ('amd', 0x679e)], bug=483282)
 
     # Mac Multi-vendor failures.
-    self.Fail('deqp/functional/gles3/fborender/recreate_color_02.html',
-        ['mac', 'nvidia', 'amd'], bug=679682)
-    self.Fail('deqp/functional/gles3/fborender/resize_01.html',
-        ['mac', 'nvidia', 'amd'], bug=679682)
     self.Fail('deqp/functional/gles3/fragmentoutput/basic.float.html',
         ['mac', 'nvidia', 'amd'], bug=679684)
     self.Fail('deqp/functional/gles3/fragmentoutput/array.float.html',
@@ -529,21 +531,6 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         ['mac', 'amd', 'intel'], bug=679691)
 
     # Mac Intel
-
-    # ASAN only
-    self.Fail(
-      'conformance/more/functions/copyTexImage2D.html',
-      ['mac', 'intel', 'asan'], bug=680845)
-    self.Fail(
-      'conformance/more/functions/copyTexSubImage2D.html',
-      ['mac', 'intel', 'asan'], bug=680845)
-    self.Fail(
-      'deqp/functional/gles3/negativetextureapi.html',
-      ['mac', 'intel', 'asan'], bug=680845)
-    self.Fail(
-      'deqp/functional/gles3/texturespecification/basic_copyteximage2d.html',
-      ['mac', 'intel', 'asan'], bug=680845)
-
     self.Fail(
       'conformance2/textures/canvas/tex-2d-rgb9_e5-rgb-float.html',
       ['sierra', 'intel'], bug=663188)
@@ -708,7 +695,7 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     self.Fail('conformance2/textures/image_bitmap_from_canvas/' +
         'tex-3d-srgb8_alpha8-rgba-unsigned_byte.html',
         ['linux', 'nvidia'], bug=679677)
-    self.Fail('conformance2/renderbuffers/framebuffer-test.html',
+    self.Fail('conformance2/rendering/framebuffer-texture-level1.html',
         ['linux', 'nvidia', 'opengl'], bug=680278)
     self.Fail('conformance2/textures/image/' +
         'tex-3d-rg8ui-rg_integer-unsigned_byte.html',

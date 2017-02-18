@@ -5,52 +5,34 @@
 #ifndef IOS_CHROME_BROWSER_UI_READING_LIST_READING_LIST_VIEW_CONTROLLER_H_
 #define IOS_CHROME_BROWSER_UI_READING_LIST_READING_LIST_VIEW_CONTROLLER_H_
 
-#import "ios/chrome/browser/ui/collection_view/collection_view_controller.h"
-
-#include <string>
-
+#import "ios/chrome/browser/ui/reading_list/reading_list_collection_view_controller.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_toolbar.h"
 
 namespace favicon {
 class LargeIconService;
 }
 
+@class ReadingListCollectionViewController;
 class ReadingListDownloadService;
 class ReadingListModel;
-@class TabModel;
+@protocol UrlLoader;
 
-// Audience for the ReadingListViewController, managing the visibility of the
-// toolbar and dismissing the Reading List View.
-@protocol ReadingListViewControllerAudience<NSObject>
-
-// Whether the collection has items.
-- (void)setCollectionHasItems:(BOOL)hasItems;
-
-// Dismisses the Reading List View.
-- (void)dismiss;
-
-@end
-
+// Container for the ReadingList Collection View Controller and the toolbar. It
+// handles the interactions between the two. It also acts as a ReadingList
+// delegate, opening entries and displaying context menu.
 @interface ReadingListViewController
-    : CollectionViewController<ReadingListToolbarActions>
-
-@property(nonatomic, readonly) ReadingListModel* readingListModel;
-@property(weak, nonatomic, readonly) TabModel* tabModel;
-@property(nonatomic, readonly) favicon::LargeIconService* largeIconService;
-@property(nonatomic, readonly)
-    ReadingListDownloadService* readingListDownloadService;
+    : UIViewController<ReadingListCollectionViewControllerDelegate>
 
 - (instancetype)initWithModel:(ReadingListModel*)model
-                      tabModel:(TabModel*)tabModel
+                        loader:(id<UrlLoader>)loader
               largeIconService:(favicon::LargeIconService*)largeIconService
     readingListDownloadService:
         (ReadingListDownloadService*)readingListDownloadService
-                       toolbar:(ReadingListToolbar*)toolbar
     NS_DESIGNATED_INITIALIZER;
-- (instancetype)initWithStyle:(CollectionViewControllerStyle)style
-    NS_UNAVAILABLE;
 
-@property(nonatomic, weak) id<ReadingListViewControllerAudience> audience;
+- (instancetype)initWithNibName:(NSString*)nibNameOrNil
+                         bundle:(NSBundle*)nibBundleOrNil NS_UNAVAILABLE;
+- (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 @end
 

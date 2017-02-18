@@ -65,6 +65,9 @@
                   '|media/midi/*_android.*' \
                   '|media/video/capture/android'
     },
+    'android_studio': {
+      'filepath': 'build/android/gradle/'
+    },
     'android_tab': {
       'filepath': 'chrome/android/java/src/org/chromium/chrome/browser/Tab'
     },
@@ -494,6 +497,9 @@
     'gn': {
       'filepath': 'tools/gn',
     },
+    'goma': {
+      'filepath': 'infra/config/cq.cfg',
+    },
     'gpu': {
       'filepath': 'gpu/',
     },
@@ -725,6 +731,8 @@
       'filepath': 'chrome/android/java/src/org/chromium/chrome/browser/ntp/|'\
         'chrome/android/javatests/src/org/chromium/chrome/browser/ntp/|'\
         'chrome/android/junit/src/org/chromium/chrome/browser/ntp/|'\
+        'chrome/android/java/src/org/chromium/chrome/browser/suggestions/|'\
+        'chrome/android/javatests/src/org/chromium/chrome/browser/suggestions/|'\
         'chrome/browser/android/ntp/ntp_snippets|'\
         'chrome/browser/ntp_snippets/|'\
         'chrome/browser/resources/snippets_internals|'\
@@ -905,6 +913,9 @@
     'styleguide': {
       'filepath': '^styleguide/',
     },
+    'subresource_filter': {
+      'filepath': 'subresource_filter|SubresourceFilter',
+    },
     'supervised_users': {
       'filepath': 'chrome/browser/.*managed_mode'\
                   '|chrome/browser/.*managed_user'\
@@ -1031,6 +1042,14 @@
                   '|ui/base/native_theme/resources/'\
                   '|chrome/app/theme/'
     },
+    'ui_strings': {
+      'filepath': 'chrome/app/generated_resources.grd'\
+                  '|chrome/app/google_chrome_strings.grd'\
+                  '|chrome/android/java/strings/android_chrome_strings.grd'\
+                  '|chrome/app/settings_strings.grdp'\
+                  '|ios/chrome/app/strings/ios(_.+)*_strings.grd'\
+                  '|ui/strings/ui_strings.grd',
+    },
     'valgrind': {
       'filepath': 'valgrind',
     },
@@ -1062,8 +1081,10 @@
     },
     'virtual_keyboard': {
       'filepath': 'ui/keyboard/'\
-                  'chrome/test/data/chromeos/virtual_keyboard/'\
-                  'chrome/common/extensions/api/virtual_keyboard',
+                  '|chrome/test/data/chromeos/virtual_keyboard/'\
+                  '|extensions/browser/api/virtual_keyboard_private/'\
+                  '|ash/common/system/chromeos/virtual_keyboard/'\
+                  '|ash/virtual_keyboard',
     },
     'virtual_reality': {
       'filepath': 'vr_shell/|'\
@@ -1199,8 +1220,7 @@
     },
     'blink_device_orientation': {
       'filepath': 'third_party/WebKit/Source/modules/device_orientation/' \
-                  '|third_party/WebKit/LayoutTests/fast/dom/DeviceMotion/' \
-                  '|third_party/WebKit/LayoutTests/fast/dom/DeviceOrientation/' \
+                  '|third_party/WebKit/LayoutTests/device_orientation/' \
                   '|third_party/WebKit/Source/core/frame/PlatformEvent(Controller|Dispatcher)' \
                   '|third_party/WebKit/Source/core/frame/DeviceSingleWindowEventController'
     },
@@ -1369,7 +1389,7 @@
                   '|third_party/WebKit/LayoutTests/fast/mediastream/'
     },
     'blink_geolocation': {
-      'filepath': 'third_party/WebKit/LayoutTests/fast/dom/Geolocation/' \
+      'filepath': 'third_party/WebKit/LayoutTests/geolocation-api/' \
                   '|third_party/WebKit/Source/modules/geolocation/' \
                   '|third_party/WebKit/Source/web/.*Geolocation' \
                   '|third_party/WebKit/public/web/.*Geolocation'
@@ -1486,6 +1506,8 @@
                         'lizeb+watch-android-loading@chromium.org'],
     'android_media': ['avayvod+watch@chromium.org',
                       'mlamouri+watch-media@chromium.org'],
+    'android_studio': ['wnwen+watch@chromium.org',
+                       'nyquist+watch@chromium.org'],
     'android_tab': ['avayvod+watch@chromium.org',
                     'dtrainor@chromium.org'],
     'android_uma_settings': ['asvitkine+watch@chromium.org',
@@ -1667,7 +1689,7 @@
                                 'dongseong.hwang@intel.com',
                                 'drott+blinkwatch@chromium.org',
                                 'dschulze@chromium.org',
-                                'fmalita@chromium.org',
+                                'fmalita+watch@chromium.org',
                                 'jbroman@chromium.org',
                                 'junov@chromium.org',
                                 'pdr+graphicswatchlist@chromium.org',
@@ -1702,7 +1724,7 @@
                                 'pdr+virtualspv2watchlist@chromium.org'],
     'blink_style': ['blink-reviews-style@chromium.org'],
     'blink_svg': ['dschulze@chromium.org',
-                  'fmalita@chromium.org',
+                  'fmalita+watch@chromium.org',
                   'fs@opera.com',
                   'gyuyoung.kim@chromium.org',
                   'kouhei+svg@chromium.org',
@@ -1867,6 +1889,7 @@
     'gn': ['agrieve+watch@chromium.org',
            'dpranke@chromium.org',
            'tfarina@chromium.org'],
+    'goma': ['goma+cc@google.com'],
     'gpu': ['piman+watch@chromium.org'],
     'history_ui': ['dbeam+watch-history@chromium.org',
                    'dubroy@chromium.org',
@@ -2037,6 +2060,7 @@
     'styleguide': ['danakj+watch@chromium.org',
                    'jbroman+cpp@chromium.org',
                    'vmpstr+watch@chromium.org'],
+    'subresource_filter': ['subresource-filter-reviews@chromium.org'],
     'supervised_users': ['pam+watch@chromium.org'],
     'swreporter': ['alito+watch@chromium.org',
                    'ftirelo+watch@chromium.org',
@@ -2076,6 +2100,7 @@
     'ui_compositor': ['cc-bugs@chromium.org'],
     'ui_display_win': ['robliao+watch@chromium.org'],
     'ui_resources': ['oshima+watch@chromium.org'],
+    'ui_strings': ['srahim+watch@chromium.org'],
     'valgrind': ['bruening+watch@chromium.org',
                  'glider+watch@chromium.org'],
     'version_assembly': ['caitkp+watch@chromium.org',
@@ -2085,7 +2110,9 @@
                       'chfremer+watch@chromium.org'],
     'views': ['tfarina@chromium.org'],
     'virtual_keyboard': ['dfaden+virtualkb@google.com',
-                         'groby+virtualkb@chromium.org'],
+                         'groby+virtualkb@chromium.org',
+                         'oka+watchvk@chromium.org',
+                         'yhanada+watchvk@chromium.org'],
     'virtual_reality': ['feature-vr-reviews@chromium.org'],
     'webrtc_browser_tests': ['phoglund+watch@chromium.org'],
     'website_settings': ['markusheintz@chromium.org',

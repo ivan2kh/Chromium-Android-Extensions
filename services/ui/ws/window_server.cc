@@ -425,11 +425,12 @@ void WindowServer::ProcessWillChangeWindowPredefinedCursor(
 void WindowServer::SendToPointerWatchers(const ui::Event& event,
                                          const UserId& user_id,
                                          ServerWindow* target_window,
-                                         WindowTree* ignore_tree) {
+                                         WindowTree* ignore_tree,
+                                         int64_t display_id) {
   for (auto& pair : tree_map_) {
     WindowTree* tree = pair.second.get();
     if (tree->user_id() == user_id && tree != ignore_tree)
-      tree->SendToPointerWatcher(event, target_window);
+      tree->SendToPointerWatcher(event, target_window, display_id);
   }
 }
 
@@ -532,10 +533,6 @@ cc::mojom::DisplayCompositor* WindowServer::GetDisplayCompositor() {
   return display_compositor_.get();
 }
 
-mojo::AssociatedGroup* WindowServer::GetDisplayCompositorAssociatedGroup() {
-  return display_compositor_.associated_group();
-}
-
 bool WindowServer::GetFrameDecorationsForUser(
     const UserId& user_id,
     mojom::FrameDecorationValuesPtr* values) {
@@ -596,7 +593,7 @@ void WindowServer::UpdateNativeCursorIfOver(ServerWindow* window) {
 
   EventDispatcher* event_dispatcher =
       display_root->window_manager_state()->event_dispatcher();
-  if (window != event_dispatcher->mouse_cursor_source_window())
+  if (window != event_dispatcher->GetWindowForMouseCursor())
     return;
 
   event_dispatcher->UpdateNonClientAreaForCurrentWindow();

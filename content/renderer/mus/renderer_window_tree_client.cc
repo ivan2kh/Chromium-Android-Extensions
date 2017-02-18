@@ -26,9 +26,9 @@ RendererWindowTreeClient* RendererWindowTreeClient::Get(int routing_id) {
 }
 
 // static
-void RendererWindowTreeClient::Create(int routing_id) {
-  DCHECK(g_connections.Get().find(routing_id) == g_connections.Get().end())
-      << routing_id;
+void RendererWindowTreeClient::CreateIfNecessary(int routing_id) {
+  if (Get(routing_id))
+    return;
   RendererWindowTreeClient* connection =
       new RendererWindowTreeClient(routing_id);
   g_connections.Get().insert(std::make_pair(routing_id, connection));
@@ -165,6 +165,7 @@ void RendererWindowTreeClient::OnWindowSharedPropertyChanged(
 void RendererWindowTreeClient::OnWindowInputEvent(
     uint32_t event_id,
     ui::Id window_id,
+    int64_t display_id,
     std::unique_ptr<ui::Event> event,
     bool matches_pointer_watcher) {
   NOTREACHED();
@@ -172,7 +173,8 @@ void RendererWindowTreeClient::OnWindowInputEvent(
 
 void RendererWindowTreeClient::OnPointerEventObserved(
     std::unique_ptr<ui::Event> event,
-    uint32_t window_id) {
+    uint32_t window_id,
+    int64_t display_id) {
   NOTREACHED();
 }
 

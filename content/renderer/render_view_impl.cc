@@ -71,6 +71,7 @@
 #include "content/public/renderer/navigation_state.h"
 #include "content/public/renderer/render_view_observer.h"
 #include "content/public/renderer/render_view_visitor.h"
+#include "content/public/renderer/window_features_converter.h"
 #include "content/renderer/browser_plugin/browser_plugin.h"
 #include "content/renderer/browser_plugin/browser_plugin_manager.h"
 #include "content/renderer/dom_storage/webstoragenamespace_impl.h"
@@ -531,6 +532,37 @@ class AlwaysDrawSwapPromise : public cc::SwapPromise {
   ui::LatencyInfo latency_info_;
 };
 
+const char kWindowFeatureBackground[] = "background";
+const char kWindowFeaturePersistent[] = "persistent";
+
+content::mojom::WindowContainerType WindowFeaturesToContainerType(
+    const blink::WebWindowFeatures& window_features) {
+  bool background = false;
+  bool persistent = false;
+
+  for (size_t i = 0; i < window_features.additionalFeatures.size(); ++i) {
+    blink::WebString feature = window_features.additionalFeatures[i];
+    if (feature.containsOnlyASCII()) {
+      std::string featureASCII = feature.ascii();
+      if (base::LowerCaseEqualsASCII(featureASCII, kWindowFeatureBackground)) {
+        background = true;
+      } else if (base::LowerCaseEqualsASCII(featureASCII,
+                                            kWindowFeaturePersistent)) {
+        persistent = true;
+      }
+    }
+  }
+
+  if (background) {
+    if (persistent)
+      return content::mojom::WindowContainerType::PERSISTENT;
+    else
+      return content::mojom::WindowContainerType::BACKGROUND;
+  } else {
+    return content::mojom::WindowContainerType::NORMAL;
+  }
+}
+
 }  // namespace
 
 RenderViewImpl::RenderViewImpl(CompositorDependencies* compositor_deps,
@@ -826,6 +858,7 @@ void RenderView::ApplyWebPreferences(const WebPreferences& prefs,
   settings->setLoadsImagesAutomatically(prefs.loads_images_automatically);
   settings->setImagesEnabled(prefs.images_enabled);
   settings->setPluginsEnabled(prefs.plugins_enabled);
+  settings->setEncryptedMediaEnabled(prefs.encrypted_media_enabled);
   settings->setDOMPasteAllowed(prefs.dom_paste_enabled);
   settings->setTextAreasAreResizable(prefs.text_areas_are_resizable);
   settings->setAllowScriptsToCloseWindows(prefs.allow_scripts_to_close_windows);
@@ -995,6 +1028,8 @@ void RenderView::ApplyWebPreferences(const WebPreferences& prefs,
   settings->setMediaControlsOverlayPlayButtonEnabled(true);
   settings->setMediaPlaybackRequiresUserGesture(
       prefs.user_gesture_required_for_media_playback);
+  settings->setMediaPlaybackGestureWhitelistScope(
+      blink::WebString::fromUTF8(prefs.media_playback_gesture_whitelist_scope));
   settings->setDefaultVideoPosterURL(
       WebString::fromASCII(prefs.default_video_poster_url.spec()));
   settings->setSupportDeprecatedTargetDensityDPI(
@@ -1065,6 +1100,8 @@ void RenderView::ApplyWebPreferences(const WebPreferences& prefs,
       prefs.background_video_track_optimization_enabled);
 
   settings->setPresentationReceiver(prefs.presentation_receiver);
+
+  settings->setMediaControlsEnabled(prefs.media_controls_enabled);
 
 #if defined(OS_MACOSX)
   settings->setDoubleTapToZoomEnabled(true);
@@ -1239,7 +1276,6 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
 #if defined(OS_ANDROID)
     IPC_MESSAGE_HANDLER(ViewMsg_UpdateBrowserControlsState,
                         OnUpdateBrowserControlsState)
-    IPC_MESSAGE_HANDLER(ViewMsg_ExtractSmartClipData, OnExtractSmartClipData)
 #elif defined(OS_MACOSX)
     IPC_MESSAGE_HANDLER(ViewMsg_GetRenderedText,
                         OnGetRenderedText)
@@ -1421,7 +1457,7 @@ WebView* RenderViewImpl::createView(WebLocalFrame* creator,
     params->target_url = request.url();
     params->referrer = GetReferrerFromRequest(creator, request);
   }
-  params->features = features;
+  params->features = ConvertWebWindowFeaturesToMojoWindowFeatures(features);
 
   // We preserve this information before sending the message since |params| is
   // moved on send.
@@ -1564,10 +1600,6 @@ void RenderViewImpl::SetZoomLevel(double zoom_level) {
   webview()->setZoomLevel(zoom_level);
   for (auto& observer : observers_)
     observer.OnZoomLevelChanged();
-}
-
-void RenderViewImpl::didCancelCompositionOnSelectionChange() {
-  Send(new InputHostMsg_ImeCancelComposition(GetRoutingID()));
 }
 
 void RenderViewImpl::SetValidationMessageDirection(
@@ -1845,10 +1877,6 @@ void RenderViewImpl::didOverscroll(
 
 void RenderViewImpl::hasTouchEventHandlers(bool has_handlers) {
   RenderWidget::hasTouchEventHandlers(has_handlers);
-}
-
-void RenderViewImpl::resetInputMethod() {
-  RenderWidget::resetInputMethod();
 }
 
 blink::WebRect RenderViewImpl::rootWindowRect() {

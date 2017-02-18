@@ -213,11 +213,10 @@ class ServiceManagerConnectionImpl::IOThreadContext
   void RemoveConnectionFilterOnIOThread(int filter_id) {
     base::AutoLock lock(lock_);
     auto it = connection_filters_.find(filter_id);
-    // TODO(crbug.com/687247): This DCHECK is hit when the browser is shut down
-    // by the service manager (e.g. in response to an ash crash under mash).
-    // Figure out why.
-    DCHECK(it != connection_filters_.end());
-    connection_filters_.erase(it);
+    // During shutdown the connection filters might have been cleared already
+    // by ClearConnectionFiltersOnIOThread() above, so this id might not exist.
+    if (it != connection_filters_.end())
+      connection_filters_.erase(it);
   }
 
   void OnBrowserConnectionLost() {
@@ -274,7 +273,7 @@ class ServiceManagerConnectionImpl::IOThreadContext
     return accept;
   }
 
-  bool OnStop() override {
+  bool OnServiceManagerConnectionLost() override {
     ClearConnectionFiltersOnIOThread();
     callback_task_runner_->PostTask(FROM_HERE, stop_callback_);
     return true;
@@ -440,12 +439,6 @@ void ServiceManagerConnectionImpl::Start() {
                  weak_factory_.GetWeakPtr()));
 }
 
-void ServiceManagerConnectionImpl::SetInitializeHandler(
-    const base::Closure& handler) {
-  DCHECK(initialize_handler_.is_null());
-  initialize_handler_ = handler;
-}
-
 service_manager::Connector* ServiceManagerConnectionImpl::GetConnector() {
   return connector_.get();
 }
@@ -524,8 +517,6 @@ void ServiceManagerConnectionImpl::CreateService(
 void ServiceManagerConnectionImpl::OnContextInitialized(
     const service_manager::Identity& identity) {
   identity_ = identity;
-  if (!initialize_handler_.is_null())
-    base::ResetAndReturn(&initialize_handler_).Run();
 }
 
 void ServiceManagerConnectionImpl::OnConnectionLost() {

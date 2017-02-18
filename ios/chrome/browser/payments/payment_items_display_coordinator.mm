@@ -8,8 +8,7 @@
 #include "base/mac/scoped_nsobject.h"
 #include "ios/web/public/payments/payment_request.h"
 
-@interface PaymentItemsDisplayCoordinator ()<
-    PaymentItemsDisplayViewControllerDelegate> {
+@interface PaymentItemsDisplayCoordinator () {
   base::WeakNSProtocol<id<PaymentItemsDisplayCoordinatorDelegate>> _delegate;
   base::scoped_nsobject<PaymentItemsDisplayViewController> _viewController;
 }
@@ -18,9 +17,7 @@
 
 @implementation PaymentItemsDisplayCoordinator
 
-@synthesize total = _total;
-@synthesize paymentItems = _paymentItems;
-@synthesize payButtonEnabled = _payButtonEnabled;
+@synthesize paymentRequest = _paymentRequest;
 
 - (id<PaymentItemsDisplayCoordinatorDelegate>)delegate {
   return _delegate.get();
@@ -31,10 +28,10 @@
 }
 
 - (void)start {
+  BOOL payButtonEnabled = _paymentRequest->selected_credit_card() != nil;
   _viewController.reset([[PaymentItemsDisplayViewController alloc]
-      initWithPayButtonEnabled:_payButtonEnabled]);
-  [_viewController setTotal:_total];
-  [_viewController setPaymentItems:_paymentItems];
+      initWithPaymentRequest:_paymentRequest
+            payButtonEnabled:payButtonEnabled]);
   [_viewController setDelegate:self];
   [_viewController loadModel];
 

@@ -10,9 +10,11 @@
 #include "base/command_line.h"
 #include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view.h"
 #include "chrome/browser/ui/views/payments/test_chrome_payment_request_delegate.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "components/autofill/core/browser/field_types.h"
 #include "components/payments/payment_request.mojom.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/views/widget/widget_observer.h"
@@ -48,6 +50,9 @@ class PaymentRequestInteractiveTestBase
   // PaymentRequestDialogView::ObserverForTest
   void OnDialogOpened() override;
   void OnOrderSummaryOpened() override;
+  void OnPaymentMethodOpened() override;
+  void OnCreditCardEditorOpened() override;
+  void OnBackNavigation() override;
 
   // views::WidgetObserver
   // Effective way to be warned of all dialog closures.
@@ -57,7 +62,11 @@ class PaymentRequestInteractiveTestBase
   // it's open.
   void InvokePaymentRequestUI();
 
+  // Utility functions that will click on Dialog views and wait for the
+  // associated action to happen.
   void OpenOrderSummaryScreen();
+  void OpenPaymentMethodScreen();
+  void OpenCreditCardEditorScreen();
 
   // Convenience method to get a list of PaymentRequest associated with
   // |web_contents|.
@@ -70,8 +79,24 @@ class PaymentRequestInteractiveTestBase
       content::WebContents* web_contents,
       mojo::InterfaceRequest<payments::mojom::PaymentRequest> request);
 
-  // Click on a view from within the dialog.
-  void ClickOnDialogView(DialogViewID view_id);
+  // Click on a view from within the dialog and waits for an observed event
+  // to be observed.
+  void ClickOnDialogViewAndWait(DialogViewID view_id);
+
+  // Setting the |value| in the textfield of a given |type|.
+  void SetEditorTextfieldValue(const base::string16& value,
+                               autofill::ServerFieldType type);
+  // Setting the |value| in the combobox of a given |type|.
+  void SetComboboxValue(const base::string16& value,
+                        autofill::ServerFieldType type);
+
+  // Whether the editor textfield/combobox for the given |type| is currently in
+  // an invalid state.
+  bool IsEditorTextfieldInvalid(autofill::ServerFieldType type);
+  bool IsEditorComboboxInvalid(autofill::ServerFieldType type);
+
+  // Sets proper animation delegates and waits for animation to finish.
+  void WaitForAnimation();
 
   // Returns the text of the StyledLabel with the specific |view_id| that is a
   // child of the Payment Request dialog view.
@@ -82,10 +107,13 @@ class PaymentRequestInteractiveTestBase
   PaymentRequestDialogView* dialog_view() { return delegate_->dialog_view(); }
 
   // Various events that can be waited on by the DialogEventObserver.
-  enum DialogEvent {
+  enum DialogEvent : int {
     DIALOG_OPENED,
     DIALOG_CLOSED,
     ORDER_SUMMARY_OPENED,
+    PAYMENT_METHOD_OPENED,
+    CREDIT_CARD_EDITOR_OPENED,
+    BACK_NAVIGATION,
   };
 
   // DialogEventObserver is used to wait on specific events that may have

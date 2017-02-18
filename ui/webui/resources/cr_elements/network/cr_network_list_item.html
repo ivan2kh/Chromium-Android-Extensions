@@ -31,11 +31,7 @@
         border-style: none;
         display: flex;
         flex-direction: row;
-        height: 32px;
-      }
-
-      #divOuter[first-custom-item] {
-        border-top: var(--cr-separator-line);
+        min-height: 32px;
       }
 
       #divText {
@@ -80,8 +76,7 @@
         padding: 0 var(--cr-icon-padding);
       }
     </style>
-    <div id="divOuter" actionable$="[[isListItem]]"
-        first-custom-item$="[[item.isFirstCustomItem]]">
+    <div id="divOuter" actionable$="[[isListItem]]">
       <template is="dom-if" if="[[networkState]]">
         <cr-network-icon is-list-item="[[isListItem]]"
             network-state="[[networkState]]">

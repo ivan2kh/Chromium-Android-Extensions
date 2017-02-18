@@ -544,7 +544,7 @@ page_load_metrics::PageLoadExtraInfo GenericPageLoadExtraInfo(
   return page_load_metrics::PageLoadExtraInfo(
       base::TimeDelta(), base::TimeDelta(), false,
       page_load_metrics::UserInitiatedInfo::BrowserInitiated(), dest_url,
-      dest_url, page_load_metrics::ABORT_NONE,
+      dest_url, true /* did_commit */, page_load_metrics::ABORT_NONE,
       page_load_metrics::UserInitiatedInfo::NotUserInitiated(),
       base::TimeDelta(), page_load_metrics::PageLoadMetadata());
 }
@@ -894,7 +894,7 @@ class PrerenderBrowserTest : public test_utils::PrerenderInProcessBrowserTest {
 
   base::SimpleTestTickClock* OverridePrerenderManagerTimeTicks() {
     auto clock = base::MakeUnique<base::SimpleTestTickClock>();
-    auto clock_ptr = clock.get();
+    auto* clock_ptr = clock.get();
     // The default zero time causes the prerender manager to do strange things.
     clock->Advance(base::TimeDelta::FromSeconds(1));
     GetPrerenderManager()->SetTickClockForTesting(std::move(clock));
@@ -2821,6 +2821,39 @@ IN_PROC_BROWSER_TEST_F(PrerenderBrowserTest,
       "/prerender/prerender_with_image.html", replacement_text,
       &replacement_path);
   PrerenderTestURL(replacement_path, FINAL_STATUS_UNSUPPORTED_SCHEME, 0);
+}
+
+// Checks that non-http/https/chrome-extension subresource does not cancel the
+// prerender.
+IN_PROC_BROWSER_TEST_F(PrerenderBrowserTest,
+                       PrerenderSubresourceUnsupportedSchemeForOffline) {
+  // Set up a page with unsupported subresource.
+  GURL image_url = GURL("invalidscheme://www.google.com/test.jpg");
+  base::StringPairs replacement_text;
+  replacement_text.push_back(
+      std::make_pair("REPLACE_WITH_IMAGE_URL", image_url.spec()));
+  std::string replacement_path;
+  net::test_server::GetFilePathWithReplacements(
+      "/prerender/prerender_with_image.html", replacement_text,
+      &replacement_path);
+  const GURL url = src_server()->GetURL(MakeAbsolute(replacement_path));
+
+  // Navigate to about:blank to get the session storage namespace.
+  ui_test_utils::NavigateToURL(current_browser(), GURL(url::kAboutBlankURL));
+  content::SessionStorageNamespace* storage_namespace =
+      GetActiveWebContents()
+          ->GetController()
+          .GetDefaultSessionStorageNamespace();
+
+  std::unique_ptr<TestPrerender> test_prerender =
+      prerender_contents_factory()->ExpectPrerenderContents(
+          FINAL_STATUS_APP_TERMINATING);
+
+  std::unique_ptr<PrerenderHandle> prerender_handle(
+      GetPrerenderManager()->AddPrerenderForOffline(url, storage_namespace,
+                                                    gfx::Size(640, 480)));
+  ASSERT_EQ(prerender_handle->contents(), test_prerender->contents());
+  test_prerender->WaitForLoads(1);
 }
 
 // Ensure that about:blank is permitted for any subresource.

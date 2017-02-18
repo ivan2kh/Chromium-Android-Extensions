@@ -12,6 +12,7 @@
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "mojo/public/cpp/bindings/map.h"
+#include "services/ui/ws/cursor_location_manager.h"
 #include "services/ui/ws/default_access_policy.h"
 #include "services/ui/ws/display.h"
 #include "services/ui/ws/display_manager.h"
@@ -798,7 +799,8 @@ void WindowTree::ProcessWindowSurfaceChanged(
 }
 
 void WindowTree::SendToPointerWatcher(const ui::Event& event,
-                                      ServerWindow* target_window) {
+                                      ServerWindow* target_window,
+                                      int64_t display_id) {
   if (!EventMatchesPointerWatcher(event))
     return;
 
@@ -806,8 +808,8 @@ void WindowTree::SendToPointerWatcher(const ui::Event& event,
   // Ignore the return value from IsWindowKnown() as in the case of the client
   // not knowing the window we'll send 0, which corresponds to no window.
   IsWindowKnown(target_window, &client_window_id);
-  client()->OnPointerEventObserved(ui::Event::Clone(event),
-                                   client_window_id.id);
+  client()->OnPointerEventObserved(ui::Event::Clone(event), client_window_id.id,
+                                   display_id);
 }
 
 bool WindowTree::ShouldRouteToWindowManager(const ServerWindow* window) const {
@@ -1146,8 +1148,10 @@ void WindowTree::DispatchInputEventImpl(ServerWindow* target,
   // Should only get events from windows attached to a host.
   DCHECK(event_source_wms_);
   bool matched_pointer_watcher = EventMatchesPointerWatcher(event);
+  Display* display = GetDisplay(target);
+  DCHECK(display);
   client()->OnWindowInputEvent(
-      event_ack_id_, ClientWindowIdForWindow(target).id,
+      event_ack_id_, ClientWindowIdForWindow(target).id, display->GetId(),
       ui::Event::Clone(event), matched_pointer_watcher);
 }
 
@@ -1726,9 +1730,9 @@ void WindowTree::GetWindowManagerClient(
 
 void WindowTree::GetCursorLocationMemory(
     const GetCursorLocationMemoryCallback& callback) {
-  callback.Run(
-      window_server_->display_manager()->GetUserDisplayManager(user_id_)->
-      GetCursorLocationMemory());
+  callback.Run(window_server_->display_manager()
+                   ->GetCursorLocationManager(user_id_)
+                   ->GetCursorLocationMemory());
 }
 
 void WindowTree::PerformDragDrop(
@@ -1935,16 +1939,17 @@ void WindowTree::ActivateNextWindow() {
   (*displays.begin())->ActivateNextWindow();
 }
 
-void WindowTree::SetUnderlaySurfaceOffsetAndExtendedHitArea(
-    Id window_id,
-    int32_t x_offset,
-    int32_t y_offset,
-    const gfx::Insets& hit_area) {
+void WindowTree::SetExtendedHitArea(Id window_id, const gfx::Insets& hit_area) {
   ServerWindow* window = GetWindowByClientId(ClientWindowId(window_id));
-  if (!window)
+  // Extended hit test region should only be set by the owner of the window.
+  if (!window) {
+    DVLOG(1) << "SetExtendedHitArea supplied unknown window";
     return;
-
-  window->SetUnderlayOffset(gfx::Vector2d(x_offset, y_offset));
+  }
+  if (window->id().client_id != id_) {
+    DVLOG(1) << "SetExtendedHitArea supplied window that client does not own";
+    return;
+  }
   window->set_extended_hit_test_region(hit_area);
 }
 

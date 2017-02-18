@@ -75,7 +75,6 @@
 #include "chromeos/chromeos_switches.h"
 #include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/dbus/power_manager_client.h"
-#include "chromeos/dbus/upstart_client.h"
 #include "chromeos/login/auth/key.h"
 #include "chromeos/login/auth/user_context.h"
 #include "chromeos/network/network_state.h"
@@ -231,6 +230,39 @@ static bool SetUserInputMethodImpl(
   return true;
 }
 
+void EnforcePolicyInputMethods(std::string user_input_method) {
+  chromeos::CrosSettings* cros_settings = chromeos::CrosSettings::Get();
+  const base::ListValue* login_screen_input_methods = nullptr;
+  if (!cros_settings->GetList(chromeos::kDeviceLoginScreenInputMethods,
+                              &login_screen_input_methods)) {
+    return;
+  }
+
+  std::vector<std::string> allowed_input_methods;
+
+  // Add user's input method first so it is pre-selected.
+  if (!user_input_method.empty()) {
+    allowed_input_methods.push_back(user_input_method);
+  }
+
+  std::string input_method;
+  for (const auto& input_method_entry : *login_screen_input_methods) {
+    if (input_method_entry->GetAsString(&input_method))
+      allowed_input_methods.push_back(input_method);
+  }
+  chromeos::input_method::InputMethodManager* imm =
+      chromeos::input_method::InputMethodManager::Get();
+  imm->GetActiveIMEState()->SetAllowedInputMethods(allowed_input_methods);
+}
+
+void StopEnforcingPolicyInputMethods() {
+  // Empty means all input methods are allowed
+  std::vector<std::string> allowed_input_methods;
+  chromeos::input_method::InputMethodManager* imm =
+      chromeos::input_method::InputMethodManager::Get();
+  imm->GetActiveIMEState()->SetAllowedInputMethods(allowed_input_methods);
+}
+
 }  // namespace
 
 // LoginScreenContext implementation ------------------------------------------
@@ -294,6 +326,12 @@ SigninScreenHandler::SigninScreenHandler(
       chromeos::input_method::InputMethodManager::Get()->GetImeKeyboard();
   if (keyboard)
     keyboard->AddObserver(this);
+  OnAllowedInputMethodsChanged();
+  allowed_input_methods_subscription_ =
+      chromeos::CrosSettings::Get()->AddSettingsObserver(
+          chromeos::kDeviceLoginScreenInputMethods,
+          base::Bind(&SigninScreenHandler::OnAllowedInputMethodsChanged,
+                     base::Unretained(this)));
 
   content::ServiceManagerConnection::GetForProcess()
       ->GetConnector()
@@ -312,6 +350,7 @@ SigninScreenHandler::~SigninScreenHandler() {
       chromeos::input_method::InputMethodManager::Get()->GetImeKeyboard();
   if (keyboard)
     keyboard->RemoveObserver(this);
+  StopEnforcingPolicyInputMethods();
   weak_factory_.InvalidateWeakPtrs();
   if (delegate_)
     delegate_->SetWebUIHandler(nullptr);
@@ -353,6 +392,8 @@ void SigninScreenHandler::SetUserInputMethod(
   bool succeed = false;
 
   const std::string input_method = GetUserLRUInputMethod(username);
+
+  EnforcePolicyInputMethods(input_method);
 
   if (!input_method.empty())
     succeed = SetUserInputMethodImpl(username, input_method, ime_state);
@@ -568,6 +609,7 @@ void SigninScreenHandler::RegisterMessages() {
   AddCallback("showLoadingTimeoutError",
               &SigninScreenHandler::HandleShowLoadingTimeoutError);
   AddCallback("focusPod", &SigninScreenHandler::HandleFocusPod);
+  AddCallback("noPodFocused", &SigninScreenHandler::HandleNoPodFocused);
   AddCallback("getPublicSessionKeyboardLayouts",
               &SigninScreenHandler::HandleGetPublicSessionKeyboardLayouts);
   AddCallback("getTouchViewState",
@@ -1117,6 +1159,8 @@ void SigninScreenHandler::HandleAuthenticateUser(const AccountId& account_id,
   UserContext user_context(account_id);
   user_context.SetKey(Key(password));
   user_context.SetIsUsingPin(authenticated_by_pin);
+  if (account_id.GetAccountType() == AccountType::ACTIVE_DIRECTORY)
+    user_context.SetUserType(user_manager::USER_TYPE_ACTIVE_DIRECTORY);
   delegate_->Login(user_context, SigninSpecifics());
 
   HidePinKeyboardIfNeeded(account_id);
@@ -1220,9 +1264,6 @@ void SigninScreenHandler::HandleToggleEnrollmentAd() {
   }
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       chromeos::switches::kEnableAd);
-  chromeos::DBusThreadManager::Get()
-      ->GetUpstartClient()
-      ->StartAuthPolicyService();
 }
 
 void SigninScreenHandler::HandleToggleEnableDebuggingScreen() {
@@ -1387,6 +1428,8 @@ void SigninScreenHandler::HandleFocusPod(const AccountId& account_id) {
   if (!test_focus_pod_callback_.is_null())
     test_focus_pod_callback_.Run();
 
+  focused_pod_account_id_ = base::MakeUnique<AccountId>(account_id);
+
   const user_manager::User* user =
       user_manager::UserManager::Get()->FindUser(account_id);
   // |user| may be nullptr in kiosk mode or unit tests.
@@ -1406,6 +1449,11 @@ void SigninScreenHandler::HandleFocusPod(const AccountId& account_id) {
               use_24hour_clock ? base::k24HourClock : base::k12HourClock);
     }
   }
+}
+
+void SigninScreenHandler::HandleNoPodFocused() {
+  focused_pod_account_id_.reset();
+  EnforcePolicyInputMethods(std::string());
 }
 
 void SigninScreenHandler::HandleGetPublicSessionKeyboardLayouts(
@@ -1553,6 +1601,16 @@ void SigninScreenHandler::OnFeedbackFinished() {
 
   // Recreate user's cryptohome after the feedback is attempted.
   HandleResyncUserData();
+}
+
+void SigninScreenHandler::OnAllowedInputMethodsChanged() {
+  if (focused_pod_account_id_) {
+    std::string user_input_method =
+        GetUserLRUInputMethod(focused_pod_account_id_->GetUserEmail());
+    EnforcePolicyInputMethods(user_input_method);
+  } else {
+    EnforcePolicyInputMethods(std::string());
+  }
 }
 
 }  // namespace chromeos

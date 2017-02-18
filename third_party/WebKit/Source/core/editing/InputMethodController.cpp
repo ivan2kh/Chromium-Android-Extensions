@@ -81,21 +81,19 @@ bool needsIncrementalInsertion(const LocalFrame& frame, const String& newText) {
   return true;
 }
 
-DispatchEventResult dispatchBeforeInputFromComposition(
-    EventTarget* target,
-    InputEvent::InputType inputType,
-    const String& data,
-    InputEvent::EventCancelable cancelable) {
+void dispatchBeforeInputFromComposition(EventTarget* target,
+                                        InputEvent::InputType inputType,
+                                        const String& data) {
   if (!RuntimeEnabledFeatures::inputEventEnabled())
-    return DispatchEventResult::NotCanceled;
+    return;
   if (!target)
-    return DispatchEventResult::NotCanceled;
+    return;
   // TODO(chongz): Pass appropriate |ranges| after it's defined on spec.
   // http://w3c.github.io/editing/input-events.html#dom-inputevent-inputtype
   InputEvent* beforeInputEvent = InputEvent::createBeforeInput(
-      inputType, data, cancelable, InputEvent::EventIsComposing::IsComposing,
-      nullptr);
-  return target->dispatchEvent(beforeInputEvent);
+      inputType, data, InputEvent::NotCancelable,
+      InputEvent::EventIsComposing::IsComposing, nullptr);
+  target->dispatchEvent(beforeInputEvent);
 }
 
 // Used to insert/replace text during composition update and confirm
@@ -127,21 +125,8 @@ void insertTextDuringCompositionWithEvents(
   if (!target)
     return;
 
-  // TODO(chongz): Fire 'beforeinput' for the composed text being
-  // replaced/deleted.
-
-  // Only the last confirmed text is cancelable.
-  InputEvent::EventCancelable beforeInputCancelable =
-      (compositionType ==
-       TypingCommand::TextCompositionType::TextCompositionUpdate)
-          ? InputEvent::EventCancelable::NotCancelable
-          : InputEvent::EventCancelable::IsCancelable;
-  DispatchEventResult result = dispatchBeforeInputFromComposition(
-      target, InputEvent::InputType::InsertText, text, beforeInputCancelable);
-
-  if (beforeInputCancelable == InputEvent::EventCancelable::IsCancelable &&
-      result != DispatchEventResult::NotCanceled)
-    return;
+  dispatchBeforeInputFromComposition(
+      target, InputEvent::InputType::InsertCompositionText, text);
 
   // 'beforeinput' event handler may destroy document.
   if (!frame.document())
@@ -264,22 +249,51 @@ bool InputMethodController::finishComposingText(
   if (!hasComposition())
     return false;
 
+  const String& composing = composingText();
+
   if (confirmBehavior == KeepSelection) {
-    PlainTextRange oldOffsets = getSelectionOffsets();
+    // Do not dismiss handles even if we are moving selection, because we will
+    // eventually move back to the old selection offsets.
+    const bool isHandleVisible = frame().selection().isHandleVisible();
+
+    const PlainTextRange& oldOffsets = getSelectionOffsets();
     Editor::RevealSelectionScope revealSelectionScope(&editor());
 
-    bool result = replaceComposition(composingText());
+    clear();
+    dispatchCompositionEndEvent(frame(), composing);
 
     // TODO(xiaochengh): The use of updateStyleAndLayoutIgnorePendingStylesheets
     // needs to be audited. see http://crbug.com/590369 for more details.
     document().updateStyleAndLayoutIgnorePendingStylesheets();
 
-    setSelectionOffsets(oldOffsets);
-    return result;
+    const EphemeralRange& oldSelectionRange =
+        ephemeralRangeForOffsets(oldOffsets);
+    if (oldSelectionRange.isNull())
+      return false;
+    const SelectionInDOMTree& selection =
+        SelectionInDOMTree::Builder()
+            .setBaseAndExtent(oldSelectionRange)
+            .setIsHandleVisible(isHandleVisible)
+            .build();
+    frame().selection().setSelection(selection, FrameSelection::CloseTyping);
+    return true;
   }
 
-  return replaceCompositionAndMoveCaret(composingText(), 0,
-                                        Vector<CompositionUnderline>());
+  Element* rootEditableElement = frame().selection().rootEditableElement();
+  if (!rootEditableElement)
+    return false;
+  PlainTextRange compositionRange =
+      PlainTextRange::create(*rootEditableElement, *m_compositionRange);
+  if (compositionRange.isNull())
+    return false;
+
+  clear();
+
+  if (!moveCaret(compositionRange.end()))
+    return false;
+
+  dispatchCompositionEndEvent(frame(), composing);
+  return true;
 }
 
 bool InputMethodController::commitText(
@@ -313,12 +327,6 @@ bool InputMethodController::replaceComposition(const String& text) {
 
   if (!isAvailable())
     return false;
-
-  // If text is empty, then delete the old composition here. If text is
-  // non-empty, InsertTextCommand::input will delete the old composition with
-  // an optimized replace operation.
-  if (text.isEmpty())
-    TypingCommand::deleteSelection(document(), 0);
 
   clear();
 
@@ -433,12 +441,6 @@ void InputMethodController::cancelComposition() {
 
   clear();
 
-  // TODO(chongz): Figure out which InputType should we use here.
-  dispatchBeforeInputFromComposition(
-      document().focusedElement(),
-      InputEvent::InputType::DeleteComposedCharacterBackward, nullAtom,
-      InputEvent::EventCancelable::NotCancelable);
-  dispatchCompositionUpdateEvent(frame(), emptyString);
   insertTextDuringCompositionWithEvents(
       frame(), emptyString, 0,
       TypingCommand::TextCompositionType::TextCompositionCancel);
@@ -452,22 +454,6 @@ void InputMethodController::cancelComposition() {
 
   // No DOM update after 'compositionend'.
   dispatchCompositionEndEvent(frame(), emptyString);
-}
-
-void InputMethodController::cancelCompositionIfSelectionIsInvalid() {
-  if (!hasComposition() || editor().preventRevealSelection())
-    return;
-
-  // Check if selection start and selection end are valid.
-  FrameSelection& selection = frame().selection();
-  if (!selection.isNone() && !m_compositionRange->collapsed()) {
-    if (selection.start().compareTo(m_compositionRange->startPosition()) >= 0 &&
-        selection.end().compareTo(m_compositionRange->endPosition()) <= 0)
-      return;
-  }
-
-  cancelComposition();
-  frame().chromeClient().didCancelCompositionOnSelectionChange();
 }
 
 // If current position is at grapheme boundary, return 0; otherwise, return the
@@ -698,19 +684,23 @@ PlainTextRange InputMethodController::getSelectionOffsets() const {
   return PlainTextRange::create(*editable, range);
 }
 
-bool InputMethodController::setSelectionOffsets(
-    const PlainTextRange& selectionOffsets,
-    FrameSelection::SetSelectionOptions options) {
-  if (selectionOffsets.isNull())
-    return false;
+EphemeralRange InputMethodController::ephemeralRangeForOffsets(
+    const PlainTextRange& offsets) const {
+  if (offsets.isNull())
+    return EphemeralRange();
   Element* rootEditableElement = frame().selection().rootEditableElement();
   if (!rootEditableElement)
-    return false;
+    return EphemeralRange();
 
   DCHECK(!document().needsLayoutTreeUpdate());
 
-  const EphemeralRange range =
-      selectionOffsets.createRange(*rootEditableElement);
+  return offsets.createRange(*rootEditableElement);
+}
+
+bool InputMethodController::setSelectionOffsets(
+    const PlainTextRange& selectionOffsets,
+    FrameSelection::SetSelectionOptions options) {
+  const EphemeralRange range = ephemeralRangeForOffsets(selectionOffsets);
   if (range.isNull())
     return false;
 
@@ -805,9 +795,12 @@ void InputMethodController::extendSelectionAndDelete(int before, int after) {
   } while (frame().selection().start() == frame().selection().end() &&
            before <= static_cast<int>(selectionOffsets.start()));
   // TODO(chongz): Find a way to distinguish Forward and Backward.
-  dispatchBeforeInputEditorCommand(
-      document().focusedElement(), InputEvent::InputType::DeleteContentBackward,
-      new RangeVector(1, m_frame->selection().firstRange()));
+  Node* target = document().focusedElement();
+  if (target) {
+    dispatchBeforeInputEditorCommand(
+        target, InputEvent::InputType::DeleteContentBackward,
+        targetRangesForInputEvent(*target));
+  }
   TypingCommand::deleteSelection(document());
 }
 
@@ -1086,9 +1079,7 @@ WebTextInputType InputMethodController::textInputType() const {
 }
 
 void InputMethodController::willChangeFocus() {
-  if (!finishComposingText(DoNotKeepSelection))
-    return;
-  frame().chromeClient().resetInputMethod();
+  finishComposingText(DoNotKeepSelection);
 }
 
 DEFINE_TRACE(InputMethodController) {

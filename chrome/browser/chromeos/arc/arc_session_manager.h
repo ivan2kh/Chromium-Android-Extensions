@@ -18,7 +18,6 @@
 #include "components/arc/arc_session_observer.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/sync_preferences/pref_service_syncable_observer.h"
-#include "components/sync_preferences/synced_pref_observer.h"
 
 class ArcAppLauncher;
 class Profile;
@@ -34,7 +33,7 @@ class PrefRegistrySyncable;
 namespace arc {
 
 class ArcAndroidManagementChecker;
-class ArcAuthCodeFetcher;
+class ArcAuthInfoFetcher;
 class ArcAuthContext;
 class ArcSessionRunner;
 class ArcTermsOfServiceNegotiator;
@@ -44,8 +43,7 @@ enum class ProvisioningResult : int;
 // LSO. It lives on the UI thread.
 class ArcSessionManager : public ArcSessionObserver,
                           public ArcSupportHost::Observer,
-                          public sync_preferences::PrefServiceSyncableObserver,
-                          public sync_preferences::SyncedPrefObserver {
+                          public sync_preferences::PrefServiceSyncableObserver {
  public:
   // Represents each State of ARC session.
   // NOT_INITIALIZED: represents the state that the Profile is not yet ready
@@ -59,11 +57,8 @@ class ArcSessionManager : public ArcSessionObserver,
   //   state only for the first boot case (= opt-in case). The second time and
   //   later the management check is running in parallel with ARC session
   //   starting, and in such a case, State is ACTIVE, instead.
-  // FETCHING_CODE: Fetching an auth token. Similar to
-  //   CHECKING_ANDROID_MANAGEMENT case, this is only for the first boot case.
-  //   In re-auth flow (fetching an auth token while ARC is running), the
-  //   State should be ACTIVE.
-  //   TODO(hidehiko): Migrate into re-auth flow, then remove this state.
+  // REMOVING_DATA_DIR: When ARC is disabled, the data directory is removed.
+  //   While removing is processed, ARC cannot be started. This is the state.
   // ACTIVE: ARC is running.
   //
   // State transition should be as follows:
@@ -72,21 +67,19 @@ class ArcSessionManager : public ArcSessionObserver,
   // ...(any)... -> NOT_INITIALIZED: when the Chrome is being shutdown.
   // ...(any)... -> STOPPED: on error.
   //
-  // In the first boot case (no OOBE case):
+  // In the first boot case:
   //   STOPPED -> SHOWING_TERMS_OF_SERVICE: when arc.enabled preference is set.
   //   SHOWING_TERMS_OF_SERVICE -> CHECKING_ANDROID_MANAGEMENT: when a user
   //     agree with "Terms Of Service"
-  //   CHECKING_ANDROID_MANAGEMENT -> FETCHING_CODE: when Android management
-  //     check passes.
-  //   FETCHING_CODE -> ACTIVE: when the auth token is successfully fetched.
-  //
-  // In the first boot case (OOBE case):
-  //   STOPPED -> FETCHING_CODE: When arc.enabled preference is set.
-  //   FETCHING_CODE -> ACTIVE: when the auth token is successfully fetched.
+  //   CHECKING_ANDROID_MANAGEMENT -> ACTIVE: when the auth token is
+  //     successfully fetched.
   //
   // In the second (or later) boot case:
   //   STOPPED -> ACTIVE: when arc.enabled preference is checked that it is
   //     true. Practically, this is when the primary Profile gets ready.
+  //
+  // TODO(hidehiko): Fix the state machine, and update the comment including
+  // relationship with |enable_requested_|.
   enum class State {
     NOT_INITIALIZED,
     STOPPED,
@@ -100,12 +93,9 @@ class ArcSessionManager : public ArcSessionObserver,
    public:
     virtual ~Observer() = default;
 
-    // Called to notify that ARC session is shut down.
-    // TODO(hidehiko): Rename the observer callback to OnArcSessionShutdown().
-    virtual void OnArcBridgeShutdown() {}
-
-    // Called to notify that ARC enabled state has been updated.
-    virtual void OnArcOptInChanged(bool enabled) {}
+    // Called to notify that whether Google Play Store is enabled or not, which
+    // is represented by "arc.enabled" preference, is updated.
+    virtual void OnArcPlayStoreEnabledChanged(bool enabled) {}
 
     // Called to notify that ARC has been initialized successfully.
     virtual void OnArcInitialStart() {}
@@ -131,7 +121,7 @@ class ArcSessionManager : public ArcSessionObserver,
   static void SetShelfDelegateForTesting(ash::ShelfDelegate* shelf_delegate);
   static void EnableCheckAndroidManagementForTesting();
 
-  // Returns true if Arc is allowed to run for the current session.
+  // Returns true if ARC is allowed to run for the current session.
   // TODO(hidehiko): The name is very close to IsArcAllowedForProfile(), but
   // has different meaning. Clean this up.
   bool IsAllowed() const;
@@ -159,7 +149,7 @@ class ArcSessionManager : public ArcSessionObserver,
   bool IsSessionRunning() const;
   bool IsSessionStopped() const;
 
-  // Called from Arc support platform app when user cancels signing.
+  // Called from ARC support platform app when user cancels signing.
   void CancelAuthCode();
 
   // TODO(hidehiko): Better to rename longer but descriptive one, e.g.
@@ -167,14 +157,30 @@ class ArcSessionManager : public ArcSessionObserver,
   // TODO(hidehiko): Look at the real usage, and write document.
   bool IsArcManaged() const;
 
-  // TODO(hidehiko): better to rename longer but descriptive one, e.g.
-  // IsArcPlayStoreEnabled().
-  // TODO(hidehiko): Look at the real usage, and write document.
-  bool IsArcEnabled() const;
+  // Returns the preference value of "arc.enabled", which means whether the
+  // user has opted in (or is opting in now) to use Google Play Store on ARC.
+  bool IsArcPlayStoreEnabled() const;
 
-  // This requires Arc to be allowed (|IsAllowed|)for current profile.
-  void EnableArc();
-  void DisableArc();
+  // Enables/disables Google Play Store on ARC. Currently, it is tied to
+  // ARC enabled state, too, so this also should trigger to enable/disable
+  // whole ARC system.
+  // TODO(hidehiko): De-couple the concept to enable ARC system and opt-in
+  // to use Google Play Store. Note that there is a plan to use ARC without
+  // Google Play Store, then ARC can run without opt-in.
+  void SetArcPlayStoreEnabled(bool enable);
+
+  // Requests to enable ARC session. This starts ARC instance, or maybe starts
+  // Terms Of Service negotiation if they haven't been accepted yet.
+  // If it is already requested to enable, no-op.
+  // Currently, enabled/disabled is tied to whether Google Play Store is
+  // enabled or disabled. Please see also TODO of SetArcPlayStoreEnabled().
+  void RequestEnable();
+
+  // Requests to disable ARC session. This stops ARC instance, or quits Terms
+  // Of Service negotiation if it is the middle of the process (e.g. closing
+  // UI for manual negotiation if it is shown).
+  // If it is already requested to disable, no-op.
+  void RequestDisable();
 
   // Called from the Chrome OS metrics provider to record Arc.State
   // periodically.
@@ -182,9 +188,6 @@ class ArcSessionManager : public ArcSessionObserver,
 
   // sync_preferences::PrefServiceSyncableObserver
   void OnIsSyncingChanged() override;
-
-  // sync_preferences::SyncedPrefObserver
-  void OnSyncedPrefChanged(const std::string& path, bool from_sync) override;
 
   // ArcSupportHost::Observer:
   void OnWindowClosed() override;
@@ -197,19 +200,20 @@ class ArcSessionManager : public ArcSessionObserver,
   // Stops ARC without changing ArcEnabled preference.
   void StopArc();
 
-  // StopArc(), then EnableArc(). Between them data clear may happens.
+  // StopArc(), then restart. Between them data clear may happens.
   // This is a special method to support enterprise device lost case.
   // This can be called only when ARC is running.
   void StopAndEnableArc();
 
   // Removes the data if ARC is stopped. Otherwise, queue to remove the data
-  // on ARC is stopped.
+  // on ARC is stopped. A log statement with the removal reason must be added
+  // prior to calling RemoveArcData().
   void RemoveArcData();
 
   ArcSupportHost* support_host() { return support_host_.get(); }
 
   // TODO(hidehiko): Get rid of the getter by migration between ArcAuthContext
-  // and ArcAuthCodeFetcher.
+  // and ArcAuthInfoFetcher.
   ArcAuthContext* auth_context() { return context_.get(); }
 
   void StartArc();
@@ -230,6 +234,10 @@ class ArcSessionManager : public ArcSessionObserver,
   void SetAttemptUserExitCallbackForTesting(const base::Closure& callback);
 
  private:
+  // RequestEnable() has a check in order not to trigger starting procedure
+  // twice. This method can be called to bypass that check when restarting.
+  void RequestEnableImpl();
+
   // Negotiates the terms of service to user.
   void StartTermsOfServiceNegotiation();
   void OnTermsOfServiceNegotiated(bool accepted);
@@ -268,6 +276,11 @@ class ArcSessionManager : public ArcSessionObserver,
   // Registrar used to monitor ARC enabled state.
   PrefChangeRegistrar pref_change_registrar_;
 
+  // Whether ArcSessionManager is requested to enable (starting to run ARC
+  // instance) or not.
+  bool enable_requested_ = false;
+
+  // Internal state machine. See also State enum class.
   State state_ = State::NOT_INITIALIZED;
   base::ObserverList<Observer> observer_list_;
   base::ObserverList<ArcSessionObserver> arc_session_observer_list_;

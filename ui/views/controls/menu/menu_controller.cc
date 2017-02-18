@@ -433,12 +433,6 @@ MenuItemView* MenuController::Run(Widget* parent,
   } else {
     showing_ = true;
 
-    // TODO(jonross): remove after tracking down the cause of
-    // (crbug.com/683087).
-    // If we are not showing we should be shutting down, this could lead to
-    // incorrect delegate states.
-    CHECK(!running_);
-
     if (owner_)
       owner_->RemoveObserver(this);
     owner_ = parent;
@@ -476,10 +470,6 @@ MenuItemView* MenuController::Run(Widget* parent,
   if (ViewsDelegate::GetInstance())
     ViewsDelegate::GetInstance()->AddRef();
 
-  // TODO(jonross): remove after tracking down the cause of (crbug.com/683087).
-  // About to either exit and run async, or nest message loop.
-  running_ = true;
-
   if (async_run_)
     return nullptr;
 
@@ -515,7 +505,8 @@ void MenuController::Cancel(ExitType type) {
 
   if (!showing_) {
     // This occurs if we're in the process of notifying the delegate for a drop
-    // and the delegate cancels us.
+    // and the delegate cancels us. Or if the releasing of ViewsDelegate causes
+    // an immediate shutdown.
     return;
   }
 
@@ -528,11 +519,6 @@ void MenuController::Cancel(ExitType type) {
   SetSelection(NULL, SELECTION_UPDATE_IMMEDIATELY | SELECTION_EXIT);
 
   if (!blocking_run_) {
-    // TODO(jonross): remove after tracking down the cause of
-    // (crbug.com/683087).
-    bool nested = delegate_stack_.size() > 1;
-    CHECK(!nested);
-    base::WeakPtr<MenuController> this_ref = AsWeakPtr();
     // If we didn't block the caller we need to notify the menu, which
     // triggers deleting us.
     DCHECK(selected);
@@ -540,32 +526,28 @@ void MenuController::Cancel(ExitType type) {
     delegate_->OnMenuClosed(internal::MenuControllerDelegate::NOTIFY_DELEGATE,
                             selected->GetRootMenuItem(), accept_event_flags_);
     // WARNING: the call to MenuClosed deletes us.
-    CHECK(!this_ref);
     return;
   }
+
+  // If |type| is EXIT_ALL we update the state of the menu to not showing. For
+  // dragging this ensures that the correct visual state is reported until the
+  // drag operation completes. For non-dragging cases it is possible that the
+  // release of ViewsDelegate leads immediately to shutdown, which can trigger
+  // nested calls to Cancel. We want to reject these to prevent attempting a
+  // nested tear down of this and |delegate_|.
+  if (type == EXIT_ALL)
+    showing_ = false;
 
   // On Windows and Linux the destruction of this menu's Widget leads to the
   // teardown of the platform specific drag-and-drop Widget. Do not shutdown
   // while dragging, leave the Widget hidden until drag-and-drop has completed,
   // at which point all menus will be destroyed.
-  //
-  // If |type| is EXIT_ALL we update the state of the menu to not showing. So
-  // that during the completion of a drag we are not incorrectly reporting the
-  // visual state.
   if (!drag_in_progress_)
     ExitAsyncRun();
-  else if (type == EXIT_ALL)
-    showing_ = false;
 }
 
 void MenuController::AddNestedDelegate(
     internal::MenuControllerDelegate* delegate) {
-  // TODO(jonross): remove after tracking down the cause of (crbug.com/683087).
-  for (auto delegates : delegate_stack_) {
-    // Having the same delegate in the stack could cause deletion order issues.
-    CHECK_NE(delegates.first, delegate);
-  }
-
   delegate_stack_.push_back(std::make_pair(delegate, async_run_));
   delegate_ = delegate;
 }
@@ -1001,13 +983,9 @@ int MenuController::OnPerformDrop(SubmenuView* source,
     drop_target = drop_target->GetParentMenuItem();
 
   if (!IsBlockingRun()) {
-    // TODO(jonross): remove after tracking down the cause of
-    // (crbug.com/683087).
-    base::WeakPtr<MenuController> this_ref = AsWeakPtr();
     delegate_->OnMenuClosed(
         internal::MenuControllerDelegate::DONT_NOTIFY_DELEGATE,
         item->GetRootMenuItem(), accept_event_flags_);
-    CHECK(!this_ref);
   }
 
   // WARNING: the call to MenuClosed deletes us.
@@ -1406,7 +1384,6 @@ MenuController::MenuController(bool blocking,
                                internal::MenuControllerDelegate* delegate)
     : blocking_run_(blocking),
       showing_(false),
-      running_(false),
       exit_type_(EXIT_NONE),
       did_capture_(false),
       result_(NULL),
@@ -2685,9 +2662,6 @@ MenuItemView* MenuController::ExitMenuRun() {
 
     showing_ = false;
     did_capture_ = false;
-    // TODO(jonross): remove after tracking down the cause of
-    // (crbug.com/683087).
-    running_ = false;
   }
 
   MenuItemView* result = result_;

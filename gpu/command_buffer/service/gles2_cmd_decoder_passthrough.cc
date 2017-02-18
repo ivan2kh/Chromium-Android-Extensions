@@ -4,6 +4,7 @@
 
 #include "gpu/command_buffer/service/gles2_cmd_decoder_passthrough.h"
 
+#include "base/strings/string_split.h"
 #include "gpu/command_buffer/service/feature_info.h"
 #include "gpu/command_buffer/service/gl_utils.h"
 #include "ui/gl/gl_version_info.h"
@@ -75,6 +76,7 @@ GLES2DecoderPassthroughImpl::GLES2DecoderPassthroughImpl(ContextGroup* group)
       logger_(&debug_marker_manager_),
       surface_(),
       context_(),
+      offscreen_(false),
       group_(group),
       feature_info_(group->feature_info()) {
   DCHECK(group);
@@ -161,6 +163,7 @@ bool GLES2DecoderPassthroughImpl::Initialize(
   // with SetSurface.
   context_ = context;
   surface_ = surface;
+  offscreen_ = offscreen;
 
   if (!group_->Initialize(this, attrib_helper.context_type,
                           disallowed_features)) {
@@ -171,7 +174,9 @@ bool GLES2DecoderPassthroughImpl::Initialize(
 
   // Check for required extensions
   if (!feature_info_->feature_flags().angle_robust_client_memory ||
-      !feature_info_->feature_flags().chromium_bind_generates_resource) {
+      !feature_info_->feature_flags().chromium_bind_generates_resource ||
+      !feature_info_->feature_flags().chromium_copy_texture ||
+      !feature_info_->feature_flags().chromium_copy_compressed_texture) {
     // TODO(geofflang): Verify that ANGLE_webgl_compatibility is enabled if this
     // is a WebGL context (depends on crbug.com/671217).
     Destroy(true);
@@ -208,6 +213,10 @@ bool GLES2DecoderPassthroughImpl::Initialize(
 }
 
 void GLES2DecoderPassthroughImpl::Destroy(bool have_context) {
+  if (have_context) {
+    FlushErrors();
+  }
+
   image_manager_.reset();
 
   DeleteServiceObjects(

@@ -21,8 +21,9 @@ OffscreenCanvasCompositorFrameSink::OffscreenCanvasCompositorFrameSink(
       support_(this,
                provider->GetSurfaceManager(),
                frame_sink_id,
-               nullptr,
-               nullptr),
+               false /* is_root */,
+               true /* handles_frame_sink_id_invalidation */,
+               true /* needs_sync_points */),
       client_(std::move(client)),
       binding_(this, std::move(request)) {
   binding_.set_connection_error_handler(
@@ -79,9 +80,11 @@ void OffscreenCanvasCompositorFrameSink::ReclaimResources(
     client_->ReclaimResources(resources);
 }
 
-void OffscreenCanvasCompositorFrameSink::WillDrawSurface() {
+void OffscreenCanvasCompositorFrameSink::WillDrawSurface(
+    const cc::LocalSurfaceId& local_surface_id,
+    const gfx::Rect& damage_rect) {
   if (client_)
-    client_->WillDrawSurface();
+    client_->WillDrawSurface(local_surface_id, damage_rect);
 }
 
 void OffscreenCanvasCompositorFrameSink::OnClientConnectionLost() {

@@ -222,7 +222,8 @@ external/wpt/compat [ Skip ]
 external/wpt/config.default.json [ Skip ]
 external/wpt/conformance-checkers [ Skip ]
 external/wpt/console [ Skip ]
-external/wpt/content-security-policy [ Skip ]
+## Owners: mkwst@chromium.org
+# external/wpt/content-security-policy [ Pass ]
 external/wpt/cookies [ Skip ]
 external/wpt/cors [ Skip ]
 external/wpt/csp [ Skip ]
@@ -278,12 +279,17 @@ external/wpt/manifest [ Skip ]
 external/wpt/mathml [ Skip ]
 ## Owners: none; No tests in the directory.
 # external/wpt/media [ Skip ]
+## Owners: mlamouri@chromium.org,zqzhang@chromium.org
+# external/wpt/mediasession [ Pass ]
+## Owners: chcunningham@chromium.org,mlamouri@chromium.org
+# external/wpt/media-capabilities
 external/wpt/media-source [ Skip ]
 external/wpt/mediacapture-record [ Skip ]
 ## Owners: phoglund@chromium.org
 # external/wpt/mediacapture-streams [ Pass ]
 external/wpt/microdata [ Skip ]
-external/wpt/mixed-content [ Skip ]
+## Owners: mkwst@chromium.org
+# external/wpt/mixed-content [ Pass ]
 ## Owners: sunjian@chromium.org,panicker@chromium.org
 external/wpt/navigation-timing [ Pass ]
 external/wpt/notifications [ Skip ]
@@ -301,9 +307,10 @@ external/wpt/progress-events [ Skip ]
 external/wpt/proximity [ Skip ]
 ## Owners: rob.buis@samsung.com
 # external/wpt/quirks-mode [ Skip ]
-## Owners: mkwst@chromium.org
-# http://crbug.com/360762: Requires HTTPS server with python.
-external/wpt/referrer-policy [ Skip ]
+## Owners: avayvod@chromium.org,mlamouri@chromium.org
+# external/wpt/remote-playback [ Pass ]
+## Owners: jochen@chromium.org,estark@chromium.org
+# external/wpt/referrer-policy [ Pass ]
 external/wpt/resource-timing [ Skip ]
 ## Owners: jsbell@chromium.org
 # external/wpt/resources [ Pass ]
@@ -328,8 +335,8 @@ external/wpt/server-side.md [ Skip ]
 # external/wpt/shadow-dom [ Pass ]
 ## Owners: domenic@chromium.org,ricea@chromium.org,tyoshino@chromium.org
 external/wpt/streams [ Pass ]
-## Owners: jww@chromium.org
-external/wpt/subresource-integrity [ Skip ]
+## Owners: mkwst@chromium.org,jochen@chromium.org
+# external/wpt/subresource-integrity [ Pass ]
 ## Owners: foolip@chromium.org
 # external/wpt/svg [ Pass ]
 external/wpt/svg/import [ Skip ]
@@ -359,7 +366,8 @@ external/wpt/webgl [ Skip ]
 external/wpt/websockets [ Skip ]
 ## Owners: michaeln@chromium.org,jsbell@chromium.org
 # external/wpt/webstorage [ Pass ]
-external/wpt/webvtt [ Skip ]
+## Owners: foolip@chromium.org, maksim.sisov@intel.com
+# external/wpt/webvtt [ Pass ]
 ## Owners: nhiroki@chromium.org
 # external/wpt/workers [ Pass ]
 
@@ -678,6 +686,11 @@ external/wpt/domxpath/002.html [ Skip ]
 # for Rietveld to handle now, so it's not currently imported.
 crbug.com/676491 external/wpt/domxpath/xml_xpath_runner.html [ Skip ]
 crbug.com/676491 external/wpt/domxpath/xml_xpath_tests.xml [ Skip ]
+
+# This test depends on a support file with non-LF new lines, which
+# causes a patch error in the bot_update step when importing this test.
+crbug.com/691107 external/wpt/webvtt/webvtt-file-format-parsing/webvtt-file-parsing/001.html [ Skip ]
+crbug.com/691107 external/wpt/webvtt/webvtt-file-format-parsing/webvtt-file-parsing/support/newlines.vtt [ Skip ]
 
 # Manual tests that fail as TIMEOUT or NOTRUN. Consider adding wpt_automation.
 external/wpt/FileAPI/BlobURL/test1-manual.html [ Skip ]

@@ -219,7 +219,7 @@ class CRWWebControllerTest : public web::WebTestWithWebController {
         [web_controller() webStateImpl]->GetNavigationManagerImpl();
     navigationManager.InitializeSession(@"name", nil, NO, 0);
     [navigationManager.GetSessionController()
-          addPendingEntry:GURL("http://www.google.com/?q=foo#bar")
+           addPendingItem:GURL("http://www.google.com/?q=foo#bar")
                  referrer:web::Referrer()
                transition:ui::PAGE_TRANSITION_TYPED
         rendererInitiated:NO];
@@ -702,6 +702,19 @@ TEST_F(CRWWebControllerNavigationTest, HTTPPassword) {
               web::SSLStatus::DISPLAYED_PASSWORD_FIELD_ON_HTTP);
 }
 
+// Tests that didShowCreditCardInputOnHTTP updates the SSLStatus to indicate
+// that a credit card field has been displayed on an HTTP page.
+TEST_F(CRWWebControllerNavigationTest, HTTPCreditCard) {
+  LoadHtml(@"<html><body></body></html>", GURL("http://chromium.test"));
+  NavigationManagerImpl& nav_manager =
+      web_controller().webStateImpl->GetNavigationManagerImpl();
+  EXPECT_FALSE(nav_manager.GetLastCommittedItem()->GetSSL().content_status &
+               web::SSLStatus::DISPLAYED_CREDIT_CARD_FIELD_ON_HTTP);
+  [web_controller() didShowCreditCardInputOnHTTP];
+  EXPECT_TRUE(nav_manager.GetLastCommittedItem()->GetSSL().content_status &
+              web::SSLStatus::DISPLAYED_CREDIT_CARD_FIELD_ON_HTTP);
+}
+
 // Real WKWebView is required for CRWWebControllerFormActivityTest.
 typedef web::WebTestWithWebController CRWWebControllerFormActivityTest;
 
@@ -765,6 +778,7 @@ TEST_F(CRWWebControllerJSExecutionTest, WindowIdMissmatch) {
 TEST_F(CRWWebControllerTest, WebUrlWithTrustLevel) {
   [[[mockWebView_ stub] andReturn:[NSURL URLWithString:@(kTestURLString)]] URL];
   [[[mockWebView_ stub] andReturnBool:NO] hasOnlySecureContent];
+  [[[mockWebView_ stub] andReturn:@""] title];
 
   // Stub out the injection process.
   [[mockWebView_ stub] evaluateJavaScript:OCMOCK_ANY
@@ -797,7 +811,7 @@ class CRWWebControllerNativeContentTest : public web::WebTestWithWebController {
         [web_controller() webStateImpl]->GetNavigationManagerImpl();
     navigation_manager.InitializeSession(@"name", nil, NO, 0);
     [navigation_manager.GetSessionController()
-          addPendingEntry:URL
+           addPendingItem:URL
                  referrer:web::Referrer()
                transition:ui::PAGE_TRANSITION_TYPED
         rendererInitiated:NO];

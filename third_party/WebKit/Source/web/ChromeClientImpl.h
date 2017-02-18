@@ -204,8 +204,6 @@ class WEB_EXPORT ChromeClientImpl final : public ChromeClient {
   void textFieldDataListChanged(HTMLInputElement&) override;
   void ajaxSucceeded(LocalFrame*) override;
 
-  void didCancelCompositionOnSelectionChange() override;
-  void resetInputMethod() override;
   void showVirtualKeyboardOnElementFocus() override;
 
   void registerViewportLayers() const override;
@@ -214,7 +212,11 @@ class WEB_EXPORT ChromeClientImpl final : public ChromeClient {
   void onMouseDown(Node*) override;
   void didUpdateBrowserControls() const override;
 
-  CompositorProxyClient* createCompositorProxyClient(LocalFrame*) override;
+  CompositorWorkerProxyClient* createCompositorWorkerProxyClient(
+      LocalFrame*) override;
+  AnimationWorkletProxyClient* createAnimationWorkletProxyClient(
+      LocalFrame*) override;
+
   FloatSize elasticOverscroll() const override;
 
   void didObserveNonGetFetchFromScript() const override;

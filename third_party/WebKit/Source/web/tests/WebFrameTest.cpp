@@ -30,10 +30,15 @@
 
 #include "public/web/WebFrame.h"
 
+#include <stdarg.h>
+#include <v8.h>
+#include <map>
+#include <memory>
 #include "SkBitmap.h"
 #include "SkCanvas.h"
 #include "bindings/core/v8/SerializedScriptValueFactory.h"
 #include "bindings/core/v8/V8Node.h"
+#include "bindings/core/v8/serialization/V8ScriptValueSerializer.h"
 #include "core/clipboard/DataTransfer.h"
 #include "core/css/StyleSheetContents.h"
 #include "core/css/resolver/StyleResolver.h"
@@ -99,6 +104,7 @@
 #include "platform/weborigin/SchemeRegistry.h"
 #include "platform/weborigin/SecurityOrigin.h"
 #include "public/platform/Platform.h"
+#include "public/platform/WebCache.h"
 #include "public/platform/WebCachePolicy.h"
 #include "public/platform/WebClipboard.h"
 #include "public/platform/WebFloatRect.h"
@@ -109,7 +115,6 @@
 #include "public/platform/WebURLLoaderClient.h"
 #include "public/platform/WebURLLoaderMockFactory.h"
 #include "public/platform/WebURLResponse.h"
-#include "public/web/WebCache.h"
 #include "public/web/WebConsoleMessage.h"
 #include "public/web/WebDataSource.h"
 #include "public/web/WebDeviceEmulationParams.h"
@@ -143,10 +148,6 @@
 #include "wtf/Forward.h"
 #include "wtf/PtrUtil.h"
 #include "wtf/dtoa/utils.h"
-#include <map>
-#include <memory>
-#include <stdarg.h>
-#include <v8.h>
 
 using blink::URLTestHelpers::toKURL;
 using blink::testing::runPendingTasks;
@@ -194,20 +195,24 @@ class WebFrameTest : public ::testing::Test {
         m_chromeURL("chrome://") {}
 
   ~WebFrameTest() override {
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
-    WebCache::clear();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
   }
 
   void registerMockedHttpURLLoad(const std::string& fileName) {
-    URLTestHelpers::registerMockedURLFromBaseURL(
-        WebString::fromUTF8(m_baseURL.c_str()),
-        WebString::fromUTF8(fileName.c_str()));
+    registerMockedURLLoadFromBase(m_baseURL, fileName);
   }
 
   void registerMockedChromeURLLoad(const std::string& fileName) {
-    URLTestHelpers::registerMockedURLFromBaseURL(
-        WebString::fromUTF8(m_chromeURL.c_str()),
-        WebString::fromUTF8(fileName.c_str()));
+    registerMockedURLLoadFromBase(m_chromeURL, fileName);
+  }
+
+  void registerMockedURLLoadFromBase(const std::string& baseURL,
+                                     const std::string& fileName) {
+    URLTestHelpers::registerMockedURLLoadFromBase(
+        WebString::fromUTF8(baseURL), testing::webTestDataPath(),
+        WebString::fromUTF8(fileName));
   }
 
   void registerMockedHttpURLLoadWithCSP(const std::string& fileName,
@@ -221,15 +226,15 @@ class WebFrameTest : public ::testing::Test {
         WebString::fromUTF8(csp));
     std::string fullString = m_baseURL + fileName;
     URLTestHelpers::registerMockedURLLoadWithCustomResponse(
-        toKURL(fullString.c_str()), WebString::fromUTF8(fileName.c_str()),
-        WebString::fromUTF8(""), response);
+        toKURL(fullString),
+        testing::webTestDataPath(WebString::fromUTF8(fileName)), response);
   }
 
   void registerMockedHttpURLLoadWithMimeType(const std::string& fileName,
                                              const std::string& mimeType) {
-    URLTestHelpers::registerMockedURLFromBaseURL(
-        WebString::fromUTF8(m_baseURL.c_str()),
-        WebString::fromUTF8(fileName.c_str()), WebString::fromUTF8(mimeType));
+    URLTestHelpers::registerMockedURLLoadFromBase(
+        WebString::fromUTF8(m_baseURL), testing::webTestDataPath(),
+        WebString::fromUTF8(fileName), WebString::fromUTF8(mimeType));
   }
 
   void applyViewportStyleOverride(
@@ -624,9 +629,7 @@ TEST_P(ParameterizedWebFrameTest, ChromePageNoJavascript) {
 TEST_P(ParameterizedWebFrameTest, LocationSetHostWithMissingPort) {
   std::string fileName = "print-location-href.html";
   registerMockedHttpURLLoad(fileName);
-  URLTestHelpers::registerMockedURLLoad(
-      toKURL("http://internal.test:0/" + fileName),
-      WebString::fromUTF8(fileName));
+  registerMockedURLLoadFromBase("http://internal.test:0/", fileName);
 
   FrameTestHelpers::WebViewHelper webViewHelper;
 
@@ -651,9 +654,7 @@ TEST_P(ParameterizedWebFrameTest, LocationSetHostWithMissingPort) {
 TEST_P(ParameterizedWebFrameTest, LocationSetEmptyPort) {
   std::string fileName = "print-location-href.html";
   registerMockedHttpURLLoad(fileName);
-  URLTestHelpers::registerMockedURLLoad(
-      toKURL("http://internal.test:0/" + fileName),
-      WebString::fromUTF8(fileName));
+  registerMockedURLLoadFromBase("http://internal.test:0/", fileName);
 
   FrameTestHelpers::WebViewHelper webViewHelper;
 
@@ -972,7 +973,7 @@ TEST_P(ParameterizedWebFrameTest, DispatchMessageEventWithOriginCheck) {
   // Send a message with the correct origin.
   WebSecurityOrigin correctOrigin(WebSecurityOrigin::create(toKURL(m_baseURL)));
   WebDocument document = webViewHelper.webView()->mainFrame()->document();
-  WebSerializedScriptValue data(WebSerializedScriptValue::fromString("foo"));
+  WebSerializedScriptValue data(WebSerializedScriptValue::createInvalid());
   WebDOMMessageEvent message(data, "http://origin.com");
   webViewHelper.webView()->mainFrame()->dispatchMessageEventWithOriginCheck(
       correctOrigin, message);
@@ -991,6 +992,21 @@ TEST_P(ParameterizedWebFrameTest, DispatchMessageEventWithOriginCheck) {
   EXPECT_EQ(std::string::npos, content.find("Message 2."));
 }
 
+namespace {
+
+RefPtr<SerializedScriptValue> serializeString(const StringView& message,
+                                              ScriptState* scriptState) {
+  // This is inefficient, but avoids duplicating serialization logic for the
+  // sake of this test.
+  NonThrowableExceptionState exceptionState;
+  ScriptState::Scope scope(scriptState);
+  V8ScriptValueSerializer serializer(scriptState);
+  return serializer.serialize(v8String(scriptState->isolate(), message),
+                              nullptr, exceptionState);
+}
+
+}  // namespace
+
 TEST_P(ParameterizedWebFrameTest, PostMessageThenDetach) {
   FrameTestHelpers::WebViewHelper webViewHelper;
   webViewHelper.initializeAndLoad("about:blank");
@@ -998,10 +1014,11 @@ TEST_P(ParameterizedWebFrameTest, PostMessageThenDetach) {
   LocalFrame* frame =
       toLocalFrame(webViewHelper.webView()->page()->mainFrame());
   NonThrowableExceptionState exceptionState;
+  RefPtr<SerializedScriptValue> message =
+      serializeString("message", ScriptState::forMainWorld(frame));
   MessagePortArray messagePorts;
-  frame->domWindow()->postMessage(SerializedScriptValue::serialize("message"),
-                                  messagePorts, "*", frame->domWindow(),
-                                  exceptionState);
+  frame->domWindow()->postMessage(message, messagePorts, "*",
+                                  frame->domWindow(), exceptionState);
   webViewHelper.reset();
   EXPECT_FALSE(exceptionState.hadException());
 
@@ -5761,20 +5778,6 @@ class CompositedSelectionBoundsTest : public WebFrameTest {
     EXPECT_GE(yBottomEpsilon, std::abs(yBottomDeviation));
     EXPECT_EQ(yBottomDeviation,
               endEdgeBottomInLayerY - selectEnd->edgeBottomInLayer.y);
-
-    if (expectedResult.Length() >= 12) {
-      EXPECT_EQ(expectedResult.Get(context, 10)
-                    .ToLocalChecked()
-                    .As<v8::Boolean>()
-                    ->Value(),
-                m_fakeSelectionLayerTreeView.selection()->isEditable());
-      EXPECT_EQ(
-          expectedResult.Get(context, 11)
-              .ToLocalChecked()
-              .As<v8::Boolean>()
-              ->Value(),
-          m_fakeSelectionLayerTreeView.selection()->isEmptyTextFormControl());
-    }
   }
 
   void runTestWithMultipleFiles(const char* testFile, ...) {
@@ -6762,15 +6765,14 @@ TEST_F(WebFrameTest, CompositorScrollIsUserScrollLongPage) {
   WebLocalFrameImpl* frameImpl = webViewHelper.webView()->mainFrameImpl();
   DocumentLoader::InitialScrollState& initialScrollState =
       frameImpl->frame()->loader().documentLoader()->initialScrollState();
-  GraphicsLayer* frameViewLayer = frameImpl->frameView()->layerForScrolling();
 
   EXPECT_FALSE(client.wasFrameScrolled());
   EXPECT_FALSE(initialScrollState.wasScrolledByUser);
 
+  auto* scrollableArea = frameImpl->frameView()->layoutViewportScrollableArea();
+
   // Do a compositor scroll, verify that this is counted as a user scroll.
-  frameViewLayer->platformLayer()->setScrollPositionDouble(
-      WebDoublePoint(0, 1));
-  frameViewLayer->didScroll();
+  scrollableArea->didScroll(gfx::ScrollOffset(0, 1));
   webViewHelper.webView()->applyViewportDeltas(WebFloatSize(), WebFloatSize(),
                                                WebFloatSize(), 1.7f, 0);
   EXPECT_TRUE(client.wasFrameScrolled());
@@ -6780,9 +6782,7 @@ TEST_F(WebFrameTest, CompositorScrollIsUserScrollLongPage) {
   initialScrollState.wasScrolledByUser = false;
 
   // The page scale 1.0f and scroll.
-  frameViewLayer->platformLayer()->setScrollPositionDouble(
-      WebDoublePoint(0, 2));
-  frameViewLayer->didScroll();
+  scrollableArea->didScroll(gfx::ScrollOffset(0, 2));
   webViewHelper.webView()->applyViewportDeltas(WebFloatSize(), WebFloatSize(),
                                                WebFloatSize(), 1.0f, 0);
   EXPECT_TRUE(client.wasFrameScrolled());
@@ -6791,7 +6791,7 @@ TEST_F(WebFrameTest, CompositorScrollIsUserScrollLongPage) {
   initialScrollState.wasScrolledByUser = false;
 
   // No scroll event if there is no scroll delta.
-  frameViewLayer->didScroll();
+  scrollableArea->didScroll(gfx::ScrollOffset(0, 2));
   webViewHelper.webView()->applyViewportDeltas(WebFloatSize(), WebFloatSize(),
                                                WebFloatSize(), 1.0f, 0);
   EXPECT_FALSE(client.wasFrameScrolled());
@@ -6799,9 +6799,7 @@ TEST_F(WebFrameTest, CompositorScrollIsUserScrollLongPage) {
   client.reset();
 
   // Non zero page scale and scroll.
-  frameViewLayer->platformLayer()->setScrollPositionDouble(
-      WebDoublePoint(9, 15));
-  frameViewLayer->didScroll();
+  scrollableArea->didScroll(gfx::ScrollOffset(9, 15));
   webViewHelper.webView()->applyViewportDeltas(WebFloatSize(), WebFloatSize(),
                                                WebFloatSize(), 0.6f, 0);
   EXPECT_TRUE(client.wasFrameScrolled());
@@ -6823,8 +6821,7 @@ TEST_F(WebFrameTest, CompositorScrollIsUserScrollLongPage) {
 }
 
 TEST_P(ParameterizedWebFrameTest, FirstPartyForCookiesForRedirect) {
-  String filePath = testing::blinkRootDir();
-  filePath.append("/Source/web/tests/data/first_party.html");
+  String filePath = testing::webTestDataPath("first_party.html");
 
   WebURL testURL(toKURL("http://internal.test/first_party_redirect.html"));
   char redirect[] = "http://internal.test/first_party.html";
@@ -7348,21 +7345,16 @@ class TestHistoryWebFrameClient : public FrameTestHelpers::TestWebFrameClient {
  public:
   TestHistoryWebFrameClient() {
     m_replacesCurrentHistoryItem = false;
-    m_frame = nullptr;
   }
 
-  void didStartProvisionalLoad(WebLocalFrame* frame) {
-    WebDataSource* ds = frame->provisionalDataSource();
-    m_replacesCurrentHistoryItem = ds->replacesCurrentHistoryItem();
-    m_frame = frame;
+  void didStartProvisionalLoad(WebDataSource* dataSource) {
+    m_replacesCurrentHistoryItem = dataSource->replacesCurrentHistoryItem();
   }
 
   bool replacesCurrentHistoryItem() { return m_replacesCurrentHistoryItem; }
-  WebFrame* frame() { return m_frame; }
 
  private:
   bool m_replacesCurrentHistoryItem;
-  WebFrame* m_frame;
 };
 
 // Tests that the first navigation in an initially blank subframe will result in
@@ -7382,17 +7374,14 @@ TEST_P(ParameterizedWebFrameTest, FirstBlankSubframeNavigation) {
 
   WebFrame* iframe = frame->firstChild();
   ASSERT_EQ(&client, toWebLocalFrameImpl(iframe)->client());
-  EXPECT_EQ(iframe, client.frame());
 
   std::string url1 = m_baseURL + "history.html";
   FrameTestHelpers::loadFrame(iframe, url1);
-  EXPECT_EQ(iframe, client.frame());
   EXPECT_EQ(url1, iframe->document().url().string().utf8());
   EXPECT_TRUE(client.replacesCurrentHistoryItem());
 
   std::string url2 = m_baseURL + "find.html";
   FrameTestHelpers::loadFrame(iframe, url2);
-  EXPECT_EQ(iframe, client.frame());
   EXPECT_EQ(url2, iframe->document().url().string().utf8());
   EXPECT_FALSE(client.replacesCurrentHistoryItem());
 }
@@ -7419,12 +7408,10 @@ TEST_P(ParameterizedWebFrameTest, FirstNonBlankSubframeNavigation) {
           "document.body.appendChild(f)");
 
   WebFrame* iframe = frame->firstChild();
-  EXPECT_EQ(iframe, client.frame());
   EXPECT_EQ(url1, iframe->document().url().string().utf8());
 
   std::string url2 = m_baseURL + "find.html";
   FrameTestHelpers::loadFrame(iframe, url2);
-  EXPECT_EQ(iframe, client.frame());
   EXPECT_EQ(url2, iframe->document().url().string().utf8());
   EXPECT_FALSE(client.replacesCurrentHistoryItem());
 }
@@ -7761,6 +7748,16 @@ TEST_P(ParameterizedWebFrameTest, FullscreenMainFrame) {
   webViewHelper.resize(WebSize(viewportWidth, viewportHeight));
   webViewImpl->updateAllLifecyclePhases();
 
+  WebLayer* webScrollLayer = webViewImpl->mainFrameImpl()
+                                 ->frame()
+                                 ->view()
+                                 ->layoutViewportScrollableArea()
+                                 ->layerForScrolling()
+                                 ->platformLayer();
+  ASSERT_TRUE(webScrollLayer->scrollable());
+  ASSERT_TRUE(webScrollLayer->userScrollableHorizontal());
+  ASSERT_TRUE(webScrollLayer->userScrollableVertical());
+
   Document* document = webViewImpl->mainFrameImpl()->frame()->document();
   UserGestureIndicator gesture(DocumentUserGestureToken::create(document));
   Fullscreen::requestFullscreen(*document->documentElement());
@@ -7780,8 +7777,12 @@ TEST_P(ParameterizedWebFrameTest, FullscreenMainFrame) {
             Fullscreen::fullscreenElementFrom(*document));
 
   // Verify that the main frame is still scrollable.
-  WebLayer* webScrollLayer =
-      webViewImpl->compositor()->scrollLayer()->platformLayer();
+  webScrollLayer = webViewImpl->mainFrameImpl()
+                       ->frame()
+                       ->view()
+                       ->layoutViewportScrollableArea()
+                       ->layerForScrolling()
+                       ->platformLayer();
   ASSERT_TRUE(webScrollLayer->scrollable());
   ASSERT_TRUE(webScrollLayer->userScrollableHorizontal());
   ASSERT_TRUE(webScrollLayer->userScrollableVertical());
@@ -8250,9 +8251,7 @@ TEST_P(ParameterizedWebFrameTest, ManifestFetch) {
 }
 
 TEST_P(ParameterizedWebFrameTest, ManifestCSPFetchAllow) {
-  URLTestHelpers::registerMockedURLLoad(
-      toKURL(m_notBaseURL + "link-manifest-fetch.json"),
-      "link-manifest-fetch.json");
+  registerMockedURLLoadFromBase(m_notBaseURL, "link-manifest-fetch.json");
   registerMockedHttpURLLoadWithCSP("foo.html", "manifest-src *");
 
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -8267,9 +8266,7 @@ TEST_P(ParameterizedWebFrameTest, ManifestCSPFetchAllow) {
 }
 
 TEST_P(ParameterizedWebFrameTest, ManifestCSPFetchSelf) {
-  URLTestHelpers::registerMockedURLLoad(
-      toKURL(m_notBaseURL + "link-manifest-fetch.json"),
-      "link-manifest-fetch.json");
+  registerMockedURLLoadFromBase(m_notBaseURL, "link-manifest-fetch.json");
   registerMockedHttpURLLoadWithCSP("foo.html", "manifest-src 'self'");
 
   FrameTestHelpers::WebViewHelper webViewHelper;
@@ -8287,9 +8284,7 @@ TEST_P(ParameterizedWebFrameTest, ManifestCSPFetchSelf) {
 }
 
 TEST_P(ParameterizedWebFrameTest, ManifestCSPFetchSelfReportOnly) {
-  URLTestHelpers::registerMockedURLLoad(
-      toKURL(m_notBaseURL + "link-manifest-fetch.json"),
-      "link-manifest-fetch.json");
+  registerMockedURLLoadFromBase(m_notBaseURL, "link-manifest-fetch.json");
   registerMockedHttpURLLoadWithCSP("foo.html", "manifest-src 'self'",
                                    /* report only */ true);
 
@@ -8478,7 +8473,7 @@ class WebFrameSwapTest : public WebFrameTest {
 
   void reset() { m_webViewHelper.reset(); }
   WebFrame* mainFrame() const { return m_webViewHelper.webView()->mainFrame(); }
-  WebView* webView() const { return m_webViewHelper.webView(); }
+  WebViewImpl* webView() const { return m_webViewHelper.webView(); }
 
  private:
   FrameTestHelpers::WebViewHelper m_webViewHelper;
@@ -8821,6 +8816,40 @@ TEST_F(WebFrameSwapTest, SwapPreservesGlobalContext) {
 
   // Manually reset to break WebViewHelper's dependency on the stack allocated
   // TestWebFrameClient.
+  reset();
+}
+
+TEST_F(WebFrameSwapTest, SetTimeoutAfterSwap) {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::HandleScope scope(isolate);
+  mainFrame()->executeScript(
+      WebScriptSource("savedSetTimeout = window[0].setTimeout"));
+
+  // Swap the frame to a remote frame.
+  FrameTestHelpers::TestWebRemoteFrameClient remoteClient;
+  WebRemoteFrame* remoteFrame = remoteClient.frame();
+  WebFrame* targetFrame = mainFrame()->firstChild();
+  targetFrame->swap(remoteFrame);
+  remoteFrame->setReplicatedOrigin(SecurityOrigin::createUnique());
+
+  // Invoking setTimeout should throw a security error.
+  {
+    v8::Local<v8::Value> exception = mainFrame()->executeScriptAndReturnValue(
+        WebScriptSource("try {\n"
+                        "  savedSetTimeout.call(window[0], () => {}, 0);\n"
+                        "} catch (e) { e; }"));
+    ASSERT_TRUE(!exception.IsEmpty());
+    EXPECT_EQ(
+        "SecurityError: Failed to execute 'setTimeout' on 'Window': Blocked a "
+        "frame with origin \"http://internal.test\" from accessing a "
+        "cross-origin frame.",
+        toCoreString(exception
+                         ->ToString(ScriptState::forMainWorld(
+                                        webView()->mainFrameImpl()->frame())
+                                        ->context())
+                         .ToLocalChecked()));
+  }
+
   reset();
 }
 
@@ -10083,7 +10112,7 @@ class CallbackOrderingWebFrameClient
     EXPECT_EQ(0, m_callbackCount++);
     FrameTestHelpers::TestWebFrameClient::didStartLoading(toDifferentDocument);
   }
-  void didStartProvisionalLoad(WebLocalFrame*) override {
+  void didStartProvisionalLoad(WebDataSource*) override {
     EXPECT_EQ(1, m_callbackCount++);
   }
   void didCommitProvisionalLoad(WebLocalFrame*,
@@ -10284,9 +10313,9 @@ class SaveImageFromDataURLWebFrameClient
 
 TEST_F(WebFrameTest, SaveImageAt) {
   std::string url = m_baseURL + "image-with-data-url.html";
-  URLTestHelpers::registerMockedURLLoad(toKURL(url),
-                                        "image-with-data-url.html");
-  URLTestHelpers::registerMockedURLLoad(toKURL("http://test"), "white-1x1.png");
+  registerMockedURLLoadFromBase(m_baseURL, "image-with-data-url.html");
+  URLTestHelpers::registerMockedURLLoad(
+      toKURL("http://test"), testing::webTestDataPath("white-1x1.png"));
 
   FrameTestHelpers::WebViewHelper helper;
   SaveImageFromDataURLWebFrameClient client;
@@ -10323,7 +10352,7 @@ TEST_F(WebFrameTest, SaveImageAt) {
 
 TEST_F(WebFrameTest, SaveImageWithImageMap) {
   std::string url = m_baseURL + "image-map.html";
-  URLTestHelpers::registerMockedURLLoad(toKURL(url), "image-map.html");
+  registerMockedURLLoadFromBase(m_baseURL, "image-map.html");
 
   FrameTestHelpers::WebViewHelper helper;
   SaveImageFromDataURLWebFrameClient client;
@@ -10356,7 +10385,7 @@ TEST_F(WebFrameTest, SaveImageWithImageMap) {
 
 TEST_F(WebFrameTest, CopyImageAt) {
   std::string url = m_baseURL + "canvas-copy-image.html";
-  URLTestHelpers::registerMockedURLLoad(toKURL(url), "canvas-copy-image.html");
+  registerMockedURLLoadFromBase(m_baseURL, "canvas-copy-image.html");
 
   FrameTestHelpers::WebViewHelper helper;
   WebViewImpl* webView = helper.initializeAndLoad(url, true, 0);
@@ -10381,7 +10410,7 @@ TEST_F(WebFrameTest, CopyImageAt) {
 
 TEST_F(WebFrameTest, CopyImageAtWithPinchZoom) {
   std::string url = m_baseURL + "canvas-copy-image.html";
-  URLTestHelpers::registerMockedURLLoad(toKURL(url), "canvas-copy-image.html");
+  registerMockedURLLoadFromBase(m_baseURL, "canvas-copy-image.html");
 
   FrameTestHelpers::WebViewHelper helper;
   WebViewImpl* webView = helper.initializeAndLoad(url, true, 0);
@@ -10411,7 +10440,7 @@ TEST_F(WebFrameTest, CopyImageWithImageMap) {
   SaveImageFromDataURLWebFrameClient client;
 
   std::string url = m_baseURL + "image-map.html";
-  URLTestHelpers::registerMockedURLLoad(toKURL(url), "image-map.html");
+  registerMockedURLLoadFromBase(m_baseURL, "image-map.html");
 
   FrameTestHelpers::WebViewHelper helper;
   WebViewImpl* webView = helper.initializeAndLoad(url, true, &client);
@@ -10444,7 +10473,8 @@ TEST_F(WebFrameTest, LoadJavascriptURLInNewFrame) {
   helper.initialize(true);
 
   std::string redirectURL = m_baseURL + "foo.html";
-  URLTestHelpers::registerMockedURLLoad(toKURL(redirectURL), "foo.html");
+  URLTestHelpers::registerMockedURLLoad(toKURL(redirectURL),
+                                        testing::webTestDataPath("foo.html"));
   WebURLRequest request(toKURL("javascript:location='" + redirectURL + "'"));
   helper.webView()->mainFrameImpl()->loadRequest(request);
 
@@ -10576,8 +10606,9 @@ class MultipleDataChunkDelegate : public WebURLLoaderTestDelegate {
 
 TEST_F(WebFrameTest, ImageDocumentDecodeError) {
   std::string url = m_baseURL + "not_an_image.ico";
-  URLTestHelpers::registerMockedURLLoad(toKURL(url), "not_an_image.ico",
-                                        "image/x-icon");
+  URLTestHelpers::registerMockedURLLoad(
+      toKURL(url), testing::webTestDataPath("not_an_image.ico"),
+      "image/x-icon");
   MultipleDataChunkDelegate delegate;
   Platform::current()->getURLLoaderMockFactory()->setLoaderDelegate(&delegate);
   FrameTestHelpers::WebViewHelper helper;
@@ -11333,7 +11364,7 @@ TEST_F(WebFrameTest, NoLoadingCompletionCallbacksInDetach) {
   registerMockedHttpURLLoad("single_iframe.html");
   URLTestHelpers::registerMockedURLLoad(
       toKURL(m_baseURL + "visible_iframe.html"),
-      WebString::fromUTF8("frame_with_frame.html"));
+      testing::webTestDataPath("frame_with_frame.html"));
   registerMockedHttpURLLoad("parent_detaching_frame.html");
 
   FrameTestHelpers::WebViewHelper webViewHelper;

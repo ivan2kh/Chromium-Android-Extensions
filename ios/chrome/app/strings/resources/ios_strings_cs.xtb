@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Otevřít vše</translation>
 <translation id="1430915738399379752">Tisk</translation>
 <translation id="145015347812617860">Počet položek: <ph name="COUNT" /></translation>
+<translation id="1491277525950327607">Nastavení můžete přepnout dvojitým klepnutím</translation>
 <translation id="1540800554400757039">První řádek adresy</translation>
 <translation id="1545749641540134597">Naskenovat QR kód</translation>
 <translation id="1580783302095112590">E-mail byl odeslán.</translation>
@@ -65,7 +66,6 @@ Některé webové stránky na tento požadavek mohou reagovat například tím, 
 <translation id="2068952045031577364">Z uplynulého týdne</translation>
 <translation id="2079545284768500474" />
 <translation id="209018056901015185">Verze webu pro PC</translation>
-<translation id="2100215774115172756">Seznam obsahu k přečtení je k dispozici offline.</translation>
 <translation id="2103075008456228677">Otevřít history.google.com</translation>
 <translation id="2116625576999540962">Počet přesunutých položek: <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /></translation>
 <translation id="2149973817440762519">Upravit záložku</translation>
@@ -120,7 +120,6 @@ Některé webové stránky na tento požadavek mohou reagovat například tím, 
 <translation id="3175081911749765310">Webové služby</translation>
 <translation id="3207960819495026254">Přidáno do záložek</translation>
 <translation id="3210163015918861891">Synchronizace je vypnuta</translation>
-<translation id="3237561509210981547">Chcete-li stránku přidat na seznam četby, klepněte na <ph name="BEGIN_BOLD_FONT" />Sdílet &gt; Přečíst později<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Odkaz byl zkopírován</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> z <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Některé webové stránky na tento požadavek mohou reagovat například tím, 
 <translation id="3414292259312108062">Chrome toto heslo uloží ve vašich <ph name="BEGIN_LINK" />uložených heslech Google<ph name="END_LINK" /> a automaticky vám jej vyplní, abyste si jej nemuseli pamatovat.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Režim Split View</translation>
-<translation id="3474068797193663261">Chcete-li stránku přidat na seznam četby, klepněte na <ph name="BEGIN_BOLD_FONT" />Nabídka &gt; Sdílet &gt; Přečíst později<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Formuláře byly vyplněny.</translation>
 <translation id="3478058380795961209">Měsíc vypršení platnosti</translation>
 <translation id="3482959374254649722">Probíhá synchronizace karet…</translation>
@@ -171,6 +169,7 @@ Chcete-li vyhledávací dotaz upravit, proveďte výběr dlouhým stisknutím. C
 <translation id="4121993058175073134">Chcete-li odesílat data nástroje net-export, nakonfigurujte e-mailový účet v aplikaci Nastavení.</translation>
 <translation id="4124987746317609294">Časové období</translation>
 <translation id="4172051516777682613">Vždy zobrazovat</translation>
+<translation id="418156467088430727">Zobrazit offline verzi stránky Nová karta</translation>
 <translation id="424315890655130736">Zadání heslové fráze</translation>
 <translation id="4272631900155121838">Chcete-li naskenovat QR kód, povolte v nastavení fotoaparát</translation>
 <translation id="4281844954008187215">Smluvní podmínky</translation>
@@ -178,7 +177,6 @@ Chcete-li vyhledávací dotaz upravit, proveďte výběr dlouhým stisknutím. C
 <translation id="4359125752503270327">Tato stránka se otevře v jiné aplikaci.</translation>
 <translation id="4378154925671717803">Telefon</translation>
 <translation id="441868831736628555">Upozornění ve věci ochrany osobních údajů</translation>
-<translation id="4426508677408162512">Všechny záložky</translation>
 <translation id="4473991315115669931">Přejít do anonymního režimu</translation>
 <translation id="4526249700380860531">Uložená hesla můžete zobrazit a upravit na adrese <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Zkuste se přihlásit znovu.</translation>
@@ -218,6 +216,7 @@ Vaše data jsou šifrována pomocí heslové fráze pro synchronizaci. Chcete-li
 <translation id="5300589172476337783">Zobrazit</translation>
 <translation id="5317780077021120954">Uložit</translation>
 <translation id="5327248766486351172">Název</translation>
+<translation id="5332219387342487447">Způsob dopravy</translation>
 <translation id="5388358297987318779">Otevřít obrázek</translation>
 <translation id="5409365236829784218">Nemáte nainstalovanou žádnou aplikaci, která by tento soubor uměla otevřít.</translation>
 <translation id="54401264925851789">Informace o zabezpečení stránky</translation>
@@ -256,6 +255,7 @@ Funkce Handoff musí být povolena také v Nastavení v sekci Obecné a zaříze
 <translation id="6042308850641462728">Více</translation>
 <translation id="605721222689873409">RR</translation>
 <translation id="6066301408025741299">Stahování zrušíte klepnutím.</translation>
+<translation id="60851516108411750">Seznam obsahu k přečtení je k dispozici offline. Chcete-li na něj přidat stránku, klepněte na <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Položka byla odstraněna</translation>
 <translation id="6136914049981179737">před chvílí</translation>
@@ -270,6 +270,7 @@ Funkce Handoff musí být povolena také v Nastavení v sekci Obecné a zaříze
 <translation id="6255097610484507482">Upravit platební kartu</translation>
 <translation id="6308436439357671616">Toto umožňuje pořizovat a nahrávat fotky.</translation>
 <translation id="6314335155547195432">Vygenerovat heslo</translation>
+<translation id="6324528485781869530">Přepnout účet pro synchronizaci</translation>
 <translation id="6324669097367352121">Nastavení přihlášení</translation>
 <translation id="6337234675334993532">Šifrování</translation>
 <translation id="633809752005859102">Něco se hodně pokazilo. Na řešení pracujeme.</translation>

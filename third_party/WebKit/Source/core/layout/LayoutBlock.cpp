@@ -134,6 +134,11 @@ void LayoutBlock::willBeDestroyed() {
   if (!documentBeingDestroyed() && parent())
     parent()->dirtyLinesFromChangedChild(this);
 
+  if (LocalFrame* frame = this->frame()) {
+    frame->selection().layoutBlockWillBeDestroyed(*this);
+    frame->page()->dragCaret().layoutBlockWillBeDestroyed(*this);
+  }
+
   if (TextAutosizer* textAutosizer = document().textAutosizer())
     textAutosizer->destroy(this);
 
@@ -211,7 +216,7 @@ void LayoutBlock::styleDidChange(StyleDifference diff,
 
   if (oldStyle && parent()) {
     if (oldStyle->position() != newStyle.position() &&
-        newStyle.position() != StaticPosition) {
+        newStyle.position() != EPosition::kStatic) {
       // In LayoutObject::styleWillChange() we already removed ourself from our
       // old containing block's positioned descendant list, and we will be
       // inserted to the new containing block's list during layout. However the
@@ -239,8 +244,9 @@ void LayoutBlock::styleDidChange(StyleDifference diff,
   // width or height of the block to end up being the same. We keep track of
   // this change so in layoutBlock, we can know to set relayoutChildren=true.
   m_widthAvailableToChildrenChanged |=
-      oldStyle && diff.needsFullLayout() && needsLayout() &&
-      borderOrPaddingLogicalDimensionChanged(*oldStyle, newStyle, LogicalWidth);
+      oldStyle && needsLayout() &&
+      (diff.needsFullLayout() || borderOrPaddingLogicalDimensionChanged(
+                                     *oldStyle, newStyle, LogicalWidth));
   m_heightAvailableToChildrenChanged |= oldStyle && diff.needsFullLayout() &&
                                         needsLayout() &&
                                         borderOrPaddingLogicalDimensionChanged(
@@ -512,7 +518,7 @@ void LayoutBlock::addOverflowFromPositionedObjects() {
   for (auto* positionedObject : *positionedDescendants) {
     // Fixed positioned elements don't contribute to layout overflow, since they
     // don't scroll with the content.
-    if (positionedObject->style()->position() != FixedPosition)
+    if (positionedObject->style()->position() != EPosition::kFixed)
       addOverflowFromChild(positionedObject,
                            toLayoutSize(positionedObject->location()));
   }
@@ -671,7 +677,7 @@ bool LayoutBlock::simplifiedLayout() {
 void LayoutBlock::markFixedPositionObjectForLayoutIfNeeded(
     LayoutObject* child,
     SubtreeLayoutScope& layoutScope) {
-  if (child->style()->position() != FixedPosition)
+  if (child->style()->position() != EPosition::kFixed)
     return;
 
   bool hasStaticBlockPosition =
@@ -682,7 +688,8 @@ void LayoutBlock::markFixedPositionObjectForLayoutIfNeeded(
     return;
 
   LayoutObject* o = child->parent();
-  while (o && !o->isLayoutView() && o->style()->position() != AbsolutePosition)
+  while (o && !o->isLayoutView() &&
+         o->style()->position() != EPosition::kAbsolute)
     o = o->parent();
   // The LayoutView is absolute-positioned, but does not move.
   if (o->isLayoutView())
@@ -698,7 +705,8 @@ void LayoutBlock::markFixedPositionObjectForLayoutIfNeeded(
     LayoutUnit newLeft = computedValues.m_position;
     if (newLeft != box->logicalLeft())
       layoutScope.setChildNeedsLayout(child);
-  } else if (hasStaticBlockPosition) {
+  }
+  if (hasStaticBlockPosition) {
     LogicalExtentComputedValues computedValues;
     box->computeLogicalHeight(computedValues);
     LayoutUnit newTop = computedValues.m_position;
@@ -1024,7 +1032,12 @@ PaintInvalidationReason LayoutBlock::invalidatePaintIfNeeded(
 
 PaintInvalidationReason LayoutBlock::invalidatePaintIfNeeded(
     const PaintInvalidatorContext& context) const {
-  return BlockPaintInvalidator(*this, context).invalidatePaintIfNeeded();
+  return BlockPaintInvalidator(*this).invalidatePaintIfNeeded(context);
+}
+
+void LayoutBlock::clearPreviousVisualRects() {
+  LayoutBox::clearPreviousVisualRects();
+  BlockPaintInvalidator(*this).clearPreviousVisualRects();
 }
 
 void LayoutBlock::removePositionedObjects(
@@ -1842,15 +1855,12 @@ inline bool LayoutBlock::isInlineBoxWrapperActuallyChild() const {
          editingIgnoresContent(*node());
 }
 
-bool LayoutBlock::hasCursorCaret() const {
-  LocalFrame* frame = this->frame();
-  return frame->selection().hasCaretIn(*this);
+bool LayoutBlock::shouldPaintCursorCaret() const {
+  return frame()->selection().shouldPaintCaret(*this);
 }
 
-bool LayoutBlock::hasDragCaret() const {
-  LocalFrame* frame = this->frame();
-  DragCaret& dragCaret = frame->page()->dragCaret();
-  return dragCaret.hasCaretIn(*this);
+bool LayoutBlock::shouldPaintDragCaret() const {
+  return frame()->page()->dragCaret().shouldPaintCaret(*this);
 }
 
 LayoutRect LayoutBlock::localCaretRect(InlineBox* inlineBox,
@@ -2050,7 +2060,7 @@ bool LayoutBlock::recalcPositionedDescendantsOverflowAfterStyleChange() {
       continue;
     LayoutBlock* block = toLayoutBlock(box);
     if (!block->recalcOverflowAfterStyleChange() ||
-        box->style()->position() == FixedPosition)
+        box->style()->position() == EPosition::kFixed)
       continue;
 
     childrenOverflowChanged = true;

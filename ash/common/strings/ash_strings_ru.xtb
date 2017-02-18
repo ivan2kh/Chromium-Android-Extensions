@@ -39,13 +39,13 @@
 <translation id="1923539912171292317">Автоматическое нажатие</translation>
 <translation id="1957803754585243749">0°</translation>
 <translation id="1969011864782743497"><ph name="DEVICE_NAME" /> (USB)</translation>
+<translation id="2122028596993374965">Остановить трансляцию вкладки "<ph name="TAB_NAME" />" на устройство "<ph name="RECEIVER_NAME" />"</translation>
 <translation id="2127372758936585790">Маломощное зарядное устройство</translation>
 <translation id="2204305834655267233">Информация о сети</translation>
 <translation id="2208323208084708176">Унифицированный режим рабочего стола</translation>
 <translation id="225680501294068881">Поиск устройств…</translation>
 <translation id="2268130516524549846">Bluetooth отключен</translation>
 <translation id="2268813581635650749">Выйти из всех аккаунтов</translation>
-<translation id="2297568595583585744">Строка состояния</translation>
 <translation id="2303600792989757991">Переключить режим обзора</translation>
 <translation id="2354174487190027830">Активация <ph name="NAME" /></translation>
 <translation id="2391579633712104609">180°</translation>
@@ -83,6 +83,7 @@
 <translation id="3126069444801937830">Перезагрузите, чтобы обновить</translation>
 <translation id="3147142846278915599">Панель запуска (синхронизация приложений...)</translation>
 <translation id="3157169093162779309">Включить автоповорот экрана</translation>
+<translation id="3164154768979021380">Выход из закрепленного режима…</translation>
 <translation id="3294437725009624529">Гость</translation>
 <translation id="3335772982573114336">Новая заметка</translation>
 <translation id="3364721542077212959">Инструменты стилуса</translation>
@@ -99,9 +100,7 @@
 <translation id="3626281679859535460">Яркость</translation>
 <translation id="3683428399328702079"><ph name="DISPLAY_NAME" />: установлено разрешение <ph name="RESOLUTION" /></translation>
 <translation id="370649949373421643">Включить Wi-Fi</translation>
-<translation id="3709443003275901162">более 9</translation>
 <translation id="3712407551474845318">Снимок области</translation>
-<translation id="372094107052732682">Чтобы выйти, дважды нажмите Ctrl + Shift + Q.</translation>
 <translation id="3742055079367172538">Сделан скриншот</translation>
 <translation id="3775358506042162758">Множественный вход поддерживает не более трех аккаунтов.</translation>
 <translation id="3783640748446814672">alt</translation>
@@ -139,16 +138,15 @@
 <translation id="4957722034734105353">Подробнее…</translation>
 <translation id="4961318399572185831">Трансляция экрана</translation>
 <translation id="5011233892417813670">Chromebook</translation>
-<translation id="5045002648206642691">Настройки Диска Google…</translation>
 <translation id="510924152490034944">Соединение может отслеживаться</translation>
 <translation id="5168181903108465623">Доступны устройства для трансляции</translation>
 <translation id="5170568018924773124">Показать в папке</translation>
 <translation id="5222676887888702881">Выйти</translation>
-<translation id="5238774010593222950">Не удается войти в другой аккаунт</translation>
 <translation id="532063867737390965">Сетевая настройка отключена администратором</translation>
 <translation id="5331975486040154427">Устройство USB-C (дальний порт слева)</translation>
 <translation id="5431825016875453137">OpenVPN / L2TP</translation>
 <translation id="544691375626129091">В этот сеанс уже добавлены все доступные пользователи.</translation>
+<translation id="5504841533973703486">Фронтальный микрофон</translation>
 <translation id="5507786745520522457">Настроить сеть передачи данных</translation>
 <translation id="5543001071567407895">SMS</translation>
 <translation id="5548285847212963613">Подключиться к этой сети можно с помощью расширения "<ph name="EXTENSION_NAME" />".</translation>
@@ -160,6 +158,7 @@
 <translation id="57838592816432529">Отключить звук</translation>
 <translation id="5825747213122829519">Способ ввода изменен на <ph name="INPUT_METHOD_ID" />.
 Для переключения нажмите Shift + Alt.</translation>
+<translation id="5830936593837877897">Основной микрофон</translation>
 <translation id="5871632337994001636">Управление устройствами...</translation>
 <translation id="5895138241574237353">Перезапустить</translation>
 <translation id="5901316534475909376">Shift + Esc</translation>
@@ -171,6 +170,7 @@
 <translation id="5977415296283489383">Наушники</translation>
 <translation id="5978382165065462689">Доступ к экрану с помощью удаленного помощника</translation>
 <translation id="5980301590375426705">Выйти из гостевого режима</translation>
+<translation id="6018164090099858612">Выход из режима трансляции…</translation>
 <translation id="6041154455840261787">Режим высокой контрастности включен. Чтобы отключить его, нажмите ПОИСК + SHIFT + H.</translation>
 <translation id="6043212731627905357">Монитор не совместим с устройством <ph name="DEVICE_TYPE" />.</translation>
 <translation id="6043994281159824495">Выйти</translation>
@@ -181,7 +181,6 @@
 <translation id="6144938890088808325">Помогите нам улучшить Chromebook</translation>
 <translation id="615957422585914272">Показывать экранную клавиатуру</translation>
 <translation id="6165508094623778733">Подробнее...</translation>
-<translation id="6248847161401822652">Чтобы выйти, дважды нажмите Control + Shift + Q.</translation>
 <translation id="6267036997247669271"><ph name="NAME" />: выполняется активация...</translation>
 <translation id="6297287540776456956">Чтобы выбрать регион, используйте стилус</translation>
 <translation id="6310121235600822547"><ph name="DISPLAY_NAME" />: положение изменено на <ph name="ROTATION" /></translation>
@@ -196,7 +195,6 @@
 <translation id="6521655319214113338">Рукописный ввод</translation>
 <translation id="6537270692134705506">Снимок экрана</translation>
 <translation id="6549021752953852991">Сеть не найдена</translation>
-<translation id="6550675742724504774">Параметры</translation>
 <translation id="6585808820553845416">Сеанс закончится через <ph name="SESSION_TIME_REMAINING" />.</translation>
 <translation id="6596816719288285829">IP-адрес</translation>
 <translation id="6650933572246256093">Устройству <ph name="DEVICE_NAME" /> требуется разрешение на подключение через Bluetooth. Введите на нем код: <ph name="PASSKEY" />.</translation>
@@ -208,10 +206,8 @@
 <translation id="6857811139397017780">Активировать <ph name="NETWORKSERVICE" /></translation>
 <translation id="6911468394164995108">Подключиться к другой сети...</translation>
 <translation id="6915678159055240887">Chromebox</translation>
-<translation id="6979158407327259162">Google Диск</translation>
 <translation id="6981982820502123353">Специальные возможности</translation>
 <translation id="7029814467594812963">Завершить сеанс</translation>
-<translation id="703171847531699602">Устройства трансляции не обнаружены</translation>
 <translation id="7034339000180558234">Трансляция вкладки "<ph name="TAB_NAME" />": <ph name="RECEIVER_NAME" /></translation>
 <translation id="7052914147756339792">Выбрать обои</translation>
 <translation id="7066646422045619941">Эта сеть отключена администратором.</translation>
@@ -231,7 +227,6 @@
 <translation id="7561014039265304140">Дисплей <ph name="DISPLAY_NAME" /> не поддерживает разрешение <ph name="SPECIFIED_RESOLUTION" />. Будет использовано разрешение <ph name="FALLBACK_RESOLUTION" />.</translation>
 <translation id="7562368315689366235">Меню смайликов</translation>
 <translation id="7573962313813535744">Закрепленный режим</translation>
-<translation id="7580671184200851182">Воспроизводить одно и то же аудио через все динамики (моноаудио)</translation>
 <translation id="7581273696622423628">Пройти опрос</translation>
 <translation id="7593891976182323525">Search или Shift</translation>
 <translation id="7649070708921625228">Справка</translation>
@@ -248,8 +243,10 @@
 <translation id="8000066093800657092">Нет сети</translation>
 <translation id="8054466585765276473">Подсчет оставшегося времени работы от батареи…</translation>
 <translation id="8077816382010018681">Быстрая разблокировка</translation>
+<translation id="8098591350844501178">Остановить трансляцию содержимого экрана на устройство "<ph name="RECEIVER_NAME" />"</translation>
 <translation id="8103386449138765447">SMS: <ph name="MESSAGE_COUNT" /></translation>
 <translation id="8132793192354020517">Подключено к сети <ph name="NAME" /></translation>
+<translation id="8180896103888046100">Остановить трансляцию на неизвестное устройство</translation>
 <translation id="8185286464235484130">Поделитесь с нами своим мнением, ответив на несколько вопросов.</translation>
 <translation id="8190698733819146287">Настройки языков и ввода…</translation>
 <translation id="8206859287963243715">Сотовый</translation>
@@ -272,9 +269,11 @@
 <translation id="9074739597929991885">Bluetooth</translation>
 <translation id="9080206825613744995">Микрофон используется</translation>
 <translation id="9089416786594320554">Методы ввода</translation>
+<translation id="9091626656156419976">Удален экран "<ph name="DISPLAY_NAME" />"</translation>
 <translation id="9151726767154816831">Чтобы обновить систему, перезапустите ее и выполните Powerwash</translation>
 <translation id="9194617393863864469">Войти в другой аккаунт...</translation>
 <translation id="9201131092683066720">Батарея заряжена на <ph name="PERCENTAGE" />%.</translation>
+<translation id="9210037371811586452">Выход из режима единого рабочего стола…</translation>
 <translation id="923686485342484400">Чтобы выйти, дважды нажмите Control+Shift+Q.</translation>
 <translation id="938582441709398163">Накладка на клавиатуру</translation>
 <translation id="939252827960237676">Не удалось сохранить скриншот</translation>

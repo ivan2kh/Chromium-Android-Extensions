@@ -87,6 +87,11 @@ public class ChildProcessServiceImpl {
 
     private final Semaphore mActivitySemaphore = new Semaphore(1);
 
+    @UsedByReflection("WebApkSandboxedProcessService")
+    public ChildProcessServiceImpl() {
+        KillChildUncaughtExceptionHandler.maybeInstallHandler();
+    }
+
     // Return a Linker instance. If testing, the Linker needs special setup.
     private Linker getLinker() {
         if (Linker.areTestsEnabled()) {
@@ -256,10 +261,19 @@ public class ChildProcessServiceImpl {
                             mMainThread.wait();
                         }
                     }
-                    for (FileDescriptorInfo fdInfo : mFdInfos) {
-                        nativeRegisterGlobalFileDescriptor(
-                                fdInfo.mId, fdInfo.mFd.detachFd(), fdInfo.mOffset, fdInfo.mSize);
+
+                    int[] fileIds = new int[mFdInfos.length];
+                    int[] fds = new int[mFdInfos.length];
+                    long[] regionOffsets = new long[mFdInfos.length];
+                    long[] regionSizes = new long[mFdInfos.length];
+                    for (int i = 0; i < mFdInfos.length; i++) {
+                        FileDescriptorInfo fdInfo = mFdInfos[i];
+                        fileIds[i] = fdInfo.mId;
+                        fds[i] = fdInfo.mFd.detachFd();
+                        regionOffsets[i] = fdInfo.mOffset;
+                        regionSizes[i] = fdInfo.mSize;
                     }
+                    nativeRegisterFileDescriptors(fileIds, fds, regionOffsets, regionSizes);
                     nativeInitChildProcessImpl(ChildProcessServiceImpl.this, mCpuCount,
                             mCpuFeatures);
                     if (mActivitySemaphore.tryAcquire()) {
@@ -358,48 +372,6 @@ public class ChildProcessServiceImpl {
         }
     }
 
-    /**
-     * Called from native code to share a surface texture with another child process.
-     * Through using the callback object the browser is used as a proxy to route the
-     * call to the correct process.
-     *
-     * @param pid Process handle of the child process to share the SurfaceTexture with.
-     * @param surfaceObject The Surface or SurfaceTexture to share with the other child process.
-     * @param primaryID Used to route the call to the correct client instance.
-     * @param secondaryID Used to route the call to the correct client instance.
-     */
-    @SuppressWarnings("unused")
-    @CalledByNative
-    private void establishSurfaceTexturePeer(
-            int pid, Object surfaceObject, int primaryID, int secondaryID) {
-        if (mCallback == null) {
-            Log.e(TAG, "No callback interface has been provided.");
-            return;
-        }
-
-        Surface surface = null;
-        boolean needRelease = false;
-        if (surfaceObject instanceof Surface) {
-            surface = (Surface) surfaceObject;
-        } else if (surfaceObject instanceof SurfaceTexture) {
-            surface = new Surface((SurfaceTexture) surfaceObject);
-            needRelease = true;
-        } else {
-            Log.e(TAG, "Not a valid surfaceObject: %s", surfaceObject);
-            return;
-        }
-        try {
-            mCallback.establishSurfacePeer(pid, surface, primaryID, secondaryID);
-        } catch (RemoteException e) {
-            Log.e(TAG, "Unable to call establishSurfaceTexturePeer: %s", e);
-            return;
-        } finally {
-            if (needRelease) {
-                surface.release();
-            }
-        }
-    }
-
     @SuppressWarnings("unused")
     @CalledByNative
     private void forwardSurfaceTextureForSurfaceRequest(
@@ -439,12 +411,13 @@ public class ChildProcessServiceImpl {
     }
 
     /**
-     * Helper for registering FileDescriptorInfo objects with GlobalFileDescriptors.
+     * Helper for registering FileDescriptorInfo objects with GlobalFileDescriptors or
+     * FileDescriptorStore.
      * This includes the IPC channel, the crash dump signals and resource related
      * files.
      */
-    private static native void nativeRegisterGlobalFileDescriptor(
-            int id, int fd, long offset, long size);
+    private static native void nativeRegisterFileDescriptors(
+            int[] id, int[] fd, long[] offset, long[] size);
 
     /**
      * The main entry point for a child process. This should be called from a new thread since

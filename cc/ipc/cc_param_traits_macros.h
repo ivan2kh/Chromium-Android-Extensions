@@ -41,6 +41,8 @@ IPC_ENUM_TRAITS_MAX_VALUE(cc::ResourceFormat, cc::RESOURCE_FORMAT_MAX)
 IPC_ENUM_TRAITS_MAX_VALUE(SkBlendMode, SkBlendMode::kLastMode)
 IPC_ENUM_TRAITS_MAX_VALUE(cc::YUVVideoDrawQuad::ColorSpace,
                           cc::YUVVideoDrawQuad::COLOR_SPACE_LAST)
+IPC_ENUM_TRAITS_MAX_VALUE(cc::SurfaceDrawQuadType,
+                          cc::SurfaceDrawQuadType::LAST)
 
 IPC_STRUCT_TRAITS_BEGIN(cc::SurfaceSequence)
   IPC_STRUCT_TRAITS_MEMBER(frame_sink_id)
@@ -83,9 +85,14 @@ IPC_STRUCT_TRAITS_BEGIN(cc::StreamVideoDrawQuad)
   IPC_STRUCT_TRAITS_MEMBER(matrix)
 IPC_STRUCT_TRAITS_END()
 
+IPC_STRUCT_TRAITS_BEGIN(cc::StreamVideoDrawQuad::OverlayResources)
+  IPC_STRUCT_TRAITS_MEMBER(size_in_pixels)
+IPC_STRUCT_TRAITS_END()
+
 IPC_STRUCT_TRAITS_BEGIN(cc::SurfaceDrawQuad)
   IPC_STRUCT_TRAITS_PARENT(cc::DrawQuad)
   IPC_STRUCT_TRAITS_MEMBER(surface_id)
+  IPC_STRUCT_TRAITS_MEMBER(surface_draw_quad_type)
 IPC_STRUCT_TRAITS_END()
 
 IPC_STRUCT_TRAITS_BEGIN(cc::TextureDrawQuad)
@@ -102,6 +109,10 @@ IPC_STRUCT_TRAITS_BEGIN(cc::TextureDrawQuad)
   IPC_STRUCT_TRAITS_MEMBER(y_flipped)
   IPC_STRUCT_TRAITS_MEMBER(nearest_neighbor)
   IPC_STRUCT_TRAITS_MEMBER(secure_output_only)
+IPC_STRUCT_TRAITS_END()
+
+IPC_STRUCT_TRAITS_BEGIN(cc::TextureDrawQuad::OverlayResources)
+  IPC_STRUCT_TRAITS_MEMBER(size_in_pixels)
 IPC_STRUCT_TRAITS_END()
 
 IPC_STRUCT_TRAITS_BEGIN(cc::TileDrawQuad)
@@ -149,8 +160,6 @@ IPC_STRUCT_TRAITS_END()
 IPC_STRUCT_TRAITS_BEGIN(cc::Selection<gfx::SelectionBound>)
   IPC_STRUCT_TRAITS_MEMBER(start)
   IPC_STRUCT_TRAITS_MEMBER(end)
-  IPC_STRUCT_TRAITS_MEMBER(is_editable)
-  IPC_STRUCT_TRAITS_MEMBER(is_empty_text_form_control)
 IPC_STRUCT_TRAITS_END()
 
 IPC_ENUM_TRAITS_MAX_VALUE(cc::BeginFrameArgs::BeginFrameArgsType,

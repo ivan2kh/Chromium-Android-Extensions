@@ -254,6 +254,10 @@ void WebRuntimeFeatures::enableTouchEventFeatureDetection(bool enable) {
   RuntimeEnabledFeatures::setTouchEventFeatureDetectionEnabled(enable);
 }
 
+void WebRuntimeFeatures::enableTouchpadAndWheelScrollLatching(bool enable) {
+  RuntimeEnabledFeatures::setTouchpadAndWheelScrollLatchingEnabled(enable);
+}
+
 void WebRuntimeFeatures::enableWebGLDraftExtensions(bool enable) {
   RuntimeEnabledFeatures::setWebGLDraftExtensionsEnabled(enable);
 }
@@ -284,6 +288,10 @@ void WebRuntimeFeatures::enableSharedWorker(bool enable) {
 
 void WebRuntimeFeatures::enablePreciseMemoryInfo(bool enable) {
   RuntimeEnabledFeatures::setPreciseMemoryInfoEnabled(enable);
+}
+
+void WebRuntimeFeatures::enablePrintBrowser(bool enable) {
+  RuntimeEnabledFeatures::setPrintBrowserEnabled(enable);
 }
 
 void WebRuntimeFeatures::enableCredentialManagerAPI(bool enable) {

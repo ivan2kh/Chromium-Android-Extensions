@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Apri tutte</translation>
 <translation id="1430915738399379752">Stampa</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> elementi</translation>
+<translation id="1491277525950327607">Tocca due volte per attivare/disattivare l'impostazione</translation>
 <translation id="1540800554400757039">Indirizzo 1</translation>
 <translation id="1545749641540134597">Leggi il codice QR</translation>
 <translation id="1580783302095112590">Messaggio inviato.</translation>
@@ -65,7 +66,6 @@ Ad esempio, alcuni siti web potrebbero rispondere alla richiesta visualizzando a
 <translation id="2068952045031577364">Ultima settimana</translation>
 <translation id="2079545284768500474">Annulla</translation>
 <translation id="209018056901015185">Richiedi sito desktop</translation>
-<translation id="2100215774115172756">Il tuo elenco di lettura è disponibile offline.</translation>
 <translation id="2103075008456228677">Apri la pagina history.google.com</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> elementi spostati</translation>
 <translation id="2149973817440762519">Modifica Preferito</translation>
@@ -120,7 +120,6 @@ Ad esempio, alcuni siti web potrebbero rispondere alla richiesta visualizzando a
 <translation id="3175081911749765310">Servizi web</translation>
 <translation id="3207960819495026254">Aggiunto ai Preferiti</translation>
 <translation id="3210163015918861891">La sincronizzazione è disattivata</translation>
-<translation id="3237561509210981547">Per aggiungere una pagina al tuo elenco di lettura, tocca <ph name="BEGIN_BOLD_FONT" />Condividi &gt; Leggi dopo<ph name="END_BOLD_FONT" /></translation>
 <translation id="3240426699337459095">Link copiato</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> di <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Ad esempio, alcuni siti web potrebbero rispondere alla richiesta visualizzando a
 <translation id="3414292259312108062">Chrome archivierà questa password nelle <ph name="BEGIN_LINK" />password Google salvate<ph name="END_LINK" /> per inserirla automaticamente, in modo da non doverla imparare a memoria.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min</translation>
 <translation id="3448016392200048164">Visualizzazione divisa</translation>
-<translation id="3474068797193663261">Per aggiungere una pagina al tuo elenco di lettura, tocca <ph name="BEGIN_BOLD_FONT" />Menu &gt; Condividi &gt; Leggi dopo<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Moduli compilati.</translation>
 <translation id="3478058380795961209">Mese di scadenza</translation>
 <translation id="3482959374254649722">Sincronizzazione delle schede...</translation>
@@ -171,6 +169,7 @@ Per modificare il termine di ricerca, premi a lungo per selezionarlo. Per perfez
 <translation id="4121993058175073134">Per inviare dati net-export, configura il tuo account email nell'app Impostazioni.</translation>
 <translation id="4124987746317609294">Intervallo di tempo</translation>
 <translation id="4172051516777682613">Mostra sempre</translation>
+<translation id="418156467088430727">Visualizza versione offline in una nuova scheda</translation>
 <translation id="424315890655130736">Inserisci passphrase</translation>
 <translation id="4272631900155121838">Per eseguire la scansione di un codice QR, attiva la videocamera dalle impostazioni</translation>
 <translation id="4281844954008187215">Termini di servizio</translation>
@@ -178,7 +177,6 @@ Per modificare il termine di ricerca, premi a lungo per selezionarlo. Per perfez
 <translation id="4359125752503270327">Questa pagina verrà aperta con un'altra applicazione.</translation>
 <translation id="4378154925671717803">Telefono</translation>
 <translation id="441868831736628555">Informativa sulla privacy</translation>
-<translation id="4426508677408162512">Tutti i preferiti</translation>
 <translation id="4473991315115669931">Attiva la modalità di navigazione in incognito</translation>
 <translation id="4526249700380860531">Controlla e gestisci le password salvate all'indirizzo <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Prova ad accedere nuovamente.</translation>
@@ -218,6 +216,7 @@ I tuoi dati vengono criptati con la tua passphrase di sincronizzazione. Inserisc
 <translation id="5300589172476337783">Mostra</translation>
 <translation id="5317780077021120954">Salva</translation>
 <translation id="5327248766486351172">Nome</translation>
+<translation id="5332219387342487447">Modalità di spedizione</translation>
 <translation id="5388358297987318779">Apri immagine</translation>
 <translation id="5409365236829784218">Non ci sono applicazioni installate in grado di aprire questo file.</translation>
 <translation id="54401264925851789">Info sicurezza pagina</translation>
@@ -256,6 +255,7 @@ La funzione Handoff deve anche essere attivata nella sezione Generali di Imposta
 <translation id="6042308850641462728">Più</translation>
 <translation id="605721222689873409">AA</translation>
 <translation id="6066301408025741299">Tocca per annullare.</translation>
+<translation id="60851516108411750">Il tuo Elenco di lettura è disponibile offline. Per aggiungere una pagina all'Elenco di lettura, tocca <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Elemento rimosso</translation>
 <translation id="6136914049981179737">Secondi fa</translation>
@@ -270,6 +270,7 @@ La funzione Handoff deve anche essere attivata nella sezione Generali di Imposta
 <translation id="6255097610484507482">Modifica carta di credito</translation>
 <translation id="6308436439357671616">In questo modo puoi scattare e caricare foto.</translation>
 <translation id="6314335155547195432">Genera password</translation>
+<translation id="6324528485781869530">Cambia account di sincronizzazione</translation>
 <translation id="6324669097367352121">Impostazioni accesso</translation>
 <translation id="6337234675334993532">Crittografia</translation>
 <translation id="633809752005859102">Si è verificato un problema. Stiamo cercando una soluzione.</translation>

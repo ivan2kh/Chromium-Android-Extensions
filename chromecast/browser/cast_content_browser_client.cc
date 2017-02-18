@@ -47,6 +47,7 @@
 #include "content/public/browser/client_certificate_delegate.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/resource_dispatcher_host.h"
+#include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_descriptors.h"
 #include "content/public/common/content_switches.h"
@@ -85,6 +86,7 @@ static std::unique_ptr<service_manager::Service> CreateMediaService(
                      base::Unretained(browser_client)),
           base::Bind(&CastContentBrowserClient::CreateCdmFactory,
                      base::Unretained(browser_client)),
+          browser_client->GetVideoModeSwitcher(),
           browser_client->GetVideoResolutionPolicy(),
           browser_client->media_resource_tracker()));
   return std::unique_ptr<service_manager::Service>(
@@ -135,6 +137,10 @@ std::unique_ptr<CastService> CastContentBrowserClient::CreateCastService(
     CastWindowManager* window_manager) {
   return base::MakeUnique<CastServiceSimple>(browser_context, pref_service,
                                              window_manager);
+}
+
+media::VideoModeSwitcher* CastContentBrowserClient::GetVideoModeSwitcher() {
+  return nullptr;
 }
 
 #if !defined(OS_ANDROID)
@@ -341,6 +347,16 @@ CastContentBrowserClient::CreateQuotaPermissionContext() {
   return new CastQuotaPermissionContext();
 }
 
+void CastContentBrowserClient::GetQuotaSettings(
+    content::BrowserContext* context,
+    content::StoragePartition* partition,
+    const storage::OptionalQuotaSettingsCallback& callback) {
+  content::BrowserThread::PostTaskAndReplyWithResult(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&storage::CalculateNominalDynamicSettings,
+                 partition->GetPath(), context->IsOffTheRecord()),
+      callback);
+}
 void CastContentBrowserClient::AllowCertificateError(
     content::WebContents* web_contents,
     int cert_error,
@@ -417,12 +433,12 @@ bool CastContentBrowserClient::CanCreateWindow(
     const GURL& opener_url,
     const GURL& opener_top_level_frame_url,
     const GURL& source_origin,
-    WindowContainerType container_type,
+    content::mojom::WindowContainerType container_type,
     const GURL& target_url,
     const content::Referrer& referrer,
     const std::string& frame_name,
     WindowOpenDisposition disposition,
-    const blink::WebWindowFeatures& features,
+    const blink::mojom::WindowFeatures& features,
     bool user_gesture,
     bool opener_suppressed,
     content::ResourceContext* context,

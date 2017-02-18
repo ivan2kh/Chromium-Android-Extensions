@@ -26,8 +26,7 @@ FrameGenerator::FrameGenerator(FrameGeneratorDelegate* delegate,
                                ServerWindow* root_window)
     : delegate_(delegate),
       root_window_(root_window),
-      binding_(this),
-      weak_factory_(this) {
+      binding_(this) {
   DCHECK(delegate_);
 }
 
@@ -40,21 +39,16 @@ void FrameGenerator::SetDeviceScaleFactor(float device_scale_factor) {
 }
 
 FrameGenerator::~FrameGenerator() {
-  // Invalidate WeakPtrs now to avoid callbacks back into the
-  // FrameGenerator during destruction of |compositor_frame_sink_|.
-  weak_factory_.InvalidateWeakPtrs();
   compositor_frame_sink_.reset();
 }
 
 void FrameGenerator::OnAcceleratedWidgetAvailable(
     gfx::AcceleratedWidget widget) {
   DCHECK_NE(gfx::kNullAcceleratedWidget, widget);
-  auto associated_group =
-      root_window_->delegate()->GetDisplayCompositorAssociatedGroup();
   cc::mojom::MojoCompositorFrameSinkAssociatedRequest sink_request =
-      mojo::MakeRequest(&compositor_frame_sink_, associated_group);
+      mojo::MakeRequest(&compositor_frame_sink_);
   cc::mojom::DisplayPrivateAssociatedRequest display_request =
-      mojo::MakeRequest(&display_private_, associated_group);
+      mojo::MakeRequest(&display_private_);
   root_window_->CreateDisplayCompositorFrameSink(
       widget, std::move(sink_request), binding_.CreateInterfacePtrAndBind(),
       std::move(display_request));
@@ -96,6 +90,8 @@ void FrameGenerator::OnBeginFrame(const cc::BeginFrameArgs& begin_frame_arags) {
       display_private_->ResizeDisplay(frame_size);
     }
 
+    display_private_->SetLocalSurfaceId(local_surface_id_,
+                                        device_scale_factor_);
     compositor_frame_sink_->SubmitCompositorFrame(local_surface_id_,
                                                   std::move(frame));
     compositor_frame_sink_->SetNeedsBeginFrame(false);
@@ -107,9 +103,11 @@ void FrameGenerator::ReclaimResources(
     const cc::ReturnedResourceArray& resources) {
   // Nothing to do here because FrameGenerator CompositorFrames don't reference
   // any resources.
+  DCHECK(resources.empty());
 }
 
-void FrameGenerator::WillDrawSurface() {
+void FrameGenerator::WillDrawSurface(const cc::LocalSurfaceId& local_surface_id,
+                                     const gfx::Rect& damage_rect) {
   // TODO(fsamuel, staraz): Implement this.
 }
 
@@ -180,7 +178,8 @@ void FrameGenerator::DrawWindow(cc::RenderPass* pass) {
   auto* quad = pass->CreateAndAppendDrawQuad<cc::SurfaceDrawQuad>();
   quad->SetAll(sqs, bounds_at_origin /* rect */, gfx::Rect() /* opaque_rect */,
                bounds_at_origin /* visible_rect */, true /* needs_blending*/,
-               window_manager_surface_info_.id());
+               window_manager_surface_info_.id(),
+               cc::SurfaceDrawQuadType::PRIMARY, nullptr);
 }
 
 }  // namespace ws

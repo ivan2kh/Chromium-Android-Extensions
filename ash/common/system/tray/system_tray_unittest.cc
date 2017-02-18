@@ -9,7 +9,6 @@
 
 #include "ash/common/accelerators/accelerator_controller.h"
 #include "ash/common/accessibility_delegate.h"
-#include "ash/common/material_design/material_design_controller.h"
 #include "ash/common/shelf/wm_shelf.h"
 #include "ash/common/system/status_area_widget.h"
 #include "ash/common/system/tray/system_tray_bubble.h"
@@ -32,6 +31,7 @@
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/views/controls/separator.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
@@ -538,15 +538,6 @@ TEST_F(SystemTrayTest, WithSystemModal) {
       test::kAccessibilityTrayItemViewId);
   ASSERT_TRUE(accessibility);
   EXPECT_TRUE(accessibility->visible());
-
-  // Settings row is not present in material design.
-  if (!MaterialDesignController::IsSystemTrayMenuMaterial()) {
-    const views::View* settings =
-        tray->GetSystemBubble()->bubble_view()->GetViewByID(
-            test::kSettingsTrayItemViewId);
-    ASSERT_TRUE(settings);
-    EXPECT_TRUE(settings->visible());
-  }
 }
 
 // Tests that if SetVisible(true) is called while animating to hidden that the
@@ -569,60 +560,6 @@ TEST_F(SystemTrayTest, SetVisibleDuringHideAnimation) {
   EXPECT_EQ(1.0f, tray->layer()->GetTargetOpacity());
 }
 
-// Tests that touch on an item in the system bubble triggers it to become
-// active.
-TEST_F(SystemTrayTest, TrayPopupItemContainerTouchFeedback) {
-  // Material design will use the ink drop ripple framework to show
-  // active states.
-  if (MaterialDesignController::IsSystemTrayMenuMaterial())
-    return;
-
-  SystemTray* tray = GetPrimarySystemTray();
-  tray->ShowDefaultView(BUBBLE_CREATE_NEW);
-
-  TrayPopupItemContainer* view = static_cast<TrayPopupItemContainer*>(
-      tray->GetSystemBubble()->bubble_view()->child_at(0));
-  EXPECT_FALSE(view->active());
-
-  ui::test::EventGenerator& generator = GetEventGenerator();
-  generator.set_current_location(view->GetBoundsInScreen().CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(view->active());
-
-  generator.ReleaseTouch();
-  EXPECT_FALSE(view->active());
-}
-
-// Tests that touch events on an item in the system bubble cause it to stop
-// being active.
-TEST_F(SystemTrayTest, TrayPopupItemContainerTouchFeedbackCancellation) {
-  // Material design will use the ink drop ripple framework to show
-  // active states.
-  if (MaterialDesignController::IsSystemTrayMenuMaterial())
-    return;
-
-  SystemTray* tray = GetPrimarySystemTray();
-  tray->ShowDefaultView(BUBBLE_CREATE_NEW);
-
-  TrayPopupItemContainer* view = static_cast<TrayPopupItemContainer*>(
-      tray->GetSystemBubble()->bubble_view()->child_at(0));
-  EXPECT_FALSE(view->active());
-
-  gfx::Rect view_bounds = view->GetBoundsInScreen();
-  ui::test::EventGenerator& generator = GetEventGenerator();
-  generator.set_current_location(view_bounds.CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(view->active());
-
-  gfx::Point move_point(view_bounds.x(), view_bounds.CenterPoint().y());
-  generator.MoveTouch(move_point);
-  EXPECT_FALSE(view->active());
-
-  generator.set_current_location(move_point);
-  generator.ReleaseTouch();
-  EXPECT_FALSE(view->active());
-}
-
 TEST_F(SystemTrayTest, SystemTrayHeightWithBubble) {
   SystemTray* tray = GetPrimarySystemTray();
   WebNotificationTray* notification_tray =
@@ -642,6 +579,10 @@ TEST_F(SystemTrayTest, SystemTrayHeightWithBubble) {
   RunAllPendingInMessageLoop();
 
   EXPECT_EQ(0, notification_tray->tray_bubble_height_for_test());
+}
+
+TEST_F(SystemTrayTest, SeparatorThickness) {
+  EXPECT_EQ(kSeparatorWidth, views::Separator::kThickness);
 }
 
 }  // namespace test

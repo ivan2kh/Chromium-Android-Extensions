@@ -25,6 +25,10 @@
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #include "ios/testing/earl_grey/disabled_test_macros.h"
 
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
 namespace {
 // Returns a GREYMatcher that matches |view|.
 // TODO(crbug.com/642619): Evaluate whether this should be shared code.
@@ -183,7 +187,13 @@ void SelectTabUsingStackView(Tab* tab) {
 }
 
 // Tests closing all Tabs in the stack view.
-- (void)testCloseAllTabs {
+// TODO(crbug.com/693517): Re-enable this test on simulator.
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_testCloseAllTabs FLAKY_testCloseAllTabs
+#else
+#define MAYBE_testCloseAllTabs testCloseAllTabs
+#endif
+- (void)MAYBE_testCloseAllTabs {
   // The StackViewController is only used on iPhones.
   if (IsIPadIdiom())
     EARL_GREY_TEST_SKIPPED(@"Stack view is not used on iPads.");

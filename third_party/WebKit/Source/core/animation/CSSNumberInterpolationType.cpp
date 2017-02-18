@@ -72,7 +72,7 @@ InterpolationValue CSSNumberInterpolationType::maybeConvertInherit(
 
 InterpolationValue CSSNumberInterpolationType::maybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState&,
+    const StyleResolverState*,
     ConversionCheckers&) const {
   if (!value.isPrimitiveValue() || !toCSSPrimitiveValue(value).isNumber())
     return nullptr;
@@ -81,9 +81,9 @@ InterpolationValue CSSNumberInterpolationType::maybeConvertValue(
 
 InterpolationValue
 CSSNumberInterpolationType::maybeConvertStandardPropertyUnderlyingValue(
-    const StyleResolverState& state) const {
+    const ComputedStyle& style) const {
   double underlyingNumber;
-  if (!NumberPropertyFunctions::getNumber(cssProperty(), *state.style(),
+  if (!NumberPropertyFunctions::getNumber(cssProperty(), style,
                                           underlyingNumber))
     return nullptr;
   return createNumberValue(underlyingNumber);

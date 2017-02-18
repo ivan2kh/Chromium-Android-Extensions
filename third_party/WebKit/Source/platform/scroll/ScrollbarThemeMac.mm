@@ -204,7 +204,7 @@ ScrollbarPart ScrollbarThemeMac::invalidateOnThumbPositionChange(
 }
 
 void ScrollbarThemeMac::registerScrollbar(ScrollbarThemeClient& scrollbar) {
-  scrollbarSet().add(&scrollbar);
+  scrollbarSet().insert(&scrollbar);
 
   bool isHorizontal = scrollbar.orientation() == HorizontalScrollbar;
   RetainPtr<ScrollbarPainter> scrollbarPainter(
@@ -218,14 +218,14 @@ void ScrollbarThemeMac::registerScrollbar(ScrollbarThemeClient& scrollbar) {
       [[BlinkScrollbarObserver alloc] initWithScrollbar:&scrollbar
                                                 painter:scrollbarPainter]);
 
-  scrollbarPainterMap().add(&scrollbar, observer);
+  scrollbarPainterMap().insert(&scrollbar, observer);
   updateEnabledState(scrollbar);
   updateScrollbarOverlayColorTheme(scrollbar);
 }
 
 void ScrollbarThemeMac::unregisterScrollbar(ScrollbarThemeClient& scrollbar) {
   scrollbarPainterMap().remove(&scrollbar);
-  scrollbarSet().remove(&scrollbar);
+  scrollbarSet().erase(&scrollbar);
 }
 
 void ScrollbarThemeMac::setNewPainterForScrollbar(

@@ -178,14 +178,6 @@ void WebURLResponse::setTextEncodingName(const WebString& textEncodingName) {
   m_resourceResponse->setTextEncodingName(textEncodingName);
 }
 
-WebString WebURLResponse::suggestedFileName() const {
-  return m_resourceResponse->suggestedFilename();
-}
-
-void WebURLResponse::setSuggestedFileName(const WebString& suggestedFileName) {
-  m_resourceResponse->setSuggestedFilename(suggestedFileName);
-}
-
 WebURLResponse::HTTPVersion WebURLResponse::httpVersion() const {
   return static_cast<HTTPVersion>(m_resourceResponse->httpVersion());
 }
@@ -404,6 +396,14 @@ void WebURLResponse::setCorsExposedHeaderNames(
   Vector<String> exposedHeaderNames;
   exposedHeaderNames.append(headerNames.data(), headerNames.size());
   m_resourceResponse->setCorsExposedHeaderNames(exposedHeaderNames);
+}
+
+bool WebURLResponse::didServiceWorkerNavigationPreload() const {
+  return m_resourceResponse->didServiceWorkerNavigationPreload();
+}
+
+void WebURLResponse::setDidServiceWorkerNavigationPreload(bool value) {
+  m_resourceResponse->setDidServiceWorkerNavigationPreload(value);
 }
 
 WebString WebURLResponse::downloadFilePath() const {

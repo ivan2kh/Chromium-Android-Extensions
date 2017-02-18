@@ -7,6 +7,8 @@
 
 #include <memory>
 #include <queue>
+#include <utility>
+#include <vector>
 
 #include "base/cancelable_callback.h"
 #include "base/macros.h"
@@ -71,6 +73,7 @@ class VrShellGl : public device::mojom::VRVSyncProvider {
   void OnResume();
 
   void SetWebVrMode(bool enabled);
+  void CreateContentSurface();
   void ContentBoundsChanged(int width, int height);
   void ContentPhysicalBoundsChanged(int width, int height);
   void UIBoundsChanged(int width, int height);
@@ -85,7 +88,7 @@ class VrShellGl : public device::mojom::VRVSyncProvider {
 
   void UpdateScene(std::unique_ptr<base::ListValue> commands);
 
-  void UpdateVSyncInterval(long timebase_nanos, double interval_seconds);
+  void UpdateVSyncInterval(int64_t timebase_nanos, double interval_seconds);
 
   void OnRequest(device::mojom::VRVSyncProviderRequest request);
   void ResetPose();
@@ -101,10 +104,13 @@ class VrShellGl : public device::mojom::VRVSyncProvider {
   void DrawUiView(const gvr::Mat4f* head_pose,
                   const std::vector<const ContentRectangle*>& elements,
                   const gvr::Sizei& render_size, int viewport_offset);
-  void DrawElements(const gvr::Mat4f& render_matrix,
+  void DrawElements(const gvr::Mat4f& view_proj_matrix,
+                    const gvr::Mat4f& view_matrix,
                     const std::vector<const ContentRectangle*>& elements);
+  std::vector<const ContentRectangle*> GetElementsInDrawOrder(
+      const gvr::Mat4f& view_matrix,
+      const std::vector<const ContentRectangle*>& elements);
   void DrawCursor(const gvr::Mat4f& render_matrix);
-  void DrawBackground(const gvr::Mat4f& render_matrix);
   void DrawWebVr();
   bool WebVrPoseByteIsValid(int pose_index_byte);
 
@@ -113,7 +119,7 @@ class VrShellGl : public device::mojom::VRVSyncProvider {
                           int pixel_y);
   void SendGesture(InputTarget input_target,
                    std::unique_ptr<blink::WebInputEvent> event);
-
+  void CreateUiSurface();
   void OnUIFrameAvailable();
   void OnContentFrameAvailable();
   bool GetPixelEncodedFrameIndex(uint16_t* frame_index);
@@ -165,6 +171,7 @@ class VrShellGl : public device::mojom::VRVSyncProvider {
   gvr::Vec3f target_point_;
   const ContentRectangle* target_element_ = nullptr;
   InputTarget current_input_target_ = InputTarget::NONE;
+  InputTarget current_scroll_target = InputTarget::NONE;
   int ui_tex_css_width_ = 0;
   int ui_tex_css_height_ = 0;
   int content_tex_css_width_ = 0;

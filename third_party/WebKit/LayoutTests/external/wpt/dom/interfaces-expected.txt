@@ -1,5 +1,6 @@
 CONSOLE MESSAGE: line 251: callback not yet supported
 This is a testharness.js-based test.
+Found 1609 tests; 1424 PASS, 185 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS Event interface: existence and properties of interface object 
 PASS Event interface object length 
 PASS Event interface object name 
@@ -145,7 +146,7 @@ PASS MutationObserver interface object length
 PASS MutationObserver interface object name 
 FAIL MutationObserver interface: existence and properties of interface prototype object assert_equals: class string of MutationObserver.prototype expected "[object MutationObserverPrototype]" but got "[object MutationObserver]"
 PASS MutationObserver interface: existence and properties of interface prototype object's "constructor" property 
-FAIL MutationObserver interface: operation observe(Node,MutationObserverInit) assert_equals: property has wrong .length expected 1 but got 2
+PASS MutationObserver interface: operation observe(Node,MutationObserverInit) 
 PASS MutationObserver interface: operation disconnect() 
 PASS MutationObserver interface: operation takeRecords() 
 PASS MutationRecord interface: existence and properties of interface object 

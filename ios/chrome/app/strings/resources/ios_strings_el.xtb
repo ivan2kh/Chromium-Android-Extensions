@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Άνοιγμα όλων</translation>
 <translation id="1430915738399379752">Εκτύπωση</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> στοιχεία</translation>
+<translation id="1491277525950327607">Πατήστε δύο φορές για εναλλαγή της ρύθμισης</translation>
 <translation id="1540800554400757039">Διεύθυνση 1</translation>
 <translation id="1545749641540134597">Σάρωση κωδικού QR</translation>
 <translation id="1580783302095112590">Το μήνυμα εστάλη.</translation>
@@ -65,7 +66,6 @@
 <translation id="2068952045031577364">Τελευταία εβδομάδα</translation>
 <translation id="2079545284768500474">Αναίρεση</translation>
 <translation id="209018056901015185">Αίτηση ιστότ. για υπολογ.</translation>
-<translation id="2100215774115172756">Η λίστα ανάγνωσης είναι διαθέσιμη εκτός σύνδεσης.</translation>
 <translation id="2103075008456228677">Ανοίξτε το history.google.com</translation>
 <translation id="2116625576999540962">Μετακινήθηκαν <ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> στοιχεία</translation>
 <translation id="2149973817440762519">Επεξεργασία σελιδοδείκτη</translation>
@@ -120,7 +120,6 @@
 <translation id="3175081911749765310">Υπηρ.ιστού</translation>
 <translation id="3207960819495026254">Προστέθηκε στους σελιδοδείκτες</translation>
 <translation id="3210163015918861891">Ο συγχρονισμός είναι ανενεργός</translation>
-<translation id="3237561509210981547">Για να προσθέσετε μια σελίδα στη λίστα ανάγνωσης, πατήστε <ph name="BEGIN_BOLD_FONT" />Κοινή χρήση &gt; Ανάγνωση αργότερα<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Ο σύνδεσμος αντιγράφηκε</translation>
 <translation id="3244271242291266297">ΜΜ</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> από <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@
 <translation id="3414292259312108062">Το Chrome θα αποθηκεύσει αυτόν τον κωδικό στους <ph name="BEGIN_LINK" />αποθηκευμένους κωδικούς πρόσβασης Google<ph name="END_LINK" /> και θα τον συμπληρώνει αυτόματα, έτσι ώστε να μην χρειάζεται να τον απομνημονεύσετε.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> λεπτά</translation>
 <translation id="3448016392200048164">Προβολή διαχωρισμού οθόνης</translation>
-<translation id="3474068797193663261">Για να προσθέσετε μια σελίδα στη λίστα ανάγνωσης, πατήστε <ph name="BEGIN_BOLD_FONT" />Μενού &gt; Κοινή χρήση &gt; Ανάγνωση αργότερα<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Οι φόρμες συμπληρώθηκαν.</translation>
 <translation id="3478058380795961209">Μήνας λήξης</translation>
 <translation id="3482959374254649722">Συγχρονισμός των καρτελών σας…</translation>
@@ -171,6 +169,7 @@
 <translation id="4121993058175073134">Για αποστ. δεδομ.εξαγ.δικτ.,διαμορφ. το email σας στην εφ. "Ρυθμίσεις"</translation>
 <translation id="4124987746317609294">Χρονικό εύρος</translation>
 <translation id="4172051516777682613">Εμφάνιση πάντα</translation>
+<translation id="418156467088430727">Προβολή έκδοσης εκτός σύνδεσης σε νέα καρτέλα</translation>
 <translation id="424315890655130736">Εισαγωγή φράσης πρόσβασης</translation>
 <translation id="4272631900155121838">Για να σαρώσετε έναν κώδικα QR, ενεργοποιήστε την κάμερα από τις ρυθμίσεις</translation>
 <translation id="4281844954008187215">Όροι Παροχής Υπηρεσιών</translation>
@@ -178,7 +177,6 @@
 <translation id="4359125752503270327">Αυτή η σελίδα θα ανοίξει σε άλλη εφαρμογή.</translation>
 <translation id="4378154925671717803">Τηλέφωνο</translation>
 <translation id="441868831736628555">Σημείωση απορρήτου</translation>
-<translation id="4426508677408162512">Όλοι οι σελιδοδείκτες</translation>
 <translation id="4473991315115669931">Είσοδος στην κατάσταση ανώνυμης περιήγησης</translation>
 <translation id="4526249700380860531">Προβολή και διαχείριση των αποθηκευμένων κωδικών πρόσβασης στη διεύθυνση <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Δοκιμάστε να συνδεθείτε ξανά.</translation>
@@ -218,6 +216,7 @@
 <translation id="5300589172476337783">Εμφάνιση</translation>
 <translation id="5317780077021120954">Αποθήκευση</translation>
 <translation id="5327248766486351172">Όνομα</translation>
+<translation id="5332219387342487447">Μέθοδος αποστολής</translation>
 <translation id="5388358297987318779">Άνοιγμα εικόνας</translation>
 <translation id="5409365236829784218">Δεν υπάρχουν εγκατεστ. εφαρμογές για το άνοιγμα του αρχείου</translation>
 <translation id="54401264925851789">Πληροφορίες ασφάλειας σελίδας</translation>
@@ -270,6 +269,7 @@
 <translation id="6255097610484507482">Επεξεργασία πιστωτικής κάρτας</translation>
 <translation id="6308436439357671616">Σας επιτρέπει να κάνετε λήψη και μεταφόρτωση φωτογραφιών.</translation>
 <translation id="6314335155547195432">Δημ.κωδ.πρόσβασης</translation>
+<translation id="6324528485781869530">Εναλλαγή λογαριασμού συγχρονισμού</translation>
 <translation id="6324669097367352121">Ρυθμίσεις σύνδεσης</translation>
 <translation id="6337234675334993532">Κρυπτογράφηση</translation>
 <translation id="633809752005859102">Κάτι δεν πήγε καλά. Θα προσπαθήσουμε να το επιδιορθώσουμε.</translation>

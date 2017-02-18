@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "ash/common/material_design/material_design_controller.h"
 #include "ash/common/mojo_interface_factory.h"
 #include "ash/common/system/chromeos/power/power_status.h"
 #include "ash/common/wm_shell.h"
@@ -14,6 +13,7 @@
 #include "ash/mus/window_manager.h"
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "chromeos/audio/cras_audio_handler.h"
 #include "chromeos/dbus/dbus_thread_manager.h"
@@ -112,8 +112,6 @@ void WindowManagerApplication::OnStart() {
       "ash_mus_resources_200.pak", nullptr,
       views::AuraInit::Mode::AURA_MUS_WINDOW_MANAGER);
   window_manager_.reset(new WindowManager(context()->connector()));
-
-  MaterialDesignController::Initialize();
 
   tracing_.Initialize(context()->connector(), context()->identity().name());
 

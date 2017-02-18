@@ -239,7 +239,7 @@ static jboolean GetBlockThirdPartyCookiesManaged(
 static jboolean GetRememberPasswordsEnabled(JNIEnv* env,
                                             const JavaParamRef<jobject>& obj) {
   return GetPrefService()->GetBoolean(
-      password_manager::prefs::kPasswordManagerSavingEnabled);
+      password_manager::prefs::kCredentialsEnableService);
 }
 
 static jboolean GetPasswordManagerAutoSigninEnabled(
@@ -252,7 +252,7 @@ static jboolean GetPasswordManagerAutoSigninEnabled(
 static jboolean GetRememberPasswordsManaged(JNIEnv* env,
                                             const JavaParamRef<jobject>& obj) {
   return GetPrefService()->IsManagedPreference(
-      password_manager::prefs::kPasswordManagerSavingEnabled);
+      password_manager::prefs::kCredentialsEnableService);
 }
 
 static jboolean GetPasswordManagerAutoSigninManaged(
@@ -717,9 +717,11 @@ static jboolean CanDeleteBrowsingHistory(JNIEnv* env,
 static void FetchImportantSites(JNIEnv* env,
                                 const JavaParamRef<jclass>& clazz,
                                 const JavaParamRef<jobject>& java_callback) {
+  Profile* profile = GetOriginalProfile();
   std::vector<ImportantSitesUtil::ImportantDomainInfo> important_sites =
-      ImportantSitesUtil::GetImportantRegisterableDomains(GetOriginalProfile(),
+      ImportantSitesUtil::GetImportantRegisterableDomains(profile,
                                                           kMaxImportantSites);
+  bool dialog_disabled = ImportantSitesUtil::IsDialogDisabled(profile);
 
   std::vector<std::string> important_domains;
   std::vector<int32_t> important_domain_reasons;
@@ -739,7 +741,7 @@ static void FetchImportantSites(JNIEnv* env,
 
   Java_ImportantSitesCallback_onImportantRegisterableDomainsReady(
       env, java_callback.obj(), java_domains.obj(), java_origins.obj(),
-      java_reasons.obj());
+      java_reasons.obj(), dialog_disabled);
 }
 
 // This value should not change during a sessions, as it's used for UMA metrics.
@@ -840,7 +842,7 @@ static void SetRememberPasswordsEnabled(JNIEnv* env,
                                         const JavaParamRef<jobject>& obj,
                                         jboolean allow) {
   GetPrefService()->SetBoolean(
-      password_manager::prefs::kPasswordManagerSavingEnabled, allow);
+      password_manager::prefs::kCredentialsEnableService, allow);
 }
 
 static void SetPasswordManagerAutoSigninEnabled(

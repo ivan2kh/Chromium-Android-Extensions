@@ -110,12 +110,12 @@ void ServiceWorkerGlobalScopeProxy::dispatchExtendableMessageEvent(
     int eventID,
     const WebString& message,
     const WebSecurityOrigin& sourceOrigin,
-    const WebMessagePortChannelArray& webChannels,
+    WebMessagePortChannelArray webChannels,
     const WebServiceWorkerClientInfo& client) {
   WebSerializedScriptValue value =
       WebSerializedScriptValue::fromString(message);
-  MessagePortArray* ports =
-      MessagePort::toMessagePortArray(m_workerGlobalScope, webChannels);
+  MessagePortArray* ports = MessagePort::toMessagePortArray(
+      m_workerGlobalScope, std::move(webChannels));
   String origin;
   if (!sourceOrigin.isUnique())
     origin = sourceOrigin.toString();
@@ -136,12 +136,12 @@ void ServiceWorkerGlobalScopeProxy::dispatchExtendableMessageEvent(
     int eventID,
     const WebString& message,
     const WebSecurityOrigin& sourceOrigin,
-    const WebMessagePortChannelArray& webChannels,
+    WebMessagePortChannelArray webChannels,
     std::unique_ptr<WebServiceWorker::Handle> handle) {
   WebSerializedScriptValue value =
       WebSerializedScriptValue::fromString(message);
-  MessagePortArray* ports =
-      MessagePort::toMessagePortArray(m_workerGlobalScope, webChannels);
+  MessagePortArray* ports = MessagePort::toMessagePortArray(
+      m_workerGlobalScope, std::move(webChannels));
   String origin;
   if (!sourceOrigin.isUnique())
     origin = sourceOrigin.toString();
@@ -356,16 +356,16 @@ bool ServiceWorkerGlobalScopeProxy::hasFetchEventHandler() {
   return m_workerGlobalScope->hasEventListeners(EventTypeNames::fetch);
 }
 
-void ServiceWorkerGlobalScopeProxy::countFeature(UseCounter::Feature) {
-  // TODO(nhiroki): Support UseCounter for ServiceWorker. Send an IPC message to
-  // the browser process and ask each controlled document to record API use in
-  // its UseCoutner (https://crbug.com/376039).
+void ServiceWorkerGlobalScopeProxy::countFeature(UseCounter::Feature feature) {
+  client().countFeature(static_cast<uint32_t>(feature));
 }
 
-void ServiceWorkerGlobalScopeProxy::countDeprecation(UseCounter::Feature) {
-  // TODO(nhiroki): Support UseCounter for ServiceWorker. Send an IPC message to
-  // the browser process and ask each controlled document to record API use in
-  // its UseCoutner (https://crbug.com/376039).
+void ServiceWorkerGlobalScopeProxy::countDeprecation(
+    UseCounter::Feature feature) {
+  // Go through the same code path with countFeature() because a deprecation
+  // message is already shown on the worker console and a remaining work is just
+  // to record an API use.
+  countFeature(feature);
 }
 
 void ServiceWorkerGlobalScopeProxy::reportException(

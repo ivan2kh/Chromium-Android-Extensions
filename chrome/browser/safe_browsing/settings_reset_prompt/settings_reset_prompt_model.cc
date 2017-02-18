@@ -6,12 +6,21 @@
 
 #include <utility>
 
+#include "base/bind_helpers.h"
+#include "base/callback.h"
+#include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/google/google_brand.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
+#include "chrome/browser/profile_resetter/brandcode_config_fetcher.h"
+#include "chrome/browser/profile_resetter/brandcoded_default_settings.h"
 #include "chrome/browser/profile_resetter/resettable_settings_snapshot.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/settings_reset_prompt/settings_reset_prompt_config.h"
 #include "chrome/common/extensions/manifest_handlers/settings_overrides_handler.h"
+#include "components/url_formatter/url_fixer.h"
+#include "content/public/browser/browser_thread.h"
 #include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_system.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/extension_set.h"
@@ -19,6 +28,10 @@
 namespace safe_browsing {
 
 namespace {
+
+#if defined(GOOGLE_CHROME_BUILD)
+constexpr char kOmahaUrl[] = "https://tools.google.com/service/update2";
+#endif  // defined(GOOGLE_CHROME_BUILD)
 
 // Used to keep track of which settings types have been initialized in
 // |SettingsResetPromptModel|.
@@ -30,53 +43,42 @@ enum SettingsType : uint32_t {
                       SETTINGS_TYPE_STARTUP_URLS,
 };
 
-//const extensions::Extension* GetExtension(
-//    Profile* profile,
-//    const extensions::ExtensionId& extension_id) {
-//  return extensions::ExtensionRegistry::Get(profile)->GetInstalledExtension(
-//      extension_id);
-//}
-
 }  // namespace
 
-SettingsResetPromptModel::SettingsResetPromptModel(
+// static
+void SettingsResetPromptModel::Create(
     Profile* profile,
     std::unique_ptr<SettingsResetPromptConfig> prompt_config,
-    std::unique_ptr<ResettableSettingsSnapshot> settings_snapshot)
-    : profile_(profile),
-      prompt_config_(std::move(prompt_config)),
-//      settings_snapshot_(std::move(settings_snapshot)),
-      settings_types_initialized_(0),
-      homepage_reset_domain_id_(-1),
-      homepage_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED),
-      default_search_reset_domain_id_(-1),
-      default_search_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED),
-      startup_urls_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED) {
-  DCHECK(profile_);
-  DCHECK(prompt_config_);
-//  DCHECK(settings_snapshot_);
+    CreateCallback callback){
+}
 
-  InitHomepageData();
-  InitDefaultSearchData();
-  InitStartupUrlsData();
-  DCHECK_EQ(settings_types_initialized_, SETTINGS_TYPE_ALL);
-
-  InitExtensionData();
-
-  // TODO(alito): Figure out cases where settings cannot be reset, for example
-  // due to policy or extensions that cannot be disabled.
+// static
+std::unique_ptr<SettingsResetPromptModel>
+SettingsResetPromptModel::CreateForTesting(
+    Profile* profile,
+    std::unique_ptr<SettingsResetPromptConfig> prompt_config,
+    std::unique_ptr<ResettableSettingsSnapshot> settings_snapshot,
+    std::unique_ptr<BrandcodedDefaultSettings> default_settings,
+    std::unique_ptr<ProfileResetter> profile_resetter) {
+  return base::WrapUnique(new SettingsResetPromptModel(
+      profile, std::move(prompt_config), std::move(settings_snapshot),
+      std::move(default_settings), std::move(profile_resetter)));
 }
 
 SettingsResetPromptModel::~SettingsResetPromptModel() {}
 
-bool SettingsResetPromptModel::ShouldPromptForReset() {
+SettingsResetPromptConfig* SettingsResetPromptModel::config() const {
+  return prompt_config_.get();
+}
+
+bool SettingsResetPromptModel::ShouldPromptForReset() const {
   return homepage_reset_state() == RESET_REQUIRED ||
          default_search_reset_state() == RESET_REQUIRED ||
          startup_urls_reset_state() == RESET_REQUIRED;
 }
 
-std::string SettingsResetPromptModel::homepage() const {
-  return std::string();//settings_snapshot_->homepage();
+GURL SettingsResetPromptModel::homepage() const {
+  return GURL();
 }
 
 SettingsResetPromptModel::ResetState
@@ -86,8 +88,8 @@ SettingsResetPromptModel::homepage_reset_state() const {
   return homepage_reset_state_;
 }
 
-std::string SettingsResetPromptModel::default_search() const {
-  return std::string();//settings_snapshot_->dse_url();
+GURL SettingsResetPromptModel::default_search() const {
+  return GURL();//settings_snapshot_->dse_url();
 }
 
 SettingsResetPromptModel::ResetState
@@ -116,6 +118,51 @@ SettingsResetPromptModel::extensions_to_disable() const {
   return extensions_to_disable_;
 }
 
+// static
+void SettingsResetPromptModel::OnSettingsFetched(
+    Profile* profile,
+    std::unique_ptr<SettingsResetPromptConfig> prompt_config,
+    SettingsResetPromptModel::CreateCallback callback,
+    std::unique_ptr<BrandcodedDefaultSettings> default_settings) {
+  DCHECK(profile);
+  DCHECK(prompt_config);
+  DCHECK(default_settings);
+
+  callback.Run(base::WrapUnique(new SettingsResetPromptModel(
+      profile, std::move(prompt_config),
+      base::MakeUnique<ResettableSettingsSnapshot>(profile),
+      std::move(default_settings),
+      base::MakeUnique<ProfileResetter>(profile))));
+}
+
+SettingsResetPromptModel::SettingsResetPromptModel(
+    Profile* profile,
+    std::unique_ptr<SettingsResetPromptConfig> prompt_config,
+    std::unique_ptr<ResettableSettingsSnapshot> settings_snapshot,
+    std::unique_ptr<BrandcodedDefaultSettings> default_settings,
+    std::unique_ptr<ProfileResetter> profile_resetter)
+    : profile_(profile),
+      prompt_config_(std::move(prompt_config)),
+      settings_types_initialized_(0),
+      homepage_reset_domain_id_(-1),
+      homepage_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED),
+      default_search_reset_domain_id_(-1),
+      default_search_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED),
+      startup_urls_reset_state_(NO_RESET_REQUIRED_DUE_TO_DOMAIN_NOT_MATCHED) {
+  DCHECK(profile_);
+  DCHECK(prompt_config_);
+
+  InitHomepageData();
+  InitDefaultSearchData();
+  InitStartupUrlsData();
+  DCHECK_EQ(settings_types_initialized_, SETTINGS_TYPE_ALL);
+
+  InitExtensionData();
+
+  // TODO(alito): Figure out cases where settings cannot be reset, for example
+  // due to policy or extensions that cannot be disabled.
+}
+
 void SettingsResetPromptModel::InitHomepageData() {
   DCHECK(!(settings_types_initialized_ & SETTINGS_TYPE_HOMEPAGE));
 
@@ -131,11 +178,6 @@ void SettingsResetPromptModel::InitHomepageData() {
 //  if (settings_snapshot_->homepage_is_ntp())
 //    return;
 
-//  homepage_reset_domain_id_ =
-//      prompt_config_->UrlToResetDomainId(GURL(settings_snapshot_->homepage()));
-//  if (homepage_reset_domain_id_ < 0)
-//    return;
-
   homepage_reset_state_ = RESET_REQUIRED;
 }
 
@@ -144,8 +186,6 @@ void SettingsResetPromptModel::InitDefaultSearchData() {
 
   settings_types_initialized_ |= SETTINGS_TYPE_DEFAULT_SEARCH;
 
-//  default_search_reset_domain_id_ =
-//      prompt_config_->UrlToResetDomainId(GURL(settings_snapshot_->dse_url()));
   if (default_search_reset_domain_id_ < 0)
     return;
 

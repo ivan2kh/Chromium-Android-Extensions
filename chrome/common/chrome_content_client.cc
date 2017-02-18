@@ -586,7 +586,7 @@ static const char* const kChromeStandardURLSchemes[] = {
 };
 
 void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
-  for (auto& standard_scheme : kChromeStandardURLSchemes)
+  for (auto* standard_scheme : kChromeStandardURLSchemes)
     schemes->standard_schemes.push_back(standard_scheme);
 
 #if defined(OS_ANDROID)
@@ -618,6 +618,8 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
   // overridden by the web_accessible_resources manifest key.
   // TODO(kalman): See what happens with a service worker.
   schemes->cors_enabled_schemes.push_back(extensions::kExtensionScheme);
+
+  schemes->csp_bypassing_schemes.push_back(extensions::kExtensionScheme);
 #endif
 
 #if defined(OS_CHROMEOS)

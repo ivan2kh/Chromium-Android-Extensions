@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">എല്ലാം തുറക്കുക</translation>
 <translation id="1430915738399379752">അച്ചടിക്കുക</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> ഇനങ്ങൾ</translation>
+<translation id="1491277525950327607">ക്രമീകരണം മാറ്റാൻ രണ്ടുതവണ ടാപ്പുചെയ്യുക</translation>
 <translation id="1540800554400757039">വിലാസം 1</translation>
 <translation id="1545749641540134597">QR കോഡ് സ്‌കാൻ ചെയ്യുക</translation>
 <translation id="1580783302095112590">മെയിൽ അയച്ചു.</translation>
@@ -65,7 +66,6 @@
 <translation id="2068952045031577364">കഴിഞ്ഞ ആഴ്‌ചയിലെ</translation>
 <translation id="2079545284768500474">പഴയപടിയാക്കുക</translation>
 <translation id="209018056901015185">ഡെസ്‌ക്‌ടോപ്പ് സൈറ്റ് അഭ്യർത്ഥിക്കുക</translation>
-<translation id="2100215774115172756">നിങ്ങളുടെ വായന ലിസ്‌റ്റ് ഓഫ്‌ലൈനിൽ ലഭ്യമാണ്.</translation>
 <translation id="2103075008456228677">history.google.com തുറക്കുക</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> ഇനങ്ങൾ നീക്കി</translation>
 <translation id="2149973817440762519">ബുക്മാര്‍ക്ക് എഡിറ്റ് ചെയ്യുക</translation>
@@ -120,7 +120,6 @@
 <translation id="3175081911749765310">വെബ് സേവനങ്ങൾ</translation>
 <translation id="3207960819495026254">ബുക്ക്‌മാർക്കുചെയ്‌തു</translation>
 <translation id="3210163015918861891">സമന്വയം ഓഫാണ്</translation>
-<translation id="3237561509210981547">നിങ്ങളുടെ വായന ലിസ്‌റ്റിൽ ഒരു പേജ് ചേർക്കാൻ, <ph name="BEGIN_BOLD_FONT" />പങ്കിടുക &gt; പിന്നീട് വായിക്കുക<ph name="END_BOLD_FONT" /> ടാപ്പുചെയ്യുക.</translation>
 <translation id="3240426699337459095">ലിങ്ക് പകർത്തി</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> / <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@
 <translation id="3414292259312108062">ഇത് നിങ്ങളുടെ <ph name="BEGIN_LINK" />Google സംരക്ഷിത പാസ്‌വേഡുകളിൽ<ph name="END_LINK" /> Chrome സംരക്ഷിക്കുകയും നിങ്ങൾക്കായി ഓട്ടോഫിൽ ചെയ്യുകയും ചെയ്യുന്നതിനാൽ ഓർക്കേണ്ടതില്ല.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> മി.</translation>
 <translation id="3448016392200048164">വിഭജിത കാഴ്‌ച</translation>
-<translation id="3474068797193663261">നിങ്ങളുടെ വായന ലിസ്‌റ്റിൽ ഒരു പേജ് ചേർക്കാൻ, <ph name="BEGIN_BOLD_FONT" />മെനു &gt; പങ്കിടുക &gt; പിന്നീട് വായിക്കുക<ph name="END_BOLD_FONT" /> ടാപ്പുചെയ്യുക.</translation>
 <translation id="3474649192738347024">ഫോമുകൾ പൂരിപ്പിച്ചു.</translation>
 <translation id="3478058380795961209">കാലഹരണപ്പെടുന്ന മാസം</translation>
 <translation id="3482959374254649722">നിങ്ങളുടെ ടാബുകൾ സമന്വയിപ്പിക്കുന്നു...</translation>
@@ -171,6 +169,7 @@
 <translation id="4121993058175073134">നെറ്റ്-എക്‌സ്‌പോർട്ട് ഡാറ്റ അയയ്‌ക്കുന്നതിന്, ക്രമീകരണങ്ങളുടെ അപ്ലിക്കേഷനിൽ നിങ്ങളുടെ ഇമെയിൽ അക്കൗൺറ്റ് കോൺഫിഗർ ചെയ്യുക.</translation>
 <translation id="4124987746317609294">സമയ ശ്രേണി</translation>
 <translation id="4172051516777682613">എല്ലായ്പ്പോഴും ദൃശ്യമാക്കുക</translation>
+<translation id="418156467088430727">പുതിയ ടാബിൽ ഓഫ്‌ലൈൻ പതിപ്പ് കാണുക</translation>
 <translation id="424315890655130736">പാസ്‌ഫ്രെയ്‌സ് നൽകുക</translation>
 <translation id="4272631900155121838">QR കോഡ് സ്‌കാൻ ചെയ്യാൻ, ക്രമീകരണത്തിൽ നിന്ന് ക്യാമറ പ്രവർത്തനക്ഷമമാക്കുക</translation>
 <translation id="4281844954008187215">സേവന നിബന്ധനകൾ</translation>
@@ -178,7 +177,6 @@
 <translation id="4359125752503270327">ഈ പേജ് മറ്റൊരു അപ്ലിക്കേഷനിൽ തുറക്കും.</translation>
 <translation id="4378154925671717803">ഫോണ്‍</translation>
 <translation id="441868831736628555">സ്വകാര്യത അറിയിപ്പ്</translation>
-<translation id="4426508677408162512">എല്ലാ ബുക്ക്മാർക്കുകളും</translation>
 <translation id="4473991315115669931">ആൾമാറാട്ട മോഡ് നൽകുക</translation>
 <translation id="4526249700380860531"><ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /> എന്നതിൽ സംരക്ഷിച്ച പാസ്‌വേഡുകൾ കാണുക, നിയന്ത്രിക്കുക</translation>
 <translation id="4536418791685807335">വീണ്ടും സൈൻ ഇൻ ചെയ്യാൻ ശ്രമിക്കുക.</translation>
@@ -218,6 +216,7 @@
 <translation id="5300589172476337783">കാണിക്കുക</translation>
 <translation id="5317780077021120954">സംരക്ഷിക്കുക</translation>
 <translation id="5327248766486351172">പേര്</translation>
+<translation id="5332219387342487447">ഷിപ്പിംഗ് രീതി</translation>
 <translation id="5388358297987318779">ഇമേജ് തുറക്കുക</translation>
 <translation id="5409365236829784218">ഈ ഫയലിൽ തുറക്കാൻ കഴിയുന്ന അപ്ലിക്കേഷനുകളൊന്നും ഇൻസ്റ്റാൾ ചെയ്‌തില്ല.</translation>
 <translation id="54401264925851789">പേജ് സുരക്ഷാ വിവരങ്ങൾ</translation>
@@ -256,6 +255,7 @@
 <translation id="6042308850641462728">കൂടുതൽ</translation>
 <translation id="605721222689873409">YY</translation>
 <translation id="6066301408025741299">റദ്ദാക്കുന്നതിന് ടാപ്പുചെയ്യുക.</translation>
+<translation id="60851516108411750">നിങ്ങളുടെ വായന ലിസ്‌റ്റ് ഓഫ്‌ലൈനിൽ ലഭ്യമാണ്. വായന ലിസ്‌റ്റിൽ ഒരു പേജ് ചേർക്കാൻ,<ph name="SHARE_OPENING_ICON" /> ടാപ്പുചെയ്യുക.</translation>
 <translation id="6122191549521593678">ഓൺലൈൻ</translation>
 <translation id="6127379762771434464">ഇനം നീക്കംചെയ്‌തു</translation>
 <translation id="6136914049981179737">സെക്കൻഡ് മുമ്പ്</translation>
@@ -270,6 +270,7 @@
 <translation id="6255097610484507482">ക്രെഡിറ്റ് കാര്‍ഡ് എഡിറ്റുചെയ്യുക</translation>
 <translation id="6308436439357671616">ഫോട്ടോകളെടുത്ത് അപ്‌ലോഡുചെയ്യാൻ ഇത് നിങ്ങളെ അനുവദിക്കുന്നു.</translation>
 <translation id="6314335155547195432">പാസ്‌വേഡ് സൃഷ്‌ടിക്കുക</translation>
+<translation id="6324528485781869530">സമന്വയ അക്കൗണ്ട് മാറുക</translation>
 <translation id="6324669097367352121">സൈൻ ഇൻ ക്രമീകരണങ്ങൾ</translation>
 <translation id="6337234675334993532">എന്‍ക്രിപ്ഷന്‍</translation>
 <translation id="633809752005859102">ശരിക്കും എന്തോ കുഴപ്പം സംഭവിച്ചു. ഞങ്ങൾ അത് പരിഹരിക്കും.</translation>

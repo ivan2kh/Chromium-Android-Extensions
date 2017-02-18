@@ -374,6 +374,14 @@ void GpuCommandBufferStub::UpdateVSyncParameters(base::TimeTicks timebase,
                                                      interval));
 }
 
+void GpuCommandBufferStub::AddFilter(IPC::MessageFilter* message_filter) {
+  return channel_->AddFilter(message_filter);
+}
+
+int32_t GpuCommandBufferStub::GetRouteID() const {
+  return route_id_;
+}
+
 bool GpuCommandBufferStub::IsScheduled() {
   return (!executor_.get() || executor_->scheduled());
 }
@@ -571,7 +579,8 @@ bool GpuCommandBufferStub::Initialize(
         manager->framebuffer_completeness_cache(), feature_info,
         init_params.attribs.bind_generates_resource,
         gmb_factory ? gmb_factory->AsImageFactory() : nullptr,
-        channel_->watchdog() /* progress_reporter */);
+        channel_->watchdog() /* progress_reporter */,
+        manager->gpu_feature_info());
   }
 
 #if defined(OS_MACOSX)

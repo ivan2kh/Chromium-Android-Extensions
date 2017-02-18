@@ -209,7 +209,7 @@ void LayoutBoxModelObject::willBeDestroyed() {
     if (LocalFrame* frame = this->frame()) {
       if (FrameView* frameView = frame->view()) {
         if (style()->hasViewportConstrainedPosition())
-          frameView->removeViewportConstrainedObject(this);
+          frameView->removeViewportConstrainedObject(*this);
       }
     }
   }
@@ -237,8 +237,11 @@ void LayoutBoxModelObject::styleWillChange(StyleDifference diff,
 
   FloatStateForStyleChange::setWasFloating(this, isFloating());
 
-  if (hasLayer() && diff.cssClipChanged())
-    layer()->clipper().clearClipRectsIncludingDescendants();
+  if (hasLayer() && diff.cssClipChanged()) {
+    layer()
+        ->clipper(PaintLayer::DoNotUseGeometryMapper)
+        .clearClipRectsIncludingDescendants();
+  }
 
   LayoutObject::styleWillChange(diff, newStyle);
 }
@@ -350,8 +353,8 @@ void LayoutBoxModelObject::styleDidChange(StyleDifference diff,
   // re-raster (rect-based invalidation) is needed, display items should
   // still update their paint offset.
   if (oldStyle) {
-    bool newStyleIsFixedPosition = style()->position() == FixedPosition;
-    bool oldStyleIsFixedPosition = oldStyle->position() == FixedPosition;
+    bool newStyleIsFixedPosition = style()->position() == EPosition::kFixed;
+    bool oldStyleIsFixedPosition = oldStyle->position() == EPosition::kFixed;
     if (newStyleIsFixedPosition != oldStyleIsFixedPosition)
       ObjectPaintInvalidator(*this)
           .invalidateDisplayItemClientsIncludingNonCompositingDescendants(
@@ -380,11 +383,13 @@ void LayoutBoxModelObject::styleDidChange(StyleDifference diff,
   }
 
   if (FrameView* frameView = view()->frameView()) {
-    bool newStyleIsViewportConstained = style()->position() == FixedPosition;
+    bool newStyleIsViewportConstained =
+        style()->position() == EPosition::kFixed;
     bool oldStyleIsViewportConstrained =
-        oldStyle && oldStyle->position() == FixedPosition;
-    bool newStyleIsSticky = style()->position() == StickyPosition;
-    bool oldStyleIsSticky = oldStyle && oldStyle->position() == StickyPosition;
+        oldStyle && oldStyle->position() == EPosition::kFixed;
+    bool newStyleIsSticky = style()->position() == EPosition::kSticky;
+    bool oldStyleIsSticky =
+        oldStyle && oldStyle->position() == EPosition::kSticky;
 
     if (newStyleIsSticky != oldStyleIsSticky) {
       if (newStyleIsSticky) {
@@ -400,7 +405,7 @@ void LayoutBoxModelObject::styleDidChange(StyleDifference diff,
       } else {
         // This may get re-added to viewport constrained objects if the object
         // went from sticky to fixed.
-        frameView->removeViewportConstrainedObject(this);
+        frameView->removeViewportConstrainedObject(*this);
 
         // Remove sticky constraints for this layer.
         if (layer()) {
@@ -421,30 +426,39 @@ void LayoutBoxModelObject::styleDidChange(StyleDifference diff,
 
     if (newStyleIsViewportConstained != oldStyleIsViewportConstrained) {
       if (newStyleIsViewportConstained && layer())
-        frameView->addViewportConstrainedObject(this);
+        frameView->addViewportConstrainedObject(*this);
       else
-        frameView->removeViewportConstrainedObject(this);
+        frameView->removeViewportConstrainedObject(*this);
     }
   }
 }
 
 void LayoutBoxModelObject::invalidateStickyConstraints() {
-  if (!layer())
-    return;
+  PaintLayer* enclosing = enclosingLayer();
+
+  if (PaintLayerScrollableArea* scrollableArea =
+          enclosing->getScrollableArea()) {
+    scrollableArea->invalidateAllStickyConstraints();
+    // If this object doesn't have a layer and its enclosing layer is a scroller
+    // then we don't need to invalidate the sticky constraints on the ancestor
+    // scroller because the enclosing scroller won't have changed size.
+    if (!layer())
+      return;
+  }
 
   // This intentionally uses the stale ancestor overflow layer compositing input
   // as if we have saved constraints for this layer they were saved in the
   // previous frame.
   DisableCompositingQueryAsserts disabler;
   if (const PaintLayer* ancestorOverflowLayer =
-          layer()->ancestorOverflowLayer())
+          enclosing->ancestorOverflowLayer())
     ancestorOverflowLayer->getScrollableArea()
         ->invalidateAllStickyConstraints();
 }
 
 void LayoutBoxModelObject::createLayer() {
   ASSERT(!m_layer);
-  m_layer = WTF::makeUnique<PaintLayer>(this);
+  m_layer = WTF::makeUnique<PaintLayer>(*this);
   setHasLayer(true);
   m_layer->insertOnlyThisLayerAfterStyleChange();
 }
@@ -797,7 +811,7 @@ void LayoutBoxModelObject::updateStickyPositionConstraints() const {
   LayoutBox* scrollAncestor =
       layer()->ancestorOverflowLayer()->isRootLayer()
           ? nullptr
-          : toLayoutBox(layer()->ancestorOverflowLayer()->layoutObject());
+          : &toLayoutBox(layer()->ancestorOverflowLayer()->layoutObject());
 
   LayoutUnit maxContainerWidth =
       containingBlock->isLayoutView()
@@ -956,7 +970,8 @@ FloatRect LayoutBoxModelObject::computeStickyConstrainingRect() const {
     return view()->frameView()->visibleContentRect();
 
   LayoutBox* enclosingClippingBox =
-      toLayoutBox(layer()->ancestorOverflowLayer()->layoutObject());
+      layer()->ancestorOverflowLayer()->layoutBox();
+  DCHECK(enclosingClippingBox);
   FloatRect constrainingRect;
   constrainingRect =
       FloatRect(enclosingClippingBox->overflowClipRect(LayoutPoint(DoublePoint(
@@ -1038,7 +1053,7 @@ LayoutPoint LayoutBoxModelObject::adjustedPositionRelativeTo(
     if (offsetParentObject->isLayoutInline()) {
       const LayoutInline* inlineParent = toLayoutInline(offsetParentObject);
 
-      if (isBox() && style()->position() == AbsolutePosition &&
+      if (isBox() && style()->position() == EPosition::kAbsolute &&
           inlineParent->isInFlowPositioned()) {
         // Offset for absolute elements with inline parent is a special
         // case in the CSS spec
@@ -1169,6 +1184,7 @@ LayoutRect LayoutBoxModelObject::localCaretRectForEmptyElement(
 
   LayoutUnit x = borderLeft() + paddingLeft();
   LayoutUnit maxX = width - borderRight() - paddingRight();
+  LayoutUnit caretWidth = frameView()->caretWidth();
 
   switch (alignment) {
     case AlignLeft:
@@ -1183,12 +1199,12 @@ LayoutRect LayoutBoxModelObject::localCaretRectForEmptyElement(
         x -= textIndentOffset / 2;
       break;
     case AlignRight:
-      x = maxX - caretWidth();
+      x = maxX - caretWidth;
       if (!currentStyle.isLeftToRightDirection())
         x -= textIndentOffset;
       break;
   }
-  x = std::min(x, (maxX - caretWidth()).clampNegativeToZero());
+  x = std::min(x, (maxX - caretWidth).clampNegativeToZero());
 
   const Font& font = style()->font();
   const SimpleFontData* fontData = font.primaryFont();
@@ -1204,8 +1220,8 @@ LayoutRect LayoutBoxModelObject::localCaretRectForEmptyElement(
       height;
   LayoutUnit y = paddingTop() + borderTop() + (verticalSpace / 2);
   return currentStyle.isHorizontalWritingMode()
-             ? LayoutRect(x, y, caretWidth(), height)
-             : LayoutRect(y, x, height, caretWidth());
+             ? LayoutRect(x, y, caretWidth, height)
+             : LayoutRect(y, x, height, caretWidth);
 }
 
 const LayoutObject* LayoutBoxModelObject::pushMappingToContainer(
@@ -1219,7 +1235,7 @@ const LayoutObject* LayoutBoxModelObject::pushMappingToContainer(
     return nullptr;
 
   bool isInline = isLayoutInline();
-  bool isFixedPos = !isInline && style()->position() == FixedPosition;
+  bool isFixedPos = !isInline && style()->position() == EPosition::kFixed;
   bool containsFixedPosition = canContainFixedPositionObjects();
 
   LayoutSize adjustmentForSkippedAncestor;

@@ -41,7 +41,8 @@ void CastContentWindowLinux::SetTransparent() {
 }
 
 std::unique_ptr<content::WebContents> CastContentWindowLinux::CreateWebContents(
-    content::BrowserContext* browser_context) {
+    content::BrowserContext* browser_context,
+    scoped_refptr<content::SiteInstance> site_instance) {
   CHECK(display::Screen::GetScreen());
   gfx::Size display_size =
       display::Screen::GetScreen()->GetPrimaryDisplay().size();
@@ -49,6 +50,7 @@ std::unique_ptr<content::WebContents> CastContentWindowLinux::CreateWebContents(
   content::WebContents::CreateParams create_params(browser_context, NULL);
   create_params.routing_id = MSG_ROUTING_NONE;
   create_params.initial_size = display_size;
+  create_params.site_instance = site_instance;
   content::WebContents* web_contents =
       content::WebContents::Create(create_params);
 
@@ -72,8 +74,10 @@ void CastContentWindowLinux::ShowWebContents(
     content::WebContents* web_contents,
     CastWindowManager* window_manager) {
   DCHECK(window_manager);
-  window_manager->AddWindow(web_contents->GetNativeView());
-  web_contents->GetNativeView()->Show();
+  gfx::NativeView window = web_contents->GetNativeView();
+  window_manager->SetWindowId(window, CastWindowManager::APP);
+  window_manager->AddWindow(window);
+  window->Show();
 }
 
 void CastContentWindowLinux::DidFirstVisuallyNonEmptyPaint() {

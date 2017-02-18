@@ -65,7 +65,6 @@
 <translation id="2664962310688259219">Chrome OS 오픈소스 라이선스</translation>
 <translation id="2665296953892887393">비정상 종료 보고서와 <ph name="UMA_LINK" />을(를) Google로 전송하여 Chrome 개선에 참여합니다.</translation>
 <translation id="2689103672227170538">Chrome을 시작하면 표시되는 페이지가 이 확장 프로그램으로 인해 변경되었습니다.</translation>
-<translation id="2748463065602559597">지금 안전한 Chrome 페이지를 보고 계십니다.</translation>
 <translation id="2769762047821873045">Chrome이 기본 브라우저로 설정되어 있지 않습니다.</translation>
 <translation id="2770231113462710648">다음으로 기본 브라우저 변경:</translation>
 <translation id="2799223571221894425">다시 시작</translation>
@@ -134,6 +133,7 @@
 <translation id="4754614261631455953">Chrome Canary(mDNS-In)</translation>
 <translation id="4771048833395599659">이 파일은 위험할 수있으므로 Chrome에서 차단했습니다.</translation>
 <translation id="4794050651896644714">Chrome에 세부정보 저장</translation>
+<translation id="4853578032408195113">안전한 Chrome 페이지를 보는 중</translation>
 <translation id="4891791193823137474">백그라운드에서 Chrome을 실행</translation>
 <translation id="4921569541910214635">컴퓨터를 공유하시겠습니까? 이제 원하는 대로 Chrome을 설정할 수 있습니다.</translation>
 <translation id="4953650215774548573">Chrome을 기본 브라우저로 설정</translation>
@@ -207,6 +207,7 @@ Chrome에서 설정을 복구할 수 없습니다.</translation>
 <translation id="6970811910055250180">기기를 업데이트하는 중...</translation>
 <translation id="6982337800632491844">이 기기를 사용하기 전에 <ph name="DOMAIN" />에서 다음 서비스 약관을 읽고 동의해야 합니다. 이 약관은 Chrome OS 약관을 확장, 수정 또는 제한하지 않습니다.</translation>
 <translation id="6989339256997917931">Chrome이 업데이트되었지만, 최소 30일 동안 사용하지 않았습니다.</translation>
+<translation id="7048801529101012374">Chrome이 기본 브라우저로 설정되어 있습니다.</translation>
 <translation id="7098166902387133879">Chrome에서 마이크를 사용 중입니다.</translation>
 <translation id="7106741999175697885">작업 관리자 - Chrome</translation>
 <translation id="7125719106133729027">Chrome을 최신 버전으로 자동 업데이트할 수 없기 때문에 새로운 기능과 보안 수정사항 업데이트가 누락될 수 있습니다. Chrome을 직접 다시 설치해야 합니다.</translation>

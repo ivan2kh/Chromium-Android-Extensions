@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "ash/common/session/session_controller.h"
-#include "ash/common/system/tray/system_tray_delegate.h"
 #include "ash/common/wm/container_finder.h"
 #include "ash/common/wm/window_state.h"
 #include "ash/common/wm_window.h"
@@ -21,7 +20,6 @@
 #include "ash/mus/non_client_frame_controller.h"
 #include "ash/mus/property_util.h"
 #include "ash/mus/screen_mus.h"
-#include "ash/mus/shadow_controller.h"
 #include "ash/mus/shell_delegate_mus.h"
 #include "ash/mus/top_level_window_factory.h"
 #include "ash/mus/window_properties.h"
@@ -33,6 +31,7 @@
 #include "ash/shell_init_params.h"
 #include "ash/wm/ash_focus_rules.h"
 #include "base/memory/ptr_util.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/ui/common/accelerator_util.h"
 #include "services/ui/common/types.h"
@@ -53,6 +52,7 @@
 #include "ui/views/mus/pointer_watcher_event_router.h"
 #include "ui/views/mus/screen_mus.h"
 #include "ui/wm/core/capture_controller.h"
+#include "ui/wm/core/shadow_types.h"
 #include "ui/wm/core/wm_state.h"
 #include "ui/wm/public/activation_client.h"
 
@@ -71,6 +71,9 @@ WindowManager::WindowManager(service_manager::Connector* connector)
       ui::mojom::WindowManager::kRenderParentTitleArea_Property);
   property_converter_->RegisterProperty(
       kShelfItemTypeKey, ui::mojom::WindowManager::kShelfItemType_Property);
+  property_converter_->RegisterProperty(
+      ::wm::kShadowElevationKey,
+      ui::mojom::WindowManager::kShadowElevation_Property);
 }
 
 WindowManager::~WindowManager() {
@@ -100,8 +103,6 @@ void WindowManager::Init(
   pointer_watcher_event_router_ =
       base::MakeUnique<views::PointerWatcherEventRouter>(
           window_tree_client_.get());
-
-  shadow_controller_ = base::MakeUnique<ShadowController>();
 
   ui::mojom::FrameDecorationValuesPtr frame_decoration_values =
       ui::mojom::FrameDecorationValues::New();
@@ -190,11 +191,11 @@ void WindowManager::CreateShell(
   DCHECK(!created_shell_);
   created_shell_ = true;
   ShellInitParams init_params;
-  WmShellMus* wm_shell =
-      new WmShellMus(WmWindow::Get(window_tree_host->window()),
-                     base::MakeUnique<ShellDelegateMus>(
-                         connector_, std::move(system_tray_delegate_for_test_)),
-                     this, pointer_watcher_event_router_.get());
+  WmShellMus* wm_shell = new WmShellMus(
+      WmWindow::Get(window_tree_host->window()),
+      shell_delegate_for_test_ ? std::move(shell_delegate_for_test_)
+                               : base::MakeUnique<ShellDelegateMus>(connector_),
+      this, pointer_watcher_event_router_.get());
   init_params.primary_window_tree_host = window_tree_host.release();
   init_params.wm_shell = wm_shell;
   init_params.blocking_pool = blocking_pool_.get();
@@ -254,7 +255,6 @@ void WindowManager::Shutdown() {
   Shell::DeleteInstance();
 
   lookup_.reset();
-  shadow_controller_.reset();
 
   pointer_watcher_event_router_.reset();
 
@@ -321,13 +321,10 @@ bool WindowManager::OnWmSetProperty(
         new_data ? mojo::ConvertTo<bool>(**new_data) : false);
     return false;  // Won't attempt to map through property converter.
   }
-  return name == ui::mojom::WindowManager::kAppIcon_Property ||
-         name == ui::mojom::WindowManager::kShowState_Property ||
-         name == ui::mojom::WindowManager::kPreferredSize_Property ||
-         name == ui::mojom::WindowManager::kResizeBehavior_Property ||
-         name == ui::mojom::WindowManager::kShelfItemType_Property ||
-         name == ui::mojom::WindowManager::kWindowIcon_Property ||
-         name == ui::mojom::WindowManager::kWindowTitle_Property;
+  if (property_converter_->IsTransportNameRegistered(name))
+    return true;
+  DVLOG(1) << "unknown property changed, ignoring " << name;
+  return false;
 }
 
 void WindowManager::OnWmSetCanFocus(aura::Window* window, bool can_focus) {

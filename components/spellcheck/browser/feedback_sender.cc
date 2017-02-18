@@ -37,6 +37,7 @@
 #include "base/hash.h"
 #include "base/json/json_writer.h"
 #include "base/location.h"
+#include "base/memory/ptr_util.h"
 #include "base/metrics/field_trial.h"
 #include "base/single_thread_task_runner.h"
 #include "base/stl_util.h"
@@ -440,14 +441,15 @@ void FeedbackSender::SendFeedback(const std::vector<Misspelling>& feedback_data,
 
   // The tests use this identifier to mock the URL fetcher.
   static const int kUrlFetcherId = 0;
-  auto sender = net::URLFetcher::Create(kUrlFetcherId, feedback_service_url_,
-                                        net::URLFetcher::POST, this);
+  net::URLFetcher* sender =
+      net::URLFetcher::Create(kUrlFetcherId, feedback_service_url_,
+                              net::URLFetcher::POST, this).release();
   data_use_measurement::DataUseUserData::AttachToFetcher(
-      sender.get(), data_use_measurement::DataUseUserData::SPELL_CHECKER);
+      sender, data_use_measurement::DataUseUserData::SPELL_CHECKER);
   sender->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
                        net::LOAD_DO_NOT_SAVE_COOKIES);
   sender->SetUploadData("application/json", feedback);
-  senders_.push_back(std::move(sender));
+  senders_.push_back(base::WrapUnique<net::URLFetcher>(sender));
 
   // Request context is nullptr in testing.
   if (request_context_.get()) {

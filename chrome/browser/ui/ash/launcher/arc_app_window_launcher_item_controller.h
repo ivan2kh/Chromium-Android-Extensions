@@ -22,9 +22,11 @@ class ArcAppWindowLauncherItemController
   ~ArcAppWindowLauncherItemController() override;
 
   // LauncherItemController overrides:
-  ash::ShelfItemDelegate::PerformedAction ItemSelected(
-      const ui::Event& event) override;
-  ChromeLauncherAppMenuItems GetApplicationList(int event_flags) override;
+  ash::ShelfAction ItemSelected(ui::EventType event_type,
+                                int event_flags,
+                                int64_t display_id,
+                                ash::ShelfLaunchSource source) override;
+  ash::ShelfAppMenuItemList GetAppMenuItems(int event_flags) override;
 
   void AddTaskId(int task_id);
   void RemoveTaskId(int task_id);

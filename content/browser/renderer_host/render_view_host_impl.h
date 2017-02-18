@@ -26,12 +26,12 @@
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/render_process_host_observer.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/common/window_container_type.h"
 #include "net/base/load_states.h"
 #include "third_party/WebKit/public/web/WebAXEnums.h"
 #include "third_party/WebKit/public/web/WebConsoleMessage.h"
 #include "third_party/WebKit/public/web/WebPopupType.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/mojo/window_open_disposition.mojom.h"
 
 namespace content {
 

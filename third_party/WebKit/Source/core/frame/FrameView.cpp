@@ -26,6 +26,7 @@
 
 #include "core/frame/FrameView.h"
 
+#include <memory>
 #include "core/HTMLNames.h"
 #include "core/MediaTypeNames.h"
 #include "core/animation/DocumentAnimations.h"
@@ -40,6 +41,7 @@
 #include "core/dom/ResizeObserverController.h"
 #include "core/dom/StyleChangeReason.h"
 #include "core/dom/TaskRunnerHelper.h"
+#include "core/editing/DragCaret.h"
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/FrameSelection.h"
 #include "core/editing/RenderedPosition.h"
@@ -90,9 +92,11 @@
 #include "core/page/FocusController.h"
 #include "core/page/FrameTree.h"
 #include "core/page/Page.h"
+#include "core/page/PrintContext.h"
 #include "core/page/scrolling/RootScrollerUtil.h"
 #include "core/page/scrolling/ScrollingCoordinator.h"
 #include "core/page/scrolling/TopDocumentRootScrollerController.h"
+#include "core/paint/BlockPaintInvalidator.h"
 #include "core/paint/FramePainter.h"
 #include "core/paint/PaintLayer.h"
 #include "core/paint/PaintTiming.h"
@@ -129,7 +133,6 @@
 #include "wtf/CurrentTime.h"
 #include "wtf/PtrUtil.h"
 #include "wtf/StdLibExtras.h"
-#include <memory>
 
 // Used to check for dirty layouts violating document lifecycle rules.
 // If arg evaluates to true, the program will continue. If arg evaluates to
@@ -144,6 +147,10 @@
   } while (false)
 
 namespace blink {
+
+// A4 Portrait dimensions in pixels
+const int kA4PortraitPageWidth = 595;
+const int kA4PortraitPageHeight = 842;
 
 using namespace HTMLNames;
 
@@ -234,6 +241,7 @@ DEFINE_TRACE(FrameView) {
   visitor->trace(m_scrollAnchor);
   visitor->trace(m_anchoringAdjustmentQueue);
   visitor->trace(m_scrollbarManager);
+  visitor->trace(m_printContext);
   Widget::trace(visitor);
   ScrollableArea::trace(visitor);
 }
@@ -395,9 +403,9 @@ void FrameView::ScrollbarManager::setHasHorizontalScrollbar(bool hasScrollbar) {
   if (hasScrollbar) {
     m_hBar = createScrollbar(HorizontalScrollbar);
     m_scrollableArea->layoutBox()->document().view()->addChild(m_hBar.get());
+    m_hBarIsAttached = 1;
     m_scrollableArea->didAddScrollbar(*m_hBar, HorizontalScrollbar);
     m_hBar->styleChanged();
-    m_hBarIsAttached = 1;
   } else {
     m_hBarIsAttached = 0;
     destroyScrollbar(HorizontalScrollbar);
@@ -413,9 +421,9 @@ void FrameView::ScrollbarManager::setHasVerticalScrollbar(bool hasScrollbar) {
   if (hasScrollbar) {
     m_vBar = createScrollbar(VerticalScrollbar);
     m_scrollableArea->layoutBox()->document().view()->addChild(m_vBar.get());
+    m_vBarIsAttached = 1;
     m_scrollableArea->didAddScrollbar(*m_vBar, VerticalScrollbar);
     m_vBar->styleChanged();
-    m_vBarIsAttached = 1;
   } else {
     m_vBarIsAttached = 0;
     destroyScrollbar(VerticalScrollbar);
@@ -533,6 +541,13 @@ void FrameView::setFrameRect(const IntRect& newRect) {
   frameRectsChanged();
 
   updateParentScrollableAreaSet();
+
+  if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled() &&
+      !RuntimeEnabledFeatures::rootLayerScrollingEnabled()) {
+    // The overflow clip property depends on the frame size and the pre
+    // translation property depends on the frame location.
+    setNeedsPaintPropertyUpdate();
+  }
 
   if (frameSizeChanged) {
     viewportSizeChanged(newRect.width() != oldRect.width(),
@@ -1087,7 +1102,7 @@ void FrameView::performLayout(bool inSubtreeLayout) {
     if (hasOrthogonalWritingModeRoots() &&
         !RuntimeEnabledFeatures::layoutNGEnabled())
       layoutOrthogonalWritingModeRoots();
-    layoutFromRootObject(*layoutView());
+    layoutView()->layout();
   }
 
   m_frame->document()->fetcher()->updateAllImageResourcePriorities();
@@ -1340,8 +1355,6 @@ void FrameView::invalidatePaintIfNeeded(
   RELEASE_ASSERT(!layoutViewItem().isNull());
   if (!RuntimeEnabledFeatures::rootLayerScrollingEnabled())
     invalidatePaintOfScrollControlsIfNeeded(paintInvalidationState);
-
-  m_frame->selection().invalidateCaretRect();
 }
 
 void FrameView::setNeedsPaintPropertyUpdate() {
@@ -1435,7 +1448,7 @@ void FrameView::addPart(LayoutPart* object) {
 }
 
 void FrameView::removePart(LayoutPart* object) {
-  m_parts.remove(object);
+  m_parts.erase(object);
 }
 
 void FrameView::updateWidgetGeometries() {
@@ -1548,7 +1561,7 @@ void FrameView::addBackgroundAttachmentFixedObject(LayoutObject* object) {
 void FrameView::removeBackgroundAttachmentFixedObject(LayoutObject* object) {
   ASSERT(m_backgroundAttachmentFixedObjects.contains(object));
 
-  m_backgroundAttachmentFixedObjects.remove(object);
+  m_backgroundAttachmentFixedObjects.erase(object);
   if (ScrollingCoordinator* scrollingCoordinator = this->scrollingCoordinator())
     scrollingCoordinator->frameViewHasBackgroundAttachmentFixedObjectsDidChange(
         this);
@@ -1561,14 +1574,14 @@ void FrameView::removeBackgroundAttachmentFixedObject(LayoutObject* object) {
   }
 }
 
-void FrameView::addViewportConstrainedObject(LayoutObject* object) {
+void FrameView::addViewportConstrainedObject(LayoutObject& object) {
   if (!m_viewportConstrainedObjects) {
     m_viewportConstrainedObjects =
         WTF::wrapUnique(new ViewportConstrainedObjectSet);
   }
 
-  if (!m_viewportConstrainedObjects->contains(object)) {
-    m_viewportConstrainedObjects->insert(object);
+  if (!m_viewportConstrainedObjects->contains(&object)) {
+    m_viewportConstrainedObjects->insert(&object);
 
     if (ScrollingCoordinator* scrollingCoordinator =
             this->scrollingCoordinator())
@@ -1576,10 +1589,10 @@ void FrameView::addViewportConstrainedObject(LayoutObject* object) {
   }
 }
 
-void FrameView::removeViewportConstrainedObject(LayoutObject* object) {
+void FrameView::removeViewportConstrainedObject(LayoutObject& object) {
   if (m_viewportConstrainedObjects &&
-      m_viewportConstrainedObjects->contains(object)) {
-    m_viewportConstrainedObjects->remove(object);
+      m_viewportConstrainedObjects->contains(&object)) {
+    m_viewportConstrainedObjects->erase(&object);
 
     if (ScrollingCoordinator* scrollingCoordinator =
             this->scrollingCoordinator())
@@ -1948,7 +1961,7 @@ void FrameView::updateLayersAndCompositingAfterScrollIfNeeded() {
   for (const auto& viewportConstrainedObject : *m_viewportConstrainedObjects) {
     LayoutObject* layoutObject = viewportConstrainedObject;
     PaintLayer* layer = toLayoutBoxModelObject(layoutObject)->layer();
-    if (layoutObject->style()->position() == StickyPosition) {
+    if (layoutObject->style()->position() == EPosition::kSticky) {
       // TODO(skobes): Resolve circular dependency between scroll offset and
       // compositing state, and remove this disabler. https://crbug.com/420741
       DisableCompositingQueryAsserts disabler;
@@ -1973,7 +1986,8 @@ bool FrameView::computeCompositedSelection(LocalFrame& frame,
   if (!frame.view() || frame.view()->shouldThrottleRendering())
     return false;
 
-  const VisibleSelection& visibleSelection = frame.selection().selection();
+  const VisibleSelection& visibleSelection =
+      frame.selection().computeVisibleSelectionInDOMTree();
   if (visibleSelection.isNone() || !frame.selection().isHandleVisible())
     return false;
 
@@ -1995,14 +2009,6 @@ bool FrameView::computeCompositedSelection(LocalFrame& frame,
     return false;
 
   selection.type = visibleSelection.getSelectionType();
-  selection.isEditable = visibleSelection.isContentEditable();
-  if (selection.isEditable) {
-    if (TextControlElement* enclosingTextControlElement =
-            enclosingTextControl(visibleSelection.rootEditableElement())) {
-      selection.isEmptyTextControl =
-          enclosingTextControlElement->value().isEmpty();
-    }
-  }
   selection.start.isTextDirectionRTL |=
       primaryDirectionOf(*visibleSelection.start().anchorNode()) ==
       TextDirection::kRtl;
@@ -2408,7 +2414,7 @@ bool FrameView::updateWidgets() {
 
     // Prevent plugins from causing infinite updates of themselves.
     // FIXME: Do we really need to prevent this?
-    m_partUpdateSet.remove(&object);
+    m_partUpdateSet.erase(&object);
   }
 
   return m_partUpdateSet.isEmpty();
@@ -2793,6 +2799,12 @@ void FrameView::didChangeGlobalRootScroller() {
     return;
 
   // Avoid drawing two sets of scrollbars when visual viewport is enabled.
+  visualViewportScrollbarsChanged();
+}
+
+// TODO(pdr): This logic is similar to adjustScrollbarExistence and the common
+// logic should be factored into a helper.
+void FrameView::visualViewportScrollbarsChanged() {
   bool hasHorizontalScrollbar = horizontalScrollbar();
   bool hasVerticalScrollbar = verticalScrollbar();
   bool shouldHaveHorizontalScrollbar = false;
@@ -2803,8 +2815,12 @@ void FrameView::didChangeGlobalRootScroller() {
   m_scrollbarManager.setHasVerticalScrollbar(shouldHaveVerticalScrollbar);
 
   if (hasHorizontalScrollbar != shouldHaveHorizontalScrollbar ||
-      hasVerticalScrollbar != shouldHaveVerticalScrollbar)
+      hasVerticalScrollbar != shouldHaveVerticalScrollbar) {
     scrollbarExistenceDidChange();
+
+    if (!visualViewportSuppliesScrollbars())
+      updateScrollbarGeometry();
+  }
 }
 
 void FrameView::updateWidgetGeometriesIfNeeded() {
@@ -2814,6 +2830,19 @@ void FrameView::updateWidgetGeometriesIfNeeded() {
   m_needsUpdateWidgetGeometries = false;
 
   updateWidgetGeometries();
+}
+
+GeometryMapper& FrameView::geometryMapper() {
+  DCHECK(RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled());
+  DCHECK(lifecycle().state() >= DocumentLifecycle::InPrePaint);
+
+  if (m_frame->isLocalRoot()) {
+    if (!m_geometryMapper)
+      m_geometryMapper = GeometryMapper::create();
+    return *m_geometryMapper.get();
+  }
+
+  return frame().localFrameRoot()->view()->geometryMapper();
 }
 
 void FrameView::updateAllLifecyclePhases() {
@@ -2886,6 +2915,36 @@ void FrameView::notifyResizeObservers() {
   DCHECK(!layoutView()->needsLayout());
 }
 
+void FrameView::dispatchEventsForPrintingOnAllFrames() {
+  DCHECK(m_frame->isMainFrame());
+  for (Frame* currentFrame = m_frame; currentFrame;
+       currentFrame = currentFrame->tree().traverseNext(m_frame)) {
+    if (currentFrame->isLocalFrame())
+      toLocalFrame(currentFrame)->document()->dispatchEventsForPrinting();
+  }
+}
+
+void FrameView::setupPrintContext() {
+  if (m_frame->document()->printing())
+    return;
+  if (!m_printContext)
+    m_printContext = new PrintContext(m_frame);
+  if (m_frame->settings())
+    m_frame->settings()->setShouldPrintBackgrounds(true);
+  FloatRect pageRect(0, 0, kA4PortraitPageWidth, kA4PortraitPageHeight);
+  m_printContext->begin(pageRect.width(), pageRect.height());
+  float height;
+  m_printContext->computePageRects(pageRect, 0, 0, 1.0, height);
+  dispatchEventsForPrintingOnAllFrames();
+}
+
+void FrameView::clearPrintContext() {
+  if (!m_printContext)
+    return;
+  m_printContext->end();
+  m_printContext.clear();
+}
+
 // TODO(leviw): We don't assert lifecycle information from documents in child
 // PluginViews.
 void FrameView::updateLifecyclePhasesInternal(
@@ -2917,6 +2976,11 @@ void FrameView::updateLifecyclePhasesInternal(
         std::min(targetState, DocumentLifecycle::CompositingClean));
     return;
   }
+
+  if (RuntimeEnabledFeatures::printBrowserEnabled())
+    setupPrintContext();
+  else
+    clearPrintContext();
 
   updateStyleAndLayoutIfNeededRecursive();
   DCHECK(lifecycle().state() >= DocumentLifecycle::LayoutClean);
@@ -2986,11 +3050,9 @@ void FrameView::updateLifecyclePhasesInternal(
         prePaint();
     }
 
-    if (RuntimeEnabledFeatures::slimmingPaintV2Enabled())
-      DocumentAnimations::updateAnimations(layoutView()->document());
-
     if (targetState == DocumentLifecycle::PaintClean) {
-      if (!m_frame->document()->printing())
+      if (!m_frame->document()->printing() ||
+          RuntimeEnabledFeatures::printBrowserEnabled())
         paintTree();
 
       if (RuntimeEnabledFeatures::slimmingPaintV2Enabled())
@@ -3000,6 +3062,11 @@ void FrameView::updateLifecyclePhasesInternal(
       DCHECK((m_frame->document()->printing() &&
               lifecycle().state() == DocumentLifecycle::PrePaintClean) ||
              lifecycle().state() == DocumentLifecycle::PaintClean);
+
+      if (RuntimeEnabledFeatures::slimmingPaintV2Enabled()) {
+        DocumentAnimations::updateAnimations(layoutView()->document(),
+                                             DocumentLifecycle::PaintClean);
+      }
     }
 
     forAllNonThrottledFrameViews([](FrameView& frameView) {
@@ -3032,12 +3099,6 @@ void FrameView::prePaint() {
   if (!m_paintController)
     m_paintController = PaintController::create();
 
-  if (!m_geometryMapper)
-    m_geometryMapper.reset(new GeometryMapper());
-  // TODO(chrishtr): the cache only needs to be invalidated if one or more of
-  // the property tree nodes changed.
-  m_geometryMapper->clearCache();
-
   forAllNonThrottledFrameViews([](FrameView& frameView) {
     frameView.lifecycle().advanceTo(DocumentLifecycle::InPrePaint);
     if (frameView.canThrottleRendering()) {
@@ -3050,8 +3111,14 @@ void FrameView::prePaint() {
   });
 
   if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled()) {
+    // TODO(chrishtr): the cache only needs to be invalidated if one or more of
+    // the property tree nodes changed.
+    geometryMapper().clearCache();
+  }
+
+  if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled()) {
     SCOPED_BLINK_UMA_HISTOGRAM_TIMER("Blink.PrePaint.UpdateTime");
-    PrePaintTreeWalk(*m_geometryMapper).walk(*this);
+    PrePaintTreeWalk(geometryMapper()).walk(*this);
   }
 
   forAllNonThrottledFrameViews([](FrameView& frameView) {
@@ -3083,6 +3150,8 @@ void FrameView::paintTree() {
   if (RuntimeEnabledFeatures::slimmingPaintV2Enabled()) {
     if (layoutView()->layer()->needsRepaint()) {
       GraphicsContext graphicsContext(*m_paintController);
+      if (RuntimeEnabledFeatures::printBrowserEnabled())
+        graphicsContext.setPrinting(true);
       paint(graphicsContext, CullRect(LayoutRect::infiniteIntRect()));
       m_paintController->commitNewDisplayItems(LayoutSize());
       notifyPaint(*m_paintController);
@@ -3249,6 +3318,9 @@ void FrameView::updateStyleAndLayoutIfNeededRecursiveInternal() {
   if (frame().document()->hasFinishedParsing() &&
       frame().loader().stateMachine()->committedFirstRealDocumentLoad())
     m_isVisuallyNonEmpty = true;
+
+  frame().selection().updateStyleAndLayoutIfNeeded();
+  frame().page()->dragCaret().updateStyleAndLayoutIfNeeded();
 }
 
 void FrameView::invalidateTreeIfNeededRecursive() {
@@ -3268,8 +3340,7 @@ void FrameView::invalidateTreeIfNeededRecursiveInternal() {
   // throttled even though we are (e.g., it didn't compute its visibility yet).
   if (shouldThrottleRendering())
     return;
-  TRACE_EVENT1("blink", "FrameView::invalidateTreeIfNeededRecursive", "root",
-               layoutView()->debugName().ascii());
+  TRACE_EVENT0("blink", "FrameView::invalidateTreeIfNeededRecursiveInternal");
 
   Vector<const LayoutObject*> pendingDelayedPaintInvalidations;
   PaintInvalidationState rootPaintInvalidationState(
@@ -3282,8 +3353,8 @@ void FrameView::invalidateTreeIfNeededRecursiveInternal() {
   // because
   // - the frame is a detached frame; or
   // - it didn't need paint invalidation.
-  // We need to call invalidateTreeIfNeededRecursive() for such frames to finish
-  // required paint invalidation and advance their life cycle state.
+  // We need to call invalidateTreeIfNeededRecursiveInternal() for such frames
+  // to finish required paint invalidation and advance their life cycle state.
   for (Frame* child = m_frame->tree().firstChild(); child;
        child = child->tree().nextSibling()) {
     if (child->isLocalFrame()) {
@@ -3486,7 +3557,7 @@ IntRect FrameView::convertFromContainingWidget(
     IntRect rect = parentView->convertToLayoutItem(layoutItem, parentRect);
     // Subtract borders and padding
     rect.move((-layoutItem.borderLeft() - layoutItem.paddingLeft()).toInt(),
-              (-layoutItem.borderTop() - layoutItem.paddingTop().toInt()));
+              (-layoutItem.borderTop() - layoutItem.paddingTop()).toInt());
     return rect;
   }
 
@@ -3629,7 +3700,7 @@ void FrameView::addScrollableArea(ScrollableArea* scrollableArea) {
 void FrameView::removeScrollableArea(ScrollableArea* scrollableArea) {
   if (!m_scrollableAreas)
     return;
-  m_scrollableAreas->remove(scrollableArea);
+  m_scrollableAreas->erase(scrollableArea);
 
   if (ScrollingCoordinator* scrollingCoordinator = this->scrollingCoordinator())
     scrollingCoordinator->scrollableAreasDidChange();
@@ -3645,7 +3716,7 @@ void FrameView::addAnimatingScrollableArea(ScrollableArea* scrollableArea) {
 void FrameView::removeAnimatingScrollableArea(ScrollableArea* scrollableArea) {
   if (!m_animatingScrollableAreas)
     return;
-  m_animatingScrollableAreas->remove(scrollableArea);
+  m_animatingScrollableAreas->erase(scrollableArea);
 }
 
 void FrameView::setParent(Widget* parentView) {
@@ -3669,7 +3740,7 @@ void FrameView::removeChild(Widget* child) {
     removeScrollableArea(toFrameView(child));
 
   child->setParent(0);
-  m_children.remove(child);
+  m_children.erase(child);
 }
 
 bool FrameView::visualViewportSuppliesScrollbars() {
@@ -3705,11 +3776,6 @@ void FrameView::frameRectsChanged() {
   TRACE_EVENT0("blink", "FrameView::frameRectsChanged");
   if (layoutSizeFixedToFrameSize())
     setLayoutSizeInternal(frameRect().size());
-
-  if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled()) {
-    // The overflow clip property depends on the frame rect.
-    setNeedsPaintPropertyUpdate();
-  }
 
   for (const auto& child : m_children)
     child->frameRectsChanged();
@@ -4211,6 +4277,12 @@ void FrameView::scrollContents(const IntSize& scrollDelta) {
   if (!scrollContentsFastPath(-scrollDelta))
     scrollContentsSlowPath();
 
+  if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled() &&
+      !RuntimeEnabledFeatures::rootLayerScrollingEnabled()) {
+    // Need to update scroll translation property.
+    setNeedsPaintPropertyUpdate();
+  }
+
   // This call will move children with native widgets (plugins) and invalidate
   // them as well.
   frameRectsChanged();
@@ -4563,7 +4635,8 @@ void FrameView::show() {
       scrollingCoordinator->frameViewVisibilityDidChange();
     setNeedsCompositingUpdate(layoutViewItem(), CompositingUpdateRebuildTree);
     updateParentScrollableAreaSet();
-    if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled()) {
+    if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled() &&
+        !RuntimeEnabledFeatures::rootLayerScrollingEnabled()) {
       // The existance of scrolling properties depends on visibility through
       // isScrollable() so ensure properties are updated if visibility changes.
       setNeedsPaintPropertyUpdate();
@@ -4589,7 +4662,8 @@ void FrameView::hide() {
       scrollingCoordinator->frameViewVisibilityDidChange();
     setNeedsCompositingUpdate(layoutViewItem(), CompositingUpdateRebuildTree);
     updateParentScrollableAreaSet();
-    if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled()) {
+    if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled() &&
+        !RuntimeEnabledFeatures::rootLayerScrollingEnabled()) {
       // The existance of scrolling properties depends on visibility through
       // isScrollable() so ensure properties are updated if visibility changes.
       setNeedsPaintPropertyUpdate();
@@ -4683,8 +4757,16 @@ void FrameView::updateRenderThrottlingStatusForTesting() {
   m_visibilityObserver->deliverObservationsForTesting();
 }
 
+void FrameView::crossOriginStatusChanged() {
+  // Cross-domain status is not stored as a dirty bit within FrameView,
+  // so force-invalidate throttling status when it changes regardless of
+  // previous or new value.
+  updateRenderThrottlingStatus(m_hiddenForThrottling, m_subtreeThrottled, true);
+}
+
 void FrameView::updateRenderThrottlingStatus(bool hidden,
-                                             bool subtreeThrottled) {
+                                             bool subtreeThrottled,
+                                             bool forceThrottlingInvalidation) {
   TRACE_EVENT0("blink", "FrameView::updateRenderThrottlingStatus");
   DCHECK(!isInPerformLayout());
   DCHECK(!m_frame->document() || !m_frame->document()->inStyleRecalc());
@@ -4705,7 +4787,7 @@ void FrameView::updateRenderThrottlingStatus(bool hidden,
   // paint one of the children with an out-of-date layout before
   // |updateRenderThrottlingStatus| has made it throttled or 2) fail to
   // unthrottle a child whose parent is unthrottled by a later notification.
-  if (wasThrottled != isThrottled) {
+  if (wasThrottled != isThrottled || forceThrottlingInvalidation) {
     for (const Member<Widget>& child : *children()) {
       if (child->isFrameView()) {
         FrameView* childView = toFrameView(child);
@@ -4716,7 +4798,7 @@ void FrameView::updateRenderThrottlingStatus(bool hidden,
   }
 
   ScrollingCoordinator* scrollingCoordinator = this->scrollingCoordinator();
-  if (becameUnthrottled) {
+  if (becameUnthrottled || forceThrottlingInvalidation) {
     // ScrollingCoordinator needs to update according to the new throttling
     // status.
     if (scrollingCoordinator)
@@ -4851,8 +4933,8 @@ bool FrameView::hasVisibleSlowRepaintViewportConstrainedObjects() const {
 
   for (const LayoutObject* layoutObject : *viewportConstrainedObjects()) {
     DCHECK(layoutObject->isBoxModelObject() && layoutObject->hasLayer());
-    DCHECK(layoutObject->style()->position() == FixedPosition ||
-           layoutObject->style()->position() == StickyPosition);
+    DCHECK(layoutObject->style()->position() == EPosition::kFixed ||
+           layoutObject->style()->position() == EPosition::kSticky);
     PaintLayer* layer = toLayoutBoxModelObject(layoutObject)->layer();
 
     // Whether the Layer sticks to the viewport is a tree-depenent
@@ -5103,6 +5185,10 @@ void FrameView::setAnimationTimeline(
 void FrameView::setAnimationHost(
     std::unique_ptr<CompositorAnimationHost> host) {
   m_animationHost = std::move(host);
+}
+
+LayoutUnit FrameView::caretWidth() const {
+  return LayoutUnit(getHostWindow()->windowToViewportScalar(1));
 }
 
 }  // namespace blink

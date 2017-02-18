@@ -157,7 +157,7 @@ ResourceLoadPriority ResourceFetcher::computeLoadPriority(
     const ResourceRequest& resourceRequest,
     ResourcePriority::VisibilityStatus visibility,
     FetchRequest::DeferOption deferOption,
-    bool forPreload) {
+    bool speculativePreload) {
   ResourceLoadPriority priority = typeToPriority(type);
 
   // Visible resources (images in practice) get a boost to High priority.
@@ -180,10 +180,13 @@ ResourceLoadPriority ResourceFetcher::computeLoadPriority(
     // typeToPriority)
     // Async/Defer: Low Priority (applies to both preload and parser-inserted)
     // Preload late in document: Medium
-    if (FetchRequest::LazyLoad == deferOption)
+    if (FetchRequest::LazyLoad == deferOption) {
       priority = ResourceLoadPriorityLow;
-    else if (forPreload && m_imageFetched)
+    } else if (speculativePreload && m_imageFetched) {
+      // Speculative preload is used as a signal for scripts at the bottom of
+      // the document.
       priority = ResourceLoadPriorityMedium;
+    }
   } else if (FetchRequest::LazyLoad == deferOption) {
     priority = ResourceLoadPriorityVeryLow;
   }
@@ -276,8 +279,9 @@ bool ResourceFetcher::isControlledByServiceWorker() const {
 bool ResourceFetcher::resourceNeedsLoad(Resource* resource,
                                         const FetchRequest& request,
                                         RevalidationPolicy policy) {
-  // Defer a font load until it is actually needed unless this is a preload.
-  if (resource->getType() == Resource::Font && !request.forPreload())
+  // Defer a font load until it is actually needed unless this is a link
+  // preload.
+  if (resource->getType() == Resource::Font && !request.isLinkPreload())
     return false;
   if (resource->isImage() && shouldDeferImageLoad(resource->url()))
     return false;
@@ -382,7 +386,7 @@ Resource* ResourceFetcher::resourceForStaticData(
     data = archiveResource->data();
   }
 
-  ResourceResponse response(url, mimetype, data->size(), charset, String());
+  ResourceResponse response(url, mimetype, data->size(), charset);
   response.setHTTPStatusCode(200);
   response.setHTTPStatusText("OK");
 
@@ -415,16 +419,16 @@ Resource* ResourceFetcher::resourceForBlockedRequest(
   return resource;
 }
 
-void ResourceFetcher::moveCachedNonBlockingResourceToBlocking(
+void ResourceFetcher::makePreloadedResourceBlockOnloadIfNeeded(
     Resource* resource,
     const FetchRequest& request) {
   // TODO(yoav): Test that non-blocking resources (video/audio/track) continue
   // to not-block even after being preloaded and discovered.
   if (resource && resource->loader() &&
       resource->isLoadEventBlockingResourceType() &&
-      m_nonBlockingLoaders.contains(resource->loader()) &&
-      resource->isLinkPreload() && !request.forPreload()) {
-    m_nonBlockingLoaders.remove(resource->loader());
+      resource->isLinkPreload() && !request.isLinkPreload() &&
+      m_nonBlockingLoaders.contains(resource->loader())) {
+    m_nonBlockingLoaders.erase(resource->loader());
     m_loaders.insert(resource->loader());
   }
 }
@@ -437,7 +441,7 @@ void ResourceFetcher::updateMemoryCacheStats(Resource* resource,
   if (isStaticData)
     return;
 
-  if (request.forPreload()) {
+  if (request.isSpeculativePreload() || request.isLinkPreload()) {
     DEFINE_RESOURCE_HISTOGRAM("Preload.");
   } else {
     DEFINE_RESOURCE_HISTOGRAM("");
@@ -474,7 +478,7 @@ ResourceFetcher::PrepareRequestResult ResourceFetcher::prepareRequest(
 
   resourceRequest.setPriority(computeLoadPriority(
       factory.type(), request.resourceRequest(), ResourcePriority::NotVisible,
-      request.defer(), request.forPreload()));
+      request.defer(), request.isSpeculativePreload()));
   initializeResourceRequest(resourceRequest, factory.type(), request.defer());
   network_instrumentation::resourcePrioritySet(identifier,
                                                resourceRequest.priority());
@@ -482,7 +486,12 @@ ResourceFetcher::PrepareRequestResult ResourceFetcher::prepareRequest(
   blockedReason = context().canRequest(
       factory.type(), resourceRequest,
       MemoryCache::removeFragmentIdentifierIfNeeded(request.url()),
-      request.options(), request.forPreload(), request.getOriginRestriction());
+      request.options(),
+      /* Don't send security violation reports for speculative preloads */
+      request.isSpeculativePreload()
+          ? FetchContext::SecurityViolationReportingPolicy::SuppressReporting
+          : FetchContext::SecurityViolationReportingPolicy::Report,
+      request.getOriginRestriction());
   if (blockedReason != ResourceRequestBlockedReason::None) {
     DCHECK(!substituteData.forceSynchronousLoad());
     return Block;
@@ -490,7 +499,10 @@ ResourceFetcher::PrepareRequestResult ResourceFetcher::prepareRequest(
 
   context().willStartLoadingResource(
       identifier, resourceRequest, factory.type(),
-      request.options().initiatorInfo.name, request.forPreload());
+      request.options().initiatorInfo.name,
+      (request.isSpeculativePreload()
+           ? FetchContext::V8ActivityLoggingPolicy::SuppressLogging
+           : FetchContext::V8ActivityLoggingPolicy::Log));
   if (!request.url().isValid())
     return Abort;
 
@@ -539,9 +551,9 @@ Resource* ResourceFetcher::requestResource(
         memoryCache()->resourceForURL(request.url(), getCacheIdentifier());
   }
 
-  // See if we can use an existing resource from the cache. If so, we need to
-  // move it to be load blocking.
-  moveCachedNonBlockingResourceToBlocking(resource, request);
+  // If we got a preloaded resource from the cache for a non-preload request,
+  // we may need to make it block the onload event.
+  makePreloadedResourceBlockOnloadIfNeeded(resource, request);
 
   const RevalidationPolicy policy = determineRevalidationPolicy(
       factory.type(), request, resource, isStaticData);
@@ -567,10 +579,9 @@ Resource* ResourceFetcher::requestResource(
   }
   if (!resource)
     return nullptr;
-  if (resource->getType() != factory.type()) {
-    DCHECK(request.forPreload());
-    return nullptr;
-  }
+
+  // TODO(yoav): turn to a DCHECK. See https://crbug.com/690632
+  CHECK_EQ(resource->getType(), factory.type());
 
   if (!resource->isAlive())
     m_deadStatsRecorder.update(policy);
@@ -578,7 +589,9 @@ Resource* ResourceFetcher::requestResource(
   if (policy != Use)
     resource->setIdentifier(identifier);
 
-  if (!request.forPreload() || policy != Use) {
+  // TODO(yoav): It is not clear why preloads are exempt from this check. Can we
+  // remove the exemption?
+  if (!request.isSpeculativePreload() || policy != Use) {
     // When issuing another request for a resource that is already in-flight
     // make sure to not demote the priority of the in-flight request. If the new
     // request isn't at the same priority as the in-flight request, only allow
@@ -587,6 +600,8 @@ Resource* ResourceFetcher::requestResource(
     // lower priority).
     if (resourceRequest.priority() > resource->resourceRequest().priority())
       resource->didChangePriority(resourceRequest.priority(), 0);
+    // TODO(yoav): I'd expect the stated scenario to not go here, as its policy
+    // would be Use.
   }
 
   // If only the fragment identifiers differ, it is the same resource.
@@ -708,7 +723,7 @@ Resource* ResourceFetcher::createResourceForLoading(
   Resource* resource =
       factory.create(request.resourceRequest(), request.options(), charset);
   resource->setLinkPreload(request.isLinkPreload());
-  if (request.forPreload()) {
+  if (request.isSpeculativePreload()) {
     resource->setPreloadDiscoveryTime(request.preloadDiscoveryTime());
   }
   resource->setCacheIdentifier(cacheIdentifier);
@@ -756,7 +771,7 @@ void ResourceFetcher::storePerformanceTimingInitiatorInformation(
 
   if (!isMainResource ||
       context().updateTimingInfoForIFrameNavigation(info.get())) {
-    m_resourceTimingInfoMap.add(resource, std::move(info));
+    m_resourceTimingInfoMap.insert(resource, std::move(info));
   }
 }
 
@@ -810,10 +825,6 @@ ResourceFetcher::determineRevalidationPolicy(Resource::Type type,
   if (existingResource->response().wasFallbackRequiredByServiceWorker())
     return Reload;
 
-  // We already have a preload going for this URL.
-  if (fetchRequest.forPreload() && existingResource->isPreloaded())
-    return Use;
-
   // If the same URL has been loaded as a different type, we need to reload.
   if (existingResource->getType() != type) {
     // FIXME: If existingResource is a Preload and the new type is LinkPrefetch
@@ -824,6 +835,10 @@ ResourceFetcher::determineRevalidationPolicy(Resource::Type type,
                                  "reloading due to type mismatch.";
     return Reload;
   }
+
+  // We already have a preload going for this URL.
+  if (fetchRequest.isSpeculativePreload() && existingResource->isPreloaded())
+    return Use;
 
   // Do not load from cache if images are not enabled. There are two general
   // cases:
@@ -953,8 +968,7 @@ ResourceFetcher::determineRevalidationPolicy(Resource::Type type,
       existingResource == cachedResource(request.url()))
     return Use;
 
-  // Defer to the browser process cache for Vary header handling.
-  if (existingResource->hasVaryHeader())
+  if (existingResource->mustReloadDueToVaryHeader(request))
     return Reload;
 
   // If any of the redirects in the chain to loading the resource were not
@@ -1208,7 +1222,7 @@ void ResourceFetcher::moveResourceLoaderToNonBlocking(ResourceLoader* loader) {
   // TODO(yoav): Convert CHECK to DCHECK if no crash reports come in.
   CHECK(m_loaders.contains(loader));
   m_nonBlockingLoaders.insert(loader);
-  m_loaders.remove(loader);
+  m_loaders.erase(loader);
 }
 
 bool ResourceFetcher::startLoad(Resource* resource) {
@@ -1254,9 +1268,9 @@ bool ResourceFetcher::startLoad(Resource* resource) {
 void ResourceFetcher::removeResourceLoader(ResourceLoader* loader) {
   DCHECK(loader);
   if (m_loaders.contains(loader))
-    m_loaders.remove(loader);
+    m_loaders.erase(loader);
   else if (m_nonBlockingLoaders.contains(loader))
-    m_nonBlockingLoaders.remove(loader);
+    m_nonBlockingLoaders.erase(loader);
   else
     NOTREACHED();
 }
@@ -1479,7 +1493,8 @@ void ResourceFetcher::emulateLoadStartedForInspector(
   FetchRequest request(resourceRequest, initiatorName, resource->options());
   context().canRequest(resource->getType(), resource->lastResourceRequest(),
                        resource->lastResourceRequest().url(), request.options(),
-                       false, request.getOriginRestriction());
+                       FetchContext::SecurityViolationReportingPolicy::Report,
+                       request.getOriginRestriction());
   requestLoadStarted(resource->identifier(), resource, request,
                      ResourceLoadingFromCache);
 }

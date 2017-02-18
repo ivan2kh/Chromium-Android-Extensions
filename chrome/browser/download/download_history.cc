@@ -140,13 +140,15 @@ history::DownloadRow GetDownloadRow(
       history::ToHistoryDownloadInterruptReason(item->GetLastReason()),
       std::string(),  // Hash value (not available yet)
       history::ToHistoryDownloadId(item->GetId()), item->GetGuid(),
-      item->GetOpened(), by_ext_id, by_ext_name);
+      item->GetOpened(), by_ext_id, by_ext_name,
+      // TODO(qinmin): get the slice information.
+      std::vector<history::DownloadSliceInfo>());
 }
 
 enum class ShouldUpdateHistoryResult {
-    NO,
-    UPDATE,
-    UPDATE_IMMEDIATELY,
+  NO_UPDATE,
+  UPDATE,
+  UPDATE_IMMEDIATELY,
 };
 
 ShouldUpdateHistoryResult ShouldUpdateHistory(
@@ -181,7 +183,7 @@ ShouldUpdateHistoryResult ShouldUpdateHistory(
     return ShouldUpdateHistoryResult::UPDATE;
   }
 
-  return ShouldUpdateHistoryResult::NO;
+  return ShouldUpdateHistoryResult::NO_UPDATE;
 }
 
 typedef std::vector<history::DownloadRow> InfoVector;
@@ -430,7 +432,8 @@ void DownloadHistory::OnDownloadUpdated(
   history::DownloadRow current_info(GetDownloadRow(item));
   ShouldUpdateHistoryResult should_update_result =
       ShouldUpdateHistory(data->info(), current_info);
-  bool should_update = (should_update_result != ShouldUpdateHistoryResult::NO);
+  bool should_update =
+      (should_update_result != ShouldUpdateHistoryResult::NO_UPDATE);
   UMA_HISTOGRAM_ENUMERATION("Download.HistoryPropagatedUpdate",
                             should_update, 2);
   if (should_update) {

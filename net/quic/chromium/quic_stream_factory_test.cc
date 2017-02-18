@@ -4360,7 +4360,7 @@ TEST_P(QuicStreamFactoryTest, OnCertDBChanged) {
                                          net_log_, CompletionCallback()));
 
   // Change the CA cert and verify that stream saw the event.
-  factory_->OnCertDBChanged(nullptr);
+  factory_->OnCertDBChanged();
   EXPECT_EQ(ERR_CERT_DATABASE_CHANGED,
             stream->ReadResponseHeaders(callback_.callback()));
   EXPECT_FALSE(factory_->require_confirmation());
@@ -5312,7 +5312,7 @@ TEST_P(QuicStreamFactoryTest, ForceHolBlockingEnabled) {
   EXPECT_EQ(OK, callback_.WaitForResult());
 
   QuicChromiumClientSession* session = GetActiveSession(host_port_pair_);
-  if (session->connection()->version() > QUIC_VERSION_35) {
+  if (session->connection()->version() == QUIC_VERSION_36) {
     EXPECT_TRUE(session->force_hol_blocking());
   } else {
     EXPECT_FALSE(session->force_hol_blocking());

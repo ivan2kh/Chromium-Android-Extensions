@@ -32,6 +32,7 @@
 <translation id="1407135791313364759">Alles openen</translation>
 <translation id="1430915738399379752">Afdrukken</translation>
 <translation id="145015347812617860"><ph name="COUNT" /> items</translation>
+<translation id="1491277525950327607">Dubbeltik om de instelling in of uit te schakelen</translation>
 <translation id="1540800554400757039">Adres 1</translation>
 <translation id="1545749641540134597">QR-code scannen</translation>
 <translation id="1580783302095112590">E-mail verzonden.</translation>
@@ -65,7 +66,6 @@ Zo kunnen sommige websites op dit verzoek reageren door advertenties weer te gev
 <translation id="2068952045031577364">De afgelopen week</translation>
 <translation id="2079545284768500474">Ongedaan maken</translation>
 <translation id="209018056901015185">Desktopsite opvragen</translation>
-<translation id="2100215774115172756">De pagina's die aan je leeslijst zijn toegevoegd, zijn offline beschikbaar.</translation>
 <translation id="2103075008456228677">history.google.com openen</translation>
 <translation id="2116625576999540962"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> items verplaatst</translation>
 <translation id="2149973817440762519">Bladwijzer bewerken</translation>
@@ -120,7 +120,6 @@ Zo kunnen sommige websites op dit verzoek reageren door advertenties weer te gev
 <translation id="3175081911749765310">Webservices</translation>
 <translation id="3207960819495026254">Toegevoegd aan 'Bladwijzers'</translation>
 <translation id="3210163015918861891">Synchronisatie is uit</translation>
-<translation id="3237561509210981547">Als je een pagina wilt toevoegen aan je leeslijst, tik je op <ph name="BEGIN_BOLD_FONT" />Delen &gt; Later lezen<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3240426699337459095">Link gekopieerd</translation>
 <translation id="3244271242291266297">MM</translation>
 <translation id="3252394070589632019"><ph name="VALUE" />, <ph name="ADDITIONAL_INFO" />, <ph name="INDEX" /> van <ph name="NUM_SUGGESTIONS" /></translation>
@@ -133,7 +132,6 @@ Zo kunnen sommige websites op dit verzoek reageren door advertenties weer te gev
 <translation id="3414292259312108062">Chrome slaat dit op in je <ph name="BEGIN_LINK" />door Google opgeslagen wachtwoorden<ph name="END_LINK" /> en vult dit automatisch voor je aan, zodat je je wachtwoord niet zelf hoeft te onthouden.</translation>
 <translation id="3445288400492335833"><ph name="MINUTES" /> min.</translation>
 <translation id="3448016392200048164">Gesplitste weergave</translation>
-<translation id="3474068797193663261">Als je een pagina wilt toevoegen aan je leeslijst, tik je op <ph name="BEGIN_BOLD_FONT" />Menu &gt; Delen &gt; Later lezen<ph name="END_BOLD_FONT" />.</translation>
 <translation id="3474649192738347024">Formulieren ingevuld.</translation>
 <translation id="3478058380795961209">Vervalmaand</translation>
 <translation id="3482959374254649722">Je tabbladen synchroniseren…</translation>
@@ -171,6 +169,7 @@ Als je de zoekterm wilt aanpassen, houd je deze aangeraakt om de term te selecte
 <translation id="4121993058175073134">Als je netto-exportgegevens wilt verzenden, configureer je je e-mailaccount in de app Instellingen.</translation>
 <translation id="4124987746317609294">Tijdsbereik</translation>
 <translation id="4172051516777682613">Altijd weergeven</translation>
+<translation id="418156467088430727">Offline versie bekijken op nieuw tabblad</translation>
 <translation id="424315890655130736">Wachtwoordzin opgeven</translation>
 <translation id="4272631900155121838">Als je een QR-code wilt scannen, schakel je de camera in via Instellingen</translation>
 <translation id="4281844954008187215">Servicevoorwaarden</translation>
@@ -178,7 +177,6 @@ Als je de zoekterm wilt aanpassen, houd je deze aangeraakt om de term te selecte
 <translation id="4359125752503270327">Deze pagina wordt geopend in een andere app.</translation>
 <translation id="4378154925671717803">Telefoon</translation>
 <translation id="441868831736628555">Privacybeleid</translation>
-<translation id="4426508677408162512">Alle bladwijzers</translation>
 <translation id="4473991315115669931">Incognitomodus starten</translation>
 <translation id="4526249700380860531">Opgeslagen wachtwoorden bekijken en beheren via <ph name="BEGIN_LINK" />passwords.google.com<ph name="END_LINK" /></translation>
 <translation id="4536418791685807335">Probeer opnieuw in te loggen.</translation>
@@ -218,6 +216,7 @@ Je gegevens zijn versleuteld met je wachtwoordzin voor synchronisatie. Geef deze
 <translation id="5300589172476337783">Weergeven</translation>
 <translation id="5317780077021120954">Opslaan</translation>
 <translation id="5327248766486351172">Naam</translation>
+<translation id="5332219387342487447">Verzendmethode</translation>
 <translation id="5388358297987318779">Afbeelding openen</translation>
 <translation id="5409365236829784218">Er zijn geen applicaties geïnstalleerd waarmee dit bestand kan worden geopend.</translation>
 <translation id="54401264925851789">Paginabeveiligingsinfo</translation>
@@ -256,6 +255,7 @@ Handoff moet ook zijn ingeschakeld in het gedeelte 'Algemeen' van 'Instellingen'
 <translation id="6042308850641462728">Meer</translation>
 <translation id="605721222689873409">JJ</translation>
 <translation id="6066301408025741299">Tik om te annuleren.</translation>
+<translation id="60851516108411750">Je leeslijst is offline beschikbaar. Als je een pagina aan je leeslijst wilt toevoegen, tik je op <ph name="SHARE_OPENING_ICON" />.</translation>
 <translation id="6122191549521593678">Online</translation>
 <translation id="6127379762771434464">Item verwijderd</translation>
 <translation id="6136914049981179737">Sec. geleden</translation>
@@ -270,6 +270,7 @@ Handoff moet ook zijn ingeschakeld in het gedeelte 'Algemeen' van 'Instellingen'
 <translation id="6255097610484507482">Creditcard bewerken</translation>
 <translation id="6308436439357671616">Hiermee kun je foto's maken en uploaden.</translation>
 <translation id="6314335155547195432">Wachtwoord genereren</translation>
+<translation id="6324528485781869530">Synchronisatieaccount wisselen</translation>
 <translation id="6324669097367352121">Inloginstellingen</translation>
 <translation id="6337234675334993532">Codering</translation>
 <translation id="633809752005859102">Er is iets goed misgegaan. We gaan op zoek naar een oplossing.</translation>

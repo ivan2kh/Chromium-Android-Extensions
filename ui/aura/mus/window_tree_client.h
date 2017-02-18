@@ -334,10 +334,12 @@ class AURA_EXPORT WindowTreeClient
       const base::Optional<std::vector<uint8_t>>& transport_data) override;
   void OnWindowInputEvent(uint32_t event_id,
                           Id window_id,
+                          int64_t display_id,
                           std::unique_ptr<ui::Event> event,
                           bool matches_pointer_watcher) override;
   void OnPointerEventObserved(std::unique_ptr<ui::Event> event,
-                              uint32_t window_id) override;
+                              uint32_t window_id,
+                              int64_t display_id) override;
   void OnWindowFocused(Id focused_window_id) override;
   void OnWindowPredefinedCursorChanged(Id window_id,
                                        ui::mojom::Cursor cursor) override;
@@ -416,10 +418,7 @@ class AURA_EXPORT WindowTreeClient
   void AddActivationParent(Window* window) override;
   void RemoveActivationParent(Window* window) override;
   void ActivateNextWindow() override;
-  void SetUnderlaySurfaceOffsetAndExtendedHitArea(
-      Window* window,
-      const gfx::Vector2d& offset,
-      const gfx::Insets& hit_area) override;
+  void SetExtendedHitArea(Window* window, const gfx::Insets& hit_area) override;
   void RequestClose(Window* window) override;
 
   // Overriden from WindowTreeHostMusDelegate:
@@ -432,6 +431,8 @@ class AURA_EXPORT WindowTreeClient
   void OnWindowTreeHostHitTestMaskWillChange(
       WindowTreeHostMus* window_tree_host,
       const base::Optional<gfx::Rect>& mask_rect) override;
+  void OnWindowTreeHostSetOpacity(WindowTreeHostMus* window_tree_host,
+                                  float opacity) override;
   void OnWindowTreeHostDeactivateWindow(
       WindowTreeHostMus* window_tree_host) override;
   void OnWindowTreeHostStackAbove(WindowTreeHostMus* window_tree_host,

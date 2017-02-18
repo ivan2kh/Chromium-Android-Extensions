@@ -77,10 +77,8 @@ void BoxPainter::paintBoxDecorationBackground(const PaintInfo& paintInfo,
     // The background painting code assumes that the borders are part of the
     // paintRect so we expand the paintRect by the border size when painting the
     // background into the scrolling contents layer.
-    paintRect.expandEdges(LayoutUnit(m_layoutBox.borderTop()),
-                          LayoutUnit(m_layoutBox.borderRight()),
-                          LayoutUnit(m_layoutBox.borderBottom()),
-                          LayoutUnit(m_layoutBox.borderLeft()));
+    paintRect.expandEdges(m_layoutBox.borderTop(), m_layoutBox.borderRight(),
+                          m_layoutBox.borderBottom(), m_layoutBox.borderLeft());
   } else {
     paintRect = m_layoutBox.borderBoxRect();
   }
@@ -370,10 +368,10 @@ FloatRoundedRect backgroundRoundedRectAdjustedForBleedAvoidance(
       }
     }
 
-    FloatRectOutsets insets(-fractionalInset * edges[BSTop].width,
-                            -fractionalInset * edges[BSRight].width,
-                            -fractionalInset * edges[BSBottom].width,
-                            -fractionalInset * edges[BSLeft].width);
+    FloatRectOutsets insets(-fractionalInset * edges[BSTop].width(),
+                            -fractionalInset * edges[BSRight].width(),
+                            -fractionalInset * edges[BSBottom].width(),
+                            -fractionalInset * edges[BSLeft].width());
 
     FloatRoundedRect backgroundRoundedRect = getBackgroundRoundedRect(
         obj, borderRect, box, boxSize.width(), boxSize.height(),
@@ -659,8 +657,8 @@ void BoxPainter::paintFillLayer(const LayoutBoxModelObject& obj,
     clipToBorder.emplace(obj, paintInfo, rect, border, ApplyToContext);
   }
 
-  int bLeft = info.includeLeftEdge ? obj.borderLeft() : 0;
-  int bRight = info.includeRightEdge ? obj.borderRight() : 0;
+  LayoutUnit bLeft = info.includeLeftEdge ? obj.borderLeft() : LayoutUnit();
+  LayoutUnit bRight = info.includeRightEdge ? obj.borderRight() : LayoutUnit();
   LayoutUnit pLeft = info.includeLeftEdge ? obj.paddingLeft() : LayoutUnit();
   LayoutUnit pRight = info.includeRightEdge ? obj.paddingRight() : LayoutUnit();
 
@@ -818,14 +816,15 @@ void BoxPainter::paintMaskImages(const PaintInfo& paintInfo,
                                  const LayoutRect& paintRect) {
   // Figure out if we need to push a transparency layer to render our mask.
   bool pushTransparencyLayer = false;
-  bool compositedMask =
-      m_layoutBox.hasLayer() && m_layoutBox.layer()->hasCompositedMask();
   bool flattenCompositingLayers =
       paintInfo.getGlobalPaintFlags() & GlobalPaintFlattenCompositingLayers;
+  bool maskBlendingAppliedByCompositor =
+      !flattenCompositingLayers && m_layoutBox.hasLayer() &&
+      m_layoutBox.layer()->maskBlendingAppliedByCompositor();
 
   bool allMaskImagesLoaded = true;
 
-  if (!compositedMask || flattenCompositingLayers) {
+  if (!maskBlendingAppliedByCompositor) {
     pushTransparencyLayer = true;
     StyleImage* maskBoxImage = m_layoutBox.style()->maskBoxImage().image();
     const FillLayer& maskLayers = m_layoutBox.style()->maskLayers();
@@ -919,6 +918,11 @@ void BoxPainter::paintNormalBoxShadow(const PaintInfo& info,
   if (!style.boxShadow())
     return;
   GraphicsContext& context = info.context;
+
+  // https://bugs.chromium.org/p/skia/issues/detail?id=237
+  if (context.printing())
+    return;
+
   FloatRoundedRect border = style.getRoundedBorderFor(
       paintRect, includeLogicalLeftEdge, includeLogicalRightEdge);
 
@@ -1040,6 +1044,10 @@ void BoxPainter::paintInsetBoxShadowInBounds(const PaintInfo& info,
   // The caller should have checked style.boxShadow() when computing bounds.
   DCHECK(style.boxShadow());
   GraphicsContext& context = info.context;
+
+  // https://bugs.chromium.org/p/skia/issues/detail?id=237
+  if (context.printing())
+    return;
 
   bool isHorizontal = style.isHorizontalWritingMode();
   GraphicsContextStateSaver stateSaver(context, false);

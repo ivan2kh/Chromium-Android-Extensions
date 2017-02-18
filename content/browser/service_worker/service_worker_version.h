@@ -56,6 +56,7 @@ class HttpResponseInfo;
 
 namespace content {
 
+class MessagePort;
 class ServiceWorkerContextCore;
 class ServiceWorkerProviderHost;
 class ServiceWorkerRegistration;
@@ -73,6 +74,8 @@ class CONTENT_EXPORT ServiceWorkerVersion
       public EmbeddedWorkerInstance::Listener {
  public:
   using StatusCallback = base::Callback<void(ServiceWorkerStatusCode)>;
+  using SimpleEventCallback =
+      base::Callback<void(ServiceWorkerStatusCode, base::Time)>;
 
   // Current version status; some of the status (e.g. INSTALLED and ACTIVATED)
   // should be persisted unlike running status.
@@ -275,6 +278,10 @@ class CONTENT_EXPORT ServiceWorkerVersion
   // was not found or the worker already terminated.
   bool FinishExternalRequest(const std::string& request_uuid);
 
+  // Creates a callback that is to be used for marking simple events dispatched
+  // through the ServiceWorkerEventDispatcher as finished for the |request_id|.
+  SimpleEventCallback CreateSimpleEventCallback(int request_id);
+
   // This must be called when the worker is running.
   mojom::ServiceWorkerEventDispatcher* event_dispatcher() {
     DCHECK(event_dispatcher_.is_bound());
@@ -424,13 +431,6 @@ class CONTENT_EXPORT ServiceWorkerVersion
     return max_request_expiration_time_ - tick_clock_->NowTicks();
   }
 
-  // Callback function for simple events dispatched through mojo interface
-  // mojom::ServiceWorkerEventDispatcher, once all simple events got dispatched
-  // through mojo, OnSimpleEventResponse function could be removed.
-  void OnSimpleEventFinished(int request_id,
-                             ServiceWorkerStatusCode status,
-                             base::Time dispatch_event_time);
-
   // Returns the Navigation Preload support status of the service worker.
   //  - Origin Trial: Have an effective token.
   //                                 Command line
@@ -465,6 +465,12 @@ class CONTENT_EXPORT ServiceWorkerVersion
   // blink::OriginTrials::serviceWorkerNavigationPreloadEnabled() returns true
   // for both A and B case. So the methods and attributes are available in JS.
   NavigationPreloadSupportStatus GetNavigationPreloadSupportStatus() const;
+
+  void CountFeature(uint32_t feature);
+  void set_used_features(const std::set<uint32_t>& used_features) {
+    used_features_ = used_features;
+  }
+  const std::set<uint32_t>& used_features() const { return used_features_; }
 
  private:
   friend class base::RefCounted<ServiceWorkerVersion>;
@@ -654,9 +660,10 @@ class CONTENT_EXPORT ServiceWorkerVersion
   void OnClearCachedMetadata(const GURL& url);
   void OnClearCachedMetadataFinished(int64_t callback_id, int result);
 
-  void OnPostMessageToClient(const std::string& client_uuid,
-                             const base::string16& message,
-                             const std::vector<int>& sent_message_ports);
+  void OnPostMessageToClient(
+      const std::string& client_uuid,
+      const base::string16& message,
+      const std::vector<MessagePort>& sent_message_ports);
   void OnFocusClient(int request_id, const std::string& client_uuid);
   void OnNavigateClient(int request_id,
                         const std::string& client_uuid,
@@ -684,6 +691,13 @@ class CONTENT_EXPORT ServiceWorkerVersion
   void StartWorkerInternal();
 
   void DidSkipWaiting(int request_id);
+
+  // Callback function for simple events dispatched through mojo interface
+  // mojom::ServiceWorkerEventDispatcher. Use CreateSimpleEventCallback() to
+  // create a callback for a given |request_id|.
+  void OnSimpleEventFinished(int request_id,
+                             ServiceWorkerStatusCode status,
+                             base::Time dispatch_event_time);
 
   void OnGetClientFinished(int request_id,
                            const ServiceWorkerClientInfo& client_info);
@@ -843,6 +857,11 @@ class CONTENT_EXPORT ServiceWorkerVersion
   // Keeps the first purpose of starting the worker for UMA. Cleared in
   // FinishStartWorker().
   base::Optional<ServiceWorkerMetrics::EventType> start_worker_first_purpose_;
+
+  // This is the set of features that were used up until installation of this
+  // version completed, or used during the lifetime of |this|. The values must
+  // be from blink::UseCounter::Feature enum.
+  std::set<uint32_t> used_features_;
 
   base::WeakPtrFactory<ServiceWorkerVersion> weak_factory_;
 

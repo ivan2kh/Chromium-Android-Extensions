@@ -1951,74 +1951,106 @@ inline EOverflow CSSIdentifierValue::convertTo() const {
 }
 
 template <>
-inline CSSIdentifierValue::CSSIdentifierValue(EBreak e)
+inline CSSIdentifierValue::CSSIdentifierValue(EBreakBetween e)
     : CSSValue(IdentifierClass) {
   switch (e) {
     default:
       ASSERT_NOT_REACHED();
-    case BreakAuto:
+    case EBreakBetween::kAuto:
       m_valueID = CSSValueAuto;
       break;
-    case BreakAlways:
-      m_valueID = CSSValueAlways;
-      break;
-    case BreakAvoid:
+    case EBreakBetween::kAvoid:
       m_valueID = CSSValueAvoid;
       break;
-    case BreakAvoidPage:
-      m_valueID = CSSValueAvoidPage;
-      break;
-    case BreakPage:
-      m_valueID = CSSValuePage;
-      break;
-    case BreakLeft:
-      m_valueID = CSSValueLeft;
-      break;
-    case BreakRight:
-      m_valueID = CSSValueRight;
-      break;
-    case BreakRecto:
-      m_valueID = CSSValueRecto;
-      break;
-    case BreakVerso:
-      m_valueID = CSSValueVerso;
-      break;
-    case BreakAvoidColumn:
+    case EBreakBetween::kAvoidColumn:
       m_valueID = CSSValueAvoidColumn;
       break;
-    case BreakColumn:
+    case EBreakBetween::kAvoidPage:
+      m_valueID = CSSValueAvoidPage;
+      break;
+    case EBreakBetween::kColumn:
       m_valueID = CSSValueColumn;
+      break;
+    case EBreakBetween::kLeft:
+      m_valueID = CSSValueLeft;
+      break;
+    case EBreakBetween::kPage:
+      m_valueID = CSSValuePage;
+      break;
+    case EBreakBetween::kRecto:
+      m_valueID = CSSValueRecto;
+      break;
+    case EBreakBetween::kRight:
+      m_valueID = CSSValueRight;
+      break;
+    case EBreakBetween::kVerso:
+      m_valueID = CSSValueVerso;
       break;
   }
 }
 
 template <>
-inline EBreak CSSIdentifierValue::convertTo() const {
+inline EBreakBetween CSSIdentifierValue::convertTo() const {
   switch (m_valueID) {
     default:
       ASSERT_NOT_REACHED();
     case CSSValueAuto:
-      return BreakAuto;
+      return EBreakBetween::kAuto;
     case CSSValueAvoid:
-      return BreakAvoid;
-    case CSSValueAlways:
-      return BreakAlways;
-    case CSSValueAvoidPage:
-      return BreakAvoidPage;
-    case CSSValuePage:
-      return BreakPage;
-    case CSSValueLeft:
-      return BreakLeft;
-    case CSSValueRight:
-      return BreakRight;
-    case CSSValueRecto:
-      return BreakRecto;
-    case CSSValueVerso:
-      return BreakVerso;
+      return EBreakBetween::kAvoid;
     case CSSValueAvoidColumn:
-      return BreakAvoidColumn;
+      return EBreakBetween::kAvoidColumn;
+    case CSSValueAvoidPage:
+      return EBreakBetween::kAvoidPage;
     case CSSValueColumn:
-      return BreakColumn;
+      return EBreakBetween::kColumn;
+    case CSSValueLeft:
+      return EBreakBetween::kLeft;
+    case CSSValuePage:
+      return EBreakBetween::kPage;
+    case CSSValueRecto:
+      return EBreakBetween::kRecto;
+    case CSSValueRight:
+      return EBreakBetween::kRight;
+    case CSSValueVerso:
+      return EBreakBetween::kVerso;
+  }
+}
+
+template <>
+inline CSSIdentifierValue::CSSIdentifierValue(EBreakInside e)
+    : CSSValue(IdentifierClass) {
+  switch (e) {
+    default:
+      NOTREACHED();
+    case EBreakInside::kAuto:
+      m_valueID = CSSValueAuto;
+      break;
+    case EBreakInside::kAvoid:
+      m_valueID = CSSValueAvoid;
+      break;
+    case EBreakInside::kAvoidColumn:
+      m_valueID = CSSValueAvoidColumn;
+      break;
+    case EBreakInside::kAvoidPage:
+      m_valueID = CSSValueAvoidPage;
+      break;
+  }
+}
+
+template <>
+inline EBreakInside CSSIdentifierValue::convertTo() const {
+  switch (m_valueID) {
+    default:
+      NOTREACHED();
+    case CSSValueAuto:
+      return EBreakInside::kAuto;
+    case CSSValueAvoid:
+      return EBreakInside::kAvoid;
+    case CSSValueAvoidColumn:
+      return EBreakInside::kAvoidColumn;
+    case CSSValueAvoidPage:
+      return EBreakInside::kAvoidPage;
   }
 }
 
@@ -2026,19 +2058,19 @@ template <>
 inline CSSIdentifierValue::CSSIdentifierValue(EPosition e)
     : CSSValue(IdentifierClass) {
   switch (e) {
-    case StaticPosition:
+    case EPosition::kStatic:
       m_valueID = CSSValueStatic;
       break;
-    case RelativePosition:
+    case EPosition::kRelative:
       m_valueID = CSSValueRelative;
       break;
-    case AbsolutePosition:
+    case EPosition::kAbsolute:
       m_valueID = CSSValueAbsolute;
       break;
-    case FixedPosition:
+    case EPosition::kFixed:
       m_valueID = CSSValueFixed;
       break;
-    case StickyPosition:
+    case EPosition::kSticky:
       m_valueID = CSSValueSticky;
       break;
   }
@@ -2048,21 +2080,21 @@ template <>
 inline EPosition CSSIdentifierValue::convertTo() const {
   switch (m_valueID) {
     case CSSValueStatic:
-      return StaticPosition;
+      return EPosition::kStatic;
     case CSSValueRelative:
-      return RelativePosition;
+      return EPosition::kRelative;
     case CSSValueAbsolute:
-      return AbsolutePosition;
+      return EPosition::kAbsolute;
     case CSSValueFixed:
-      return FixedPosition;
+      return EPosition::kFixed;
     case CSSValueSticky:
-      return StickyPosition;
+      return EPosition::kSticky;
     default:
       break;
   }
 
   ASSERT_NOT_REACHED();
-  return StaticPosition;
+  return EPosition::kStatic;
 }
 
 template <>

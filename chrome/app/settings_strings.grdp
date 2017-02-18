@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Settings-specific strings (included from generated_resources.grd). -->
 <grit-part>
+  <!-- Main Page -->
+  <if expr="chromeos">
+    <message name="IDS_SETTINGS_SECONDARY_USER_BANNER" desc="Banner displayed in settings page when the user is secondary in a multi-profile session.">
+      Some settings belonging to <ph name="PRIMARY_EMAIL">$1<ex>john@google.com</ex></ph> are being shared with you. These settings only affect your account when using multiple sign-in.
+    </message>
+  </if>
+
   <!-- About Page -->
   <message name="IDS_SETTINGS_ABOUT_PAGE_BROWSER_VERSION" desc="The text label describing the version of the browser, example: Version 57.0.2937.0 (Developer Build) unknown (64-bit)">
     Version <ph name="PRODUCT_VERSION">$1<ex>15.0.865.0</ex></ph> (<ph name="PRODUCT_CHANNEL">$2<ex>Developer Build</ex></ph>) <ph name="PRODUCT_MODIFIER">$3</ph> <ph name="PRODUCT_VERSION_BITS">$4</ph>
@@ -304,6 +311,9 @@
   <message name="IDS_SETTINGS_CONTROLLED_BY_EXTENSION" desc="Label text of an indicator that a setting's value is being controlled by an extension.">
     <ph name="NAME">$1<ex>Adblocker plusplus</ex></ph> is controlling this setting
   </message>
+  <message name="IDS_SETTINGS_EDIT" desc="Label used on a menu item or button, used in different contexts to edit an item.">
+    Edit
+  </message>
 
   <!-- Passwords and Autofill Page -->
   <message name="IDS_SETTINGS_OVERFLOW_MENU" desc="Alt text for the overflow button on a list item. Triggers a context menu when clicked.">
@@ -336,14 +346,8 @@
   <message name="IDS_SETTINGS_AUTOFILL_ADDRESSES_EMAIL" desc="This is the label for the field that lets a user modify the email address that will be used when auto-filling forms on the web.">
     Email
   </message>
-  <message name="IDS_SETTINGS_AUTOFILL_ADD_ADDRESS_BUTTON" desc="Label for a button that allows a user to enter a new address that can be used to fill in forms.">
-    Add address
-  </message>
   <message name="IDS_SETTINGS_AUTOFILL_CREDIT_CARD_HEADING" desc="Title for the list of saved passwords that can be used to fill in forms.">
     Credit cards
-  </message>
-  <message name="IDS_SETTINGS_AUTOFILL_ADD_CREDIT_CARD_BUTTON" desc="Label for a button that allows a user to enter new credit card information that can be used to fill in forms.">
-    Add credit card
   </message>
   <message name="IDS_SETTINGS_AUTOFILL_CREDIT_CARD_TYPE_COLUMN_LABEL" desc="Label for the column containing the type of credit card that is saved. The type is in the format: `Visa ****1234`.">
     Type
@@ -351,14 +355,8 @@
   <message name="IDS_SETTINGS_AUTOFILL_DETAIL" desc="Description of what toggling the 'Autofill' setting does. Immediately underneath IDS_SETTINGS_AUTOFILL">
     Enable Autofill to fill out forms in a single click
   </message>
-  <message name="IDS_SETTINGS_ADDRESS_EDIT" desc="Label for a context menu item that shows a dialog with edit options for the selected address." meaning="Edit selected address.">
-    Edit
-  </message>
   <message name="IDS_SETTINGS_ADDRESS_REMOVE" desc="Label for a context menu item that removes the selected address." meaning="Remove selected address.">
     Remove
-  </message>
-  <message name="IDS_SETTINGS_CREDIT_CARD_EDIT" desc="Label for a context menu item that shows a dialog with edit options for the selected credit card." meaning="Edit selected credit card.">
-    Edit
   </message>
   <message name="IDS_SETTINGS_CREDIT_CARD_REMOVE" desc="Label for a context menu item that removes the selected credit card." meaning="Remove selected credit card.">
     Remove
@@ -420,6 +418,12 @@
   <message name="IDS_SETTINGS_PASSWORD_SEARCH" desc="Placeholder/label for the text input field that allows a user to filter saved passwords.">
     Search passwords
   </message>
+  <message name="IDS_SETTINGS_PASSWORD_SHOW" desc="A tool tip on a button that reveals the saved password.">
+    Show password
+  </message>
+  <message name="IDS_SETTINGS_PASSWORD_HIDE" desc="A tool tip on a button that hides the saved password that is being shown.">
+    Hide password
+  </message>
   <message name="IDS_SETTINGS_PASSWORDS_VIEW_DETAILS_TITLE" desc="Title for the dialog that shows password details. This dialog lets a user see a saved password and copy the username.">
     Saved password details
   </message>
@@ -475,26 +479,32 @@
     <message name="IDS_SETTINGS_BLUETOOTH" desc="Name of the settings page which displays Bluetooth device settings.">
       Bluetooth
     </message>
+    <message name="IDS_SETTINGS_BLUETOOTH_DEVICE_LIST_PAIRED" desc="Title of the settings subsection listing paired Bluetooth devices.">
+      Paired devices
+    </message>
+    <message name="IDS_SETTINGS_BLUETOOTH_DEVICE_LIST_UNPAIRED" desc="Title of the settings subsection listing unpaired Bluetooth devices.">
+      Unpaired devices
+    </message>
     <message name="IDS_SETTINGS_BLUETOOTH_PAIR" desc="Label for the settings button to pair a previously paired Bluetooth device.">
       Pair
-    </message>
-    <message name="IDS_SETTINGS_BLUETOOTH_PAIR_DEVICE" desc="Label for the settings button to add and pair a new Bluetooth device.">
-      Pair device
     </message>
     <message name="IDS_SETTINGS_BLUETOOTH_PAIR_DEVICE_TITLE" desc="Title of the settings dialog for adding or pairing Bluetooth a device.">
       Pair Bluetooth device
     </message>
-    <message name="IDS_SETTINGS_BLUETOOTH_SCANNING" desc="Message displayed while scanning for Bluetooth devices.">
-      Scanning for devices...
+    <message name="IDS_SETTINGS_BLUETOOTH_NO_DEVICES" desc="Message displayed when there are no paired Bluetooth devices scan.">
+      No paired devices.
     </message>
-    <message name="IDS_SETTINGS_BLUETOOTH_NO_DEVICES" desc="Message displayed when no Bluetooth devices are found after a scan.">
+    <message name="IDS_SETTINGS_BLUETOOTH_NO_DEVICES_FOUND" desc="Message displayed when no Bluetooth devices are found after a scan.">
       No Bluetooth devices found.
     </message>
     <message name="IDS_SETTINGS_BLUETOOTH_ENABLED" desc="Label for Bluetooth section when enabled.">
-      Bluetooth enabled
+      Enabled
     </message>
     <message name="IDS_SETTINGS_BLUETOOTH_DISABLED" desc="Label for Bluetooth section when disabled.">
-      Bluetooth disabled
+      Disabled
+    </message>
+    <message name="IDS_SETTINGS_BLUETOOTH_TOGGLE_ACCESSIBILITY_LABEL" desc="Accessibility only label for Bluetooth enable/disable toggle .">
+      Bluetooth enable
     </message>
     <message name="IDS_SETTINGS_BLUETOOTH_EXPAND_ACCESSIBILITY_LABEL" desc="Label for the button that toggles showing available Bluetooth devices. Only visible by screen reader software.">
       Show available Bluetooth devices
@@ -610,9 +620,6 @@
     </message>
     <message name="IDS_SETTINGS_CERTIFICATE_MANAGER_VIEW" desc="Label for view button in certificate manager.">
       View
-    </message>
-    <message name="IDS_SETTINGS_CERTIFICATE_MANAGER_EDIT" desc="Label for the button in the certificate manager which allows you to edit certificate trust">
-      Edit
     </message>
     <message name="IDS_SETTINGS_CERTIFICATE_MANAGER_IMPORT" desc="Label for import button in certificate manager.">
       Import
@@ -1425,9 +1432,6 @@
   <message name="IDS_SETTINGS_ON_STARTUP_REMOVE" desc="Text displayed on a menu button allowing the user to remove a URL from the list of startup URLs.">
     Remove
   </message>
-  <message name="IDS_SETTINGS_ON_STARTUP_EDIT" desc="Text displayed on a menu button allowing the user to edit a URL from the list of startup URLs.">
-    Edit
-  </message>
 
   <!-- Languages Page -->
   <if expr="chromeos">
@@ -1609,7 +1613,10 @@
     Reset
   </message>
   <message name="IDS_SETTINGS_RESET_VIEW_REPORTED_SETTINGS" desc="Label of a link that when clicked displays the settings that will be reported to Google for analysis.">
-    View reported settings
+    View report settings
+  </message>
+  <message name="IDS_SETTINGS_RESET_AUTOMATED_DIALOG_TITLE" desc="The title of the dialog informing the user that automated resetting of some settings occurred.">
+    Some settings were reset
   </message>
 
   <!-- Search Page -->
@@ -1617,7 +1624,7 @@
     Search engine
   </message>
   <message name="IDS_SETTINGS_SEARCH_EXPLANATION" desc="Explanation for the search engine dropdown setting.">
-    Search engine used when searching from the omnibox
+    Search engine used when searching from the <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph>omnibox<ph name="END_LINK">&lt;/a&gt;</ph>
   </message>
   <message name="IDS_SETTINGS_SEARCH_MANAGE_SEARCH_ENGINES" desc="Label for the Manage Search Engines button.">
     Manage search engines
@@ -1676,6 +1683,9 @@
   <message name="IDS_SETTINGS_SEARCH_ENGINES_OTHER_ENGINES" desc="Label for 'other' Search Engines section">
     Other search engines
   </message>
+  <message name="IDS_SETTINGS_SEARCH_ENGINES_NO_OTHER_ENGINES" desc="Label shown when the 'other' Search engines section is empty">
+    No other search engines found
+  </message>
   <message name="IDS_SETTINGS_SEARCH_ENGINES_EXTENSION_ENGINES" desc="Label for a section that displays search engines added by extensions">
     Search engines added by extensions
   </message>
@@ -1693,9 +1703,6 @@
   </message>
   <message name="IDS_SETTINGS_SEARCH_ENGINES_MAKE_DEFAULT" desc="Text of the button that makes the selected engine the default search engine">
     Make default
-  </message>
-  <message name="IDS_SETTINGS_SEARCH_ENGINES_EDIT" desc="Label for a button that allows the user to edit a search engine entry">
-   Edit
   </message>
   <message name="IDS_SETTINGS_SEARCH_ENGINES_REMOVE_FROM_LIST" desc="Label for a button that removes a search engine from the list of search engines">
     Remove from list
@@ -1757,10 +1764,30 @@
     Protected Content
   </message>
   <message name="IDS_SETTINGS_SITE_SETTINGS_PROTECTED_CONTENT_ENABLE" desc="Label for the toggle enabling protected content.">
-    Allow identifiers for protected content (computer restart may be required)
+    Allow sites to play protected content (recommended)
   </message>
+  <if expr="chromeos or is_win">
+    <message name="IDS_SETTINGS_SITE_SETTINGS_PROTECTED_CONTENT_IDENTIFIERS_EXPLANATION" desc="Text that is displayed on the Protected Content section of Content Settings. This text explains that enabling protected content may require using a uniquely identifiable machine identifier.">
+      Some content services use unique identifiers for the purposes of authorizing access to protected content.
+    </message>
+    <message name="IDS_SETTINGS_SITE_SETTINGS_PROTECTED_CONTENT_ENABLE_IDENTIFIERS" desc="The label of the checkbox for enabling machine identifiers to uniquely identiy the user for protected content.">
+      Allow identifiers for protected content (computer restart may be required)
+    </message>
+  </if>
   <message name="IDS_SETTINGS_SITE_SETTINGS_UNSANDBOXED_PLUGINS" desc="Label for the unsandboxed plugin access site settings.">
     Unsandboxed plugin access
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_MIDI_DEVICES" desc="Label for the MIDI devices in site settings.">
+    MIDI devices
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_MIDI_DEVICES_ASK" desc="The ask label for MIDI devices in site settings.">
+    Ask when a site wants to use system exclusive messages to access MIDI devices
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_MIDI_DEVICES_ASK_RECOMMENDED" desc="The ask label for MIDI devices in site settings (with the 'recommended' suffix).">
+    Ask when a site wants to use system exclusive messages to access MIDI devices (recommended)
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_MIDI_DEVICES_BLOCK" desc="The block label for MIDI devices in site settings.">
+    Do not allow any sites to use system exclusive messages to access MIDI devices
   </message>
   <message name="IDS_SETTINGS_SITE_SETTINGS_USB_DEVICES" desc="Label for the USB devices in site settings.">
     USB devices
@@ -2160,17 +2187,17 @@
     <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_EDIT_FINGERPRINTS_DESCRIPTION" desc="Secondary text on the lock screen which opens up the fingerprint subpage.">
       Set up a faster way to unlock your device
     </message>
+    <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_NUM_FINGERPRINTS" desc="Text on the lock screen which tells users how many fingerprints they have enrolled.">
+      <ph name="NUM_FINGERPRINTS">$1<ex>1</ex></ph> fingerprints set up
+    </message>
     <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_FINGERPRINT_SUBPAGE_TITLE" desc="Title of the fingerprint subpage.">
       Fingerprint
     </message>
     <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_REGISTERED_FINGERPRINTS_LABEL" desc="Text above fingerprint list that tells users their registered fingerprints.">
-      Registered fingerprints:
+      Saved fingerprints
     </message>
     <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_ADD_FINGERPRINT_BUTTON" desc="Button that is used to add a new fingerprint.">
       Add Fingerprint
-    </message>
-    <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_CANNOT_ADD_NEW_FINGERPRINT" desc="Text telling users they have reached the maximum allowed fingerprints.">
-      You can only add <ph name="MAX_FINGERPRINTS">$1<ex>5</ex></ph> fingerprints.
     </message>
     <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_FINGERPRINT_LESS_SECURE" desc="Text telling users that fingerprints might be less secure than strong PINs or passwords.">
       Note: Your fingerprint may be less secure than a strong password or PIN.
@@ -2179,7 +2206,43 @@
       Finger <ph name="NEW_FINGER_NUMBER">$1<ex>1</ex></ph>
     </message>
     <message name="IDS_SETTINGS_PEOPLE_LOCK_SCREEN_ENABLE_FINGERPRINT_CHECKBOX_LABEL" desc="The text on the label of the checkbox which allows users to enable or disable fingerprint usage.">
-      Enable fingerprint login and authentication
+      Enable fingerprint unlock
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_TITLE" desc="Title of the add fingerprint dialog popup.">
+      Add a fingerprint
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSTRUCTION_LOCATE_SCANNER" desc="Text in the add fingerprint dialog telling users what to do for step 1.">
+      Locate the fingerprint sensor on your device, then place the finger you would like to register on it.
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSTRUCTION_MOVE_FINGER" desc="Text in the add fingerprint dialog telling users what to do for step 2.">
+      Now move your finger slightly to capture all the different parts of your fingerprint.
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSTRUCTION_READY" desc="Text in the add fingerprint dialog telling users what to do for step 3.">
+      Fingerprint added!
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_LIFT_FINGER" desc="Warning text in the add fingerprint dialog to tell users to lift their finger and touch the sensor again.">
+      Lift finger, then touch sensor again
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_PARTIAL_DATA" desc="Warning text in the add fingerprint dialog to tell users partial data was captured.">
+      Partial data
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_INSUFFICIENT_DATA" desc="Warning text in the add fingerprint dialog to tell users insufficient data was captured.">
+      Insufficient data
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_SENSOR_DIRTY" desc="Warning text in the add fingerprint dialog to tell users the fingerprint sensor is dirty.">
+      Sensor dirty
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_FINGER_TOO_SLOW" desc="Warning text in the add fingerprint dialog to tell users they have moved their finger too slow.">
+      Finger moved too slowly
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_FINGER_TOO_FAST" desc="Warning text in the add fingerprint dialog to tell users they have moved their finger too fast.">
+      Finger moved too quickly
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_CANCEL_BUTTON" desc="Text on the button in the fingerprint setup dialog which allows users to cancel a current setup.">
+      Cancel
+    </message>
+    <message name="IDS_SETTINGS_ADD_FINGERPRINT_DIALOG_DONE_BUTTON" desc="Text on the button in the fingerprint setup dialog which allows users to exit once a fingerprint has been setup.">
+      Done
     </message>
     <message name="IDS_SETTINGS_PEOPLE_PASSWORD_PROMPT_TITLE" desc="Title of the password prompt dialog popup.">
       Confirm your password
@@ -2639,8 +2702,20 @@
     <message name="IDS_SETTINGS_STYLUS_ENABLE_STYLUS_TOOLS" desc="Toggle that lets the user enable or disable the stylus tools.">
       Show stylus tools in the shelf
     </message>
-    <message name="IDS_SETTINGS_STYLUS_FIND_MORE_APPS" desc="URL label that opens up the Play Store to a curated list of stylus applications.">
-      Find more stylus applications
+    <message name="IDS_SETTINGS_STYLUS_FIND_MORE_APPS_PRIMARY" desc="Primary URL label that opens up the Play Store to a curated list of stylus applications.">
+      Find more stylus apps
+    </message>
+    <message name="IDS_SETTINGS_STYLUS_FIND_MORE_APPS_SECONDARY" desc="Secondary (below the primary) URL label that opens up the Play Store to a curated list of stylus applications.">
+      Open Google Play
+    </message>
+    <message name="IDS_SETTINGS_STYLUS_NOTE_TAKING_APP_LABEL" desc="Label describing a dropdown that lets the user pick their default note-taking applications. The dropdown contains a list of all available choices. The user can install additional apps, so the contents of the dropdown is dynamic.">
+      Note-taking app
+    </message>
+    <message name="IDS_SETTINGS_STYLUS_NOTE_TAKING_APP_NONE_AVAILABLE" desc="Secondary label used when there are no note-taking applications available.">
+      None available
+    </message>
+    <message name="IDS_SETTINGS_STYLUS_NOTE_TAKING_APP_WAITING_FOR_ANDROID" desc="Secondary label used when the list of note-taking apps is not yet available, because the internal android container has not yet finished starting.">
+      Loading apps...
     </message>
 
     <!-- Display -->
@@ -2711,10 +2786,10 @@
       Off
     </message>
     <message name="IDS_SETTINGS_DISPLAY_TOUCH_CALIBRATION_TITLE" desc="In Device Settings > Displays, the label for initiating touch calibration.">
-      Calibrate
+      Calibrate touchscreen
     </message>
     <message name="IDS_SETTINGS_DISPLAY_TOUCH_CALIBRATION_TEXT" desc="In Device Settings > Displays, the sublabel for initiating touch calibration.">
-      Define the boundaries of your touchscreen over the display
+      Set up and adjust the accuracy of your touchscreen
     </message>
 
     <!-- Storage -->

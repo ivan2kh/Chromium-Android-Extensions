@@ -125,7 +125,7 @@ static WebMouseEvent createMouseEvent(DragData* dragData) {
       WebFloatPoint(dragData->globalPosition().x(),
                     dragData->globalPosition().y()),
       WebPointerProperties::Button::Left, 0,
-      static_cast<PlatformEvent::Modifiers>(dragData->modifiers()),
+      static_cast<WebInputEvent::Modifiers>(dragData->modifiers()),
       TimeTicks::Now().InSeconds());
   // TODO(dtapuska): Really we should chnage DragData to store the viewport
   // coordinates and scale.
@@ -861,8 +861,7 @@ static void prepareDataTransferForImageDrag(LocalFrame* source,
             .setBaseAndExtent(EphemeralRange(range))
             .build());
   }
-  dataTransfer->declareAndWriteDragImage(
-      node, !linkURL.isEmpty() ? linkURL : imageURL, label);
+  dataTransfer->declareAndWriteDragImage(node, linkURL, imageURL, label);
 }
 
 bool DragController::populateDragDataTransfer(LocalFrame* src,
@@ -1224,16 +1223,23 @@ bool DragController::isCopyKeyDown(DragData* dragData) {
   int modifiers = dragData->modifiers();
 
 #if OS(MACOSX)
-  return modifiers & PlatformEvent::AltKey;
+  return modifiers & WebInputEvent::AltKey;
 #else
-  return modifiers & PlatformEvent::CtrlKey;
+  return modifiers & WebInputEvent::ControlKey;
 #endif
+}
+
+DragState& DragController::dragState() {
+  if (!m_dragState)
+    m_dragState = new DragState;
+  return *m_dragState;
 }
 
 DEFINE_TRACE(DragController) {
   visitor->trace(m_page);
   visitor->trace(m_documentUnderMouse);
   visitor->trace(m_dragInitiator);
+  visitor->trace(m_dragState);
   visitor->trace(m_fileInputElementUnderMouse);
 }
 

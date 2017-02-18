@@ -272,6 +272,10 @@
     long selectPopupItemStyleFontHeight(Node select, long itemIndex);
     void resetTypeAheadSession(HTMLSelectElement select);
 
+    readonly attribute Node? visibleSelectionAnchorNode;
+    readonly attribute unsigned long visibleSelectionAnchorOffset;
+    readonly attribute Node? visibleSelectionFocusNode;
+    readonly attribute unsigned long visibleSelectionFocusOffset;
     [RaisesException] ClientRect selectionBounds();
 
     boolean loseSharedGraphicsContext3D();
@@ -328,9 +332,16 @@
 
     bool magnifyScaleAroundAnchor(float offset, float x, float y);
 
-    boolean isUseCounted(Document document, long useCounterId);
+    boolean isUseCounted(Document document, unsigned long feature);
     boolean isCSSPropertyUseCounted(Document document, DOMString propertyName);
 
+    // Returns a promise that is resolved when |feature| is counted on
+    // |document|'s UseCounter. When |feature| was already counted, it's
+    // immediately resolved.
+    [CallWith=ScriptState] Promise<bool> observeUseCounter(Document document, unsigned long feature);
+
+    readonly attribute unsigned long length;
+    getter long (unsigned long index);
     iterable<long>;
 
     [Unscopable] readonly attribute DOMString unscopableAttribute;

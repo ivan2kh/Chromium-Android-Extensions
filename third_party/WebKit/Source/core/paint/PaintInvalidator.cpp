@@ -117,8 +117,11 @@ static LayoutRect mapLocalRectToPaintInvalidationBacking(
       PropertyTreeState currentTreeState(
           context.treeBuilderContext.current.transform,
           context.treeBuilderContext.current.clip, nullptr);
-      result = LayoutRect(geometryMapper.sourceToDestinationVisualRect(
-          FloatRect(rect), currentTreeState, *containerContentsProperties));
+      result = LayoutRect(
+          geometryMapper
+              .sourceToDestinationVisualRect(FloatRect(rect), currentTreeState,
+                                             *containerContentsProperties)
+              .rect());
     }
 
     // Convert the result to the container's contents space.
@@ -136,9 +139,9 @@ static LayoutRect mapLocalRectToPaintInvalidationBacking(
 void PaintInvalidatorContext::mapLocalRectToPaintInvalidationBacking(
     const LayoutObject& object,
     LayoutRect& rect) const {
-  GeometryMapper geometryMapper;
+  std::unique_ptr<GeometryMapper> geometryMapper = GeometryMapper::create();
   rect = blink::mapLocalRectToPaintInvalidationBacking<LayoutRect, LayoutPoint>(
-      object, rect, *this, geometryMapper);
+      object, rect, *this, *geometryMapper);
 }
 
 LayoutRect PaintInvalidator::computeVisualRectInBacking(
@@ -207,7 +210,7 @@ void PaintInvalidator::updatePaintingLayer(const LayoutObject& object,
   if (object.isLayoutBlockFlow() && toLayoutBlockFlow(object).containsFloats())
     context.paintingLayer->setNeedsPaintPhaseFloat();
 
-  if (object == context.paintingLayer->layoutObject())
+  if (&object == &context.paintingLayer->layoutObject())
     return;
 
   if (object.styleRef().hasOutline())
@@ -332,8 +335,8 @@ void PaintInvalidator::updateContext(const LayoutObject& object,
     context.forcedSubtreeInvalidationFlags |=
         PaintInvalidatorContext::ForcedSubtreeInvalidationChecking;
 
-  // TODO(crbug.com/637313): This is temporary before we support filters in
-  // GeometryMapper.
+  // TODO(crbug.com/637313): Use GeometryMapper which now supports filter
+  // geometry effects, after skia optimizes filter's mapRect operation.
   // TODO(crbug.com/648274): This is a workaround for multi-column contents.
   if (object.hasFilterInducingProperty() || object.isLayoutFlowThread()) {
     context.forcedSubtreeInvalidationFlags |=
@@ -370,8 +373,6 @@ void PaintInvalidator::invalidatePaintIfNeeded(
     ScopedUndoFrameViewContentClipAndScroll undo(frameView, context);
     frameView.invalidatePaintOfScrollControlsIfNeeded(context);
   }
-
-  frameView.frame().selection().invalidateCaretRect();
 }
 
 void PaintInvalidator::invalidatePaintIfNeeded(
@@ -391,7 +392,8 @@ void PaintInvalidator::invalidatePaintIfNeeded(
 
   updatePaintingLayer(object, context);
 
-  if (object.document().printing())
+  if (object.document().printing() &&
+      !RuntimeEnabledFeatures::printBrowserEnabled())
     return;  // Don't invalidate paints if we're printing.
 
   TRACE_EVENT1(TRACE_DISABLED_BY_DEFAULT("blink.invalidation"),

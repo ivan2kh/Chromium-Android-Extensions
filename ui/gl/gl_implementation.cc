@@ -29,14 +29,14 @@ const struct {
   const char* name;
   GLImplementation implementation;
 } kGLImplementationNamePairs[] = {
-  { kGLImplementationDesktopName, kGLImplementationDesktopGL },
-  { kGLImplementationOSMesaName, kGLImplementationOSMesaGL },
+    {kGLImplementationDesktopName, kGLImplementationDesktopGL},
+    {kGLImplementationOSMesaName, kGLImplementationOSMesaGL},
+    {kGLImplementationSwiftShaderName, kGLImplementationSwiftShaderGL},
 #if defined(OS_MACOSX)
-  { kGLImplementationAppleName, kGLImplementationAppleGL },
+    {kGLImplementationAppleName, kGLImplementationAppleGL},
 #endif
-  { kGLImplementationEGLName, kGLImplementationEGLGLES2 },
-  { kGLImplementationMockName, kGLImplementationMockGL }
-};
+    {kGLImplementationEGLName, kGLImplementationEGLGLES2},
+    {kGLImplementationMockName, kGLImplementationMockGL}};
 
 typedef std::vector<base::NativeLibrary> LibraryArray;
 
@@ -78,6 +78,10 @@ GLImplementation GetNamedGLImplementation(const std::string& name) {
   }
 
   return kGLImplementationNone;
+}
+
+GLImplementation GetSoftwareGLImplementation() {
+  return kGLImplementationOSMesaGL;
 }
 
 const char* GetGLImplementationName(GLImplementation implementation) {

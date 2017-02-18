@@ -898,13 +898,6 @@ GLuint GLES2InterfaceStub::CreateImageCHROMIUM(ClientBuffer /* buffer */,
   return 0;
 }
 void GLES2InterfaceStub::DestroyImageCHROMIUM(GLuint /* image_id */) {}
-GLuint GLES2InterfaceStub::CreateGpuMemoryBufferImageCHROMIUM(
-    GLsizei /* width */,
-    GLsizei /* height */,
-    GLenum /* internalformat */,
-    GLenum /* usage */) {
-  return 0;
-}
 void GLES2InterfaceStub::DescheduleUntilFinishedCHROMIUM() {}
 void GLES2InterfaceStub::GetTranslatedShaderSourceANGLE(GLuint /* shader */,
                                                         GLsizei /* bufsize */,
@@ -1174,8 +1167,7 @@ void GLES2InterfaceStub::OverlayPromotionHintCHROMIUM(
     GLboolean /* promotion_hint */,
     GLint /* display_x */,
     GLint /* display_y */) {}
-void GLES2InterfaceStub::SwapBuffersWithDamageCHROMIUM(GLint /* x */,
-                                                       GLint /* y */,
-                                                       GLint /* width */,
-                                                       GLint /* height */) {}
+void GLES2InterfaceStub::SwapBuffersWithBoundsCHROMIUM(
+    GLsizei /* count */,
+    const GLint* /* rects */) {}
 #endif  // GPU_COMMAND_BUFFER_CLIENT_GLES2_INTERFACE_STUB_IMPL_AUTOGEN_H_

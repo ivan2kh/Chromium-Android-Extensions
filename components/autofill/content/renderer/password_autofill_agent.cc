@@ -576,7 +576,6 @@ PasswordAutofillAgent::PasswordAutofillAgent(content::RenderFrame* render_frame)
   // PasswordAutofillAgent is guaranteed to outlive |render_frame|.
   render_frame->GetInterfaceRegistry()->AddInterface(
       base::Bind(&PasswordAutofillAgent::BindRequest, base::Unretained(this)));
-  GetPasswordManagerDriver()->PasswordAutofillAgentConstructed();
 }
 
 PasswordAutofillAgent::~PasswordAutofillAgent() {
@@ -838,6 +837,46 @@ bool PasswordAutofillAgent::FindPasswordInfoForElement(
   return true;
 }
 
+bool PasswordAutofillAgent::ShouldShowNotSecureWarning(
+    const blink::WebInputElement& element) {
+  // Do not show a warning if the feature is disabled or the context is secure.
+  if (!security_state::IsHttpWarningInFormEnabled() ||
+      content::IsOriginSecure(
+          url::Origin(render_frame()->GetWebFrame()->top()->getSecurityOrigin())
+              .GetURL()))
+    return false;
+
+  // Show the warning on all Password inputs.
+  // Note: A site may use a Password field to collect a CVV or a Credit Card
+  // number, but showing a slightly misleading warning here is better than
+  // showing no warning at all.
+  if (element.isPasswordField())
+    return true;
+
+  // If a field declares itself a username input, show the warning.
+  if (HasAutocompleteAttributeValue(element, "username"))
+    return true;
+
+  // Otherwise, analyze the form and return true if this input element seems
+  // to be the username field.
+  std::unique_ptr<PasswordForm> password_form;
+  if (element.form().isNull()) {
+    blink::WebFrame* const element_frame = element.document().frame();
+    if (!element_frame)
+      return false;
+
+    password_form = CreatePasswordFormFromUnownedInputElements(
+        *element_frame, &field_value_and_properties_map_, &form_predictions_);
+  } else {
+    password_form = CreatePasswordFormFromWebForm(
+        element.form(), &field_value_and_properties_map_, &form_predictions_);
+  }
+
+  if (!password_form)
+    return false;
+  return (password_form->username_element == element.nameForAutofill().utf16());
+}
+
 bool PasswordAutofillAgent::ShowSuggestions(
     const blink::WebInputElement& element,
     bool show_all,
@@ -848,15 +887,7 @@ bool PasswordAutofillAgent::ShowSuggestions(
 
   if (!FindPasswordInfoForElement(element, &username_element, &password_element,
                                   &password_info)) {
-    // If we don't have a password stored, but the form is non-secure, warn
-    // the user about the non-secure form.
-    if ((element.isPasswordField() ||
-         HasAutocompleteAttributeValue(element, "username")) &&
-        security_state::IsHttpWarningInFormEnabled() &&
-        !content::IsOriginSecure(
-            url::Origin(
-                render_frame()->GetWebFrame()->top()->getSecurityOrigin())
-                .GetURL())) {
+    if (ShouldShowNotSecureWarning(element)) {
       autofill_agent_->ShowNotSecureWarning(element);
       return true;
     }
@@ -1167,7 +1198,8 @@ void PasswordAutofillAgent::OnDestruct() {
   base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
-void PasswordAutofillAgent::DidStartProvisionalLoad() {
+void PasswordAutofillAgent::DidStartProvisionalLoad(
+    blink::WebDataSource* data_source) {
   std::unique_ptr<RendererSavePasswordProgressLogger> logger;
   if (logging_state_active_) {
     logger.reset(new RendererSavePasswordProgressLogger(
@@ -1186,8 +1218,7 @@ void PasswordAutofillAgent::DidStartProvisionalLoad() {
   // the user is performing actions outside the page (e.g. typed url,
   // history navigation). We don't want to trigger saving in these cases.
   content::DocumentState* document_state =
-      content::DocumentState::FromDataSource(
-          navigated_frame->provisionalDataSource());
+      content::DocumentState::FromDataSource(data_source);
   content::NavigationState* navigation_state =
       document_state->navigation_state();
   ui::PageTransition type = navigation_state->GetTransitionType();

@@ -287,6 +287,8 @@ void DesktopWindowTreeHostMus::Init(aura::Window* content_window,
   aura::client::SetCursorClient(window(), cursor_manager_.get());
   InitHost();
 
+  NativeWidgetAura::SetShadowElevationFromInitParams(window(), params);
+
   // Transient parents are connected using the Window created by WindowTreeHost,
   // which is owned by the window manager. This way the window manager can
   // properly identify and honor transients.
@@ -531,13 +533,16 @@ void DesktopWindowTreeHostMus::SetShape(
 }
 
 void DesktopWindowTreeHostMus::Activate() {
+  if (!IsVisible())
+    return;
+
+  // This should result in OnActiveFocusClientChanged() being called, which
+  // triggers a call to DesktopNativeWidgetAura::HandleActivationChanged(),
+  // which focuses the right window.
   aura::Env::GetInstance()->SetActiveFocusClient(
       aura::client::GetFocusClient(window()), window());
-  if (is_active_) {
-    window()->Focus();
-    if (window()->GetProperty(aura::client::kDrawAttentionKey))
-      window()->SetProperty(aura::client::kDrawAttentionKey, false);
-  }
+  if (is_active_)
+    window()->SetProperty(aura::client::kDrawAttentionKey, false);
 }
 
 void DesktopWindowTreeHostMus::Deactivate() {
@@ -672,9 +677,7 @@ bool DesktopWindowTreeHostMus::IsFullscreen() const {
          ui::SHOW_STATE_FULLSCREEN;
 }
 void DesktopWindowTreeHostMus::SetOpacity(float opacity) {
-  // TODO: this likely need to go to server so that non-client decorations get
-  // opacity. http://crbug.com/663619.
-  window()->layer()->SetOpacity(opacity);
+  WindowTreeHostMus::SetOpacity(opacity);
 }
 
 void DesktopWindowTreeHostMus::SetWindowIcons(const gfx::ImageSkia& window_icon,
@@ -713,6 +716,11 @@ bool DesktopWindowTreeHostMus::ShouldUpdateWindowTransparency() const {
 
 bool DesktopWindowTreeHostMus::ShouldUseDesktopNativeCursorManager() const {
   // We manage the cursor ourself.
+  return false;
+}
+
+bool DesktopWindowTreeHostMus::ShouldCreateVisibilityController() const {
+  // Window manager takes care of all top-level window animations.
   return false;
 }
 

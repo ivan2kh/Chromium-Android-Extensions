@@ -25,6 +25,7 @@ source_set("metrics") {
   ]
   deps = [
     "//base",
+    "//components/browser_sync",
     "//components/crash/core/common",
     "//components/keyed_service/core",
     "//components/keyed_service/ios",
@@ -134,6 +135,7 @@ source_set("unit_tests_internal") {
 }
 
 source_set("eg_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "tab_usage_recorder_egtest.mm",

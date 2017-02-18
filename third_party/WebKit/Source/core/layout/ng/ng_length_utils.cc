@@ -190,7 +190,9 @@ MinAndMaxContentSizes ComputeMinAndMaxContentContribution(
   // ResolveInlineLength.
   NGWritingMode writing_mode = FromPlatformWritingMode(style.getWritingMode());
   NGConstraintSpaceBuilder builder(writing_mode);
-  NGConstraintSpace* space = builder.ToConstraintSpace();
+  builder.SetInitialContainingBlockSize(
+      NGPhysicalSize{LayoutUnit(), LayoutUnit()});
+  NGConstraintSpace* space = builder.ToConstraintSpace(writing_mode);
 
   MinAndMaxContentSizes computed_sizes;
   Length inline_size = style.logicalWidth();

@@ -648,9 +648,18 @@ void PipelineImpl::RendererWrapper::OnStatisticsUpdate(
   shared_state_.statistics.audio_memory_usage += stats.audio_memory_usage;
   shared_state_.statistics.video_memory_usage += stats.video_memory_usage;
 
+  base::TimeDelta old_average =
+      shared_state_.statistics.video_keyframe_distance_average;
   if (stats.video_keyframe_distance_average != kNoTimestamp) {
     shared_state_.statistics.video_keyframe_distance_average =
         stats.video_keyframe_distance_average;
+  }
+
+  if (shared_state_.statistics.video_keyframe_distance_average != old_average) {
+    main_task_runner_->PostTask(
+        FROM_HERE,
+        base::Bind(&PipelineImpl::OnVideoAverageKeyframeDistanceUpdate,
+                   weak_pipeline_));
   }
 }
 
@@ -860,8 +869,7 @@ void PipelineImpl::RendererWrapper::InitializeRenderer(
 
   switch (demuxer_->GetType()) {
     case MediaResource::Type::STREAM:
-      if (!demuxer_->GetStream(DemuxerStream::AUDIO) &&
-          !demuxer_->GetStream(DemuxerStream::VIDEO)) {
+      if (demuxer_->GetAllStreams().empty()) {
         DVLOG(1) << "Error: demuxer does not have an audio or a video stream.";
         done_cb.Run(PIPELINE_ERROR_COULD_NOT_RENDER);
         return;
@@ -901,24 +909,26 @@ void PipelineImpl::RendererWrapper::ReportMetadata() {
   DCHECK(media_task_runner_->BelongsToCurrentThread());
 
   PipelineMetadata metadata;
-  DemuxerStream* stream;
+  std::vector<DemuxerStream*> streams;
 
   switch (demuxer_->GetType()) {
     case MediaResource::Type::STREAM:
       metadata.timeline_offset = demuxer_->GetTimelineOffset();
-      stream = demuxer_->GetStream(DemuxerStream::VIDEO);
-      if (stream) {
-        metadata.has_video = true;
-        metadata.natural_size =
-            GetRotatedVideoSize(stream->video_rotation(),
-                                stream->video_decoder_config().natural_size());
-        metadata.video_rotation = stream->video_rotation();
-        metadata.video_decoder_config = stream->video_decoder_config();
-      }
-      stream = demuxer_->GetStream(DemuxerStream::AUDIO);
-      if (stream) {
-        metadata.has_audio = true;
-        metadata.audio_decoder_config = stream->audio_decoder_config();
+      // TODO(servolk): What should we do about metadata for multiple streams?
+      streams = demuxer_->GetAllStreams();
+      for (const auto& stream : streams) {
+        if (stream->type() == DemuxerStream::VIDEO && !metadata.has_video) {
+          metadata.has_video = true;
+          metadata.natural_size = GetRotatedVideoSize(
+              stream->video_rotation(),
+              stream->video_decoder_config().natural_size());
+          metadata.video_rotation = stream->video_rotation();
+          metadata.video_decoder_config = stream->video_decoder_config();
+        }
+        if (stream->type() == DemuxerStream::AUDIO && !metadata.has_audio) {
+          metadata.has_audio = true;
+          metadata.audio_decoder_config = stream->audio_decoder_config();
+        }
       }
       break;
 
@@ -1322,6 +1332,15 @@ void PipelineImpl::OnVideoOpacityChange(bool opaque) {
 
   DCHECK(client_);
   client_->OnVideoOpacityChange(opaque);
+}
+
+void PipelineImpl::OnVideoAverageKeyframeDistanceUpdate() {
+  DVLOG(2) << __func__;
+  DCHECK(thread_checker_.CalledOnValidThread());
+  DCHECK(IsRunning());
+
+  DCHECK(client_);
+  client_->OnVideoAverageKeyframeDistanceUpdate();
 }
 
 void PipelineImpl::OnSeekDone() {

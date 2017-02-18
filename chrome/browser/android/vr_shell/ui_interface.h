@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_ANDROID_VR_SHELL_UI_INTERFACE_H_
 
 #include <memory>
+#include <string>
 
 #include "base/macros.h"
 #include "base/values.h"
@@ -30,7 +31,7 @@ class UiInterface {
     WEB_VR
   };
 
-  explicit UiInterface(Mode initial_mode, bool fullscreen);
+  explicit UiInterface(Mode initial_mode);
   virtual ~UiInterface();
 
   // Set HTML UI state or pass events.

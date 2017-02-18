@@ -39,6 +39,7 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/debug/alias.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -162,6 +163,35 @@ bool ShouldTreatNavigationAsReload(const NavigationEntry* entry) {
     return true;
   }
   return false;
+}
+
+// TODO(estark): remove this DumpWithoutCrashing after investigating
+// https://crbug.com/688425.
+void MaybeDumpCopiedNonSameOriginEntry(
+    const std::string& navigation_description,
+    const FrameHostMsg_DidCommitProvisionalLoad_Params& params,
+    bool is_in_page,
+    NavigationEntry* entry) {
+  if (!entry)
+    return;
+  if (url::Origin(entry->GetURL()).IsSameOriginWith(url::Origin(params.url)))
+    return;
+
+  std::string debug_info =
+      navigation_description + ": " +
+      std::string(is_in_page ? "Is in page, " : "Is not in page, ") +
+      std::string(params.nav_entry_id ? "has nav entry id, "
+                                      : "does not have nav entry id, ") +
+      std::string(params.did_create_new_entry ? "did create new entry, "
+                                              : "did not create new entry, ") +
+      std::string(params.should_replace_current_entry
+                      ? "should replace current entry, "
+                      : "should not replace current entry, ") +
+      entry->GetURL().spec() + " -> " + params.url.spec();
+  char debug_buf[2000];
+  base::strlcpy(debug_buf, debug_info.c_str(), arraysize(debug_buf));
+  base::debug::Alias(&debug_buf);
+  base::debug::DumpWithoutCrashing();
 }
 
 }  // namespace
@@ -816,10 +846,12 @@ bool NavigationControllerImpl::RendererDidNavigate(
 
   // If there is a pending entry at this point, it should have a SiteInstance,
   // except for restored entries.
+  bool was_restored = false;
   DCHECK(pending_entry_index_ == -1 || pending_entry_->site_instance() ||
          pending_entry_->restore_type() != RestoreType::NONE);
   if (pending_entry_ && pending_entry_->restore_type() != RestoreType::NONE) {
     pending_entry_->set_restore_type(RestoreType::NONE);
+    was_restored = true;
   }
 
   // The renderer tells us whether the navigation replaces the current entry.
@@ -854,7 +886,7 @@ bool NavigationControllerImpl::RendererDidNavigate(
     case NAVIGATION_TYPE_EXISTING_PAGE:
       details->did_replace_entry = details->is_in_page;
       RendererDidNavigateToExistingPage(rfh, params, details->is_in_page,
-                                        navigation_handle);
+                                        was_restored, navigation_handle);
       break;
     case NAVIGATION_TYPE_SAME_PAGE:
       RendererDidNavigateToSamePage(rfh, params, navigation_handle);
@@ -1105,6 +1137,9 @@ void NavigationControllerImpl::RendererDidNavigateToNewPage(
     CHECK(frame_entry->HasOneRef());
 
     update_virtual_url = new_entry->update_virtual_url_with_url();
+
+    MaybeDumpCopiedNonSameOriginEntry("New page navigation", params, is_in_page,
+                                      GetLastCommittedEntry());
   }
 
   // Only make a copy of the pending entry if it is appropriate for the new page
@@ -1196,6 +1231,7 @@ void NavigationControllerImpl::RendererDidNavigateToExistingPage(
     RenderFrameHostImpl* rfh,
     const FrameHostMsg_DidCommitProvisionalLoad_Params& params,
     bool is_in_page,
+    bool was_restored,
     NavigationHandleImpl* handle) {
   // We should only get here for main frame navigations.
   DCHECK(!rfh->GetParent());
@@ -1209,16 +1245,28 @@ void NavigationControllerImpl::RendererDidNavigateToExistingPage(
     // meanwhile and no new page was created. We are stuck at the last committed
     // entry.
     entry = GetLastCommittedEntry();
+    MaybeDumpCopiedNonSameOriginEntry("Existing page navigation", params,
+                                      is_in_page, entry);
   } else if (params.nav_entry_id) {
     // This is a browser-initiated navigation (back/forward/reload).
     entry = GetEntryWithUniqueID(params.nav_entry_id);
 
-    // Needed for the restore case, where the serialized NavigationEntry doesn't
-    // have the SSL state. Note that for in-page navigation, there's no
-    // SSLStatus in the NavigationHandle so don't overwrite the existing entry's
-    // SSLStatus.
-    if (!is_in_page)
+    if (is_in_page) {
+      // There's no SSLStatus in the NavigationHandle for in-page navigations,
+      // so normally we leave |entry|'s SSLStatus as is. However if this was a
+      // restored in-page navigation entry, then it won't have an SSLStatus. So
+      // we need to copy over the SSLStatus from the entry that navigated it.
+      NavigationEntryImpl* last_entry = GetLastCommittedEntry();
+      if (entry->GetURL().GetOrigin() == last_entry->GetURL().GetOrigin() &&
+          last_entry->GetSSL().initialized && !entry->GetSSL().initialized &&
+          was_restored) {
+        entry->GetSSL() = last_entry->GetSSL();
+      }
+    } else {
+      // When restoring a tab, the serialized NavigationEntry doesn't have the
+      // SSL state.
       entry->GetSSL() = handle->ssl_status();
+    }
   } else {
     // This is renderer-initiated. The only kinds of renderer-initated
     // navigations that are EXISTING_PAGE are reloads and location.replace,

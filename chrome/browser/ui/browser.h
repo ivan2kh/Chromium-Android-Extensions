@@ -368,9 +368,10 @@ class Browser : public TabStripModelObserver,
 
   // External state change handling ////////////////////////////////////////////
 
-  // Invoked when the fullscreen state of the window changes.
-  // BrowserWindow::EnterFullscreen invokes this after the window has become
-  // fullscreen.
+  // BrowserWindow::EnterFullscreen invokes WindowFullscreenStateWillChange at
+  // the beginning of a fullscreen transition, and WindowFullscreenStateChanged
+  // at the end.
+  void WindowFullscreenStateWillChange();
   void WindowFullscreenStateChanged();
 
   // Assorted browser commands ////////////////////////////////////////////////
@@ -496,6 +497,11 @@ class Browser : public TabStripModelObserver,
       const content::BluetoothChooser::EventHandler& event_handler) override;
   void RequestAppBannerFromDevTools(
       content::WebContents* web_contents) override;
+  void PassiveInsecureContentFound(const GURL& resource_url) override;
+  bool ShouldAllowRunningInsecureContent(content::WebContents* web_contents,
+                                         bool allowed_per_prefs,
+                                         const url::Origin& origin,
+                                         const GURL& resource_url) override;
 
   bool is_type_tabbed() const { return type_ == TYPE_TABBED; }
   bool is_type_popup() const { return type_ == TYPE_POPUP; }
@@ -621,7 +627,7 @@ class Browser : public TabStripModelObserver,
       int32_t route_id,
       int32_t main_frame_route_id,
       int32_t main_frame_widget_route_id,
-      WindowContainerType window_container_type,
+      content::mojom::WindowContainerType window_container_type,
       const GURL& opener_url,
       const std::string& frame_name,
       const GURL& target_url,

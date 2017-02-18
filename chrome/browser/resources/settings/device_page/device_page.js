@@ -22,22 +22,25 @@ Polymer({
     },
 
     /**
-     * |hasMouse_| and |hasTouchpad_| start undefined so observers don't trigger
-     * until both have been populated.
+     * |hasMouse_|, |hasTouchpad_|, and |hasStylus_| start undefined so
+     * observers don't trigger until they have been populated.
      * @private
      */
-    hasMouse_: Boolean,
-
-    /** @private */
-    hasTouchpad_: Boolean,
-
-    /** @private */
-    stylusAllowed_: {
+    hasMouse_: {
       type: Boolean,
-      value: function() {
-        return loadTimeData.getBoolean('stylusAllowed');
-      },
-      readOnly: true,
+      value: false
+    },
+
+    /** @private */
+    hasTouchpad_: {
+      type: Boolean,
+      value: false
+    },
+
+    /** @private */
+    hasStylus_: {
+      type: Boolean,
+      value: false
     },
 
     /**
@@ -66,13 +69,6 @@ Polymer({
      * @private {!Array<!settings.PowerSource>|undefined}
      */
     powerSources_: Array,
-
-    /** @private */
-    batteryIcon_: {
-      type: String,
-      computed: 'computeBatteryIcon_(batteryStatus_, lowPowerCharger_)',
-      value: 'settings:battery-unknown',
-    },
 
     /** @private */
     powerLabel_: {
@@ -109,6 +105,10 @@ Polymer({
         'has-touchpad-changed', this.set.bind(this, 'hasTouchpad_'));
     settings.DevicePageBrowserProxyImpl.getInstance().initializePointers();
 
+    this.addWebUIListener(
+        'has-stylus-changed', this.set.bind(this, 'hasStylus_'));
+    settings.DevicePageBrowserProxyImpl.getInstance().initializeStylus();
+
     if (this.enablePowerSettings_) {
       this.addWebUIListener(
           'battery-status-changed', this.set.bind(this, 'batteryStatus_'));
@@ -133,61 +133,12 @@ Polymer({
   },
 
   /**
-   * @return {string}
-   * @private
-   */
-  getPointersIcon_: function() {
-    if (this.hasMouse_)
-      return 'settings:mouse';
-    if (this.hasTouchpad_)
-      return 'settings:touch-app';
-    return '';
-  },
-
-  /**
    * @param {*} lhs
    * @param {*} rhs
    * @return {boolean}
    */
   isEqual_: function(lhs, rhs) {
     return lhs === rhs;
-  },
-
-  /**
-   * @param {!settings.BatteryStatus} batteryStatus
-   * @param {boolean} lowPowerCharger
-   * @return {string}
-   */
-  computeBatteryIcon_: function(batteryStatus, lowPowerCharger) {
-    var iconPrefix = 'settings:battery-';
-
-    if (batteryStatus.calculating)
-      return iconPrefix + 'unknown';
-
-    if (lowPowerCharger)
-      return iconPrefix + 'unreliable';
-
-    if (!batteryStatus.charging && batteryStatus.percent < 5)
-      return iconPrefix + 'alert';
-
-    // Compute the rest of the icon: iconPrefix + '[charging-]<percent>'.
-    if (batteryStatus.charging)
-      iconPrefix += 'charging-';
-
-    // Show the highest level icon that doesn't go over the actual percentage.
-    if (batteryStatus.percent < 30)
-      return iconPrefix + '20';
-    if (batteryStatus.percent < 50)
-      return iconPrefix + '30';
-    if (batteryStatus.percent < 60)
-      return iconPrefix + '50';
-    if (batteryStatus.percent < 80)
-      return iconPrefix + '60';
-    if (batteryStatus.percent < 90)
-      return iconPrefix + '80';
-    if (batteryStatus.percent < 100)
-      return iconPrefix + '90';
-    return iconPrefix + 'full';
   },
 
   /**

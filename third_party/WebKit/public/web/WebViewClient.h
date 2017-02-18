@@ -114,7 +114,6 @@ class WebViewClient : protected WebWidgetClient {
 
   // These methods allow the client to intercept and overrule editing
   // operations.
-  virtual void didCancelCompositionOnSelectionChange() {}
   virtual void didChangeContents() {}
 
   // Dialogs -------------------------------------------------------------
@@ -273,7 +272,6 @@ class WebViewClient : protected WebWidgetClient {
                      const WebFloatSize& velocityInViewport) override {}
   void hasTouchEventHandlers(bool) override {}
   WebLayerTreeView* initializeLayerTreeView() override { return nullptr; }
-  void resetInputMethod() override {}
   WebScreenInfo screenInfo() override { return WebScreenInfo(); }
   void setTouchAction(WebTouchAction touchAction) override {}
   void showVirtualKeyboardOnElementFocus() override {}

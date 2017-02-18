@@ -11,6 +11,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/accessibility/ax_role_properties.h"
 #include "ui/accessibility/platform/ax_platform_node_delegate.h"
 #include "ui/base/l10n/l10n_util.h"
 #import "ui/gfx/mac/coordinate_conversion.h"
@@ -304,7 +305,28 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
 }
 
 - (NSArray*)accessibilityActionNames {
-  return nil;
+  base::scoped_nsobject<NSMutableArray> axActions(
+      [[NSMutableArray alloc] init]);
+
+  // VoiceOver expects the "press" action to be first.
+  if (ui::IsRoleClickable(node_->GetData().role))
+    [axActions addObject:NSAccessibilityPressAction];
+
+  return axActions.autorelease();
+}
+
+- (void)accessibilityPerformAction:(NSString*)action {
+  DCHECK([[self accessibilityActionNames] containsObject:action]);
+  ui::AXActionData data;
+  if ([action isEqualToString:NSAccessibilityPressAction])
+    data.action = ui::AX_ACTION_DO_DEFAULT;
+
+  // Note ui::AX_ACTIONs which are just overwriting an accessibility attribute
+  // are already implemented in -accessibilitySetValue:forAttribute:, so ignore
+  // those here.
+
+  if (data.action != ui::AX_ACTION_NONE)
+    node_->GetDelegate()->AccessibilityPerformAction(data);
 }
 
 - (NSArray*)accessibilityAttributeNames {
@@ -370,13 +392,14 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
 }
 
 - (BOOL)accessibilityIsAttributeSettable:(NSString*)attributeName {
+  if (node_->GetData().HasStateFlag(ui::AX_STATE_DISABLED))
+    return NO;
+
   // Allow certain attributes to be written via an accessibility client. A
   // writable attribute will only appear as such if the accessibility element
   // has a value set for that attribute.
   if ([attributeName
           isEqualToString:NSAccessibilitySelectedChildrenAttribute] ||
-      [attributeName
-          isEqualToString:NSAccessibilitySelectedTextRangeAttribute] ||
       [attributeName
           isEqualToString:NSAccessibilityVisibleCharacterRangeAttribute]) {
     return NO;
@@ -390,7 +413,9 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
   }
 
   if ([attributeName isEqualToString:NSAccessibilityValueAttribute] ||
-      [attributeName isEqualToString:NSAccessibilitySelectedTextAttribute]) {
+      [attributeName isEqualToString:NSAccessibilitySelectedTextAttribute] ||
+      [attributeName
+          isEqualToString:NSAccessibilitySelectedTextRangeAttribute]) {
     return !ui::AXNodeData::IsFlagSet(node_->GetData().state,
                                       ui::AX_STATE_READ_ONLY);
   }
@@ -416,6 +441,9 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
                       : ui::AX_ACTION_SET_VALUE;
   } else if ([attribute isEqualToString:NSAccessibilitySelectedTextAttribute]) {
     data.action = ui::AX_ACTION_REPLACE_SELECTED_TEXT;
+  } else if ([attribute
+                 isEqualToString:NSAccessibilitySelectedTextRangeAttribute]) {
+    data.action = ui::AX_ACTION_SET_SELECTION;
   } else if ([attribute isEqualToString:NSAccessibilityFocusedAttribute]) {
     if ([value isKindOfClass:[NSNumber class]]) {
       data.action =
@@ -424,8 +452,14 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
   }
 
   // Set type-specific information as necessary for actions set above.
-  if ([value isKindOfClass:[NSString class]])
+  if ([value isKindOfClass:[NSString class]]) {
     data.value = base::SysNSStringToUTF16(value);
+  } else if (data.action == ui::AX_ACTION_SET_SELECTION &&
+             [value isKindOfClass:[NSValue class]]) {
+    NSRange range = [value rangeValue];
+    data.anchor_offset = range.location;
+    data.focus_offset = NSMaxRange(range);
+  }
 
   if (data.action != ui::AX_ACTION_NONE)
     node_->GetDelegate()->AccessibilityPerformAction(data);
@@ -488,17 +522,16 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
 }
 
 - (NSNumber*)AXEnabled {
-  return [NSNumber
-      numberWithBool:!ui::AXNodeData::IsFlagSet(node_->GetData().state,
-                                                ui::AX_STATE_DISABLED)];
+  return @(!ui::AXNodeData::IsFlagSet(node_->GetData().state,
+                                      ui::AX_STATE_DISABLED));
 }
 
 - (NSNumber*)AXFocused {
   if (ui::AXNodeData::IsFlagSet(node_->GetData().state,
                                 ui::AX_STATE_FOCUSABLE))
-    return [NSNumber numberWithBool:(node_->GetDelegate()->GetFocus() ==
-                                     node_->GetNativeViewAccessible())];
-  return [NSNumber numberWithBool:NO];
+    return
+        @(node_->GetDelegate()->GetFocus() == node_->GetNativeViewAccessible());
+  return @NO;
 }
 
 - (id)AXParent {
@@ -540,8 +573,7 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
 // Misc attributes.
 
 - (NSNumber*)AXSelected {
-  return [NSNumber
-      numberWithBool:node_->GetData().HasStateFlag(ui::AX_STATE_SELECTED)];
+  return @(node_->GetData().HasStateFlag(ui::AX_STATE_SELECTED));
 }
 
 - (NSString*)AXPlaceholderValue {
@@ -567,22 +599,20 @@ void NotifyMacEvent(AXPlatformNodeCocoa* target, ui::AXEvent event_type) {
   bool isReversed = (textDir == ui::AX_TEXT_DIRECTION_RTL) ||
                     (textDir == ui::AX_TEXT_DIRECTION_BTT);
   int beginSelectionIndex = (end > start && !isReversed) ? start : end;
-  return [NSValue
-      valueWithRange:NSMakeRange(beginSelectionIndex, abs(end - start))];
+  return [NSValue valueWithRange:{beginSelectionIndex, abs(end - start)}];
 }
 
 - (NSNumber*)AXNumberOfCharacters {
-  return [NSNumber numberWithInteger:[[self AXValue] length]];
+  return @([[self AXValue] length]);
 }
 
 - (NSValue*)AXVisibleCharacterRange {
-  return [NSValue
-      valueWithRange:NSMakeRange(0, [[self AXNumberOfCharacters] intValue])];
+  return [NSValue valueWithRange:{0, [[self AXNumberOfCharacters] intValue]}];
 }
 
 - (NSNumber*)AXInsertionPointLineNumber {
   // Multiline is not supported on views.
-  return [NSNumber numberWithInteger:0];
+  return @0;
 }
 
 @end

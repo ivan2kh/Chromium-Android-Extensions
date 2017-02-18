@@ -482,7 +482,8 @@ void VisibleSelectionTemplate<Strategy>::validate(TextGranularity granularity) {
   // TODO(xiaochengh): Add a DocumentLifecycle::DisallowTransitionScope here.
 
   m_granularity = granularity;
-  m_hasTrailingWhitespace = false;
+  if (m_granularity != WordGranularity)
+    m_hasTrailingWhitespace = false;
   setBaseAndExtentToDeepEquivalents();
   if (m_base.isNull() || m_extent.isNull()) {
     m_base = m_extent = m_start = m_end = PositionTemplate<Strategy>();
@@ -518,6 +519,9 @@ void VisibleSelectionTemplate<Strategy>::validate(TextGranularity granularity) {
     m_start = mostForwardCaretPosition(m_start);
     m_end = mostBackwardCaretPosition(m_end);
   }
+  if (!m_hasTrailingWhitespace)
+    return;
+  appendTrailingWhitespace();
 }
 
 template <typename Strategy>
@@ -776,6 +780,14 @@ template <typename Strategy>
 bool VisibleSelectionTemplate<Strategy>::operator==(
     const VisibleSelectionTemplate<Strategy>& other) const {
   return equalSelectionsAlgorithm<Strategy>(*this, other);
+}
+
+template <typename Strategy>
+DEFINE_TRACE(VisibleSelectionTemplate<Strategy>) {
+  visitor->trace(m_base);
+  visitor->trace(m_extent);
+  visitor->trace(m_start);
+  visitor->trace(m_end);
 }
 
 #ifndef NDEBUG

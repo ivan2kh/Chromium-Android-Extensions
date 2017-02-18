@@ -2090,7 +2090,7 @@ void HashTable<Key,
     // registerWeakMembers is called multiple times (in rare
     // cases). However, it shouldn't cause any issue.
     Allocator::registerWeakMembers(
-        visitor, this, m_table,
+        visitor, this,
         WeakProcessingHashTableHelper<Traits::weakHandlingFlag, Key, Value,
                                       Extractor, HashFunctions, Traits,
                                       KeyTraits, Allocator>::process);
@@ -2269,7 +2269,7 @@ inline void removeAll(Collection1& collection, const Collection2& toBeRemoved) {
   typedef typename Collection2::const_iterator CollectionIterator;
   CollectionIterator end(toBeRemoved.end());
   for (CollectionIterator it(toBeRemoved.begin()); it != end; ++it)
-    collection.remove(*it);
+    collection.erase(*it);
 }
 
 }  // namespace WTF

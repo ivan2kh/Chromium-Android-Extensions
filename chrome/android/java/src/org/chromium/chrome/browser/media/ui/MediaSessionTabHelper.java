@@ -284,8 +284,13 @@ public class MediaSessionTabHelper implements MediaImageCallback {
         }
 
         @Override
-        public void onUrlUpdated(Tab tab) {
+        public void onDidFinishNavigation(Tab tab, String url, boolean isInMainFrame,
+                boolean isErrorPage, boolean hasCommitted, boolean isSamePage,
+                boolean isFragmentNavigation, Integer pageTransition, int errorCode,
+                int httpStatusCode) {
             assert tab == mTab;
+
+            if (!hasCommitted || !isInMainFrame || isSamePage) return;
 
             String origin = mTab.getUrl();
             try {
@@ -299,12 +304,22 @@ public class MediaSessionTabHelper implements MediaImageCallback {
             mOrigin = origin;
             mFavicon = null;
             mPageMediaImage = null;
+            mPageMetadata = null;
+            // |mCurrentMetadata| selects either |mPageMetadata| or |mFallbackTitle|. As there is no
+            // guarantee {@link #onTitleUpdated()} will be called before or after this method,
+            // |mFallbackTitle| is not reset in this callback, i.e. relying solely on
+            // {@link #onTitleUpdated()}. The following assignment is to keep |mCurrentMetadata| up
+            // to date as |mPageMetadata| may have changed.
+            mCurrentMetadata = getMetadata();
+            mMediaSessionActions = null;
 
             if (isNotificationHiddingOrHidden()) return;
 
             mNotificationInfoBuilder.setOrigin(mOrigin);
             mNotificationInfoBuilder.setNotificationLargeIcon(mFavicon);
             mNotificationInfoBuilder.setMediaSessionImage(mPageMediaImage);
+            mNotificationInfoBuilder.setMetadata(mCurrentMetadata);
+            mNotificationInfoBuilder.setMediaSessionActions(mMediaSessionActions);
             showNotification();
         }
 

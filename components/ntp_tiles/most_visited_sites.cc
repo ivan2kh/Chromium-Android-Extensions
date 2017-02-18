@@ -78,6 +78,21 @@ MostVisitedSites::~MostVisitedSites() {
     supervisor_->SetObserver(nullptr);
 }
 
+bool MostVisitedSites::DoesSourceExist(NTPTileSource source) const {
+  switch (source) {
+    case NTPTileSource::TOP_SITES:
+      return top_sites_ != nullptr;
+    case NTPTileSource::SUGGESTIONS_SERVICE:
+      return suggestions_service_ != nullptr;
+    case NTPTileSource::POPULAR:
+      return popular_sites_ != nullptr;
+    case NTPTileSource::WHITELIST:
+      return supervisor_ != nullptr;
+  }
+  NOTREACHED();
+  return false;
+}
+
 void MostVisitedSites::SetMostVisitedURLsObserver(Observer* observer,
                                                   int num_sites) {
   DCHECK(observer);
@@ -192,10 +207,8 @@ void MostVisitedSites::OnMostVisitedURLsAvailable(
       std::min(visited_list.size(), static_cast<size_t>(num_sites_));
   for (size_t i = 0; i < num_tiles; ++i) {
     const history::MostVisitedURL& visited = visited_list[i];
-    if (visited.url.is_empty()) {
-      num_tiles = i;
+    if (visited.url.is_empty())
       break;  // This is the signal that there are no more real visited sites.
-    }
     if (supervisor_ && supervisor_->IsBlocked(visited.url))
       continue;
 
@@ -282,6 +295,9 @@ NTPTilesVector MostVisitedSites::CreateWhitelistEntryPointTiles(
     personal_hosts.insert(tile.url.host());
 
   for (const auto& whitelist : supervisor_->whitelists()) {
+    if (whitelist_tiles.size() >= num_whitelist_tiles)
+      break;
+
     // Skip blacklisted sites.
     if (top_sites_ && top_sites_->IsBlacklisted(whitelist.entry_point))
       continue;
@@ -300,10 +316,7 @@ NTPTilesVector MostVisitedSites::CreateWhitelistEntryPointTiles(
     tile.url = whitelist.entry_point;
     tile.source = NTPTileSource::WHITELIST;
     tile.whitelist_icon_path = whitelist.large_icon_path;
-
     whitelist_tiles.push_back(std::move(tile));
-    if (whitelist_tiles.size() >= num_whitelist_tiles)
-      break;
   }
 
   return whitelist_tiles;
@@ -324,7 +337,8 @@ NTPTilesVector MostVisitedSites::CreatePopularSitesTiles(
   size_t num_popular_sites_tiles = num_sites_ - num_tiles;
   NTPTilesVector popular_sites_tiles;
 
-  if (num_popular_sites_tiles > 0 && popular_sites_) {
+  if (num_popular_sites_tiles > 0 && popular_sites_ &&
+      ShouldShowPopularSites()) {
     std::set<std::string> hosts;
     for (const auto& tile : personal_tiles)
       hosts.insert(tile.url.host());
@@ -404,9 +418,6 @@ void MostVisitedSites::OnPopularSitesDownloaded(bool success) {
     LOG(WARNING) << "Download of popular sites failed";
     return;
   }
-
-  // Re-build the tile list. Once done, this will notify the observer.
-  BuildCurrentTiles();
 }
 
 void MostVisitedSites::OnIconMadeAvailable(const GURL& site_url,

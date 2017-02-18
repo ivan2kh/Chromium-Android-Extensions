@@ -89,7 +89,7 @@ class CORE_EXPORT DOMSelection final : public GarbageCollected<DOMSelection>,
   void collapseToEnd(ExceptionState&);
   void collapseToStart(ExceptionState&);
   void extend(Node*, int offset, ExceptionState&);
-  Range* getRangeAt(int, ExceptionState&);
+  Range* getRangeAt(int, ExceptionState&) const;
   void removeAllRanges();
   void addRange(Range*);
   void deleteFromDocument();
@@ -108,8 +108,10 @@ class CORE_EXPORT DOMSelection final : public GarbageCollected<DOMSelection>,
 
   bool isAvailable() const;
 
-  // Convenience method for accessors, does not check m_frame present.
+  // Convenience methods for accessors, does not check m_frame present.
   const VisibleSelection& visibleSelection() const;
+  bool isBaseFirstInSelection() const;
+  const Position& anchorPosition() const;
 
   Node* shadowAdjustedNode(const Position&) const;
   int shadowAdjustedOffset(const Position&) const;
@@ -117,6 +119,13 @@ class CORE_EXPORT DOMSelection final : public GarbageCollected<DOMSelection>,
   bool isValidForPosition(Node*) const;
 
   void addConsoleError(const String& message);
+  Range* primaryRangeOrNull() const;
+  Range* createRangeFromSelectionEditor() const;
+
+  bool isSelectionOfDocument() const;
+  void cacheRangeIfSelectionOfDocument(Range*) const;
+  Range* documentCachedRange() const;
+  void clearCachedRangeIfSelectionOfDocument();
 
   Member<const TreeScope> m_treeScope;
 };

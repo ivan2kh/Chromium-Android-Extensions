@@ -46,8 +46,8 @@
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/discardable_memory/service/discardable_shared_memory_manager.h"
-#include "components/tracing/browser/trace_config_file.h"
 #include "components/tracing/common/process_metrics_memory_dump_provider.h"
+#include "components/tracing/common/trace_config_file.h"
 #include "components/tracing/common/trace_to_console.h"
 #include "components/tracing/common/tracing_switches.h"
 #include "content/browser/audio_manager_thread.h"
@@ -92,6 +92,7 @@
 #include "device/battery/battery_status_service.h"
 #include "device/gamepad/gamepad_service.h"
 #include "device/sensors/device_sensor_service.h"
+#include "media/audio/audio_system_impl.h"
 #include "media/base/media.h"
 #include "media/base/user_input_monitor.h"
 #include "media/midi/midi_service.h"
@@ -126,7 +127,6 @@
 #include "content/browser/media/android/browser_media_player_manager.h"
 #include "content/browser/renderer_host/context_provider_factory_impl_android.h"
 #include "content/browser/screen_orientation/screen_orientation_delegate_android.h"
-#include "content/public/browser/screen_orientation_provider.h"
 #include "media/base/android/media_client_android.h"
 #include "ui/android/screen_android.h"
 #include "ui/display/screen.h"
@@ -786,7 +786,6 @@ void BrowserMainLoop::PostMainMessageLoopStart() {
       gpu::ScopedSurfaceRequestConduit::SetInstance(
           ScopedSurfaceRequestManager::GetInstance());
     }
-    BrowserMediaPlayerManager::InitSurfaceTexturePeer();
   }
 
   if (!parsed_command_line_.HasSwitch(
@@ -795,7 +794,6 @@ void BrowserMainLoop::PostMainMessageLoopStart() {
                  "BrowserMainLoop::Subsystem:ScreenOrientationProvider");
     screen_orientation_delegate_.reset(
         new ScreenOrientationDelegateAndroid());
-    ScreenOrientationProvider::SetDelegate(screen_orientation_delegate_.get());
   }
 #endif
 
@@ -921,6 +919,8 @@ int BrowserMainLoop::PreCreateThreads() {
 
 void BrowserMainLoop::PreShutdown() {
   parts_->PreShutdown();
+
+  ui::Clipboard::OnPreShutdownForCurrentThread();
 }
 
 void BrowserMainLoop::CreateStartupTasks() {
@@ -1537,8 +1537,8 @@ int BrowserMainLoop::BrowserThreadsStarted() {
   {
     TRACE_EVENT0("startup",
       "BrowserMainLoop::BrowserThreadsStarted:InitSpeechRecognition");
-    speech_recognition_manager_.reset(
-        new SpeechRecognitionManagerImpl(media_stream_manager_.get()));
+    speech_recognition_manager_.reset(new SpeechRecognitionManagerImpl(
+        audio_system_.get(), media_stream_manager_.get()));
   }
 
   {
@@ -1797,6 +1797,9 @@ void BrowserMainLoop::CreateAudioManager() {
         MediaInternals::GetInstance());
   }
   CHECK(audio_manager_);
+
+  audio_system_ = media::AudioSystemImpl::Create(audio_manager_.get());
+  CHECK(audio_system_);
 }
 
 }  // namespace content

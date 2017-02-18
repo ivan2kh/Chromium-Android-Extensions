@@ -437,6 +437,16 @@ void Page::settingsChanged(SettingsDelegate::ChangeType changeType) {
         }
       }
     } break;
+    case SettingsDelegate::MediaControlsChange:
+      for (Frame* frame = mainFrame(); frame;
+           frame = frame->tree().traverseNext()) {
+        if (!frame->isLocalFrame())
+          continue;
+        Document* doc = toLocalFrame(frame)->document();
+        if (doc)
+          HTMLMediaElement::onMediaControlsEnabledChange(doc);
+      }
+      break;
   }
 }
 
@@ -500,6 +510,7 @@ DEFINE_TRACE(Page) {
   visitor->trace(m_scrollingCoordinator);
   visitor->trace(m_mainFrame);
   visitor->trace(m_validationMessageClient);
+  visitor->trace(m_useCounter);
   visitor->trace(m_frameHost);
   Supplementable<Page>::trace(visitor);
   PageVisibilityNotifier::trace(visitor);
@@ -523,8 +534,8 @@ void Page::willBeDestroyed() {
   mainFrame->detach(FrameDetachType::Remove);
 
   ASSERT(allPages().contains(this));
-  allPages().remove(this);
-  ordinaryPages().remove(this);
+  allPages().erase(this);
+  ordinaryPages().erase(this);
 
   if (m_scrollingCoordinator)
     m_scrollingCoordinator->willBeDestroyed();

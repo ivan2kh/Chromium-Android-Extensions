@@ -1067,16 +1067,6 @@ void ChromeClientImpl::didAssociateFormControlsAfterLoad(LocalFrame* frame) {
     webframe->autofillClient()->didAssociateFormControlsDynamically();
 }
 
-void ChromeClientImpl::didCancelCompositionOnSelectionChange() {
-  if (m_webView->client())
-    m_webView->client()->didCancelCompositionOnSelectionChange();
-}
-
-void ChromeClientImpl::resetInputMethod() {
-  if (m_webView->client())
-    m_webView->client()->resetInputMethod();
-}
-
 void ChromeClientImpl::showVirtualKeyboardOnElementFocus() {
   if (m_webView->client())
     m_webView->client()->showVirtualKeyboardOnElementFocus();
@@ -1157,10 +1147,20 @@ void ChromeClientImpl::didUpdateBrowserControls() const {
   m_webView->didUpdateBrowserControls();
 }
 
-CompositorProxyClient* ChromeClientImpl::createCompositorProxyClient(
-    LocalFrame* frame) {
+CompositorWorkerProxyClient*
+ChromeClientImpl::createCompositorWorkerProxyClient(LocalFrame* frame) {
   WebLocalFrameImpl* webFrame = WebLocalFrameImpl::fromFrame(frame);
-  return webFrame->localRoot()->frameWidget()->createCompositorProxyClient();
+  return webFrame->localRoot()
+      ->frameWidget()
+      ->createCompositorWorkerProxyClient();
+}
+
+AnimationWorkletProxyClient*
+ChromeClientImpl::createAnimationWorkletProxyClient(LocalFrame* frame) {
+  WebLocalFrameImpl* webFrame = WebLocalFrameImpl::fromFrame(frame);
+  return webFrame->localRoot()
+      ->frameWidget()
+      ->createAnimationWorkletProxyClient();
 }
 
 void ChromeClientImpl::registerPopupOpeningObserver(
@@ -1222,7 +1222,7 @@ void ChromeClientImpl::installSupplements(LocalFrame& frame) {
                                      new AudioOutputDeviceClientImpl(frame));
   }
   if (RuntimeEnabledFeatures::installedAppEnabled())
-    InstalledAppController::provideTo(frame, client->installedAppClient());
+    InstalledAppController::provideTo(frame, client->relatedAppsFetcher());
 }
 
 }  // namespace blink

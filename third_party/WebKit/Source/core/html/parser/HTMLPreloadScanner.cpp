@@ -326,8 +326,9 @@ class TokenPreloadScanner::StartTagScanner {
                match(attributeName, referrerpolicyAttr) &&
                !attributeValue.isNull()) {
       m_referrerPolicySet = true;
-      SecurityPolicy::referrerPolicyFromStringWithLegacyKeywords(
-          attributeValue, &m_referrerPolicy);
+      SecurityPolicy::referrerPolicyFromString(
+          attributeValue, SupportReferrerPolicyLegacyKeywords,
+          &m_referrerPolicy);
     }
   }
 
@@ -359,8 +360,9 @@ class TokenPreloadScanner::StartTagScanner {
                match(attributeName, referrerpolicyAttr) &&
                !attributeValue.isNull()) {
       m_referrerPolicySet = true;
-      SecurityPolicy::referrerPolicyFromString(attributeValue,
-                                               &m_referrerPolicy);
+      SecurityPolicy::referrerPolicyFromString(
+          attributeValue, DoNotSupportReferrerPolicyLegacyKeywords,
+          &m_referrerPolicy);
     }
   }
 
@@ -648,8 +650,9 @@ static void handleMetaReferrer(const String& attributeValue,
                                CSSPreloadScanner* cssScanner) {
   ReferrerPolicy metaReferrerPolicy = ReferrerPolicyDefault;
   if (!attributeValue.isEmpty() && !attributeValue.isNull() &&
-      SecurityPolicy::referrerPolicyFromStringWithLegacyKeywords(
-          attributeValue, &metaReferrerPolicy)) {
+      SecurityPolicy::referrerPolicyFromString(
+          attributeValue, SupportReferrerPolicyLegacyKeywords,
+          &metaReferrerPolicy)) {
     documentParameters->referrerPolicy = metaReferrerPolicy;
   }
   cssScanner->setReferrerPolicy(documentParameters->referrerPolicy);
@@ -859,7 +862,8 @@ void TokenPreloadScanner::updatePredictedBaseURL(const Token& token) {
           token.getAttributeItem(hrefAttr)) {
     KURL url(m_documentURL, stripLeadingAndTrailingHTMLSpaces(
                                 hrefAttribute->value8BitIfNecessary()));
-    m_predictedBaseElementURL = url.isValid() ? url.copy() : KURL();
+    m_predictedBaseElementURL =
+        url.isValid() && !url.protocolIsData() ? url.copy() : KURL();
   }
 }
 

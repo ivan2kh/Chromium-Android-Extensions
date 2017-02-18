@@ -41,7 +41,9 @@ class PingLoaderTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    Platform::current()->getURLLoaderMockFactory()->unregisterAllURLs();
+    Platform::current()
+        ->getURLLoaderMockFactory()
+        ->unregisterAllURLsAndClearMemoryCache();
   }
 
   void setDocumentURL(const KURL& url) {
@@ -55,7 +57,8 @@ class PingLoaderTest : public ::testing::Test {
 
   const ResourceRequest& pingAndGetRequest(const KURL& pingURL) {
     KURL destinationURL(ParsedURLString, "http://navigation.destination");
-    URLTestHelpers::registerMockedURLLoad(pingURL, "bar.html", "text/html");
+    URLTestHelpers::registerMockedURLLoad(
+        pingURL, testing::webTestDataPath("bar.html"), "text/html");
     PingLoader::sendLinkAuditPing(&m_pageHolder->frame(), pingURL,
                                   destinationURL);
     const ResourceRequest& pingRequest = m_client->pingRequest();
@@ -63,6 +66,9 @@ class PingLoaderTest : public ::testing::Test {
       EXPECT_EQ(destinationURL.getString(),
                 pingRequest.httpHeaderField("Ping-To"));
     }
+    // Serve the ping request, since it will otherwise bleed in to the next
+    // test, and once begun there is no way to cancel it directly.
+    Platform::current()->getURLLoaderMockFactory()->serveAsynchronousRequests();
     return pingRequest;
   }
 

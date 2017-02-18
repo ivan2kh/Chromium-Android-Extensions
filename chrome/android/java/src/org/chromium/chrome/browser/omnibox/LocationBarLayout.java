@@ -82,8 +82,8 @@ import org.chromium.chrome.browser.util.FeatureUtilities;
 import org.chromium.chrome.browser.util.KeyNavigationUtil;
 import org.chromium.chrome.browser.util.ViewUtils;
 import org.chromium.chrome.browser.widget.BottomSheet;
+import org.chromium.chrome.browser.widget.FadingBackgroundView;
 import org.chromium.chrome.browser.widget.TintedImageButton;
-import org.chromium.chrome.browser.widget.animation.CancelAwareAnimatorListener;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
@@ -91,7 +91,6 @@ import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.interpolators.BakedBezierInterpolator;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -103,15 +102,12 @@ import java.util.List;
  * This class represents the location bar where the user types in URLs and
  * search terms.
  */
-public class LocationBarLayout extends FrameLayout implements OnClickListener,
-        OnSuggestionsReceivedListener, LocationBar, FakeboxDelegate,
-        WindowAndroid.IntentCallback {
-
+public class LocationBarLayout extends FrameLayout
+        implements OnClickListener, OnSuggestionsReceivedListener, LocationBar, FakeboxDelegate,
+                   WindowAndroid.IntentCallback, FadingBackgroundView.FadingViewObserver {
     // Delay triggering the omnibox results upon key press to allow the location bar to repaint
     // with the new characters.
     private static final long OMNIBOX_SUGGESTION_START_DELAY_MS = 30;
-
-    private static final int OMNIBOX_CONTAINER_BACKGROUND_FADE_MS = 250;
 
     // Delay showing the geolocation snackbar when the omnibox is focused until the keyboard is
     // hopefully visible.
@@ -150,7 +146,7 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
     protected UrlBar mUrlBar;
 
     /** A handle to the bottom sheet for chrome home. */
-    private BottomSheet mBottomSheet;
+    protected BottomSheet mBottomSheet;
 
     private AutocompleteController mAutocomplete;
 
@@ -189,10 +185,7 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
     private Runnable mRequestSuggestions;
 
     private ViewGroup mOmniboxResultsContainer;
-    private View mFadingView;
-    private ObjectAnimator mOverlayFadeInAnimator;
-    private ObjectAnimator mOverlayFadeOutAnimator;
-    private Animator mOverlayAnimator;
+    protected FadingBackgroundView mFadingView;
 
     private boolean mSuggestionsShown;
     private boolean mUrlHasFocus;
@@ -414,15 +407,6 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
     public static final int BUTTON_TYPE_NAVIGATION_ICON = 2;
 
     /**
-     * @param outRect Populated with a {@link Rect} that represents the {@link Tab} specific content
-     *                of this {@link LocationBar}.
-     */
-    public void getContentRect(Rect outRect) {
-        outRect.set(getPaddingLeft(), getPaddingTop(), getWidth() - getPaddingRight(),
-                getHeight() - getPaddingBottom());
-    }
-
-    /**
      * A widget for showing a list of omnibox suggestions.
      */
     @VisibleForTesting
@@ -565,7 +549,9 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
             int decorHeight = getWindowDelegate().getDecorViewHeight();
             int availableViewportHeight = Math.min(mTempRect.height(), decorHeight);
             int availableListHeight = availableViewportHeight - anchorBottomRelativeToContent;
-            int desiredHeight = Math.min(availableListHeight, getIdealHeight());
+            // If the bottom sheet is used, the suggestions should consume all available space.
+            int desiredHeight = mBottomSheet != null
+                    ? availableListHeight : Math.min(availableListHeight, getIdealHeight());
             if (layoutParams.height != desiredHeight) {
                 layoutParams.height = desiredHeight;
                 updateLayout = true;
@@ -1893,10 +1879,6 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
         } else if (v == mMicButton) {
             RecordUserAction.record("MobileOmniboxVoiceSearch");
             startVoiceRecognition();
-        } else if (v == mFadingView) {
-            // This will only be triggered when no suggestion items are selected in the container.
-            setUrlBarFocus(false);
-            updateFadingBackgroundView(false);
         }
     }
 
@@ -2164,7 +2146,13 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
             LoadUrlParams loadUrlParams = new LoadUrlParams(url);
             loadUrlParams.setVerbatimHeaders(GeolocationHeader.getGeoHeader(url, currentTab));
             loadUrlParams.setTransitionType(transition | PageTransition.FROM_ADDRESS_BAR);
-            currentTab.loadUrl(loadUrlParams);
+
+            // If the bottom sheet exists, route the navigation through it instead of the tab.
+            if (mBottomSheet != null) {
+                mBottomSheet.loadUrl(loadUrlParams);
+            } else {
+                currentTab.loadUrl(loadUrlParams);
+            }
 
             setUrlToPageUrl();
             RecordUserAction.record("MobileOmniboxUse");
@@ -2226,14 +2214,10 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
         boolean currentlyVisible = mOmniboxResultsContainer.getVisibility() == VISIBLE;
         if (currentlyVisible == visible) return;
 
-        ChromeActivity activity = (ChromeActivity) mWindowAndroid.getActivity().get();
-
         if (visible) {
             mOmniboxResultsContainer.setVisibility(VISIBLE);
-            if (activity != null) activity.addViewObscuringAllTabs(mFadingView);
         } else {
             mOmniboxResultsContainer.setVisibility(INVISIBLE);
-            if (activity != null) activity.removeViewObscuringAllTabs(mFadingView);
         }
     }
 
@@ -2241,19 +2225,42 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
      * Initialize the fading background for when the omnibox is focused.
      */
     private void initFadingOverlayView() {
-        mFadingView = getRootView().findViewById(R.id.fading_focus_target);
-        mFadingView.setAlpha(0.0f);
-        mFadingView.setOnClickListener(this);
+        mFadingView =
+                (FadingBackgroundView) getRootView().findViewById(R.id.fading_focus_target);
+        mFadingView.addObserver(this);
+    }
+
+    @Override
+    public void onFadingViewClick() {
+        setUrlBarFocus(false);
+
+        // If the bottom sheet is used, it will control the fading view.
+        if (mBottomSheet == null) updateFadingBackgroundView(false);
+    }
+
+    @Override
+    public void onFadingViewVisibilityChanged(boolean visible) {
+        ChromeActivity activity = (ChromeActivity) mWindowAndroid.getActivity().get();
+
+        if (visible) {
+            if (activity != null) activity.addViewObscuringAllTabs(mFadingView);
+        } else {
+            if (activity != null) activity.removeViewObscuringAllTabs(mFadingView);
+            updateOmniboxResultsContainerVisibility(false);
+        }
     }
 
     /**
-     * Update the fading background view that shows when the omnibox is focused.
+     * Update the fading background view that shows when the omnibox is focused. If Chrome Home is
+     * enabled, this method is a no-op.
      * @param visible Whether the background should be made visible.
      */
     private void updateFadingBackgroundView(boolean visible) {
-        if (getToolbarDataProvider() == null) return;
-
         if (mFadingView == null) initFadingOverlayView();
+
+        // If Chrome Home is enabled (the bottom sheet is not null), it will be controlling the
+        // fading view, so block any updating here.
+        if (getToolbarDataProvider() == null || mBottomSheet != null) return;
 
         NewTabPage ntp = getToolbarDataProvider().getNewTabPageForCurrentTab();
         boolean locationBarShownInNTP = ntp != null && ntp.isLocationBarShownInNTP();
@@ -2261,63 +2268,10 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
         if (visible && !locationBarShownInNTP) {
             // If the location bar is shown in the NTP, the toolbar will eventually trigger a
             // fade in.
-            showFadingOverlay();
+            mFadingView.showFadingOverlay();
         } else {
-            hideFadingOverlay(!locationBarShownInNTP);
+            mFadingView.hideFadingOverlay(!locationBarShownInNTP);
         }
-    }
-
-    /**
-     * Trigger a fade in of the omnibox results background creating a new animation if necessary.
-     */
-    protected void showFadingOverlay() {
-        if (mOverlayFadeInAnimator == null) {
-            mOverlayFadeInAnimator = ObjectAnimator.ofFloat(mFadingView, ALPHA, 1f);
-            mOverlayFadeInAnimator.setDuration(OMNIBOX_CONTAINER_BACKGROUND_FADE_MS);
-            mOverlayFadeInAnimator.setInterpolator(
-                    BakedBezierInterpolator.FADE_IN_CURVE);
-        }
-
-        mFadingView.setVisibility(View.VISIBLE);
-        runFadeOverlayAnimation(mOverlayFadeInAnimator);
-    }
-
-    /**
-     * Trigger a fade out of the omnibox results background creating a new animation if necessary.
-     */
-    private void hideFadingOverlay(boolean fadeOut) {
-        if (mOverlayFadeOutAnimator == null) {
-            mOverlayFadeOutAnimator = ObjectAnimator.ofFloat(mFadingView, ALPHA, 0f);
-            mOverlayFadeOutAnimator.setDuration(OMNIBOX_CONTAINER_BACKGROUND_FADE_MS);
-            mOverlayFadeOutAnimator.setInterpolator(BakedBezierInterpolator.FADE_OUT_CURVE);
-            mOverlayFadeOutAnimator.addListener(new CancelAwareAnimatorListener() {
-                @Override
-                public void onEnd(Animator animator) {
-                    mFadingView.setVisibility(View.GONE);
-                    onFadingOverlayHidden();
-                }
-            });
-        }
-
-        runFadeOverlayAnimation(mOverlayFadeOutAnimator);
-        if (!fadeOut) mOverlayFadeOutAnimator.end();
-    }
-
-    /**
-     * A notification that the fading overlay view is completely hidden.
-     */
-    private void onFadingOverlayHidden() {
-        updateOmniboxResultsContainerVisibility(false);
-    }
-
-    private void runFadeOverlayAnimation(Animator fadeAnimation) {
-        if (mOverlayAnimator == fadeAnimation && mOverlayAnimator.isRunning()) {
-            return;
-        } else if (mOverlayAnimator != null) {
-            mOverlayAnimator.cancel();
-        }
-        mOverlayAnimator = fadeAnimation;
-        mOverlayAnimator.start();
     }
 
     @Override
@@ -2360,7 +2314,7 @@ public class LocationBarLayout extends FrameLayout implements OnClickListener,
      * Updates the display of the mic button.
      * @param urlFocusChangePercent The completeion percentage of the URL focus change animation.
      */
-    protected void updateMicButtonVisiblity(float urlFocusChangePercent) {
+    protected void updateMicButtonVisibility(float urlFocusChangePercent) {
         boolean visible = !shouldShowDeleteButton();
         boolean showMicButton = mVoiceSearchEnabled && visible
                 && (mUrlBar.hasFocus() || mUrlFocusChangeInProgress

@@ -17,7 +17,6 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/macros.h"
-#include "base/memory/scoped_vector.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_flattener.h"
@@ -57,9 +56,6 @@ class MetricsUploadScheduler;
 class MetricsServiceAccessor;
 class MetricsServiceClient;
 class MetricsStateManager;
-
-// Exposed for tests.
-extern const base::Feature kUploadSchedulerFeature;
 
 // See metrics_service.cc for a detailed description.
 class MetricsService : public base::HistogramFlattener {
@@ -383,7 +379,7 @@ class MetricsService : public base::HistogramFlattener {
   MetricsServiceClient* const client_;
 
   // Registered metrics providers.
-  ScopedVector<MetricsProvider> metrics_providers_;
+  std::vector<std::unique_ptr<MetricsProvider>> metrics_providers_;
 
   PrefService* local_state_;
 

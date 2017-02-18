@@ -134,6 +134,7 @@ enum MediaControlsShow {
   MediaControlsShowFullscreen,
   MediaControlsShowNoScript,
   MediaControlsShowNotShown,
+  MediaControlsShowDisabledSettings,
   MediaControlsShowMax
 };
 
@@ -173,7 +174,7 @@ void removeElementFromDocumentMap(HTMLMediaElement* element,
   auto it = map.find(document);
   DCHECK(it != map.end());
   WeakMediaElementSet* set = it->value;
-  set->remove(element);
+  set->erase(element);
   if (set->isEmpty())
     map.remove(it);
 }
@@ -293,11 +294,26 @@ bool isDocumentCrossOrigin(Document& document) {
   return frame && frame->isCrossOriginSubframe();
 }
 
+bool isDocumentWhitelisted(Document& document) {
+  DCHECK(document.settings());
+
+  const String& whitelistScope =
+      document.settings()->getMediaPlaybackGestureWhitelistScope();
+  if (whitelistScope.isNull() || whitelistScope.isEmpty())
+    return false;
+
+  return document.url().getString().startsWith(whitelistScope);
+}
+
 // Return true if and only if the document settings specifies media playback
 // requires user gesture.
 bool computeLockedPendingUserGesture(Document& document) {
   if (!document.settings())
     return false;
+
+  if (isDocumentWhitelisted(document)) {
+    return false;
+  }
 
   if (document.settings()->getCrossOriginMediaPlaybackRequiresUserGesture() &&
       isDocumentCrossOrigin(document)) {
@@ -357,6 +373,18 @@ bool HTMLMediaElement::mediaTracksEnabledInternally() {
          RuntimeEnabledFeatures::backgroundVideoTrackOptimizationEnabled();
 }
 
+void HTMLMediaElement::onMediaControlsEnabledChange(Document* document) {
+  auto it = documentToElementSetMap().find(document);
+  if (it == documentToElementSetMap().end())
+    return;
+  DCHECK(it->value);
+  WeakMediaElementSet& elements = *it->value;
+  for (const auto& element : elements) {
+    element->updateControlsVisibility();
+    element->mediaControls()->onMediaControlsEnabledChange();
+  }
+}
+
 HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName,
                                    Document& document)
     : HTMLElement(tagName, document),
@@ -412,7 +440,7 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName,
       m_playing(false),
       m_shouldDelayLoadEvent(false),
       m_haveFiredLoadedData(false),
-      m_autoplaying(true),
+      m_canAutoplay(true),
       m_muted(false),
       m_paused(true),
       m_seeking(false),
@@ -829,11 +857,9 @@ void HTMLMediaElement::invokeLoadAlgorithm() {
 
       // 4.6.2 - Take pending play promises and reject pending play promises
       // with the result and an "AbortError" DOMException.
-      if (!ScriptForbiddenScope::isScriptForbidden()) {
-        rejectPlayPromises(
-            AbortError,
-            "The play() request was interrupted by a new load request.");
-      }
+      rejectPlayPromises(
+          AbortError,
+          "The play() request was interrupted by a new load request.");
     }
 
     // 4.7 - If seeking is true, set it to false.
@@ -865,9 +891,9 @@ void HTMLMediaElement::invokeLoadAlgorithm() {
   // attribute.
   setPlaybackRate(defaultPlaybackRate());
 
-  // 8 - Set the error attribute to null and the autoplaying flag to true.
+  // 8 - Set the error attribute to null and the can autoplay flag to true.
   m_error = nullptr;
-  m_autoplaying = true;
+  m_canAutoplay = true;
 
   // 9 - Invoke the media element's resource selection algorithm.
   invokeResourceSelectionAlgorithm();
@@ -1753,7 +1779,7 @@ void HTMLMediaElement::setReadyState(ReadyState state) {
           m_paused = false;
           scheduleEvent(EventTypeNames::play);
           scheduleNotifyPlaying();
-          m_autoplaying = false;
+          m_canAutoplay = false;
         }
       } else {
         m_autoplayUmaHelper->recordCrossOriginAutoplayResult(
@@ -2100,7 +2126,7 @@ bool HTMLMediaElement::autoplay() const {
 bool HTMLMediaElement::shouldAutoplay() {
   if (document().isSandboxed(SandboxAutomaticFeatures))
     return false;
-  return m_autoplaying && m_paused && autoplay();
+  return m_canAutoplay && m_paused && autoplay();
 }
 
 String HTMLMediaElement::preload() const {
@@ -2249,6 +2275,11 @@ Nullable<ExceptionCode> HTMLMediaElement::play() {
   if (m_error && m_error->code() == MediaError::kMediaErrSrcNotSupported)
     return NotSupportedError;
 
+  if (m_autoplayVisibilityObserver) {
+    m_autoplayVisibilityObserver->stop();
+    m_autoplayVisibilityObserver = nullptr;
+  }
+
   playInternal();
 
   return nullptr;
@@ -2286,7 +2317,7 @@ void HTMLMediaElement::playInternal() {
     scheduleResolvePlayPromises();
   }
 
-  m_autoplaying = false;
+  m_canAutoplay = false;
 
   setIgnorePreloadNone();
   updatePlayState();
@@ -2301,6 +2332,11 @@ void HTMLMediaElement::pause() {
     webMediaPlayer()->setBufferingStrategy(
         WebMediaPlayer::BufferingStrategy::Aggressive);
 
+  if (m_autoplayVisibilityObserver) {
+    m_autoplayVisibilityObserver->stop();
+    m_autoplayVisibilityObserver = nullptr;
+  }
+
   pauseInternal();
 }
 
@@ -2310,7 +2346,7 @@ void HTMLMediaElement::pauseInternal() {
   if (m_networkState == kNetworkEmpty)
     invokeResourceSelectionAlgorithm();
 
-  m_autoplaying = false;
+  m_canAutoplay = false;
 
   if (!m_paused) {
     m_paused = true;
@@ -2363,6 +2399,13 @@ void HTMLMediaElement::setLoop(bool b) {
 
 bool HTMLMediaElement::shouldShowControls(
     const RecordMetricsBehavior recordMetrics) const {
+  Settings* settings = document().settings();
+  if (settings && !settings->getMediaControlsEnabled()) {
+    if (recordMetrics == RecordMetricsBehavior::DoRecord)
+      showControlsHistogram().count(MediaControlsShowDisabledSettings);
+    return false;
+  }
+
   if (fastHasAttribute(controlsAttr)) {
     if (recordMetrics == RecordMetricsBehavior::DoRecord)
       showControlsHistogram().count(MediaControlsShowAttribute);
@@ -3872,7 +3915,7 @@ bool HTMLMediaElement::isAutoplayAllowedPerSettings() const {
   if (!frame)
     return false;
   FrameLoaderClient* frameLoaderClient = frame->loader().client();
-  return frameLoaderClient && frameLoaderClient->allowAutoplay(false);
+  return frameLoaderClient && frameLoaderClient->allowAutoplay(true);
 }
 
 void HTMLMediaElement::setNetworkState(NetworkState state) {
@@ -4003,24 +4046,21 @@ EnumerationHistogram& HTMLMediaElement::showControlsHistogram() const {
 }
 
 void HTMLMediaElement::onVisibilityChangedForAutoplay(bool isVisible) {
-  if (!isVisible)
+  if (!isVisible) {
+    if (m_canAutoplay && autoplay()) {
+      pauseInternal();
+      m_canAutoplay = true;
+    }
     return;
+  }
 
   if (shouldAutoplay()) {
     m_paused = false;
     scheduleEvent(EventTypeNames::play);
     scheduleNotifyPlaying();
-    m_autoplaying = false;
 
     updatePlayState();
   }
-
-  // TODO(zqzhang): There's still flaky leak if onVisibilityChangedForAutoplay()
-  // is never called.  The leak comes from either ElementVisibilityObserver or
-  // IntersectionObserver. Should keep an eye on it.  See
-  // https://crbug.com/627539
-  m_autoplayVisibilityObserver->stop();
-  m_autoplayVisibilityObserver = nullptr;
 }
 
 void HTMLMediaElement::clearWeakMembers(Visitor* visitor) {

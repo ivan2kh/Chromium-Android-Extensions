@@ -7,10 +7,12 @@
 import logging
 
 from webkitpy.w3c.chromium_commit import ChromiumCommit
+from webkitpy.w3c.chromium_finder import absolute_chromium_dir
 
 
 WPT_DEST_NAME = 'wpt'
 CSS_DEST_NAME = 'csswg-test'
+WPT_GH_REPO_URL = 'git@github.com:w3c/web-platform-tests.git'
 
 # TODO(qyearsley): This directory should be able to be constructed with
 # WebKitFinder and WPT_DEST_NAME, plus the string "external".
@@ -19,6 +21,7 @@ CHROMIUM_WPT_DIR = 'third_party/WebKit/LayoutTests/external/wpt/'
 # Our mirrors of the official w3c repos, which we pull from.
 WPT_REPO_URL = 'https://chromium.googlesource.com/external/w3c/web-platform-tests.git'
 CSS_REPO_URL = 'https://chromium.googlesource.com/external/w3c/csswg-test.git'
+
 
 _log = logging.getLogger(__name__)
 
@@ -37,11 +40,15 @@ def exportable_commits_since(chromium_commit_hash, host, local_wpt):
         A list of ChromiumCommit objects for commits that are exportable after
         the given commit, in chronological order.
     """
-    chromium_repo_root = host.executive.run_command(['git', 'rev-parse', '--show-toplevel']).strip()
+    chromium_repo_root = host.executive.run_command([
+        'git', 'rev-parse', '--show-toplevel'
+    ], cwd=absolute_chromium_dir(host)).strip()
 
     wpt_path = chromium_repo_root + '/' + CHROMIUM_WPT_DIR
     commit_range = '{}..HEAD'.format(chromium_commit_hash)
-    commit_hashes = host.executive.run_command(['git', 'rev-list', commit_range, '--reverse', '--', wpt_path]).splitlines()
+    commit_hashes = host.executive.run_command([
+        'git', 'rev-list', commit_range, '--reverse', '--', wpt_path
+    ], cwd=absolute_chromium_dir(host)).splitlines()
     chromium_commits = [ChromiumCommit(host, sha=sha) for sha in commit_hashes]
     return [commit for commit in chromium_commits if is_exportable(commit, local_wpt)]
 

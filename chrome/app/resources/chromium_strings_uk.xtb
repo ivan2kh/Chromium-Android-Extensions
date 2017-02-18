@@ -61,6 +61,7 @@
 <translation id="2910007522516064972">Про &amp;Chromium</translation>
 <translation id="3032787606318309379">Додавання в Chromium...</translation>
 <translation id="3046695367536568084">Щоб користуватися додатками, потрібно ввійти в Chromium. Це дозволяє веб-переглядачу Chromium синхронізувати ваші додатки, закладки, історію, паролі й інші налаштування на різних пристроях.</translation>
+<translation id="3064346599913645280">Ви переглядаєте безпечну сторінку Chromium</translation>
 <translation id="3068515742935458733">Допоможіть покращити Chromium, надсилаючи звіти про аварійне завершення роботи та <ph name="UMA_LINK" /> в Google</translation>
 <translation id="3103660991484857065">Програмі встановлення не вдалося видобути архів. Завантажте Chromium ще раз.</translation>
 <translation id="3130323860337406239">Chromium використовує ваш мікрофон.</translation>
@@ -82,7 +83,6 @@
 <translation id="358997566136285270">Логотип Chromium</translation>
 <translation id="3645040538872234961">Дані веб-перегляду буде видалено з цього пристрою назавжди. Щоб відновити дані пізніше, увійдіть в обліковий запис Chromium як $2.</translation>
 <translation id="3738139272394829648">Пошук дотиком</translation>
-<translation id="3748537968684000502">Ви переглядаєте безпечну сторінку Chromium.</translation>
 <translation id="378917192836375108">Chromium дозволяє натиснути номер телефону в Інтернеті та зателефонувати за ним через Skype.</translation>
 <translation id="3848258323044014972"><ph name="PAGE_TITLE" /> – Chromium</translation>
 <translation id="3849925841547750267">На жаль, ваші налаштування Mozilla Firefox недоступні, коли цей веб-переглядач працює. Щоб імпортувати ці налаштування в Chromium, збережіть свою роботу і закрийте всі вікна Firefox. Потім натисніть "Продовжити".</translation>
@@ -136,6 +136,7 @@
 <translation id="5620765574781326016">Дізнавайтеся про теми на веб-сайтах, залишаючись на сторінці.</translation>
 <translation id="5634636535844844681">Для роботи Chromium потрібно мати ОС Windows 7 або новішої версії.</translation>
 <translation id="5680901439334282664">увійдіть в обліковий запис Chromium</translation>
+<translation id="5684733627009686897">Chromium – ваш веб-переглядач за умовчанням.</translation>
 <translation id="5698481217667032250">Вибрати цю мову для Chromium</translation>
 <translation id="5726838626470692954">Вашому адміністратору потрібно вилучити й знову додати вас у Chromium.</translation>
 <translation id="5768914737813585044">Вибрати цю мову для ОС Chromium</translation>

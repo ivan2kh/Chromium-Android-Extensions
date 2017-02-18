@@ -4,6 +4,7 @@
 
 #include "chrome/browser/android/vr_shell/vr_shell_gl.h"
 
+#include <limits>
 #include <utility>
 
 #include "base/android/jni_android.h"
@@ -34,7 +35,7 @@ namespace vr_shell {
 namespace {
 // TODO(mthiesse): If gvr::PlatformInfo().GetPosePredictionTime() is ever
 // exposed, use that instead (it defaults to 50ms on most platforms).
-static constexpr long kPredictionTimeWithoutVsyncNanos = 50000000;
+static constexpr int64_t kPredictionTimeWithoutVsyncNanos = 50000000;
 
 static constexpr float kZNear = 0.1f;
 static constexpr float kZFar = 1000.0f;
@@ -241,30 +242,38 @@ void VrShellGl::InitializeGl(gfx::AcceleratedWidget window) {
   content_texture_id_ = textures[1];
   ui_surface_texture_ = gl::SurfaceTexture::Create(ui_texture_id_);
   content_surface_texture_ = gl::SurfaceTexture::Create(content_texture_id_);
-  ui_surface_.reset(new gl::ScopedJavaSurface(ui_surface_texture_.get()));
-  content_surface_.reset(new gl::ScopedJavaSurface(
-      content_surface_texture_.get()));
+  CreateUiSurface();
+  CreateContentSurface();
   ui_surface_texture_->SetFrameAvailableCallback(base::Bind(
-        &VrShellGl::OnUIFrameAvailable, weak_ptr_factory_.GetWeakPtr()));
+      &VrShellGl::OnUIFrameAvailable, weak_ptr_factory_.GetWeakPtr()));
   content_surface_texture_->SetFrameAvailableCallback(base::Bind(
         &VrShellGl::OnContentFrameAvailable, weak_ptr_factory_.GetWeakPtr()));
-
   content_surface_texture_->SetDefaultBufferSize(
       content_tex_physical_size_.width, content_tex_physical_size_.height);
   ui_surface_texture_->SetDefaultBufferSize(ui_tex_physical_size_.width,
                                             ui_tex_physical_size_.height);
-
-  main_thread_task_runner_->PostTask(FROM_HERE, base::Bind(
-      &VrShell::SurfacesChanged, weak_vr_shell_,
-      content_surface_->j_surface().obj(),
-      ui_surface_->j_surface().obj()));
-
   InitializeRenderer();
 
   vsync_task_.Reset(base::Bind(&VrShellGl::OnVSync, base::Unretained(this)));
   OnVSync();
 
   ready_to_draw_ = true;
+}
+
+void VrShellGl::CreateContentSurface() {
+  content_surface_ =
+      base::MakeUnique<gl::ScopedJavaSurface>(content_surface_texture_.get());
+  main_thread_task_runner_->PostTask(
+      FROM_HERE, base::Bind(&VrShell::ContentSurfaceChanged, weak_vr_shell_,
+                            content_surface_->j_surface().obj()));
+}
+
+void VrShellGl::CreateUiSurface() {
+  ui_surface_ =
+      base::MakeUnique<gl::ScopedJavaSurface>(ui_surface_texture_.get());
+  main_thread_task_runner_->PostTask(
+      FROM_HERE, base::Bind(&VrShell::UiSurfaceChanged, weak_vr_shell_,
+                            ui_surface_->j_surface().obj()));
 }
 
 void VrShellGl::OnUIFrameAvailable() {
@@ -308,9 +317,9 @@ bool VrShellGl::GetPixelEncodedFrameIndex(uint16_t* frame_index) {
     last_frame_index_ = pixels[0];
     return true;
   }
-  VLOG(1) << "WebVR: reject decoded pose index " << (int)pixels[0]
-          << ", bad magic number " << (int)pixels[1] << ", "
-          << (int)pixels[2];
+  VLOG(1) << "WebVR: reject decoded pose index " << static_cast<int>(pixels[0])
+          << ", bad magic number " << static_cast<int>(pixels[1]) << ", "
+          << static_cast<int>(pixels[2]);
   return false;
 }
 
@@ -496,7 +505,6 @@ void VrShellGl::UpdateController(const gvr::Vec3f& forward_vector) {
   int pixel_x = 0;
   int pixel_y = 0;
   target_element_ = nullptr;
-  InputTarget input_target = InputTarget::NONE;
 
   for (const auto& plane : scene_->GetUiElements()) {
     if (!plane->IsHitTestable())
@@ -508,28 +516,46 @@ void VrShellGl::UpdateController(const gvr::Vec3f& forward_vector) {
 
     gvr::Vec3f rect_2d_point =
         MatrixVectorMul(plane->transform.from_world, plane_intersection_point);
-    if (distance_to_plane > 0 && distance_to_plane < closest_element_distance) {
-      float x = rect_2d_point.x + 0.5f;
-      float y = 0.5f - rect_2d_point.y;
-      bool is_inside = x >= 0.0f && x < 1.0f && y >= 0.0f && y < 1.0f;
-      if (!is_inside)
-        continue;
+    if (distance_to_plane < 0 ||
+        distance_to_plane >= closest_element_distance) {
+      continue;
+    }
 
-      closest_element_distance = distance_to_plane;
-      Rectf pixel_rect;
-      if (plane->content_quad) {
-        pixel_rect = {0, 0, content_tex_css_width_, content_tex_css_height_};
-      } else {
-        pixel_rect = {plane->copy_rect.x, plane->copy_rect.y,
-                      plane->copy_rect.width, plane->copy_rect.height};
-      }
-      pixel_x = pixel_rect.width * x + pixel_rect.x;
-      pixel_y = pixel_rect.height * y + pixel_rect.y;
+    float x = rect_2d_point.x + 0.5f;
+    float y = 0.5f - rect_2d_point.y;
+    bool is_inside = x >= 0.0f && x < 1.0f && y >= 0.0f && y < 1.0f;
+    if (!is_inside)
+      continue;
 
-      target_point_ = plane_intersection_point;
-      target_element_ = plane.get();
-      input_target = plane->content_quad ? InputTarget::CONTENT
-                                         : InputTarget::UI;
+    closest_element_distance = distance_to_plane;
+    Rectf pixel_rect;
+    if (plane->fill == Fill::CONTENT) {
+      pixel_rect = {0, 0, content_tex_css_width_, content_tex_css_height_};
+    } else {
+      pixel_rect = {plane->copy_rect.x, plane->copy_rect.y,
+                    plane->copy_rect.width, plane->copy_rect.height};
+    }
+    pixel_x = pixel_rect.width * x + pixel_rect.x;
+    pixel_y = pixel_rect.height * y + pixel_rect.y;
+
+    target_point_ = plane_intersection_point;
+    target_element_ = plane.get();
+  }
+
+  // Treat UI elements, which do not show web content, as NONE input
+  // targets since they cannot make use of the input anyway.
+  InputTarget input_target = InputTarget::NONE;
+  if (target_element_ != nullptr) {
+    switch (target_element_->fill) {
+      case Fill::CONTENT:
+        input_target = InputTarget::CONTENT;
+        break;
+      case Fill::SPRITE:
+        input_target = InputTarget::UI;
+        break;
+      default:
+        input_target = InputTarget::NONE;
+        break;
     }
   }
   SendEventsToTarget(input_target, pixel_x, pixel_y);
@@ -552,22 +578,37 @@ void VrShellGl::SendEventsToTarget(InputTarget input_target,
     gesture_list.push_back(std::move(event));
   }
 
-  for (const auto& gesture : gesture_list) {
+  for (auto& gesture : gesture_list) {
+    gesture->x = pixel_x;
+    gesture->y = pixel_y;
+    auto movableGesture = base::MakeUnique<WebGestureEvent>(*gesture);
+
     switch (gesture->type()) {
+      // Once the user starts scrolling send all the scroll events to this
+      // element until the scrolling stops.
       case WebInputEvent::GestureScrollBegin:
-      case WebInputEvent::GestureScrollUpdate:
+        current_scroll_target = input_target;
+        if (current_scroll_target != InputTarget::NONE) {
+          SendGesture(current_scroll_target, std::move(movableGesture));
+        }
+        break;
       case WebInputEvent::GestureScrollEnd:
+        if (current_scroll_target != InputTarget::NONE) {
+          SendGesture(current_scroll_target, std::move(movableGesture));
+        }
+        current_scroll_target = InputTarget::NONE;
+        break;
+      case WebInputEvent::GestureScrollUpdate:
       case WebInputEvent::GestureFlingCancel:
       case WebInputEvent::GestureFlingStart:
-        SendGesture(InputTarget::CONTENT,
-                    base::WrapUnique(new WebGestureEvent(*gesture)));
+        if (current_scroll_target != InputTarget::NONE) {
+          SendGesture(current_scroll_target, std::move(movableGesture));
+        }
         break;
       case WebInputEvent::GestureTapDown:
-        gesture->x = pixel_x;
-        gesture->y = pixel_y;
-        if (input_target != InputTarget::NONE)
-          SendGesture(input_target,
-                      base::WrapUnique(new WebGestureEvent(*gesture)));
+        if (input_target != InputTarget::NONE) {
+          SendGesture(input_target, std::move(movableGesture));
+        }
         break;
       case WebInputEvent::Undefined:
         break;
@@ -726,9 +767,9 @@ void VrShellGl::DrawVrShell(const gvr::Mat4f& head_pose,
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
 
-    glClearColor(BackgroundRenderer::kFogBrightness,
-                 BackgroundRenderer::kFogBrightness,
-                 BackgroundRenderer::kFogBrightness, 1.0f);
+    const Colorf& backgroundColor = scene_->GetBackgroundColor();
+    glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b,
+                 backgroundColor.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   }
   if (!world_elements.empty()) {
@@ -769,14 +810,20 @@ void VrShellGl::DrawUiView(const gvr::Mat4f* head_pose,
                            const gvr::Sizei& render_size,
                            int viewport_offset) {
   TRACE_EVENT0("gpu", "VrShellGl::DrawUiView");
+
+  gvr::Mat4f view_matrix;
+  if (head_pose) {
+    view_matrix = *head_pose;
+  } else {
+    SetIdentityM(view_matrix);
+  }
+  auto elementsInDrawOrder = GetElementsInDrawOrder(view_matrix, elements);
+
   for (auto eye : {GVR_LEFT_EYE, GVR_RIGHT_EYE}) {
     buffer_viewport_list_->GetBufferViewport(
         eye + viewport_offset, buffer_viewport_.get());
 
-    gvr::Mat4f view_matrix = gvr_api_->GetEyeFromHeadMatrix(eye);
-    if (head_pose != nullptr) {
-      view_matrix = MatrixMul(view_matrix, *head_pose);
-    }
+    view_matrix = MatrixMul(gvr_api_->GetEyeFromHeadMatrix(eye), view_matrix);
 
     gvr::Recti pixel_rect =
         CalculatePixelSpaceRect(render_size, buffer_viewport_->GetSourceUv());
@@ -789,11 +836,7 @@ void VrShellGl::DrawUiView(const gvr::Mat4f* head_pose,
             buffer_viewport_->GetSourceFov(), kZNear, kZFar),
         view_matrix);
 
-    if (!web_vr_mode_) {
-      // TODO(tiborg): Enable through the UI API.
-      // DrawBackground(render_matrix);
-    }
-    DrawElements(render_matrix, elements);
+    DrawElements(render_matrix, view_matrix, elementsInDrawOrder);
     if (head_pose != nullptr && !web_vr_mode_) {
       DrawCursor(render_matrix);
     }
@@ -801,27 +844,90 @@ void VrShellGl::DrawUiView(const gvr::Mat4f* head_pose,
 }
 
 void VrShellGl::DrawElements(
-    const gvr::Mat4f& render_matrix,
+    const gvr::Mat4f& view_proj_matrix,
+    const gvr::Mat4f& view_matrix,
     const std::vector<const ContentRectangle*>& elements) {
-  for (const auto& rect : elements) {
-    Rectf copy_rect;
-    jint texture_handle;
-    if (rect->content_quad) {
-      copy_rect = {0, 0, 1, 1};
-      texture_handle = content_texture_id_;
-    } else {
-      copy_rect.x = static_cast<float>(rect->copy_rect.x) / ui_tex_css_width_;
-      copy_rect.y = static_cast<float>(rect->copy_rect.y) / ui_tex_css_height_;
-      copy_rect.width = static_cast<float>(rect->copy_rect.width) /
-          ui_tex_css_width_;
-      copy_rect.height = static_cast<float>(rect->copy_rect.height) /
-          ui_tex_css_height_;
-      texture_handle = ui_texture_id_;
+  for (auto& rect : elements) {
+    gvr::Mat4f transform =
+        MatrixMul(view_proj_matrix, rect->transform.to_world);
+
+    switch (rect->fill) {
+      case Fill::SPRITE: {
+        Rectf copy_rect;
+        copy_rect.x = static_cast<float>(rect->copy_rect.x) / ui_tex_css_width_;
+        copy_rect.y =
+            static_cast<float>(rect->copy_rect.y) / ui_tex_css_height_;
+        copy_rect.width =
+            static_cast<float>(rect->copy_rect.width) / ui_tex_css_width_;
+        copy_rect.height =
+            static_cast<float>(rect->copy_rect.height) / ui_tex_css_height_;
+        jint texture_handle = ui_texture_id_;
+        vr_shell_renderer_->GetTexturedQuadRenderer()->AddQuad(
+            texture_handle, transform, copy_rect, rect->computed_opacity);
+        break;
+      }
+      case Fill::OPAQUE_GRADIENT: {
+        vr_shell_renderer_->GetTexturedQuadRenderer()->Flush();
+        vr_shell_renderer_->GetGradientQuadRenderer()->Draw(
+            transform, rect->edge_color, rect->center_color,
+            rect->computed_opacity);
+        break;
+      }
+      case Fill::GRID_GRADIENT: {
+        vr_shell_renderer_->GetTexturedQuadRenderer()->Flush();
+        vr_shell_renderer_->GetGradientGridRenderer()->Draw(
+            transform, rect->edge_color, rect->center_color,
+            rect->gridline_count, rect->computed_opacity);
+        break;
+      }
+      case Fill::CONTENT: {
+        Rectf copy_rect = {0, 0, 1, 1};
+        jint texture_handle = content_texture_id_;
+        vr_shell_renderer_->GetTexturedQuadRenderer()->AddQuad(
+            texture_handle, transform, copy_rect, rect->computed_opacity);
+        break;
+      }
+      default:
+        break;
     }
-    gvr::Mat4f transform = MatrixMul(render_matrix, rect->transform.to_world);
-    vr_shell_renderer_->GetTexturedQuadRenderer()->Draw(
-        texture_handle, transform, copy_rect, rect->computed_opacity);
   }
+
+  vr_shell_renderer_->GetTexturedQuadRenderer()->Flush();
+}
+
+std::vector<const ContentRectangle*> VrShellGl::GetElementsInDrawOrder(
+    const gvr::Mat4f& view_matrix,
+    const std::vector<const ContentRectangle*>& elements) {
+  typedef std::pair<float, const ContentRectangle*> DistanceElementPair;
+  std::vector<DistanceElementPair> zOrderedElementPairs;
+  zOrderedElementPairs.reserve(elements.size());
+
+  for (const auto& element : elements) {
+    // Distance is the abs(z) value in view space.
+    gvr::Vec3f element_position = GetTranslation(element->transform.to_world);
+    float distance =
+        std::fabs(MatrixVectorMul(view_matrix, element_position).z);
+    zOrderedElementPairs.push_back(std::make_pair(distance, element));
+  }
+
+  // Sort elements primarily based on their draw phase (lower draw phase first)
+  // and secondarily based on their distance (larger distance first).
+  std::sort(
+      zOrderedElementPairs.begin(), zOrderedElementPairs.end(),
+      [](const DistanceElementPair& first, const DistanceElementPair& second) {
+        if (first.second->draw_phase != second.second->draw_phase) {
+          return first.second->draw_phase < second.second->draw_phase;
+        } else {
+          return first.first > second.first;
+        }
+      });
+
+  std::vector<const ContentRectangle*> zOrderedElements;
+  zOrderedElements.reserve(elements.size());
+  for (auto distanceElementPair : zOrderedElementPairs) {
+    zOrderedElements.push_back(distanceElementPair.second);
+  }
+  return zOrderedElements;
 }
 
 void VrShellGl::DrawCursor(const gvr::Mat4f& render_matrix) {
@@ -909,10 +1015,6 @@ void VrShellGl::DrawWebVr() {
 
   glViewport(0, 0, render_size_primary_.width, render_size_primary_.height);
   vr_shell_renderer_->GetWebVrRenderer()->Draw(webvr_texture_id_);
-}
-
-void VrShellGl::DrawBackground(const gvr::Mat4f& render_matrix) {
-  vr_shell_renderer_->GetBackgroundRenderer()->Draw(render_matrix);
 }
 
 void VrShellGl::OnTriggerEvent() {
@@ -1023,7 +1125,7 @@ void VrShellGl::GetVSync(const GetVSyncCallback& callback) {
   SendVSync(pending_time_, callback);
 }
 
-void VrShellGl::UpdateVSyncInterval(long timebase_nanos,
+void VrShellGl::UpdateVSyncInterval(int64_t timebase_nanos,
                                     double interval_seconds) {
   vsync_timebase_ = base::TimeTicks();
   vsync_timebase_ += base::TimeDelta::FromMicroseconds(timebase_nanos / 1000);

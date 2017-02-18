@@ -12,16 +12,13 @@
 #include "V8TestInterface2.h"
 
 #include "bindings/core/v8/ExceptionState.h"
-#include "bindings/core/v8/GeneratedCodeHelper.h"
 #include "bindings/core/v8/ScriptState.h"
 #include "bindings/core/v8/ScriptValue.h"
 #include "bindings/core/v8/V8DOMConfiguration.h"
-#include "bindings/core/v8/V8GCController.h"
 #include "bindings/core/v8/V8Iterator.h"
 #include "bindings/core/v8/V8ObjectConstructor.h"
 #include "bindings/core/v8/V8TestInterfaceEmpty.h"
 #include "core/dom/Document.h"
-#include "core/dom/Element.h"
 #include "core/frame/LocalDOMWindow.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "wtf/GetPtr.h"
@@ -35,7 +32,7 @@ namespace blink {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-WrapperTypeInfo V8TestInterface2::wrapperTypeInfo = { gin::kEmbedderBlink, V8TestInterface2::domTemplate, V8TestInterface2::trace, V8TestInterface2::traceWrappers, nullptr, "TestInterface2", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::ObjectClassId, WrapperTypeInfo::InheritFromActiveScriptWrappable, WrapperTypeInfo::NotInheritFromEventTarget, WrapperTypeInfo::Dependent };
+WrapperTypeInfo V8TestInterface2::wrapperTypeInfo = { gin::kEmbedderBlink, V8TestInterface2::domTemplate, V8TestInterface2::trace, V8TestInterface2::traceWrappers, nullptr, "TestInterface2", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::ObjectClassId, WrapperTypeInfo::InheritFromActiveScriptWrappable, WrapperTypeInfo::Dependent };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -664,12 +661,21 @@ TestInterface2* V8TestInterface2::toImplWithTypeCheck(v8::Isolate* isolate, v8::
   return hasInstance(value, isolate) ? toImpl(v8::Local<v8::Object>::Cast(value)) : nullptr;
 }
 
-InstallTemplateFunction V8TestInterface2::installV8TestInterface2TemplateFunction = (InstallTemplateFunction)&V8TestInterface2::installV8TestInterface2Template;
+InstallTemplateFunction V8TestInterface2::installV8TestInterface2TemplateFunction =
+    &V8TestInterface2::installV8TestInterface2Template;
 
-void V8TestInterface2::updateWrapperTypeInfo(InstallTemplateFunction installTemplateFunction, PreparePrototypeAndInterfaceObjectFunction preparePrototypeAndInterfaceObjectFunction) {
-  V8TestInterface2::installV8TestInterface2TemplateFunction = installTemplateFunction;
-  if (preparePrototypeAndInterfaceObjectFunction)
-    V8TestInterface2::wrapperTypeInfo.preparePrototypeAndInterfaceObjectFunction = preparePrototypeAndInterfaceObjectFunction;
+void V8TestInterface2::updateWrapperTypeInfo(
+    InstallTemplateFunction installTemplateFunction,
+    InstallRuntimeEnabledFunction installRuntimeEnabledFunction,
+    PreparePrototypeAndInterfaceObjectFunction preparePrototypeAndInterfaceObjectFunction) {
+  ALLOW_UNUSED_LOCAL(installRuntimeEnabledFunction);
+
+  V8TestInterface2::installV8TestInterface2TemplateFunction =
+      installTemplateFunction;
+  if (preparePrototypeAndInterfaceObjectFunction) {
+    V8TestInterface2::wrapperTypeInfo.preparePrototypeAndInterfaceObjectFunction =
+        preparePrototypeAndInterfaceObjectFunction;
+  }
 }
 
 }  // namespace blink

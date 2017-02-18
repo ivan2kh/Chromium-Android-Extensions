@@ -138,8 +138,9 @@ void FeatureInfo::InitializeBasicState(const base::CommandLine* command_line) {
   feature_flags_.enable_shader_name_hashing =
       !command_line->HasSwitch(switches::kDisableShaderNameHashing);
 
-  feature_flags_.is_swiftshader =
-      (command_line->GetSwitchValueASCII(switches::kUseGL) == "swiftshader");
+  feature_flags_.is_swiftshader_for_webgl =
+      (command_line->GetSwitchValueASCII(switches::kUseGL) ==
+       gl::kGLImplementationSwiftShaderForWebGLName);
 
   // The shader translator is needed to translate from WebGL-conformant GLES SL
   // to normal GLES SL, enforce WebGL conformance, translate from GLES SL 1.0 to
@@ -700,7 +701,9 @@ void FeatureInfo::InitializeFeatures() {
   // fallback to an implementation that does not depend on glGetInteger64v on
   // ES2. Thus we can enable GL_EXT_disjoint_timer_query on ES2 contexts even
   // though it does not support glGetInteger64v due to a specification bug.
-  if (extensions.Contains("GL_EXT_disjoint_timer_query") ||
+  feature_flags_.ext_disjoint_timer_query =
+      extensions.Contains("GL_EXT_disjoint_timer_query");
+  if (feature_flags_.ext_disjoint_timer_query ||
       extensions.Contains("GL_ARB_timer_query") ||
       extensions.Contains("GL_EXT_timer_query")) {
     AddExtensionString("GL_EXT_disjoint_timer_query");
@@ -730,9 +733,6 @@ void FeatureInfo::InitializeFeatures() {
   bool enable_texture_half_float_linear = false;
   bool enable_ext_color_buffer_float = false;
 
-  // Do not expose EXT_color_buffer_float to WebGL 1.
-  const bool allow_ext_color_buffer_float =
-      context_type_ != CONTEXT_TYPE_WEBGL1;
   bool may_enable_chromium_color_buffer_float = false;
 
   // This extension allows a variety of floating point formats to be
@@ -833,8 +833,7 @@ void FeatureInfo::InitializeFeatures() {
 
     // For desktop systems, check to see if we support rendering to the full
     // range of formats supported by EXT_color_buffer_float
-    if (status_rgba == GL_FRAMEBUFFER_COMPLETE &&
-        allow_ext_color_buffer_float) {
+    if (status_rgba == GL_FRAMEBUFFER_COMPLETE && enable_es3) {
       bool full_float_support = true;
 
       glTexImage2D(GL_TEXTURE_2D, 0, GL_R16F, width, width, 0, GL_RED,
@@ -886,7 +885,7 @@ void FeatureInfo::InitializeFeatures() {
   }
 
   // Enable the GL_EXT_color_buffer_float extension for WebGL 2.0
-  if (enable_ext_color_buffer_float && allow_ext_color_buffer_float) {
+  if (enable_ext_color_buffer_float && enable_es3) {
     ext_color_buffer_float_available_ = true;
     if (!disallowed_features_.ext_color_buffer_float)
       EnableEXTColorBufferFloat();
@@ -899,8 +898,9 @@ void FeatureInfo::InitializeFeatures() {
         gl_version_info_->is_es3 ||
         gl_version_info_->is_desktop_core_profile;
     if (gl_version_info_->is_angle) {
-      ext_has_multisample |=
+      feature_flags_.angle_framebuffer_multisample =
           extensions.Contains("GL_ANGLE_framebuffer_multisample");
+      ext_has_multisample |= feature_flags_.angle_framebuffer_multisample;
     }
     feature_flags_.use_core_framebuffer_multisample =
         gl_version_info_->is_es3 || gl_version_info_->is_desktop_core_profile;
@@ -1155,14 +1155,17 @@ void FeatureInfo::InitializeFeatures() {
     validators_.vertex_attribute.AddValue(GL_VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE);
   }
 
-  bool vendor_agnostic_draw_buffers =
+  bool have_es2_draw_buffers_vendor_agnostic =
+      gl_version_info_->is_desktop_core_profile ||
       extensions.Contains("GL_ARB_draw_buffers") ||
       extensions.Contains("GL_EXT_draw_buffers");
-  if (!workarounds_.disable_ext_draw_buffers &&
-      (vendor_agnostic_draw_buffers ||
-       (extensions.Contains("GL_NV_draw_buffers") &&
-        gl_version_info_->is_es3) ||
-       gl_version_info_->is_desktop_core_profile)) {
+  bool can_emulate_es2_draw_buffers_on_es3_nv =
+      gl_version_info_->is_es3 && extensions.Contains("GL_NV_draw_buffers");
+  bool have_es2_draw_buffers = !workarounds_.disable_ext_draw_buffers &&
+                               IsWebGL1OrES2Context() &&
+                               (have_es2_draw_buffers_vendor_agnostic ||
+                                can_emulate_es2_draw_buffers_on_es3_nv);
+  if (have_es2_draw_buffers) {
     AddExtensionString("GL_EXT_draw_buffers");
     feature_flags_.ext_draw_buffers = true;
 
@@ -1174,8 +1177,11 @@ void FeatureInfo::InitializeFeatures() {
     // into multiple gl_FragData values, which is not by default possible in
     // ESSL 100 with core GLES 3.0. For more information, see the
     // NV_draw_buffers specification.
-    feature_flags_.nv_draw_buffers = !vendor_agnostic_draw_buffers;
+    feature_flags_.nv_draw_buffers = can_emulate_es2_draw_buffers_on_es3_nv &&
+                                     !have_es2_draw_buffers_vendor_agnostic;
+  }
 
+  if (IsWebGL2OrES3Context() || have_es2_draw_buffers) {
     GLint max_color_attachments = 0;
     glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS_EXT, &max_color_attachments);
     for (GLenum i = GL_COLOR_ATTACHMENT1_EXT;
@@ -1404,6 +1410,10 @@ void FeatureInfo::InitializeFeatures() {
       extensions.Contains("GL_CHROMIUM_bind_generates_resource");
   feature_flags_.angle_webgl_compatibility =
       extensions.Contains("GL_ANGLE_webgl_compatibility");
+  feature_flags_.chromium_copy_texture =
+      extensions.Contains("GL_CHROMIUM_copy_texture");
+  feature_flags_.chromium_copy_compressed_texture =
+      extensions.Contains("GL_CHROMIUM_copy_compressed_texture");
 }
 
 bool FeatureInfo::IsES3Capable() const {

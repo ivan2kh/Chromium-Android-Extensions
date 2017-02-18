@@ -53,7 +53,8 @@ SDK.ConsoleModel = class extends SDK.SDKModel {
         this._logAgent.startViolationsReport([
           {name: 'longTask', threshold: 200}, {name: 'longLayout', threshold: 30},
           {name: 'blockedEvent', threshold: 100}, {name: 'blockedParser', threshold: -1},
-          {name: 'handler', threshold: 150}, {name: 'recurringHandler', threshold: 50}
+          {name: 'handler', threshold: 150}, {name: 'recurringHandler', threshold: 50},
+          {name: 'discouragedAPIUse', threshold: -1}
         ]);
       }
     }
@@ -123,9 +124,6 @@ SDK.ConsoleModel = class extends SDK.SDKModel {
    * @param {!SDK.ConsoleMessage} msg
    */
   addMessage(msg) {
-    if (this._isBlacklisted(msg))
-      return;
-
     if (msg.source === SDK.ConsoleMessage.MessageSource.Worker && msg.target().subTargetsManager &&
         msg.target().subTargetsManager.targetForId(msg.workerId))
       return;
@@ -166,28 +164,6 @@ SDK.ConsoleModel = class extends SDK.SDKModel {
         this._errors++;
         break;
     }
-  }
-
-  /**
-   * @param {!SDK.ConsoleMessage} msg
-   * @return {boolean}
-   */
-  _isBlacklisted(msg) {
-    if (msg.source !== SDK.ConsoleMessage.MessageSource.Network ||
-        msg.level !== SDK.ConsoleMessage.MessageLevel.Error || !msg.url || !msg.url.startsWith('chrome-extension'))
-      return false;
-
-    // ignore Chromecast's cast_sender spam
-    if (msg.url.includes('://boadgeojelhgndaghljhdicfkmllpafd') ||
-        msg.url.includes('://dliochdbjfkdbacpmhlcpmleaejidimm') ||
-        msg.url.includes('://pkedcjkdefgpdelpbcmbmeomcjbeemfm') ||
-        msg.url.includes('://fjhoaacokmgbjemoflkofnenfaiekifl') ||
-        msg.url.includes('://fmfcbgogabcbclcofgocippekhfcmgfj') ||
-        msg.url.includes('://enhhojjnijigcajfphajepfemndkmdlo') ||
-        msg.url.includes('://ekpaaapppgpmolpcldedioblbkmijaca'))
-      return true;
-
-    return false;
   }
 
   /**
@@ -439,7 +415,7 @@ SDK.ConsoleMessage = class {
     return (this.target() === msg.target()) && (this.source === msg.source) && (this.type === msg.type) &&
         (this.level === msg.level) && (this.line === msg.line) && (this.url === msg.url) &&
         (this.messageText === msg.messageText) && (this.request === msg.request) &&
-        (this.executionContextId === msg.executionContextId) && (this.scriptId === msg.scriptId);
+        (this.executionContextId === msg.executionContextId);
   }
 
   /**
