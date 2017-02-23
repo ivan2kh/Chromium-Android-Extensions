@@ -141,7 +141,7 @@ public class SelectFileDialog
         }
 
         if (missingPermissions.isEmpty()) {
-            launchSelectFileIntent();
+            launchSelectFileIntent2();
         } else {
             window.requestPermissions(
                     missingPermissions.toArray(new String[missingPermissions.size()]), this);
@@ -158,6 +158,16 @@ public class SelectFileDialog
             new GetCameraIntentTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         } else {
             launchSelectFileWithCameraIntent(hasCameraPermission, null);
+        }
+    }
+
+    private void launchSelectFileIntent2() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, mFileTypes.toArray(new String[0]));
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        if (!mWindowAndroid.showIntent(intent, this, R.string.low_memory_error)) {
+            onFileNotSelected();
         }
     }
 
@@ -375,7 +385,7 @@ public class SelectFileDialog
                 return;
             }
         }
-        launchSelectFileIntent();
+        launchSelectFileIntent2();
     }
 
     private void onFileNotSelected() {

@@ -732,10 +732,14 @@ ExtensionFunction::ResponseAction DeveloperPrivateLoadUnpackedFunction::Run() {
       developer::LoadUnpacked::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
 
+  ui::SelectFileDialog::FileTypeInfo file_type_info;
+  file_type_info.extensions.resize(1);
+  file_type_info.extensions[0].push_back(FILE_PATH_LITERAL("json"));
+
   if (!ShowPicker(
-           ui::SelectFileDialog::SELECT_FOLDER,
+           ui::SelectFileDialog::SELECT_OPEN_FILE,
            l10n_util::GetStringUTF16(IDS_EXTENSION_LOAD_FROM_DIRECTORY),
-           ui::SelectFileDialog::FileTypeInfo(),
+           file_type_info,/*ui::SelectFileDialog::FileTypeInfo(),*/
            0 /* file_type_index */)) {
     return RespondNow(Error(kCouldNotShowSelectFileDialogError));
   }
@@ -749,7 +753,9 @@ ExtensionFunction::ResponseAction DeveloperPrivateLoadUnpackedFunction::Run() {
 }
 
 void DeveloperPrivateLoadUnpackedFunction::FileSelected(
-    const base::FilePath& path) {
+    const base::FilePath& path2) {
+  LOG(INFO)<<"DeveloperPrivateLoadUnpackedFunction::FileSelected "<<path2.DirName().value();
+  base::FilePath path = path2.DirName();
   scoped_refptr<UnpackedInstaller> installer(
       UnpackedInstaller::Create(GetExtensionService(browser_context())));
   installer->set_be_noisy_on_failure(!fail_quietly_);
