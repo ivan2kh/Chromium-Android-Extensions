@@ -1103,8 +1103,6 @@ static_library("extensions") {
     sources += [
       "api/tabs/tabs_api_android.cc",
 
-      "extension_tab_util_android.cc",
-
       "display_info_provider_android.cc",
 #      "display_info_provider_android.h",
 
@@ -1118,8 +1116,6 @@ static_library("extensions") {
       "api/tabs/tabs_windows_api.h",
       "api/tabs/tabs_event_router.cc",
       "api/tabs/tabs_event_router.h",
-
-      "extension_tab_util.cc",
 
       # "api/tabs/app_base_window.cc",
       # "api/tabs/app_base_window.h",

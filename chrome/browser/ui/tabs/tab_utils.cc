@@ -9,7 +9,7 @@
 #include "base/command_line.h"
 #include "base/strings/string16.h"
 #include "build/build_config.h"
-#include "chrome/app/vector_icons/vector_icons.h"
+//#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/themes/theme_properties.h"
@@ -174,7 +174,7 @@ TabAlertState GetTabAlertStateForContents(content::WebContents* contents) {
 
   return TabAlertState::NONE;
 }
-
+/*
 gfx::Image GetTabAlertIndicatorImage(TabAlertState alert_state,
                                      SkColor button_color) {
   const gfx::VectorIcon* icon = nullptr;
@@ -203,7 +203,7 @@ gfx::Image GetTabAlertIndicatorImage(TabAlertState alert_state,
   DCHECK(icon);
   return gfx::Image(gfx::CreateVectorIcon(*icon, 16, button_color));
 }
-
+*/
 gfx::Image GetTabAlertIndicatorAffordanceImage(TabAlertState alert_state,
                                                SkColor button_color) {
   switch (alert_state) {

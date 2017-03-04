@@ -1207,6 +1207,15 @@ split_static_library("ui") {
       "browser_finder.cc",
       "browser_finder.h",
 
+      "tabs/tab_utils.cc",
+      "tabs/tab_utils.h",
+
+      "browser_navigator.cc",
+      "browser_navigator.h",
+
+#      "browser_commands.cc",
+#      "browser_commands.h",
+
       "global_error/global_error.cc",
       "global_error/global_error.h",
       "global_error/global_error_bubble_view_base.h",

@@ -544,7 +544,11 @@ void OpenCurrentURL(Browser* browser) {
     browser->instant_controller()->OpenInstant(open_disposition, url);
   }
 
+#if BUILDFLAG(ENABLE_EXTENSIONS) && defined(OS_ANDROID)
+  NavigateParams params(browser->profile(), url, page_transition);
+#else
   NavigateParams params(browser, url, page_transition);
+#endif
   params.disposition = open_disposition;
   // Use ADD_INHERIT_OPENER so that all pages opened by the omnibox at least
   // inherit the opener. In some cases the tabstrip will determine the group

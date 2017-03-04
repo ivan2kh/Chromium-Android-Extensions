@@ -156,6 +156,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import org.chromium.chrome.browser.extensions.ExtensionsBridge;
+
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
  * and associated classes.
@@ -1787,6 +1789,8 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
                 builder.setView(DistilledPagePrefsView.create(this));
                 builder.show();
             }
+        } if (id == R.id.extensions_menu_id) {
+            ExtensionsBridge.runExtension(currentTab);
         } else if (id == R.id.help_id) {
             startHelpAndFeedback(currentTab, "MobileMenuFeedback");
         } else {

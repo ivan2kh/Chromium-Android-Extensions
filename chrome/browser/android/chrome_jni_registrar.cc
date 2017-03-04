@@ -44,6 +44,7 @@
 #include "chrome/browser/android/download/download_controller.h"
 #include "chrome/browser/android/download/download_manager_service.h"
 #include "chrome/browser/android/download/ui/thumbnail_provider.h"
+#include "chrome/browser/android/extensions/extensions_bridge_android.h"
 #include "chrome/browser/android/favicon_helper.h"
 #include "chrome/browser/android/feature_utilities.h"
 #include "chrome/browser/android/feedback/connectivity_checker.h"
@@ -286,6 +287,7 @@ static base::android::RegistrationMethod kChromeRegisteredMethods[] = {
     {"DownloadController", DownloadController::RegisterDownloadController},
     {"DownloadManagerService",
      DownloadManagerService::RegisterDownloadManagerService},
+    {"ExtensionsBridgeAndroid", RegisterExtensionsBridgeAndroid},
     {"ExternalDataUseObserverBridge",
      chrome::android::RegisterExternalDataUseObserver},
     {"ExternalPrerenderRequestHandler",

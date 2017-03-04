@@ -58,7 +58,7 @@
 using content::GlobalRequestID;
 using content::NavigationController;
 using content::WebContents;
-
+/*
 class BrowserNavigatorWebContentsAdoption {
  public:
   static void AttachTabHelpers(content::WebContents* contents) {
@@ -402,10 +402,10 @@ bool SwapInPrerender(const GURL& url, chrome::NavigateParams* params) {
 }
 
 }  // namespace
-
+*/
 
 namespace chrome {
-
+/*
 void Navigate(NavigateParams* params) {
   Browser* source_browser = params->browser;
   if (source_browser)
@@ -615,7 +615,7 @@ void Navigate(NavigateParams* params) {
         content::Details<WebContents>(params->target_contents));
   }
 }
-
+*/
 bool IsURLAllowedInIncognito(const GURL& url,
                              content::BrowserContext* browser_context) {
   if (url.scheme() == content::kViewSourceScheme) {
