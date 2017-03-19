@@ -571,8 +571,8 @@ void WebURLLoaderImpl::Context::Start(const WebURLRequest& request,
       ConvertWebKitPriorityToNetPriority(request.getPriority());
   resource_request->appcache_host_id = request.appCacheHostID();
   resource_request->should_reset_appcache = request.shouldResetAppCache();
-  resource_request->skip_service_worker =
-      GetSkipServiceWorkerForWebURLRequest(request);
+  resource_request->service_worker_mode =
+      GetServiceWorkerModeForWebURLRequest(request);
   resource_request->fetch_request_mode =
       GetFetchRequestModeForWebURLRequest(request);
   resource_request->fetch_credentials_mode =
@@ -667,8 +667,8 @@ bool WebURLLoaderImpl::Context::OnReceivedRedirect(
   WebURLRequest new_request = PopulateURLRequestForRedirect(
       request_, redirect_info,
       info.was_fetched_via_service_worker
-          ? blink::WebURLRequest::SkipServiceWorker::None
-          : blink::WebURLRequest::SkipServiceWorker::All);
+          ? blink::WebURLRequest::ServiceWorkerMode::All
+          : blink::WebURLRequest::ServiceWorkerMode::None);
 
   bool follow = client_->willFollowRedirect(new_request, response);
   if (!follow) {
@@ -710,28 +710,21 @@ void WebURLLoaderImpl::Context::OnReceivedResponse(
         stream_override_->response.encoded_data_length -
         initial_info.encoded_data_length;
     info = stream_override_->response;
+
+    // Replay the redirects that happened during navigation.
+    DCHECK_EQ(stream_override_->redirect_responses.size(),
+              stream_override_->redirect_infos.size());
+    for (size_t i = 0; i < stream_override_->redirect_responses.size(); ++i) {
+      bool result = OnReceivedRedirect(stream_override_->redirect_infos[i],
+                                       stream_override_->redirect_responses[i]);
+      if (!result)
+        return;
+    }
   }
 
   WebURLResponse response;
   GURL url(request_.url());
   PopulateURLResponse(url, info, &response, request_.reportRawHeaders());
-
-  if (stream_override_.get()) {
-    CHECK(IsBrowserSideNavigationEnabled());
-    DCHECK(stream_override_->redirect_responses.size() ==
-           stream_override_->redirects.size());
-    for (size_t i = 0; i < stream_override_->redirects.size(); ++i) {
-      WebURLResponse previous_response;
-      // TODO(arthursonzogni) Once Devtool is supported by PlzNavigate, the
-      // |report_raw_header| argument must be checked.
-      WebURLLoaderImpl::PopulateURLResponse(
-          stream_override_->redirects[i],
-          stream_override_->redirect_responses[i],
-          &previous_response,
-          request_.reportRawHeaders());
-      response.appendRedirectResponse(previous_response);
-    }
-  }
 
   bool show_raw_listing = false;
   if (info.mime_type == "text/vnd.chromium.ftp-dir") {
@@ -933,9 +926,12 @@ bool WebURLLoaderImpl::Context::CanHandleDataURLRequestLocally() const {
   // For compatibility reasons on Android we need to expose top-level data://
   // to the browser. In tests resource_dispatcher_ can be null, and test pages
   // need to be loaded locally.
+  // For PlzNavigate, navigation requests were already checked in the browser.
   if (resource_dispatcher_ &&
-      request_.getFrameType() == WebURLRequest::FrameTypeTopLevel)
-    return false;
+      request_.getFrameType() == WebURLRequest::FrameTypeTopLevel) {
+    if (!IsBrowserSideNavigationEnabled())
+      return false;
+  }
 #endif
 
   if (request_.getFrameType() != WebURLRequest::FrameTypeTopLevel &&
@@ -1154,10 +1150,6 @@ void WebURLLoaderImpl::PopulateURLResponse(const GURL& url,
   response->setHTTPStatusCode(headers->response_code());
   response->setHTTPStatusText(WebString::fromLatin1(headers->GetStatusText()));
 
-  Time time_val;
-  if (headers->GetLastModifiedValue(&time_val))
-    response->setLastModifiedDate(time_val.ToDoubleT());
-
   // Build up the header map.
   size_t iter = 0;
   std::string name;
@@ -1171,7 +1163,7 @@ void WebURLLoaderImpl::PopulateURLResponse(const GURL& url,
 WebURLRequest WebURLLoaderImpl::PopulateURLRequestForRedirect(
     const blink::WebURLRequest& request,
     const net::RedirectInfo& redirect_info,
-    blink::WebURLRequest::SkipServiceWorker skip_service_worker) {
+    blink::WebURLRequest::ServiceWorkerMode service_worker_mode) {
   // TODO(darin): We lack sufficient information to construct the actual
   // request that resulted from the redirect.
   WebURLRequest new_request(redirect_info.new_url);
@@ -1181,7 +1173,7 @@ WebURLRequest WebURLLoaderImpl::PopulateURLRequestForRedirect(
   new_request.setUseStreamOnResponse(request.useStreamOnResponse());
   new_request.setRequestContext(request.getRequestContext());
   new_request.setFrameType(request.getFrameType());
-  new_request.setSkipServiceWorker(skip_service_worker);
+  new_request.setServiceWorkerMode(service_worker_mode);
   new_request.setShouldResetAppCache(request.shouldResetAppCache());
   new_request.setFetchRequestMode(request.getFetchRequestMode());
   new_request.setFetchCredentialsMode(request.getFetchCredentialsMode());
@@ -1195,6 +1187,10 @@ WebURLRequest WebURLLoaderImpl::PopulateURLRequestForRedirect(
   new_request.setHTTPMethod(WebString::fromUTF8(redirect_info.new_method));
   if (redirect_info.new_method == old_method)
     new_request.setHTTPBody(request.httpBody());
+
+  new_request.setCheckForBrowserSideNavigation(
+      request.checkForBrowserSideNavigation());
+
   return new_request;
 }
 

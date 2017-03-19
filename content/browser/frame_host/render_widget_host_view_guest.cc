@@ -84,7 +84,8 @@ RenderWidgetHostViewGuest::RenderWidgetHostViewGuest(
     : RenderWidgetHostViewChildFrame(widget_host),
       // |guest| is NULL during test.
       guest_(guest ? guest->AsWeakPtr() : base::WeakPtr<BrowserPluginGuest>()),
-      platform_view_(platform_view) {
+      platform_view_(platform_view),
+      should_forward_text_selection_(false) {
   gfx::NativeView view = GetNativeView();
   if (view)
     UpdateScreenInfo(view);
@@ -239,10 +240,11 @@ void RenderWidgetHostViewGuest::RenderProcessGone(
 }
 
 void RenderWidgetHostViewGuest::Destroy() {
-  RenderWidgetHostViewChildFrame::Destroy();
-
   if (platform_view_)  // The platform view might have been destroyed already.
     platform_view_->Destroy();
+
+  // RenderWidgetHostViewChildFrame::Destroy destroys this object.
+  RenderWidgetHostViewChildFrame::Destroy();
 }
 
 gfx::Size RenderWidgetHostViewGuest::GetPhysicalBackingSize() const {
@@ -269,14 +271,6 @@ void RenderWidgetHostViewGuest::SetTooltipText(
     const base::string16& tooltip_text) {
   if (guest_)
     guest_->SetTooltipText(tooltip_text);
-}
-
-bool RenderWidgetHostViewGuest::ShouldCreateNewSurfaceId(
-    uint32_t compositor_frame_sink_id,
-    const cc::CompositorFrame& frame) {
-  return (guest_ && guest_->has_attached_since_surface_set()) ||
-         RenderWidgetHostViewChildFrame::ShouldCreateNewSurfaceId(
-             compositor_frame_sink_id, frame);
 }
 
 void RenderWidgetHostViewGuest::SendSurfaceInfoToEmbedderImpl(
@@ -379,6 +373,9 @@ void RenderWidgetHostViewGuest::TextInputStateChanged(
     return;
   // Forward the information to embedding RWHV.
   rwhv->TextInputStateChanged(params);
+
+  should_forward_text_selection_ =
+      (params.type != ui::TEXT_INPUT_TYPE_NONE) && guest_ && guest_->focused();
 }
 
 void RenderWidgetHostViewGuest::ImeCancelComposition() {
@@ -416,7 +413,11 @@ void RenderWidgetHostViewGuest::ImeCompositionRangeChanged(
 void RenderWidgetHostViewGuest::SelectionChanged(const base::string16& text,
                                                  size_t offset,
                                                  const gfx::Range& range) {
-  platform_view_->SelectionChanged(text, offset, range);
+  RenderWidgetHostViewBase* view = should_forward_text_selection_
+                                       ? GetOwnerRenderWidgetHostView()
+                                       : platform_view_.get();
+  if (view)
+    view->SelectionChanged(text, offset, range);
 }
 
 void RenderWidgetHostViewGuest::SelectionBoundsChanged(
@@ -643,6 +644,10 @@ void RenderWidgetHostViewGuest::OnHandleInputEvent(
     host_->ForwardGestureEvent(gesture_event);
     return;
   }
+}
+
+bool RenderWidgetHostViewGuest::HasEmbedderChanged() {
+  return guest_ && guest_->has_attached_since_surface_set();
 }
 
 }  // namespace content

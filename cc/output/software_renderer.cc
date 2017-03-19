@@ -7,10 +7,10 @@
 #include "base/memory/ptr_util.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/base/math_util.h"
+#include "cc/base/render_surface_filters.h"
 #include "cc/output/copy_output_request.h"
 #include "cc/output/output_surface.h"
 #include "cc/output/output_surface_frame.h"
-#include "cc/output/render_surface_filters.h"
 #include "cc/output/renderer_settings.h"
 #include "cc/output/software_output_device.h"
 #include "cc/quads/debug_border_draw_quad.h"
@@ -150,7 +150,7 @@ void SoftwareRenderer::SetClipRect(const gfx::Rect& rect) {
   current_canvas_->resetMatrix();
   // TODO(fmalita) stop using kReplace (see crbug.com/673851)
   current_canvas_->clipRect(gfx::RectToSkRect(rect),
-                            SkClipOp::kReplace_private_internal_do_not_use);
+                            SkClipOp::kReplace_deprecated);
   current_canvas_->setMatrix(current_matrix);
 }
 
@@ -336,6 +336,11 @@ void SoftwareRenderer::DrawPictureQuad(const PictureDrawQuad* quad) {
 
   TRACE_EVENT0("cc", "SoftwareRenderer::DrawPictureQuad");
 
+  // TODO(ccameron): Determine a color space strategy for software rendering.
+  gfx::ColorSpace canvas_color_space;
+  if (settings_->enable_color_correct_rendering)
+    canvas_color_space = gfx::ColorSpace::CreateSRGB();
+
   RasterSource::PlaybackSettings playback_settings;
   playback_settings.playback_to_shared_canvas = true;
   // Indicates whether content rasterization should happen through an
@@ -356,12 +361,12 @@ void SoftwareRenderer::DrawPictureQuad(const PictureDrawQuad* quad) {
                                               quad->shared_quad_state->opacity,
                                               disable_image_filtering);
     quad->raster_source->PlaybackToCanvas(
-        &filtered_canvas, quad->content_rect, quad->content_rect,
-        quad->contents_scale, playback_settings);
+        &filtered_canvas, canvas_color_space, quad->content_rect,
+        quad->content_rect, quad->contents_scale, playback_settings);
   } else {
     quad->raster_source->PlaybackToCanvas(
-        current_canvas_, quad->content_rect, quad->content_rect,
-        quad->contents_scale, playback_settings);
+        current_canvas_, canvas_color_space, quad->content_rect,
+        quad->content_rect, quad->contents_scale, playback_settings);
   }
 }
 
@@ -460,7 +465,11 @@ void SoftwareRenderer::DrawRenderPassQuad(const RenderPassDrawQuad* quad) {
   SkRect dest_visible_rect = gfx::RectFToSkRect(
       MathUtil::ScaleRectProportional(QuadVertexRect(), gfx::RectF(quad->rect),
                                       gfx::RectF(quad->visible_rect)));
-  SkRect content_rect = SkRect::MakeWH(quad->rect.width(), quad->rect.height());
+  // TODO(sunxd): make this never be empty.
+  SkRect content_rect =
+      quad->tex_coord_rect.IsEmpty()
+          ? SkRect::MakeWH(quad->rect.width(), quad->rect.height())
+          : RectFToSkRect(quad->tex_coord_rect);
 
   const SkBitmap* content = lock.sk_bitmap();
 
@@ -516,10 +525,9 @@ void SoftwareRenderer::DrawRenderPassQuad(const RenderPassDrawQuad* quad) {
     const SkBitmap* mask = mask_lock->sk_bitmap();
 
     // Scale normalized uv rect into absolute texel coordinates.
-    SkRect mask_rect =
-        gfx::RectFToSkRect(gfx::ScaleRect(quad->MaskUVRect(),
-                                          quad->mask_texture_size.width(),
-                                          quad->mask_texture_size.height()));
+    SkRect mask_rect = gfx::RectFToSkRect(
+        gfx::ScaleRect(quad->mask_uv_rect, quad->mask_texture_size.width(),
+                       quad->mask_texture_size.height()));
 
     SkMatrix mask_mat;
     mask_mat.setRectToRect(mask_rect, dest_rect, SkMatrix::kFill_ScaleToFit);

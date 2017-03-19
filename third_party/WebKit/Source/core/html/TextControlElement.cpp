@@ -24,6 +24,7 @@
 
 #include "core/html/TextControlElement.h"
 
+#include "bindings/core/v8/ExceptionMessages.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "core/HTMLNames.h"
 #include "core/dom/AXObjectCache.h"
@@ -291,7 +292,8 @@ void TextControlElement::setRangeText(const String& replacement,
   else
     text.insert(replacement, start);
 
-  setValue(text, TextFieldEventBehavior::DispatchNoEvent);
+  setValue(text, TextFieldEventBehavior::DispatchNoEvent,
+           TextControlSetValueSelection::kDoNotSet);
 
   if (selectionMode == "select") {
     newSelectionStart = start;
@@ -410,14 +412,14 @@ bool TextControlElement::setSelectionRange(
   if (direction == SelectionHasNoDirection && frame &&
       frame->editor().behavior().shouldConsiderSelectionAsDirectional())
     direction = SelectionHasForwardDirection;
-  cacheSelection(start, end, direction);
+  bool didChange = cacheSelection(start, end, direction);
 
   if (document().focusedElement() != this)
-    return true;
+    return didChange;
 
   HTMLElement* innerEditor = innerEditorElement();
   if (!frame || !innerEditor)
-    return true;
+    return didChange;
 
   Position startPosition = positionForIndex(innerEditor, start);
   Position endPosition =
@@ -434,18 +436,30 @@ bool TextControlElement::setSelectionRange(
     DCHECK_EQ(endPosition.anchorNode()->ownerShadowHost(), this);
   }
 #endif  // DCHECK_IS_ON()
-  VisibleSelection newSelection;
-  if (direction == SelectionHasBackwardDirection)
-    newSelection.setWithoutValidation(endPosition, startPosition);
-  else
-    newSelection.setWithoutValidation(startPosition, endPosition);
-  newSelection.setIsDirectional(direction != SelectionHasNoDirection);
-
   frame->selection().setSelection(
-      newSelection,
-      FrameSelection::DoNotAdjustInFlatTree | FrameSelection::CloseTyping |
-          FrameSelection::ClearTypingStyle | FrameSelection::DoNotSetFocus);
-  return true;
+      SelectionInDOMTree::Builder()
+          .collapse(direction == SelectionHasBackwardDirection ? endPosition
+                                                               : startPosition)
+          .extend(direction == SelectionHasBackwardDirection ? startPosition
+                                                             : endPosition)
+          .setIsDirectional(direction != SelectionHasNoDirection)
+          .build(),
+      FrameSelection::CloseTyping | FrameSelection::ClearTypingStyle |
+          FrameSelection::DoNotSetFocus);
+  return didChange;
+}
+
+bool TextControlElement::cacheSelection(unsigned start,
+                                        unsigned end,
+                                        TextFieldSelectionDirection direction) {
+  DCHECK_LE(start, end);
+  bool didChange = m_cachedSelectionStart != start ||
+                   m_cachedSelectionEnd != end ||
+                   m_cachedSelectionDirection != direction;
+  m_cachedSelectionStart = start;
+  m_cachedSelectionEnd = end;
+  m_cachedSelectionDirection = direction;
+  return didChange;
 }
 
 VisiblePosition TextControlElement::visiblePositionForIndex(int index) const {
@@ -460,18 +474,16 @@ VisiblePosition TextControlElement::visiblePositionForIndex(int index) const {
   return createVisiblePosition(it.endPosition(), TextAffinity::Upstream);
 }
 
+// TODO(yosin): We should move |TextControlElement::indexForVisiblePosition()|
+// to "AXLayoutObject.cpp" since this funciton is used only there.
 int TextControlElement::indexForVisiblePosition(
     const VisiblePosition& pos) const {
   Position indexPosition = pos.deepEquivalent().parentAnchoredEquivalent();
   if (enclosingTextControl(indexPosition) != this)
     return 0;
-  DCHECK(indexPosition.document());
-  Range* range = Range::create(*indexPosition.document());
-  range->setStart(innerEditorElement(), 0, ASSERT_NO_EXCEPTION);
-  range->setEnd(indexPosition.computeContainerNode(),
-                indexPosition.offsetInContainerNode(), ASSERT_NO_EXCEPTION);
-  return TextIterator::rangeLength(range->startPosition(),
-                                   range->endPosition());
+  DCHECK(indexPosition.isConnected()) << indexPosition;
+  return TextIterator::rangeLength(Position(innerEditorElement(), 0),
+                                   indexPosition);
 }
 
 unsigned TextControlElement::selectionStart() const {
@@ -501,7 +513,8 @@ unsigned TextControlElement::computeSelectionStart() const {
                               selection.computeStartPosition());
     }
   }
-  const VisibleSelection& visibleSelection = frame->selection().selection();
+  const VisibleSelection& visibleSelection =
+      frame->selection().computeVisibleSelectionInDOMTreeDeprecated();
   return indexForPosition(innerEditorElement(), visibleSelection.start());
 }
 
@@ -531,7 +544,8 @@ unsigned TextControlElement::computeSelectionEnd() const {
                               selection.computeEndPosition());
     }
   }
-  const VisibleSelection& visibleSelection = frame->selection().selection();
+  const VisibleSelection& visibleSelection =
+      frame->selection().computeVisibleSelectionInDOMTreeDeprecated();
   return indexForPosition(innerEditorElement(), visibleSelection.end());
 }
 
@@ -595,9 +609,9 @@ static inline void setContainerAndOffsetForRange(Node* node,
   }
 }
 
-Range* TextControlElement::selection() const {
+SelectionInDOMTree TextControlElement::selection() const {
   if (!layoutObject() || !isTextControl())
-    return nullptr;
+    return SelectionInDOMTree();
 
   int start = m_cachedSelectionStart;
   int end = m_cachedSelectionEnd;
@@ -605,10 +619,14 @@ Range* TextControlElement::selection() const {
   DCHECK_LE(start, end);
   HTMLElement* innerText = innerEditorElement();
   if (!innerText)
-    return nullptr;
+    return SelectionInDOMTree();
 
-  if (!innerText->hasChildren())
-    return Range::create(document(), innerText, 0, innerText, 0);
+  if (!innerText->hasChildren()) {
+    return SelectionInDOMTree::Builder()
+        .collapse(Position(innerText, 0))
+        .setIsDirectional(selectionDirection() != "none")
+        .build();
+  }
 
   int offset = 0;
   Node* startNode = 0;
@@ -630,9 +648,12 @@ Range* TextControlElement::selection() const {
   }
 
   if (!startNode || !endNode)
-    return nullptr;
+    return SelectionInDOMTree();
 
-  return Range::create(document(), startNode, start, endNode, end);
+  return SelectionInDOMTree::Builder()
+      .setBaseAndExtent(Position(startNode, start), Position(endNode, end))
+      .setIsDirectional(selectionDirection() != "none")
+      .build();
 }
 
 const AtomicString& TextControlElement::autocapitalize() const {
@@ -733,7 +754,7 @@ void TextControlElement::selectionChanged(bool userTriggered) {
 void TextControlElement::scheduleSelectEvent() {
   Event* event = Event::createBubble(EventTypeNames::select);
   event->setTarget(this);
-  document().enqueueUniqueAnimationFrameEvent(event);
+  document().enqueueAnimationFrameEvent(event);
 }
 
 void TextControlElement::parseAttribute(

@@ -52,6 +52,7 @@ void DecryptingVideoDecoder::Initialize(const VideoDecoderConfig& config,
   DCHECK(decode_cb_.is_null());
   DCHECK(reset_cb_.is_null());
   DCHECK(config.IsValidConfig());
+  DCHECK(cdm_context);
 
   init_cb_ = BindToCurrentLoop(init_cb);
   output_cb_ = BindToCurrentLoop(output_cb);
@@ -59,11 +60,6 @@ void DecryptingVideoDecoder::Initialize(const VideoDecoderConfig& config,
   config_ = config;
 
   if (state_ == kUninitialized) {
-    // DecoderSelector only chooses |this| when the stream is encrypted.
-    // TODO(xhwang): We may also select this decoder for clear stream if a CDM
-    // is attached. Then we need to update this. See http://crbug.com/597443
-    DCHECK(config.is_encrypted());
-    DCHECK(cdm_context);
     if (!cdm_context->GetDecryptor()) {
       MEDIA_LOG(DEBUG, media_log_) << GetDisplayName() << ": no decryptor";
       base::ResetAndReturn(&init_cb_).Run(false);
@@ -119,10 +115,15 @@ void DecryptingVideoDecoder::Reset(const base::Closure& closure) {
          state_ == kWaitingForKey ||
          state_ == kDecodeFinished ||
          state_ == kError) << state_;
-  DCHECK(init_cb_.is_null());  // No Reset() during pending initialization.
   DCHECK(reset_cb_.is_null());
 
   reset_cb_ = BindToCurrentLoop(closure);
+
+  // TODO(xhwang): These CHECKs are used to help investigate a bug. Remove them
+  // after the investigation is over. See http://crbug.com/695554
+  CHECK(state_ != kUninitialized);
+  CHECK(state_ != kPendingDecoderInit);
+  CHECK(init_cb_.is_null());  // No Reset() during pending initialization.
 
   decryptor_->ResetDecoder(Decryptor::kVideo);
 

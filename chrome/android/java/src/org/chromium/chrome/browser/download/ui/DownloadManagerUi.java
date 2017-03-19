@@ -14,6 +14,7 @@ import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.DrawerLayout.DrawerListener;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.Toolbar;
 import android.support.v7.widget.Toolbar.OnMenuItemClickListener;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -83,7 +84,7 @@ public class DownloadManagerUi implements OnMenuItemClickListener, SearchDelegat
 
             mOfflinePageBridge = new OfflinePageDownloadBridge(
                     Profile.getLastUsedProfile().getOriginalProfile());
-            mSelectionDelegate = new SelectionDelegate<DownloadHistoryItemWrapper>();
+            mSelectionDelegate = new DownloadItemSelectionDelegate();
             mThumbnailProvider = new ThumbnailProviderImpl(iconSize);
         }
 
@@ -179,10 +180,19 @@ public class DownloadManagerUi implements OnMenuItemClickListener, SearchDelegat
     private ViewGroup mMainView;
     private DownloadManagerToolbar mToolbar;
     private SelectableListLayout<DownloadHistoryItemWrapper> mSelectableListLayout;
+    private boolean mIsSeparateActivity;
 
-    @SuppressWarnings("unchecked")  // mSelectableListLayout
-    public DownloadManagerUi(
-            Activity activity, boolean isOffTheRecord, ComponentName parentComponent) {
+    /**
+     * Constructs a new DownloadManagerUi.
+     * @param activity The {@link Activity} associated with the download manager.
+     * @param isOffTheRecord Whether an off-the-record tab is currently being displayed.
+     * @param parentComponent The {@link ComponentName} of the parent activity.
+     * @param isSeparateActivity Whether the download manager UI will be shown in a separate
+     *                           activity than the main Chrome activity.
+     */
+    @SuppressWarnings("unchecked") // mSelectableListLayout
+    public DownloadManagerUi(Activity activity, boolean isOffTheRecord,
+            ComponentName parentComponent, boolean isSeparateActivity) {
         mActivity = activity;
         mBackendProvider =
                 sProviderForTests == null ? new DownloadBackendProvider() : sProviderForTests;
@@ -233,6 +243,9 @@ public class DownloadManagerUi implements OnMenuItemClickListener, SearchDelegat
         mFilterView.setOnItemClickListener(mFilterAdapter);
 
         mUndoDeletionSnackbarController = new UndoDeletionSnackbarController();
+
+        mIsSeparateActivity = isSeparateActivity;
+        if (!mIsSeparateActivity) mToolbar.removeCloseButton();
     }
 
     /**
@@ -288,6 +301,20 @@ public class DownloadManagerUi implements OnMenuItemClickListener, SearchDelegat
     }
 
     /**
+     * See {@link SelectableListLayout#detachToolbarView()}.
+     */
+    public Toolbar detachToolbarView() {
+        return mSelectableListLayout.detachToolbarView();
+    }
+
+    /**
+     * @return The vertical scroll offset of the content view.
+     */
+    public int getVerticalScrollOffset() {
+        return mRecyclerView.computeVerticalScrollOffset();
+    }
+
+    /**
      * Sets the download manager to the state that the url represents.
      */
     public void updateForUrl(String url) {
@@ -297,7 +324,7 @@ public class DownloadManagerUi implements OnMenuItemClickListener, SearchDelegat
 
     @Override
     public boolean onMenuItemClick(MenuItem item) {
-        if (item.getItemId() == R.id.close_menu_id && !DeviceFormFactor.isTablet(mActivity)) {
+        if (item.getItemId() == R.id.close_menu_id && mIsSeparateActivity) {
             mActivity.finish();
             return true;
         } else if (item.getItemId() == R.id.selection_mode_delete_menu_id) {
@@ -425,8 +452,6 @@ public class DownloadManagerUi implements OnMenuItemClickListener, SearchDelegat
         if (itemsToDelete.isEmpty()) return;
 
         mHistoryAdapter.markItemsForDeletion(itemsToDelete);
-
-        dismissUndoDeletionSnackbars();
 
         boolean singleItemDeleted = selectedItems.size() == 1;
         String snackbarText = singleItemDeleted ? selectedItems.get(0).getDisplayFileName() :

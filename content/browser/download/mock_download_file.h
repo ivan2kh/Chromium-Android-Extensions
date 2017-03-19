@@ -9,10 +9,12 @@
 #include <stdint.h>
 
 #include <map>
+#include <memory>
 #include <string>
 
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
+#include "content/browser/byte_stream.h"
 #include "content/browser/download/download_file.h"
 #include "content/public/browser/download_manager.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -27,6 +29,13 @@ class MockDownloadFile : public DownloadFile {
 
   // DownloadFile functions.
   MOCK_METHOD1(Initialize, void(const InitializeCallback&));
+  void AddByteStream(std::unique_ptr<ByteStreamReader> stream_reader,
+                     int64_t offset,
+                     int64_t length) override;
+  MOCK_METHOD3(DoAddByteStream,
+               void(ByteStreamReader* stream_reader,
+                    int64_t offset,
+                    int64_t length));
   MOCK_METHOD2(AppendDataToFile, DownloadInterruptReason(
       const char* data, size_t data_len));
   MOCK_METHOD1(Rename, DownloadInterruptReason(

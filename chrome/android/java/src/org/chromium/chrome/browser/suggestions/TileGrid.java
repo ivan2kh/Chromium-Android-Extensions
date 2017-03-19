@@ -7,12 +7,14 @@ package org.chromium.chrome.browser.suggestions;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeFeatureList;
 import org.chromium.chrome.browser.ntp.ContextMenuManager;
 import org.chromium.chrome.browser.ntp.cards.ItemViewType;
 import org.chromium.chrome.browser.ntp.cards.NewTabPageViewHolder;
 import org.chromium.chrome.browser.ntp.cards.OptionalLeaf;
+import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 
 /**
  * The model and controller for a group of site suggestion tiles that will be rendered in a grid.
@@ -37,9 +39,10 @@ public class TileGrid extends OptionalLeaf implements TileGroup.Observer {
     private final TileGroup mTileGroup;
 
     public TileGrid(SuggestionsUiDelegate uiDelegate, ContextMenuManager contextMenuManager,
-            TileGroup.Delegate tileGroupDelegate) {
-        mTileGroup = new TileGroup(
-                uiDelegate, contextMenuManager, tileGroupDelegate, /* observer = */ this);
+            TileGroup.Delegate tileGroupDelegate, OfflinePageBridge offlinePageBridge) {
+        mTileGroup = new TileGroup(ContextUtils.getApplicationContext(), uiDelegate,
+                contextMenuManager, tileGroupDelegate,
+                /* observer = */ this, offlinePageBridge, getTileTitleLines());
         mTileGroup.startObserving(getMaxTileRows() * MAX_TILE_COLUMNS);
     }
 
@@ -72,10 +75,19 @@ public class TileGrid extends OptionalLeaf implements TileGroup.Observer {
     }
 
     @Override
+    public void onTileOfflineBadgeVisibilityChanged(Tile tile) {
+        if (isVisible()) notifyItemChanged(0, new ViewHolder.UpdateOfflineBadgeCallback(tile));
+    }
+
+    @Override
     public void onLoadTaskAdded() {}
 
     @Override
     public void onLoadTaskCompleted() {}
+
+    public TileGroup getTileGroup() {
+        return mTileGroup;
+    }
 
     private static int getMaxTileRows() {
         int defaultValue = 1;
@@ -99,15 +111,21 @@ public class TileGrid extends OptionalLeaf implements TileGroup.Observer {
             super(LayoutInflater.from(parentView.getContext())
                             .inflate(R.layout.suggestions_site_tile_grid, parentView, false));
             mLayout = (TileGridLayout) itemView;
+            mLayout.setMaxRows(getMaxTileRows());
+            mLayout.setMaxColumns(MAX_TILE_COLUMNS);
         }
 
         public void onBindViewHolder(TileGroup tileGroup) {
-            mLayout.setMaxRows(getMaxTileRows());
-            tileGroup.renderTileViews(mLayout, /* trackLoadTasks = */ false, getTileTitleLines());
+            tileGroup.renderTileViews(mLayout, /* trackLoadTasks = */ false,
+                    /* condensed = */ false);
         }
 
         public void updateIconView(Tile tile) {
             mLayout.updateIconView(tile);
+        }
+
+        public void updateOfflineBadge(Tile tile) {
+            mLayout.updateOfflineBadge(tile);
         }
 
         /**
@@ -124,6 +142,23 @@ public class TileGrid extends OptionalLeaf implements TileGroup.Observer {
             public void onResult(NewTabPageViewHolder holder) {
                 assert holder instanceof ViewHolder;
                 ((ViewHolder) holder).updateIconView(mTile);
+            }
+        }
+
+        /**
+         * Callback to update the offline badge for the view holder.
+         */
+        public static class UpdateOfflineBadgeCallback extends PartialBindCallback {
+            private final Tile mTile;
+
+            public UpdateOfflineBadgeCallback(Tile tile) {
+                mTile = tile;
+            }
+
+            @Override
+            public void onResult(NewTabPageViewHolder holder) {
+                assert holder instanceof ViewHolder;
+                ((ViewHolder) holder).updateOfflineBadge(mTile);
             }
         }
     }

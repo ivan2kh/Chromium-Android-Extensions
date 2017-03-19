@@ -16,14 +16,14 @@
 
 namespace blink {
 
-LocalFrame* SingleChildFrameLoaderClient::createFrame(
+LocalFrame* SingleChildLocalFrameClient::createFrame(
     const FrameLoadRequest&,
     const AtomicString& name,
     HTMLFrameOwnerElement* ownerElement) {
   DCHECK(!m_child) << "This test helper only supports one child frame.";
 
   LocalFrame* parentFrame = ownerElement->document().frame();
-  auto* childClient = FrameLoaderClientWithParent::create(parentFrame);
+  auto* childClient = LocalFrameClientWithParent::create(parentFrame);
   m_child = LocalFrame::create(childClient, parentFrame->host(), ownerElement);
   m_child->createView(IntSize(500, 500), Color(), true /* transparent */);
   m_child->init();
@@ -31,8 +31,8 @@ LocalFrame* SingleChildFrameLoaderClient::createFrame(
   return m_child.get();
 }
 
-void FrameLoaderClientWithParent::detached(FrameDetachType) {
-  static_cast<SingleChildFrameLoaderClient*>(parent()->client())
+void LocalFrameClientWithParent::detached(FrameDetachType) {
+  static_cast<SingleChildLocalFrameClient*>(parent()->client())
       ->didDetachChild();
 }
 
@@ -41,15 +41,15 @@ ChromeClient& RenderingTest::chromeClient() const {
   return client;
 }
 
-RenderingTest::RenderingTest(FrameLoaderClient* frameLoaderClient)
-    : m_frameLoaderClient(frameLoaderClient) {}
+RenderingTest::RenderingTest(LocalFrameClient* localFrameClient)
+    : m_localFrameClient(localFrameClient) {}
 
 void RenderingTest::SetUp() {
   Page::PageClients pageClients;
   fillWithEmptyClients(pageClients);
   pageClients.chromeClient = &chromeClient();
   m_pageHolder = DummyPageHolder::create(
-      IntSize(800, 600), &pageClients, m_frameLoaderClient, settingOverrider());
+      IntSize(800, 600), &pageClients, m_localFrameClient, settingOverrider());
 
   Settings::setMockScrollbarsEnabled(true);
   RuntimeEnabledFeatures::setOverlayScrollbarsEnabled(true);

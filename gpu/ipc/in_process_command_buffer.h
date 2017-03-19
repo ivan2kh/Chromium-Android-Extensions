@@ -23,6 +23,7 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/thread.h"
 #include "gpu/command_buffer/client/gpu_control.h"
+#include "gpu/command_buffer/common/activity_flags.h"
 #include "gpu/command_buffer/common/command_buffer.h"
 #include "gpu/command_buffer/service/command_executor.h"
 #include "gpu/command_buffer/service/context_group.h"
@@ -128,7 +129,8 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   bool IsFenceSyncReleased(uint64_t release) override;
   void SignalSyncToken(const SyncToken& sync_token,
                        const base::Closure& callback) override;
-  bool CanWaitUnverifiedSyncToken(const SyncToken* sync_token) override;
+  void WaitSyncTokenHint(const SyncToken& sync_token) override;
+  bool CanWaitUnverifiedSyncToken(const SyncToken& sync_token) override;
 
 // ImageTransportSurfaceDelegate implementation:
 #if defined(OS_WIN)
@@ -199,6 +201,8 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
     scoped_refptr<gles2::MailboxManager> mailbox_manager_;
     scoped_refptr<gl::GLShareGroup> share_group_;
     std::unique_ptr<gpu::gles2::ProgramCache> program_cache_;
+    // No-op default initialization is used in in-process mode.
+    GpuProcessActivityFlags activity_flags_;
   };
 
  private:
@@ -237,12 +241,8 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   void ProcessTasksOnGpuThread();
   void CheckSequencedThread();
   void FenceSyncReleaseOnGpuThread(uint64_t release);
-  bool WaitFenceSyncOnGpuThread(gpu::CommandBufferNamespace namespace_id,
-                                gpu::CommandBufferId command_buffer_id,
-                                uint64_t release);
-  void OnWaitFenceSyncCompleted(CommandBufferNamespace namespace_id,
-                                CommandBufferId command_buffer_id,
-                                uint64_t release);
+  bool WaitSyncTokenOnGpuThread(const SyncToken& sync_token);
+  void OnWaitSyncTokenCompleted(const SyncToken& sync_token);
   void DescheduleUntilFinishedOnGpuThread();
   void RescheduleAfterFinishedOnGpuThread();
   void SignalSyncTokenOnGpuThread(const SyncToken& sync_token,

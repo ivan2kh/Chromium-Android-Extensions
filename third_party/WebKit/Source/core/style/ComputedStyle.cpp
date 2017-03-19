@@ -70,8 +70,11 @@ ASSERT_SIZE(BorderValue, SameSizeAsBorderValue);
 
 // Since different compilers/architectures pack ComputedStyle differently,
 // re-create the same structure for an accurate size comparison.
-struct SameSizeAsComputedStyle : public ComputedStyleBase,
-                                 public RefCounted<ComputedStyle> {
+struct SameSizeAsComputedStyle : public RefCounted<SameSizeAsComputedStyle> {
+  struct ComputedStyleBase {
+    unsigned m_bitfields[3];
+  } m_base;
+
   void* dataRefs[7];
   void* ownPtrs[1];
   void* dataRefSvgStyle;
@@ -81,14 +84,18 @@ struct SameSizeAsComputedStyle : public ComputedStyleBase,
   } m_inheritedData;
 
   struct NonInheritedData {
-    unsigned m_bitfields[2];
+    unsigned m_bitfields[1];
   } m_nonInheritedData;
 };
 
+// If this assert fails, it means that size of ComputedStyle has changed. Please
+// check that you really *do* what to increase the size of ComputedStyle, then
+// update the SameSizeAsComputedStyle struct to match the updated storage of
+// ComputedStyle.
 ASSERT_SIZE(ComputedStyle, SameSizeAsComputedStyle);
 
 PassRefPtr<ComputedStyle> ComputedStyle::create() {
-  return adoptRef(new ComputedStyle());
+  return adoptRef(new ComputedStyle(initialStyle()));
 }
 
 PassRefPtr<ComputedStyle> ComputedStyle::createInitialStyle() {
@@ -113,26 +120,9 @@ PassRefPtr<ComputedStyle> ComputedStyle::clone(const ComputedStyle& other) {
   return adoptRef(new ComputedStyle(other));
 }
 
-ALWAYS_INLINE ComputedStyle::ComputedStyle()
-    : ComputedStyleBase(),
-      RefCounted<ComputedStyle>(),
-      m_box(initialStyle().m_box),
-      m_visual(initialStyle().m_visual),
-      m_background(initialStyle().m_background),
-      m_surround(initialStyle().m_surround),
-      m_rareNonInheritedData(initialStyle().m_rareNonInheritedData),
-      m_rareInheritedData(initialStyle().m_rareInheritedData),
-      m_styleInheritedData(initialStyle().m_styleInheritedData),
-      m_svgStyle(initialStyle().m_svgStyle) {
-  setBitDefaults();  // Would it be faster to copy this from the default style?
-  static_assert((sizeof(InheritedData) <= 8), "InheritedData should not grow");
-  static_assert((sizeof(NonInheritedData) <= 12),
-                "NonInheritedData should not grow");
-}
-
 ALWAYS_INLINE ComputedStyle::ComputedStyle(InitialStyleTag)
     : ComputedStyleBase(), RefCounted<ComputedStyle>() {
-  setBitDefaults();
+  initializeBitDefaults();
 
   m_box.init();
   m_visual.init();
@@ -384,7 +374,7 @@ void ComputedStyle::copyNonInheritedFromCached(const ComputedStyle& other) {
 
   // styles with non inherited properties that reference variables are not
   // cacheable.
-  DCHECK(!other.m_nonInheritedData.m_variableReference);
+  DCHECK(!other.hasVariableReferenceFromNonInheritedProperty());
 
   // The following flags are set during matching before we decide that we get a
   // match in the MatchedPropertiesCache which in turn calls this method. The
@@ -452,7 +442,7 @@ ComputedStyle* ComputedStyle::addCachedPseudoStyle(
   if (!pseudo)
     return 0;
 
-  ASSERT(pseudo->styleType() > PseudoIdNone);
+  DCHECK_GT(pseudo->styleType(), PseudoIdNone);
 
   ComputedStyle* result = pseudo.get();
 
@@ -539,7 +529,7 @@ StyleDifference ComputedStyle::visualInvalidationDiff(
   if (m_svgStyle.get() != other.m_svgStyle.get())
     diff = m_svgStyle->diff(other.m_svgStyle.get());
 
-  if ((!diff.needsFullLayout() || !diff.needsPaintInvalidation()) &&
+  if ((!diff.needsFullLayout() || !diff.needsFullPaintInvalidation()) &&
       diffNeedsFullLayoutAndPaintInvalidation(other)) {
     diff.setNeedsFullLayout();
     diff.setNeedsPaintInvalidationObject();
@@ -636,6 +626,9 @@ bool ComputedStyle::diffNeedsFullLayoutAndPaintInvalidation(
         borderTopWidth() != other.borderTopWidth() ||
         borderBottomWidth() != other.borderBottomWidth() ||
         borderRightWidth() != other.borderRightWidth())
+      return true;
+
+    if (m_surround->padding != other.m_surround->padding)
       return true;
   }
 
@@ -761,10 +754,8 @@ bool ComputedStyle::diffNeedsFullLayoutAndPaintInvalidation(
             other.m_rareInheritedData->m_textSizeAdjust ||
         m_rareInheritedData->listStyleImage !=
             other.m_rareInheritedData->listStyleImage ||
-        m_rareInheritedData->m_snapHeightUnit !=
-            other.m_rareInheritedData->m_snapHeightUnit ||
-        m_rareInheritedData->m_snapHeightPosition !=
-            other.m_rareInheritedData->m_snapHeightPosition ||
+        m_rareInheritedData->m_lineHeightStep !=
+            other.m_rareInheritedData->m_lineHeightStep ||
         m_rareInheritedData->textStrokeWidth !=
             other.m_rareInheritedData->textStrokeWidth)
       return true;
@@ -839,7 +830,7 @@ bool ComputedStyle::diffNeedsFullLayoutAndPaintInvalidation(
          (borderRightStyle() == BorderStyleNone &&
           other.borderRightStyle() == BorderStyleHidden)))
       return true;
-  } else if (display() == EDisplay::ListItem) {
+  } else if (display() == EDisplay::kListItem) {
     if (listStyleType() != other.listStyleType() ||
         listStylePosition() != other.listStylePosition())
       return true;
@@ -880,11 +871,6 @@ bool ComputedStyle::diffNeedsFullLayout(const ComputedStyle& other) const {
           other.m_nonInheritedData.m_verticalAlign ||
       position() != other.position())
     return true;
-
-  if (m_surround.get() != other.m_surround.get()) {
-    if (m_surround->padding != other.m_surround->padding)
-      return true;
-  }
 
   if (m_rareNonInheritedData.get() != other.m_rareNonInheritedData.get()) {
     if (m_rareNonInheritedData->m_alignContent !=
@@ -1063,7 +1049,7 @@ void ComputedStyle::updatePropertySpecificDifferences(
   if (!m_surround->border.visualOverflowEqual(other.m_surround->border))
     diff.setNeedsRecomputeOverflow();
 
-  if (!diff.needsPaintInvalidation()) {
+  if (!diff.needsFullPaintInvalidation()) {
     if (m_styleInheritedData->color != other.m_styleInheritedData->color ||
         m_styleInheritedData->visitedLinkColor !=
             other.m_styleInheritedData->visitedLinkColor ||
@@ -1555,7 +1541,7 @@ CounterDirectiveMap& ComputedStyle::accessCounterDirectives() {
 const CounterDirectives ComputedStyle::getCounterDirectives(
     const AtomicString& identifier) const {
   if (const CounterDirectiveMap* directives = counterDirectives())
-    return directives->get(identifier);
+    return directives->at(identifier);
   return CounterDirectives();
 }
 
@@ -1658,11 +1644,11 @@ const AtomicString& ComputedStyle::textEmphasisMarkString() const {
                  : openSesameString;
     }
     case TextEmphasisMarkAuto:
-      ASSERT_NOT_REACHED();
+      NOTREACHED();
       return nullAtom;
   }
 
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return nullAtom;
 }
 
@@ -1855,6 +1841,17 @@ const CSSValue* ComputedStyle::getRegisteredVariable(
              : nullptr;
 }
 
+const CSSValue* ComputedStyle::getRegisteredVariable(
+    const AtomicString& name) const {
+  // Registered custom properties are by default non-inheriting so check there
+  // first.
+  const CSSValue* result = getRegisteredVariable(name, false);
+  if (result) {
+    return result;
+  }
+  return getRegisteredVariable(name, true);
+}
+
 float ComputedStyle::wordSpacing() const {
   return getFontDescription().wordSpacing();
 }
@@ -1919,6 +1916,20 @@ int ComputedStyle::computedLineHeight() const {
   return std::min(lh.value(), LayoutUnit::max().toFloat());
 }
 
+float ComputedStyle::computedLineHeightInFloat() const {
+  const Length& lh = lineHeight();
+
+  // Negative value means the line height is not set. Use the font's built-in
+  // spacing, if avalible.
+  if (lh.isNegative() && font().primaryFont())
+    return font().primaryFont()->getFontMetrics().floatLineSpacing();
+
+  if (lh.isPercentOrCalc())
+    return floatValueForLength(lh, computedFontSize());
+
+  return std::min(lh.value(), LayoutUnit::max().toFloat());
+}
+
 void ComputedStyle::setWordSpacing(float wordSpacing) {
   FontSelector* currentFontSelector = font().getFontSelector();
   FontDescription desc(getFontDescription());
@@ -1940,7 +1951,7 @@ void ComputedStyle::setTextAutosizingMultiplier(float multiplier) {
 
   float size = specifiedFontSize();
 
-  ASSERT(std::isfinite(size));
+  DCHECK(std::isfinite(size));
   if (!std::isfinite(size) || size < 0)
     size = 0;
   else
@@ -2134,7 +2145,7 @@ Color ComputedStyle::colorIncludingFallback(int colorProperty,
       result = decorationColorIncludingFallback(visitedLink);
       break;
     default:
-      ASSERT_NOT_REACHED();
+      NOTREACHED();
       break;
   }
 
@@ -2183,7 +2194,7 @@ const BorderValue& ComputedStyle::borderBefore() const {
     case WritingMode::kVerticalRl:
       return borderRight();
   }
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return borderTop();
 }
 
@@ -2196,7 +2207,7 @@ const BorderValue& ComputedStyle::borderAfter() const {
     case WritingMode::kVerticalRl:
       return borderLeft();
   }
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return borderBottom();
 }
 
@@ -2221,7 +2232,7 @@ float ComputedStyle::borderBeforeWidth() const {
     case WritingMode::kVerticalRl:
       return borderRightWidth();
   }
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return borderTopWidth();
 }
 
@@ -2234,7 +2245,7 @@ float ComputedStyle::borderAfterWidth() const {
     case WritingMode::kVerticalRl:
       return borderLeftWidth();
   }
-  ASSERT_NOT_REACHED();
+  NOTREACHED();
   return borderBottomWidth();
 }
 

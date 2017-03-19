@@ -95,8 +95,11 @@ Browser* GetBrowserInProfileWithId(Profile* profile,
   return NULL;
 }
 
-Browser* CreateBrowser(Profile* profile, int window_id, std::string* error) {
-  Browser::CreateParams params(Browser::TYPE_TABBED, profile);
+Browser* CreateBrowser(Profile* profile,
+                       int window_id,
+                       bool user_gesture,
+                       std::string* error) {
+  Browser::CreateParams params(Browser::TYPE_TABBED, profile, user_gesture);
   Browser* browser = new Browser(params);
   browser->window()->Show();
   return browser;
@@ -127,9 +130,10 @@ ExtensionTabUtil::OpenTabParams::~OpenTabParams() {
 base::DictionaryValue* ExtensionTabUtil::OpenTab(
     UIThreadExtensionFunction* function,
     const OpenTabParams& params,
+    bool user_gesture,
     std::string* error) {
 #if defined(OS_ANDROID)
-  if(0) CreateBrowser(NULL,0,NULL);
+  if(0) CreateBrowser(NULL,0,false, nullptr);
   return NULL;
 #else
   ChromeExtensionFunctionDetails chrome_details(function);
@@ -144,7 +148,7 @@ base::DictionaryValue* ExtensionTabUtil::OpenTab(
     if (!params.create_browser_if_needed) {
       return NULL;
     }
-    browser = CreateBrowser(profile, window_id, error);
+    browser = CreateBrowser(profile, window_id, user_gesture, error);
     if (!browser)
       return NULL;
   }
@@ -220,8 +224,9 @@ base::DictionaryValue* ExtensionTabUtil::OpenTab(
 
     browser = chrome::FindTabbedBrowser(profile, false);
     if (!browser) {
-      browser =
-          new Browser(Browser::CreateParams(Browser::TYPE_TABBED, profile));
+      Browser::CreateParams params =
+          Browser::CreateParams(Browser::TYPE_TABBED, profile, user_gesture);
+      browser = new Browser(params);
       browser->window()->Show();
     }
   }
@@ -254,8 +259,14 @@ base::DictionaryValue* ExtensionTabUtil::OpenTab(
   tab_strip = navigate_params.browser->tab_strip_model();
   int new_index =
       tab_strip->GetIndexOfWebContents(navigate_params.target_contents);
-  if (opener)
-    tab_strip->SetOpenerOfWebContentsAt(new_index, opener);
+  if (opener) {
+    // Only set the opener if the opener tab is in the same tab strip as the
+    // new tab.
+    // TODO(devlin): We should be a) catching this sooner and b) alerting that
+    // this failed by reporting an error.
+    if (tab_strip->GetIndexOfWebContents(opener) != TabStripModel::kNoTab)
+      tab_strip->SetOpenerOfWebContentsAt(new_index, opener);
+  }
 
   if (active)
     navigate_params.target_contents->SetInitialFocus();
@@ -589,8 +600,10 @@ void ExtensionTabUtil::CreateTab(WebContents* web_contents,
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   Browser* browser = chrome::FindTabbedBrowser(profile, false);
   const bool browser_created = !browser;
-  if (!browser)
-    browser = new Browser(Browser::CreateParams(profile));
+  if (!browser) {
+    Browser::CreateParams params = Browser::CreateParams(profile, user_gesture);
+    browser = new Browser(params);
+  }
   chrome::NavigateParams params(browser, web_contents);
 
   // The extension_app_id parameter ends up as app_name in the Browser
@@ -629,15 +642,25 @@ WindowController* ExtensionTabUtil::GetWindowControllerOfTab(
   return NULL;
 }
 
+bool ExtensionTabUtil::OpenOptionsPageFromAPI(
+    const Extension* extension,
+    content::BrowserContext* browser_context) {
+  NOTIMPLEMENTED();
+  return false;
+}
+
 bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
                                        Browser* browser) {
 /*  if (!OptionsPageInfo::HasOptionsPage(extension))
     return false;
 
-  // Force the options page to open in non-OTR window, because it won't be
-  // able to save settings from OTR.
+  // Force the options page to open in non-OTR window if the extension is not
+  // running in split mode, because it won't be able to save settings from OTR.
+  // This version of OpenOptionsPage() can be called from an OTR window via e.g.
+  // the action menu, since that's not initiated by the extension.
   std::unique_ptr<chrome::ScopedTabbedBrowserDisplayer> displayer;
-  if (browser->profile()->IsOffTheRecord()) {
+  if (browser->profile()->IsOffTheRecord() &&
+      !IncognitoInfo::IsSplitMode(extension)) {
     displayer.reset(new chrome::ScopedTabbedBrowserDisplayer(
         browser->profile()->GetOriginalProfile()));
     browser = displayer->browser();

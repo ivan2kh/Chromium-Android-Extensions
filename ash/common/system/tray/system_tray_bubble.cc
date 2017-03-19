@@ -7,13 +7,11 @@
 #include <utility>
 #include <vector>
 
-#include "ash/common/material_design/material_design_controller.h"
 #include "ash/common/system/tray/system_tray.h"
 #include "ash/common/system/tray/system_tray_delegate.h"
 #include "ash/common/system/tray/system_tray_item.h"
 #include "ash/common/system/tray/tray_bubble_wrapper.h"
 #include "ash/common/system/tray/tray_constants.h"
-#include "ash/common/system/tray/tray_popup_item_container.h"
 #include "ash/common/wm_shell.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -38,7 +36,7 @@ namespace {
 // be too short, so we use this as a default and minimum height for any
 // detailed view.
 int GetDetailedBubbleMaxHeight() {
-  return GetTrayConstant(TRAY_POPUP_ITEM_MIN_HEIGHT) * 5;
+  return kTrayPopupItemMinHeight * 5;
 }
 
 // Duration of swipe animation used when transitioning from a default to
@@ -90,8 +88,6 @@ SystemTrayBubble::~SystemTrayBubble() {
 void SystemTrayBubble::UpdateView(
     const std::vector<ash::SystemTrayItem*>& items,
     BubbleType bubble_type) {
-  DCHECK(bubble_type != BUBBLE_TYPE_NOTIFICATION);
-
   std::unique_ptr<ui::Layer> scoped_layer;
   if (bubble_type != bubble_type_) {
     base::TimeDelta swipe_duration =
@@ -196,8 +192,6 @@ void SystemTrayBubble::InitView(views::View* anchor,
   if (bubble_type_ == BUBBLE_TYPE_DETAILED &&
       init_params->max_height < GetDetailedBubbleMaxHeight()) {
     init_params->max_height = GetDetailedBubbleMaxHeight();
-  } else if (bubble_type_ == BUBBLE_TYPE_NOTIFICATION) {
-    init_params->close_on_deactivate = false;
   }
 
   bubble_view_ = TrayBubbleView::Create(anchor, tray_, init_params);
@@ -217,14 +211,8 @@ void SystemTrayBubble::FocusDefaultIfNeeded() {
 
   views::View* view =
       manager->GetNextFocusableView(nullptr, nullptr, false, false);
-  // TODO(oshima): RequestFocus calls View::OnFocus even if the widget
-  // is not active (crbug.com/621791). Remove this check once the bug
-  // is fixed.
-  if (bubble_view_->GetWidget()->IsActive()) {
+  if (view)
     view->RequestFocus();
-  } else {
-    manager->SetStoredFocusView(view);
-  }
 }
 
 void SystemTrayBubble::DestroyItemViews() {
@@ -236,9 +224,6 @@ void SystemTrayBubble::DestroyItemViews() {
         break;
       case BUBBLE_TYPE_DETAILED:
         (*it)->DestroyDetailedView();
-        break;
-      case BUBBLE_TYPE_NOTIFICATION:
-        (*it)->DestroyNotificationView();
         break;
     }
   }
@@ -308,12 +293,10 @@ void SystemTrayBubble::RecordVisibleRowMetrics() {
 }
 
 void SystemTrayBubble::UpdateBottomPadding() {
-  if (bubble_type_ == BUBBLE_TYPE_DEFAULT &&
-      MaterialDesignController::IsSystemTrayMenuMaterial()) {
+  if (bubble_type_ == BUBBLE_TYPE_DEFAULT)
     bubble_view_->SetBottomPadding(kDefaultViewBottomPadding);
-  } else {
+  else
     bubble_view_->SetBottomPadding(0);
-  }
 }
 
 void SystemTrayBubble::CreateItemViews(LoginStatus login_status) {
@@ -326,9 +309,7 @@ void SystemTrayBubble::CreateItemViews(LoginStatus login_status) {
     login_status = LoginStatus::LOCKED;
   }
 
-  std::vector<TrayPopupItemContainer*> item_containers;
   views::View* focus_view = nullptr;
-  const bool is_default_bubble = bubble_type_ == BUBBLE_TYPE_DEFAULT;
   for (size_t i = 0; i < items_.size(); ++i) {
     views::View* item_view = nullptr;
     switch (bubble_type_) {
@@ -340,32 +321,10 @@ void SystemTrayBubble::CreateItemViews(LoginStatus login_status) {
       case BUBBLE_TYPE_DETAILED:
         item_view = items_[i]->CreateDetailedView(login_status);
         break;
-      case BUBBLE_TYPE_NOTIFICATION:
-        item_view = items_[i]->CreateNotificationView(login_status);
-        break;
     }
     if (item_view) {
-      TrayPopupItemContainer* tray_popup_item_container =
-          new TrayPopupItemContainer(
-              item_view,
-              is_default_bubble &&
-                  !MaterialDesignController::IsSystemTrayMenuMaterial());
-      bubble_view_->AddChildView(tray_popup_item_container);
-      item_containers.push_back(tray_popup_item_container);
-      tray_item_view_map_[items_[i]->uma_type()] = tray_popup_item_container;
-    }
-  }
-
-  if (!MaterialDesignController::IsSystemTrayMenuMaterial()) {
-    // For default view, draw bottom border for each item, except the last
-    // 2 items, which are the bottom header row and the one just above it.
-    if (is_default_bubble) {
-      const int last_item_with_border =
-          static_cast<int>(item_containers.size()) - 2;
-      for (int i = 0; i < last_item_with_border; ++i) {
-        item_containers.at(i)->SetBorder(
-            views::CreateSolidSidedBorder(0, 0, 1, 0, kBorderLightColor));
-      }
+      bubble_view_->AddChildView(item_view);
+      tray_item_view_map_[items_[i]->uma_type()] = item_view;
     }
   }
 

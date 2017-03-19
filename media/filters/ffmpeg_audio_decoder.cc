@@ -45,8 +45,8 @@ static inline int DetermineChannels(AVFrame* frame) {
 // Called by FFmpeg's allocation routine to free a buffer. |opaque| is the
 // AudioBuffer allocated, so unref it.
 static void ReleaseAudioBufferImpl(void* opaque, uint8_t* data) {
-  scoped_refptr<AudioBuffer> buffer;
-  buffer.swap(reinterpret_cast<AudioBuffer**>(&opaque));
+  if (opaque)
+    static_cast<AudioBuffer*>(opaque)->Release();
 }
 
 // Called by FFmpeg's allocation routine to allocate a buffer. Uses
@@ -95,12 +95,17 @@ static int GetAudioBuffer(struct AVCodecContext* s, AVFrame* frame, int flags) {
     return buffer_size_in_bytes;
   int frames_required = buffer_size_in_bytes / bytes_per_channel / channels;
   DCHECK_GE(frames_required, frame->nb_samples);
+
+  ChannelLayout channel_layout =
+      ChannelLayoutToChromeChannelLayout(s->channel_layout, s->channels);
+
+  if (channel_layout == CHANNEL_LAYOUT_UNSUPPORTED) {
+    DLOG(ERROR) << "Unsupported channel layout.";
+    return AVERROR(EINVAL);
+  }
+
   scoped_refptr<AudioBuffer> buffer = AudioBuffer::CreateBuffer(
-      sample_format,
-      ChannelLayoutToChromeChannelLayout(s->channel_layout, s->channels),
-      channels,
-      s->sample_rate,
-      frames_required);
+      sample_format, channel_layout, channels, s->sample_rate, frames_required);
 
   // Initialize the data[] and extended_data[] fields to point into the memory
   // allocated for AudioBuffer. |number_of_planes| will be 1 for interleaved
@@ -124,8 +129,8 @@ static int GetAudioBuffer(struct AVCodecContext* s, AVFrame* frame, int flags) {
 
   // Now create an AVBufferRef for the data just allocated. It will own the
   // reference to the AudioBuffer object.
-  void* opaque = NULL;
-  buffer.swap(reinterpret_cast<AudioBuffer**>(&opaque));
+  AudioBuffer* opaque = buffer.get();
+  opaque->AddRef();
   frame->buf[0] = av_buffer_create(
       frame->data[0], buffer_size_in_bytes, ReleaseAudioBufferImpl, opaque, 0);
   return 0;

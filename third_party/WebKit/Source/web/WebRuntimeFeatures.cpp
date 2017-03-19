@@ -80,10 +80,6 @@ void WebRuntimeFeatures::enableColorCorrectRenderingDefaultMode(bool enable) {
   RuntimeEnabledFeatures::setColorCorrectRenderingDefaultModeEnabled(enable);
 }
 
-void WebRuntimeFeatures::enableTrueColorRendering(bool enable) {
-  RuntimeEnabledFeatures::setTrueColorRenderingEnabled(enable);
-}
-
 void WebRuntimeFeatures::enableCompositedSelectionUpdate(bool enable) {
   RuntimeEnabledFeatures::setCompositedSelectionUpdateEnabled(enable);
 }
@@ -126,10 +122,6 @@ void WebRuntimeFeatures::enableExperimentalCanvasFeatures(bool enable) {
   RuntimeEnabledFeatures::setExperimentalCanvasFeaturesEnabled(enable);
 }
 
-void WebRuntimeFeatures::enableFasterLocationReload(bool enable) {
-  RuntimeEnabledFeatures::setFasterLocationReloadEnabled(enable);
-}
-
 void WebRuntimeFeatures::enableFastMobileScrolling(bool enable) {
   RuntimeEnabledFeatures::setFastMobileScrollingEnabled(enable);
 }
@@ -160,6 +152,10 @@ void WebRuntimeFeatures::enableInputMultipleFieldsUI(bool enable) {
 
 void WebRuntimeFeatures::enableLazyParseCSS(bool enable) {
   RuntimeEnabledFeatures::setLazyParseCSSEnabled(enable);
+}
+
+void WebRuntimeFeatures::enableLoadingWithMojo(bool enable) {
+  RuntimeEnabledFeatures::setLoadingWithMojoEnabled(enable);
 }
 
 void WebRuntimeFeatures::enableMediaCapture(bool enable) {
@@ -314,6 +310,10 @@ void WebRuntimeFeatures::enableWebVR(bool enable) {
   RuntimeEnabledFeatures::setWebVREnabled(enable);
 }
 
+void WebRuntimeFeatures::enableWebVRExperimentalRendering(bool enable) {
+  RuntimeEnabledFeatures::setWebVRExperimentalRenderingEnabled(enable);
+}
+
 void WebRuntimeFeatures::enablePresentationAPI(bool enable) {
   RuntimeEnabledFeatures::setPresentationEnabled(enable);
 }
@@ -382,6 +382,14 @@ void WebRuntimeFeatures::enableRemotePlaybackAPI(bool enable) {
 
 void WebRuntimeFeatures::enableVideoFullscreenOrientationLock(bool enable) {
   RuntimeEnabledFeatures::setVideoFullscreenOrientationLockEnabled(enable);
+}
+
+void WebRuntimeFeatures::enableVideoFullscreenDetection(bool enable) {
+  RuntimeEnabledFeatures::setVideoFullscreenDetectionEnabled(enable);
+}
+
+void WebRuntimeFeatures::enableMediaControlsOverlayPlayButton(bool enable) {
+  RuntimeEnabledFeatures::setMediaControlsOverlayPlayButtonEnabled(enable);
 }
 
 }  // namespace blink

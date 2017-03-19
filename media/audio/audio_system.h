@@ -9,6 +9,10 @@
 #include "media/base/audio_parameters.h"
 #include "media/base/media_export.h"
 
+namespace base {
+class SingleThreadTaskRunner;
+}
+
 namespace media {
 class AudioManager;
 
@@ -17,7 +21,9 @@ class AudioManager;
 // to Mojo audio service.
 class MEDIA_EXPORT AudioSystem {
  public:
-  // Replies are asynchronously sent to the thread the call is issued on.
+  // Replies are asynchronously sent from audio system thread to the thread the
+  // call is issued on. Attention! Since audio system thread may outlive all the
+  // others, callbacks must always be bound to weak pointers!
   using OnAudioParamsCallback = base::Callback<void(const AudioParameters&)>;
   using OnBoolCallback = base::Callback<void(bool)>;
 
@@ -25,12 +31,29 @@ class MEDIA_EXPORT AudioSystem {
 
   virtual ~AudioSystem();
 
-  // Callback will receive invalid parameters if the device is not found.
+  // Callback may receive invalid parameters, it means the specified device is
+  // not found. This is best-effort: valid parameters do not guarantee existance
+  // of the device.
+  // TODO(olka,tommi): fix all AudioManager implementations to return invalid
+  // parameters if the device is not found.
   virtual void GetInputStreamParameters(
       const std::string& device_id,
       OnAudioParamsCallback on_params_cb) const = 0;
 
+  // If media::AudioDeviceDescription::IsDefaultDevice(device_id) is true,
+  // callback will receive the parameters of the default output device.
+  // Callback may receive invalid parameters, it means the specified device is
+  // not found. This is best-effort: valid parameters do not guarantee existance
+  // of the device.
+  // TODO(olka,tommi): fix all AudioManager implementations to return invalid
+  // parameters if the device is not found.
+  virtual void GetOutputStreamParameters(
+      const std::string& device_id,
+      OnAudioParamsCallback on_params_cb) const = 0;
+
   virtual void HasInputDevices(OnBoolCallback on_has_devices_cb) const = 0;
+
+  virtual base::SingleThreadTaskRunner* GetTaskRunner() const = 0;
 
   // Must not be used for anything but stream creation.
   virtual AudioManager* GetAudioManager() const = 0;

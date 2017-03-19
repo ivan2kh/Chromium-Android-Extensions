@@ -12,7 +12,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 
 namespace base {
 namespace trace_event {
@@ -49,6 +49,12 @@ struct CC_EXPORT BeginFrameArgs {
     BEGIN_FRAME_ARGS_TYPE_MAX,
   };
   static const char* TypeToString(BeginFrameArgsType type);
+
+  static constexpr uint32_t kStartingSourceId = 0;
+  // |source_id| for BeginFrameArgs not created by a BeginFrameSource. Used to
+  // avoid sequence number conflicts of BeginFrameArgs manually fed to an
+  // observer with those fed to the observer by the its BeginFrameSource.
+  static constexpr uint32_t kManualSourceId = UINT32_MAX;
 
   static constexpr uint64_t kInvalidFrameNumber = 0;
   static constexpr uint64_t kStartingFrameNumber = 1;

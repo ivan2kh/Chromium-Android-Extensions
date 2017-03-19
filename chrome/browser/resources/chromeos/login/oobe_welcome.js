@@ -177,6 +177,7 @@ Polymer({
     // appropriately.
     this.async(function() {
       this.$.networkSelect.refreshNetworks();
+      this.$.networkSelect.focus();
     }.bind(this));
   },
 
@@ -296,6 +297,7 @@ Polymer({
    * @private
    */
   onSelectedNetworkConnected_: function() {
+    this.networkLastSelectedGuid_ = '';
     chrome.send('login.NetworkScreen.userActed', ['continue']);
   },
 
@@ -346,13 +348,10 @@ Polymer({
       if (!lastError)
         return;
 
-      if (lastError.message == 'connected') {
-        self.onNetworkConnected_({'detail': networkStateCopy});
+      if (lastError.message == 'connected' || lastError.message == 'connecting')
         return;
-      }
 
-      if (lastError.message != 'connecting')
-        console.error('networkingPrivate.startConnect error: ' + lastError);
+      console.error('networkingPrivate.startConnect error: ' + lastError);
     });
   },
 
@@ -403,6 +402,24 @@ Polymer({
 
   onLanguagesChanged_: function() {
     this.currentLanguage = Oobe.getSelectedTitle(this.languages);
+  },
+
+  setSelectedKeyboard: function(keyboard_id) {
+    var found = false;
+    for (var i = 0; i < this.keyboards.length; ++i) {
+      if (this.keyboards[i].value != keyboard_id) {
+        this.keyboards[i].selected = false;
+        continue;
+      }
+      this.keyboards[i].selected = true;
+      found = true;
+    }
+    if (!found)
+      return;
+
+    // Force i18n-dropdown to refresh.
+    this.keyboards = this.keyboards.slice();
+    this.onKeyboardsChanged_();
   },
 
   onKeyboardsChanged_: function() {
@@ -465,15 +482,5 @@ Polymer({
       return;
 
     this.screen.onTimezoneSelected_(item.value);
-  },
-
-  /**
-    * This function formats message for labels.
-    * @param String label i18n string ID.
-    * @param String parameter i18n string parameter.
-    * @private
-    */
-  formatMessage_: function(label, parameter) {
-    return loadTimeData.getStringF(label, parameter);
   },
 });

@@ -21,6 +21,10 @@ const base::Feature kAllowAutoplayUnmutedInWebappManifestScope{
 // Enables Javascript execution via AppleScript.
 const base::Feature kAppleScriptExecuteJavaScript{
     "AppleScriptExecuteJavaScript", base::FEATURE_ENABLED_BY_DEFAULT};
+
+// Use the Toolkit-Views Task Manager window.
+const base::Feature kViewsTaskManager{"ViewsTaskManager",
+                                      base::FEATURE_DISABLED_BY_DEFAULT};
 #endif  // defined(OS_MACOSX)
 
 #if defined(OS_CHROMEOS)
@@ -74,6 +78,10 @@ const base::Feature kBrowserHangFixesExperiment{
 // Enables or disables the browser's touch bar.
 const base::Feature kBrowserTouchBar{"BrowserTouchBar",
                                      base::FEATURE_ENABLED_BY_DEFAULT};
+
+// Enables or disables keyboard focus for the tab strip.
+const base::Feature kTabStripKeyboardFocus{"TabStripKeyboardFocus",
+                                           base::FEATURE_DISABLED_BY_DEFAULT};
 #endif  // defined(OS_MACOSX)
 
 #if defined(OS_ANDROID)
@@ -214,6 +222,10 @@ const base::Feature kPostScriptPrinting{"PostScriptPrinting",
 const base::Feature kPreferHtmlOverPlugins{"PreferHtmlOverPlugins",
                                            base::FEATURE_DISABLED_BY_DEFAULT};
 #endif
+
+// Enables the pref service. See https://crbug.com/654988.
+const base::Feature kPrefService{"PrefService",
+                                 base::FEATURE_DISABLED_BY_DEFAULT};
 
 #if defined(OS_CHROMEOS)
 // The lock screen will be preloaded so it is instantly available when the user

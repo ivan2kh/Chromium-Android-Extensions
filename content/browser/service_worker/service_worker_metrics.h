@@ -118,6 +118,8 @@ class ServiceWorkerMetrics {
     // ServiceWorkerVersion to keep it alive.
     EXTERNAL_REQUEST = 21,
     PAYMENT_REQUEST = 22,
+    BACKGROUND_FETCH_ABORT = 23,
+    BACKGROUND_FETCH_CLICK = 24,
     // Add new events to record here.
     NUM_TYPES
   };
@@ -353,6 +355,8 @@ class ServiceWorkerMetrics {
       ServiceWorkerContextRequestHandler::CreateJobStatus status,
       bool is_installed,
       bool is_main_script);
+
+  static void RecordRuntime(base::TimeDelta time);
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(ServiceWorkerMetrics);

@@ -42,6 +42,7 @@ class LayoutTableSection;
 class TableLayoutAlgorithm;
 
 enum SkipEmptySectionsValue { DoNotSkipEmptySections, SkipEmptySections };
+enum TableHeightChangingValue { TableHeightNotChanging, TableHeightChanging };
 
 // LayoutTable is the LayoutObject associated with
 // display: table or inline-table.
@@ -507,7 +508,8 @@ class CORE_EXPORT LayoutTable final : public LayoutBlock {
 
   LayoutRect overflowClipRect(
       const LayoutPoint& location,
-      OverlayScrollbarClipBehavior = IgnoreOverlayScrollbarSize) const override;
+      OverlayScrollbarClipBehavior =
+          IgnorePlatformOverlayScrollbarSize) const override;
 
   void addOverflowFromChildren() override;
 
@@ -515,7 +517,8 @@ class CORE_EXPORT LayoutTable final : public LayoutBlock {
   void layoutCaption(LayoutTableCaption&, SubtreeLayoutScope&);
   void layoutSection(LayoutTableSection&,
                      SubtreeLayoutScope&,
-                     LayoutUnit logicalLeft);
+                     LayoutUnit logicalLeft,
+                     TableHeightChangingValue);
 
   // Return the logical height based on the height, min-height and max-height
   // properties from CSS. Will return 0 if auto.
@@ -599,6 +602,7 @@ class CORE_EXPORT LayoutTable final : public LayoutBlock {
 
   LayoutUnit m_blockOffsetToFirstRepeatableHeader;
   LayoutUnit m_rowOffsetFromRepeatingHeader;
+  LayoutUnit m_oldAvailableLogicalHeight;
 };
 
 inline LayoutTableSection* LayoutTable::topSection() const {

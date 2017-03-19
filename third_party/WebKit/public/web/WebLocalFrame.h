@@ -37,6 +37,7 @@ enum class WebCachePolicy;
 enum class WebSandboxFlags;
 enum class WebTreeScopeType;
 struct WebConsoleMessage;
+struct WebContentSecurityPolicyViolation;
 struct WebFindOptions;
 struct WebFloatRect;
 struct WebPrintPresetOptions;
@@ -154,6 +155,11 @@ class WebLocalFrame : public WebFrame {
   // and stop this frame loading.
   virtual bool maybeRenderFallbackContent(const WebURLError&) const = 0;
 
+  // Called when a navigation is blocked because a Content Security Policy (CSP)
+  // is infringed.
+  virtual void reportContentSecurityPolicyViolation(
+      const blink::WebContentSecurityPolicyViolation&) = 0;
+
   // Navigation State -------------------------------------------------------
 
   // Returns true if the current frame's load event has not completed.
@@ -249,6 +255,15 @@ class WebLocalFrame : public WebFrame {
                                         v8::Local<v8::Value> argv[],
                                         WebScriptExecutionCallback*) = 0;
 
+  enum ScriptExecutionType {
+    // Execute script synchronously, unless the page is suspended.
+    Synchronous,
+    // Execute script asynchronously.
+    Asynchronous,
+    // Execute script asynchronously, blocking the window.onload event.
+    AsynchronousBlockingOnload
+  };
+
   // worldID must be > 0 (as 0 represents the main world).
   // worldID must be < EmbedderWorldIdLimit, high number used internally.
   virtual void requestExecuteScriptInIsolatedWorld(
@@ -256,6 +271,7 @@ class WebLocalFrame : public WebFrame {
       const WebScriptSource* sourceIn,
       unsigned numSources,
       bool userGesture,
+      ScriptExecutionType,
       WebScriptExecutionCallback*) = 0;
 
   // Associates an isolated world with human-readable name which is useful for
@@ -340,8 +356,15 @@ class WebLocalFrame : public WebFrame {
   // Replaces the selection with the input string.
   virtual void replaceSelection(const WebString&) = 0;
   // Deletes text before and after the current cursor position, excluding the
-  // selection.
+  // selection. The lengths are supplied in UTF-16 Code Unit, not in code points
+  // or in glyphs.
   virtual void deleteSurroundingText(int before, int after) = 0;
+  // A variant of deleteSurroundingText(int, int). Major differences are:
+  // 1. The lengths are supplied in code points, not in UTF-16 Code Unit or in
+  // glyphs.
+  // 2. This method does nothing if there are one or more invalid surrogate
+  // pairs in the requested range.
+  virtual void deleteSurroundingTextInCodePoints(int before, int after) = 0;
 
   virtual void extractSmartClipData(WebRect rectInViewport,
                                     WebString& clipText,

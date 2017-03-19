@@ -37,6 +37,8 @@
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/install_verification/win/install_verification.h"
 #include "chrome/browser/profiles/profile_shortcut_manager.h"
+#include "chrome/browser/safe_browsing/settings_reset_prompt/settings_reset_prompt_config.h"
+#include "chrome/browser/safe_browsing/settings_reset_prompt/settings_reset_prompt_controller.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/uninstall_browser_prompt.h"
@@ -312,10 +314,11 @@ void ChromeBrowserMainPartsWin::PreMainMessageLoopStart() {
 }
 
 int ChromeBrowserMainPartsWin::PreCreateThreads() {
-// Record whether the machine is domain joined in a crash key. This will be used
-// to better identify whether crashes are from enterprise users.
-  base::debug::SetCrashKeyValue(crash_keys::kEnrolledToDomain,
-                                base::win::IsEnrolledToDomain() ? "yes" : "no");
+  // Record whether the machine is enterprise managed in a crash key. This will
+  // be used to better identify whether crashes are from enterprise users.
+  base::debug::SetCrashKeyValue(
+      crash_keys::kIsEnterpriseManaged,
+      base::win::IsEnterpriseManaged() ? "yes" : "no");
 
   int rv = ChromeBrowserMainParts::PreCreateThreads();
 
@@ -368,6 +371,14 @@ void ChromeBrowserMainPartsWin::PostBrowserStart() {
 
   InitializeChromeElf();
 
+  if (base::FeatureList::IsEnabled(safe_browsing::kSettingsResetPrompt)) {
+    content::BrowserThread::PostAfterStartupTask(
+        FROM_HERE,
+        content::BrowserThread::GetTaskRunnerForThread(
+            content::BrowserThread::UI),
+        base::Bind(safe_browsing::MaybeShowSettingsResetPromptWithDelay));
+  }
+
   // Record UMA data about whether the fault-tolerant heap is enabled.
   // Use a delayed task to minimize the impact on startup time.
   content::BrowserThread::PostDelayedTask(
@@ -414,7 +425,6 @@ void ChromeBrowserMainPartsWin::PrepareRestartOnCrashEnviroment(
 // static
 void ChromeBrowserMainPartsWin::RegisterApplicationRestart(
     const base::CommandLine& parsed_command_line) {
-  DCHECK(base::win::GetVersion() >= base::win::VERSION_VISTA);
   base::ScopedNativeLibrary library(base::FilePath(L"kernel32.dll"));
   // Get the function pointer for RegisterApplicationRestart.
   RegisterApplicationRestartProc register_application_restart =
@@ -433,15 +443,17 @@ void ChromeBrowserMainPartsWin::RegisterApplicationRestart(
 
   // Restart Chrome if the computer is restarted as the result of an update.
   // This could be extended to handle crashes, hangs, and patches.
+  const auto& command_line_string = command_line.GetCommandLineString();
   HRESULT hr = register_application_restart(
-      command_line.GetCommandLineString().c_str(),
+      command_line_string.c_str(),
       RESTART_NO_CRASH | RESTART_NO_HANG | RESTART_NO_PATCH);
   if (FAILED(hr)) {
     if (hr == E_INVALIDARG) {
-      LOG(WARNING) << "Command line too long for RegisterApplicationRestart";
+      LOG(WARNING) << "Command line too long for RegisterApplicationRestart: "
+                   << command_line_string;
     } else {
-      NOTREACHED() << "RegisterApplicationRestart failed. hr: " << hr <<
-                      ", command_line: " << command_line.GetCommandLineString();
+      NOTREACHED() << "RegisterApplicationRestart failed. hr: " << hr
+                   << ", command_line: " << command_line_string;
     }
   }
 }
@@ -483,7 +495,7 @@ bool ChromeBrowserMainPartsWin::CheckMachineLevelInstall() {
     base::FilePath exe_path;
     PathService::Get(base::DIR_EXE, &exe_path);
     std::wstring exe = exe_path.value();
-    base::FilePath user_exe_path(installer::GetChromeInstallPath(false, dist));
+    base::FilePath user_exe_path(installer::GetChromeInstallPath(false));
     if (base::FilePath::CompareEqualIgnoreCase(exe, user_exe_path.value())) {
       base::CommandLine uninstall_cmd(
           InstallUtil::GetChromeUninstallCmd(false));

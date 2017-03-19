@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "base/compiler_specific.h"
@@ -77,10 +78,10 @@ const char kHelloWorld[] = "HELLOWORLD";
 const char kGoodbyeWorld[] = "GOODBYEWORLD";
 
 const PrefHashFilter::TrackedPreferenceMetadata kConfiguration[] = {
-    {0u, kTrackedAtomic, PrefHashFilter::NO_ENFORCEMENT,
-     PrefHashFilter::TRACKING_STRATEGY_ATOMIC},
-    {1u, kProtectedAtomic, PrefHashFilter::ENFORCE_ON_LOAD,
-     PrefHashFilter::TRACKING_STRATEGY_ATOMIC}};
+    {0u, kTrackedAtomic, PrefHashFilter::EnforcementLevel::NO_ENFORCEMENT,
+     PrefHashFilter::PrefTrackingStrategy::ATOMIC},
+    {1u, kProtectedAtomic, PrefHashFilter::EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefHashFilter::PrefTrackingStrategy::ATOMIC}};
 
 const size_t kExtraReportingId = 2u;
 const size_t kReportingIdCount = 3u;
@@ -98,11 +99,14 @@ class ProfilePrefStoreManagerTest : public testing::Test {
         reset_recorded_(false) {}
 
   void SetUp() override {
+    mock_validation_delegate_record_ = new MockValidationDelegateRecord;
+    mock_validation_delegate_ = base::MakeUnique<MockValidationDelegate>(
+        mock_validation_delegate_record_);
     ProfilePrefStoreManager::RegisterProfilePrefs(profile_pref_registry_.get());
     for (const PrefHashFilter::TrackedPreferenceMetadata* it = kConfiguration;
          it != kConfiguration + arraysize(kConfiguration);
          ++it) {
-      if (it->strategy == PrefHashFilter::TRACKING_STRATEGY_ATOMIC) {
+      if (it->strategy == PrefHashFilter::PrefTrackingStrategy::ATOMIC) {
         profile_pref_registry_->RegisterStringPref(it->name, std::string());
       } else {
         profile_pref_registry_->RegisterDictionaryPref(it->name);
@@ -115,11 +119,11 @@ class ProfilePrefStoreManagerTest : public testing::Test {
     // SegregatedPrefStore. Only declare it after configured prefs have been
     // registered above for this test as kPreferenceResetTime is already
     // registered in ProfilePrefStoreManager::RegisterProfilePrefs.
-    PrefHashFilter::TrackedPreferenceMetadata pref_reset_time_config =
-        {configuration_.rbegin()->reporting_id + 1,
-         user_prefs::kPreferenceResetTime,
-         PrefHashFilter::ENFORCE_ON_LOAD,
-         PrefHashFilter::TRACKING_STRATEGY_ATOMIC};
+    PrefHashFilter::TrackedPreferenceMetadata pref_reset_time_config = {
+        configuration_.rbegin()->reporting_id + 1,
+        user_prefs::kPreferenceResetTime,
+        PrefHashFilter::EnforcementLevel::ENFORCE_ON_LOAD,
+        PrefHashFilter::PrefTrackingStrategy::ATOMIC};
     configuration_.push_back(pref_reset_time_config);
 
     ASSERT_TRUE(profile_dir_.CreateUniqueTempDir());
@@ -171,7 +175,7 @@ class ProfilePrefStoreManagerTest : public testing::Test {
             main_message_loop_.task_runner(),
             base::Bind(&ProfilePrefStoreManagerTest::RecordReset,
                        base::Unretained(this)),
-            &mock_validation_delegate_);
+            mock_validation_delegate_.get());
     InitializePrefStore(pref_store.get());
     pref_store = NULL;
     base::RunLoop().RunUntilIdle();
@@ -197,14 +201,13 @@ class ProfilePrefStoreManagerTest : public testing::Test {
     pref_store->AddObserver(&registry_verifier_);
     PersistentPrefStore::PrefReadError error = pref_store->ReadPrefs();
     EXPECT_EQ(PersistentPrefStore::PREF_READ_ERROR_NO_FILE, error);
-    pref_store->SetValue(kTrackedAtomic,
-                         base::MakeUnique<base::StringValue>(kFoobar),
+    pref_store->SetValue(kTrackedAtomic, base::MakeUnique<base::Value>(kFoobar),
                          WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
     pref_store->SetValue(kProtectedAtomic,
-                         base::MakeUnique<base::StringValue>(kHelloWorld),
+                         base::MakeUnique<base::Value>(kHelloWorld),
                          WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
     pref_store->SetValue(kUnprotectedPref,
-                         base::MakeUnique<base::StringValue>(kFoobar),
+                         base::MakeUnique<base::Value>(kFoobar),
                          WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
     pref_store->RemoveObserver(&registry_verifier_);
     pref_store->CommitPendingWrite();
@@ -255,7 +258,7 @@ class ProfilePrefStoreManagerTest : public testing::Test {
     // No validations are expected for platforms that do not support tracking.
     if (!ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking)
       return;
-    if (!mock_validation_delegate_.GetEventForPath(pref_path))
+    if (!mock_validation_delegate_record_->GetEventForPath(pref_path))
       ADD_FAILURE() << "No validation observed for preference: " << pref_path;
   }
 
@@ -265,7 +268,8 @@ class ProfilePrefStoreManagerTest : public testing::Test {
   TestingPrefServiceSimple local_state_;
   scoped_refptr<user_prefs::PrefRegistrySyncable> profile_pref_registry_;
   RegistryVerifier registry_verifier_;
-  MockValidationDelegate mock_validation_delegate_;
+  scoped_refptr<MockValidationDelegateRecord> mock_validation_delegate_record_;
+  std::unique_ptr<MockValidationDelegate> mock_validation_delegate_;
   std::unique_ptr<ProfilePrefStoreManager> manager_;
   scoped_refptr<PersistentPrefStore> pref_store_;
 
@@ -319,10 +323,11 @@ TEST_F(ProfilePrefStoreManagerTest, ProtectValues) {
 }
 
 TEST_F(ProfilePrefStoreManagerTest, InitializePrefsFromMasterPrefs) {
-  base::DictionaryValue master_prefs;
-  master_prefs.Set(kTrackedAtomic, new base::StringValue(kFoobar));
-  master_prefs.Set(kProtectedAtomic, new base::StringValue(kHelloWorld));
-  EXPECT_TRUE(manager_->InitializePrefsFromMasterPrefs(master_prefs));
+  auto master_prefs = base::MakeUnique<base::DictionaryValue>();
+  master_prefs->Set(kTrackedAtomic, new base::Value(kFoobar));
+  master_prefs->Set(kProtectedAtomic, new base::Value(kHelloWorld));
+  EXPECT_TRUE(
+      manager_->InitializePrefsFromMasterPrefs(std::move(master_prefs)));
 
   LoadExistingPrefs();
 
@@ -353,8 +358,9 @@ TEST_F(ProfilePrefStoreManagerTest, UnprotectedToProtected) {
 
   // Now update the configuration to protect it.
   PrefHashFilter::TrackedPreferenceMetadata new_protected = {
-      kExtraReportingId, kUnprotectedPref, PrefHashFilter::ENFORCE_ON_LOAD,
-      PrefHashFilter::TRACKING_STRATEGY_ATOMIC};
+      kExtraReportingId, kUnprotectedPref,
+      PrefHashFilter::EnforcementLevel::ENFORCE_ON_LOAD,
+      PrefHashFilter::PrefTrackingStrategy::ATOMIC};
   configuration_.push_back(new_protected);
   ReloadConfiguration();
 
@@ -386,7 +392,7 @@ TEST_F(ProfilePrefStoreManagerTest, NewPrefWhenFirstProtecting) {
            configuration_.begin();
        it != configuration_.end();
        ++it) {
-    it->enforcement_level = PrefHashFilter::NO_ENFORCEMENT;
+    it->enforcement_level = PrefHashFilter::EnforcementLevel::NO_ENFORCEMENT;
   }
   ReloadConfiguration();
 
@@ -404,8 +410,9 @@ TEST_F(ProfilePrefStoreManagerTest, NewPrefWhenFirstProtecting) {
   // Now introduce protection, including the never-before tracked "new_pref".
   configuration_ = original_configuration;
   PrefHashFilter::TrackedPreferenceMetadata new_protected = {
-      kExtraReportingId, kUnprotectedPref, PrefHashFilter::ENFORCE_ON_LOAD,
-      PrefHashFilter::TRACKING_STRATEGY_ATOMIC};
+      kExtraReportingId, kUnprotectedPref,
+      PrefHashFilter::EnforcementLevel::ENFORCE_ON_LOAD,
+      PrefHashFilter::PrefTrackingStrategy::ATOMIC};
   configuration_.push_back(new_protected);
   ReloadConfiguration();
 
@@ -426,8 +433,9 @@ TEST_F(ProfilePrefStoreManagerTest, UnprotectedToProtectedWithoutTrust) {
 
   // Now update the configuration to protect it.
   PrefHashFilter::TrackedPreferenceMetadata new_protected = {
-      kExtraReportingId, kUnprotectedPref, PrefHashFilter::ENFORCE_ON_LOAD,
-      PrefHashFilter::TRACKING_STRATEGY_ATOMIC};
+      kExtraReportingId, kUnprotectedPref,
+      PrefHashFilter::EnforcementLevel::ENFORCE_ON_LOAD,
+      PrefHashFilter::PrefTrackingStrategy::ATOMIC};
   configuration_.push_back(new_protected);
   seed_ = "new-seed-to-break-trust";
   ReloadConfiguration();
@@ -459,7 +467,7 @@ TEST_F(ProfilePrefStoreManagerTest, ProtectedToUnprotected) {
        it != configuration_.end();
        ++it) {
     if (it->name == kProtectedAtomic) {
-      it->enforcement_level = PrefHashFilter::NO_ENFORCEMENT;
+      it->enforcement_level = PrefHashFilter::EnforcementLevel::NO_ENFORCEMENT;
       break;
     }
   }
@@ -481,7 +489,7 @@ TEST_F(ProfilePrefStoreManagerTest, ProtectedToUnprotected) {
   // Trigger the logic that migrates it back to the unprotected preferences
   // file.
   pref_store_->SetValue(kProtectedAtomic,
-                        base::WrapUnique(new base::StringValue(kGoodbyeWorld)),
+                        base::WrapUnique(new base::Value(kGoodbyeWorld)),
                         WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
   LoadExistingPrefs();
   ExpectStringValueEquals(kProtectedAtomic, kGoodbyeWorld);

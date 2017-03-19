@@ -15,7 +15,6 @@ import logging
 
 from webkitpy.common.memoized import memoized
 from webkitpy.common.net.git_cl import GitCL
-from webkitpy.common.net.rietveld import Rietveld
 from webkitpy.common.webkit_finder import WebKitFinder
 from webkitpy.layout_tests.models.test_expectations import TestExpectationLine, TestExpectations
 from webkitpy.w3c.test_parser import TestParser
@@ -45,8 +44,7 @@ class WPTExpectationsUpdater(object):
             _log.error('No issue on current branch.')
             return 1
 
-        rietveld = Rietveld(self.host.web)
-        builds = rietveld.latest_try_jobs(issue_number, self._get_try_bots())
+        builds = self.get_latest_try_jobs()
         _log.debug('Latest try jobs: %r', builds)
         if not builds:
             _log.error('No try job information was collected.')
@@ -71,6 +69,10 @@ class WPTExpectationsUpdater(object):
     def get_issue_number(self):
         """Returns current CL number. Can be replaced in unit tests."""
         return GitCL(self.host).get_issue_number()
+
+    def get_latest_try_jobs(self):
+        """Returns the latest finished try jobs as Build objects."""
+        return GitCL(self.host).latest_try_jobs(self._get_try_bots())
 
     def get_failing_results_dict(self, build):
         """Returns a nested dict of failing test results.
@@ -98,7 +100,7 @@ class WPTExpectationsUpdater(object):
             _log.warning('No results for build %s', build)
             return {}
         port_name = self.host.builders.port_name_for_builder_name(build.builder_name)
-        test_results = layout_test_results.didnt_run_as_expected_results()
+        test_results = [result for result in layout_test_results.didnt_run_as_expected_results() if not result.did_pass()]
         failing_results_dict = self.generate_results_dict(port_name, test_results)
         return failing_results_dict
 
@@ -250,7 +252,7 @@ class WPTExpectationsUpdater(object):
             ['BUG_URL [PLATFORM(S)] TEST_NAME [EXPECTATION(S)]']
         """
         line_list = []
-        for test_name, port_results in merged_results.iteritems():
+        for test_name, port_results in sorted(merged_results.iteritems()):
             for port_names in sorted(port_results):
                 if test_name.startswith('external'):
                     line_parts = [port_results[port_names]['bug']]
@@ -277,8 +279,8 @@ class WPTExpectationsUpdater(object):
         for name in sorted(port_names):
             specifiers.append(self.host.builders.version_specifier_for_port_name(name))
         port = self.host.port_factory.get()
-        specifiers = self.simplify_specifiers(specifiers, port.configuration_specifier_macros())
         specifiers.extend(self.skipped_specifiers(test_name))
+        specifiers = self.simplify_specifiers(specifiers, port.configuration_specifier_macros())
         if not specifiers:
             return ''
         return '[ %s ]' % ' '.join(specifiers)
@@ -333,7 +335,7 @@ class WPTExpectationsUpdater(object):
             if version_specifiers.issubset(specifiers):
                 specifiers -= version_specifiers
                 specifiers.add(macro_specifier)
-        if specifiers == set(configuration_specifier_macros):
+        if specifiers == {macro.lower() for macro in configuration_specifier_macros.keys()}:
             return []
         return sorted(specifier.capitalize() for specifier in specifiers)
 
@@ -417,19 +419,26 @@ class WPTExpectationsUpdater(object):
             the test results dictionary. The tests to be rebaselined should
             include testharness.js tests that failed due to a baseline mismatch.
         """
-        test_results = copy.deepcopy(test_results)
+        new_test_results = copy.deepcopy(test_results)
         tests_to_rebaseline = set()
         for test_path in test_results:
-            if not (self.is_js_test(test_path) and test_results.get(test_path)):
-                continue
-            for platform in test_results[test_path].keys():
-                if test_results[test_path][platform]['actual'] not in ['CRASH', 'TIMEOUT']:
-                    del test_results[test_path][platform]
+            for platform, result in test_results[test_path].iteritems():
+                if self.can_rebaseline(test_path, result):
+                    del new_test_results[test_path][platform]
                     tests_to_rebaseline.add(test_path)
-        return sorted(tests_to_rebaseline), test_results
+        return sorted(tests_to_rebaseline), new_test_results
+
+    def can_rebaseline(self, test_path, result):
+        return (self.is_js_test(test_path) and
+                result['actual'] not in ('CRASH', 'TIMEOUT'))
 
     def is_js_test(self, test_path):
         """Checks whether a given file is a testharness.js test.
+
+        TODO(qyearsley): This may not behave how we want it to for virtual tests.
+        TODO(qyearsley): Avoid using TestParser; maybe this should use
+        Port.test_type, or Port.reference_files to see whether it's not
+        a reference test?
 
         Args:
             test_path: A file path relative to the layout tests directory.

@@ -102,6 +102,7 @@ cr.define('settings', function() {
 
 // <if expr="chromeos">
   r.INTERNET = r.BASIC.createSection('/internet', 'internet');
+  r.INTERNET_NETWORKS = r.INTERNET.createChild('/networks');
   r.NETWORK_DETAIL = r.INTERNET.createChild('/networkDetail');
   r.KNOWN_NETWORKS = r.INTERNET.createChild('/knownNetworks');
   r.BLUETOOTH = r.BASIC.createSection('/bluetooth', 'bluetooth');
@@ -137,18 +138,22 @@ cr.define('settings', function() {
   r.DEVICE = r.BASIC.createSection('/device', 'device');
   r.POINTERS = r.DEVICE.createChild('/pointer-overlay');
   r.KEYBOARD = r.DEVICE.createChild('/keyboard-overlay');
-  r.DISPLAY = r.DEVICE.createChild('/display');
   r.STYLUS = r.DEVICE.createChild('/stylus');
+  r.DISPLAY = r.DEVICE.createChild('/display');
   r.STORAGE = r.DEVICE.createChild('/storage');
+  r.POWER = r.DEVICE.createChild('/power');
 // </if>
 
   r.PRIVACY = r.ADVANCED.createSection('/privacy', 'privacy');
   r.CERTIFICATES = r.PRIVACY.createChild('/certificates');
 
   r.SITE_SETTINGS = r.PRIVACY.createChild('/content');
-  r.SITE_SETTINGS_ALL = r.SITE_SETTINGS.createChild('all');
-  r.SITE_SETTINGS_SITE_DETAILS =
-      r.SITE_SETTINGS_ALL.createChild('/content/siteDetails');
+
+  if (loadTimeData.getBoolean('enableSiteSettings')) {
+    r.SITE_SETTINGS_ALL = r.SITE_SETTINGS.createChild('all');
+    r.SITE_SETTINGS_SITE_DETAILS =
+        r.SITE_SETTINGS_ALL.createChild('/content/siteDetails');
+  }
 
   r.SITE_SETTINGS_HANDLERS = r.SITE_SETTINGS.createChild('/handlers');
 

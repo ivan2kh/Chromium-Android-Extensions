@@ -142,6 +142,10 @@ BASE_EXPORT extern NSString* const NSAppearanceNameVibrantLight;
 
 @class CIQRCodeFeature;
 
+@interface NSView (YosemiteSDK)
+- (BOOL)isAccessibilitySelectorAllowed:(SEL)selector;
+@end
+
 #endif  // MAC_OS_X_VERSION_10_10
 
 // Once Chrome no longer supports OSX 10.10.2, everything within this
@@ -149,15 +153,27 @@ BASE_EXPORT extern NSString* const NSAppearanceNameVibrantLight;
 #if !defined(MAC_OS_X_VERSION_10_10_3) || \
     MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_10_3
 
-@interface NSEvent (YosemiteSDK)
+@interface NSEvent (Yosemite_3_SDK)
 @property(readonly) NSInteger stage;
 @end
 
-@interface NSView (YosemiteSDK)
+@interface NSView (Yosemite_3_SDK)
 - (void)setPressureConfiguration:(NSPressureConfiguration*)aConfiguration;
 @end
 
 #endif  // MAC_OS_X_VERSION_10_10
+
+// ----------------------------------------------------------------------------
+// Define NSStrings only available in newer versions of the OSX SDK to force
+// them to be statically linked.
+// ----------------------------------------------------------------------------
+
+extern "C" {
+#if !defined(MAC_OS_X_VERSION_10_11) || \
+    MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_11
+BASE_EXPORT extern NSString* const CIDetectorTypeText;
+#endif  // MAC_OS_X_VERSION_10_11
+}  // extern "C"
 
 // Once Chrome no longer supports OSX 10.10, everything within this
 // preprocessor block can be removed.
@@ -182,6 +198,12 @@ BASE_EXPORT extern NSString* const NSAppearanceNameVibrantLight;
 @interface NSWindow (ElCapitanSDK)
 - (void)performWindowDragWithEvent:(NSEvent*)event;
 @end
+
+@interface CIRectangleFeature (ElCapitanSDK)
+@property(readonly) CGRect bounds;
+@end
+
+@class CIRectangleFeature;
 
 #endif  // MAC_OS_X_VERSION_10_11
 

@@ -30,6 +30,7 @@
 
 #include "core/frame/Frame.h"
 
+#include "bindings/core/v8/WindowProxyManager.h"
 #include "core/dom/DocumentType.h"
 #include "core/events/Event.h"
 #include "core/frame/FrameHost.h"
@@ -42,7 +43,6 @@
 #include "core/layout/LayoutPart.h"
 #include "core/layout/api/LayoutPartItem.h"
 #include "core/loader/EmptyClients.h"
-#include "core/loader/FrameLoaderClient.h"
 #include "core/loader/NavigationScheduler.h"
 #include "core/page/FocusController.h"
 #include "core/page/Page.h"
@@ -50,7 +50,7 @@
 #include "platform/InstanceCounters.h"
 #include "platform/UserGestureIndicator.h"
 #include "platform/feature_policy/FeaturePolicy.h"
-#include "platform/network/ResourceError.h"
+#include "platform/loader/fetch/ResourceError.h"
 
 namespace blink {
 
@@ -65,6 +65,7 @@ DEFINE_TRACE(Frame) {
   visitor->trace(m_treeNode);
   visitor->trace(m_host);
   visitor->trace(m_owner);
+  visitor->trace(m_windowProxyManager);
   visitor->trace(m_domWindow);
   visitor->trace(m_client);
 }
@@ -72,7 +73,6 @@ DEFINE_TRACE(Frame) {
 void Frame::detach(FrameDetachType type) {
   ASSERT(m_client);
   m_client->setOpener(0);
-  domWindow()->resetLocation();
   disconnectOwnerElement();
   // After this, we must no longer talk to the client since this clears
   // its owning reference back to our owning LocalFrame.
@@ -285,27 +285,26 @@ bool Frame::canNavigateWithoutFramebusting(const Frame& targetFrame,
     }
 
     // Top navigation is forbidden unless opted-in. allow-top-navigation or
-    // allow-top-navigation-with-user-activation will also skips origin checks.
+    // allow-top-navigation-by-user-activation will also skips origin checks.
     if (targetFrame == tree().top()) {
       if (securityContext()->isSandboxed(SandboxTopNavigation) &&
           securityContext()->isSandboxed(
-              SandboxTopNavigationWithUserActivation)) {
-        // TODO(binlu): To add "or 'allow-top-navigation-with-user-activation'"
-        // to the reason below, once the new flag is shipped.
+              SandboxTopNavigationByUserActivation)) {
         reason =
             "The frame attempting navigation of the top-level window is "
-            "sandboxed, but the 'allow-top-navigation' flag is not set.";
+            "sandboxed, but the flag of 'allow-top-navigation' or "
+            "'allow-top-navigation-by-user-activation' is not set.";
         return false;
       }
       if (securityContext()->isSandboxed(SandboxTopNavigation) &&
           !securityContext()->isSandboxed(
-              SandboxTopNavigationWithUserActivation) &&
+              SandboxTopNavigationByUserActivation) &&
           !UserGestureIndicator::processingUserGesture()) {
-        // With only 'allow-top-navigation-with-user-activation' (but not
+        // With only 'allow-top-navigation-by-user-activation' (but not
         // 'allow-top-navigation'), top navigation requires a user gesture.
         reason =
             "The frame attempting navigation of the top-level window is "
-            "sandboxed with the 'allow-top-navigation-with-user-activation' "
+            "sandboxed with the 'allow-top-navigation-by-user-activation' "
             "flag, but has no user activation (aka gesture). See "
             "https://www.chromestatus.com/feature/5629582019395584.";
         return false;
@@ -385,9 +384,13 @@ LayoutPartItem Frame::ownerLayoutItem() const {
 }
 
 Settings* Frame::settings() const {
-  if (m_host)
-    return &m_host->settings();
+  if (page())
+    return &page()->settings();
   return nullptr;
+}
+
+WindowProxy* Frame::windowProxy(DOMWrapperWorld& world) {
+  return m_windowProxyManager->windowProxy(world);
 }
 
 void Frame::didChangeVisibilityState() {
@@ -405,11 +408,25 @@ void Frame::setDocumentHasReceivedUserGesture() {
     parent->setDocumentHasReceivedUserGesture();
 }
 
-Frame::Frame(FrameClient* client, FrameHost* host, FrameOwner* owner)
+bool Frame::isFeatureEnabled(WebFeaturePolicyFeature feature) const {
+  WebFeaturePolicy* featurePolicy = securityContext()->getFeaturePolicy();
+  // The policy should always be initialized before checking it to ensure we
+  // properly inherit the parent policy.
+  DCHECK(featurePolicy);
+
+  // Otherwise, check policy.
+  return featurePolicy->IsFeatureEnabled(feature);
+}
+
+Frame::Frame(FrameClient* client,
+             FrameHost* host,
+             FrameOwner* owner,
+             WindowProxyManager* windowProxyManager)
     : m_treeNode(this),
       m_host(host),
       m_owner(owner),
       m_client(client),
+      m_windowProxyManager(windowProxyManager),
       m_isLoading(false) {
   InstanceCounters::incrementCounter(InstanceCounters::FrameCounter);
 

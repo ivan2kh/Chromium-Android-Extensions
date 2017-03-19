@@ -4,13 +4,13 @@
 
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_controller.h"
 
+#include "ash/public/interfaces/constants.mojom.h"
 #include "base/auto_reset.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/chromeos/arc/arc_util.h"
 #include "chrome/browser/extensions/extension_app_icon_loader.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_icon_loader.h"
-#include "chrome/browser/ui/ash/ash_util.h"
 #include "chrome/browser/ui/ash/chrome_launcher_prefs.h"
 #include "chrome/browser/ui/ash/launcher/launcher_controller_helper.h"
 #include "content/public/common/service_manager_connection.h"
@@ -51,13 +51,13 @@ bool ChromeLauncherController::ConnectToShelfController() {
   if (shelf_controller_.is_bound())
     return true;
 
-  auto connection = content::ServiceManagerConnection::GetForProcess();
-  auto connector = connection ? connection->GetConnector() : nullptr;
+  auto* connection = content::ServiceManagerConnection::GetForProcess();
+  auto* connector = connection ? connection->GetConnector() : nullptr;
   // Unit tests may not have a connector.
   if (!connector)
     return false;
 
-  connector->BindInterface(ash_util::GetAshServiceName(), &shelf_controller_);
+  connector->BindInterface(ash::mojom::kServiceName, &shelf_controller_);
   return true;
 }
 

@@ -82,6 +82,10 @@ std::string EventTypeToSuffix(ServiceWorkerMetrics::EventType event_type) {
       return "_EXTERNAL_REQUEST";
     case ServiceWorkerMetrics::EventType::PAYMENT_REQUEST:
       return "_PAYMENT_REQUEST";
+    case ServiceWorkerMetrics::EventType::BACKGROUND_FETCH_ABORT:
+      return "_BACKGROUND_FETCH_ABORT";
+    case ServiceWorkerMetrics::EventType::BACKGROUND_FETCH_CLICK:
+      return "_BACKGROUND_FETCH_CLICK";
     case ServiceWorkerMetrics::EventType::NUM_TYPES:
       NOTREACHED() << static_cast<int>(event_type);
   }
@@ -357,6 +361,10 @@ const char* ServiceWorkerMetrics::EventTypeToString(EventType event_type) {
       return "External Request";
     case EventType::PAYMENT_REQUEST:
       return "Payment Request";
+    case EventType::BACKGROUND_FETCH_ABORT:
+      return "Background Fetch Abort";
+    case EventType::BACKGROUND_FETCH_CLICK:
+      return "Background Fetch Click";
     case EventType::NUM_TYPES:
       break;
   }
@@ -687,6 +695,14 @@ void ServiceWorkerMetrics::RecordEventDuration(EventType event,
       UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.PaymentRequestEvent.Time",
                                  time);
       break;
+    case EventType::BACKGROUND_FETCH_ABORT:
+      UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.BackgroundFetchAbortEvent.Time",
+                                 time);
+      break;
+    case EventType::BACKGROUND_FETCH_CLICK:
+      UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.BackgroundFetchClickEvent.Time",
+                                 time);
+      break;
     // Those navigation hints should not be sent as request events.
     case EventType::NAVIGATION_HINT_LINK_MOUSE_DOWN:
     case EventType::NAVIGATION_HINT_LINK_TAP_UNCONFIRMED:
@@ -976,6 +992,21 @@ void ServiceWorkerMetrics::RecordContextRequestHandlerStatus(
           value, max);
     }
   }
+}
+
+void ServiceWorkerMetrics::RecordRuntime(base::TimeDelta time) {
+  // Start at 1 second since we expect service worker to last at least this
+  // long: the update timer and idle timeout timer run on the order of seconds.
+  constexpr base::TimeDelta kMin = base::TimeDelta::FromSeconds(1);
+  // End at 1 day since service workers can conceivably run as long as the the
+  // browser is open; we have to cap somewhere.
+  constexpr base::TimeDelta kMax = base::TimeDelta::FromDays(1);
+  // Set the bucket count to 50 since that is the recommended value for all
+  // histograms.
+  const int kBucketCount = 50;
+
+  UMA_HISTOGRAM_CUSTOM_TIMES("ServiceWorker.Runtime", time, kMin, kMax,
+                             kBucketCount);
 }
 
 }  // namespace content

@@ -15,9 +15,9 @@
 #include <vector>
 
 #include "base/macros.h"
-#include "cc/base/cc_export.h"
 #include "cc/base/region.h"
 #include "cc/base/tiling_data.h"
+#include "cc/cc_export.h"
 #include "cc/tiles/tile.h"
 #include "cc/tiles/tile_priority.h"
 #include "cc/trees/occlusion.h"
@@ -134,6 +134,8 @@ class CC_EXPORT PictureLayerTiling {
   void set_all_tiles_done(bool all_tiles_done) {
     all_tiles_done_ = all_tiles_done;
   }
+
+  WhichTree tree() const { return tree_; }
 
   void VerifyNoTileNeedsRaster() const {
 #if DCHECK_IS_ON()

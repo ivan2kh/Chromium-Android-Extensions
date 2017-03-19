@@ -11,6 +11,7 @@
 #include "content/browser/appcache/chrome_appcache_service.h"
 #include "content/browser/child_process_security_policy_impl.h"
 #include "content/browser/devtools/render_frame_devtools_agent_host.h"
+#include "content/browser/frame_host/debug_urls.h"
 #include "content/browser/frame_host/frame_tree.h"
 #include "content/browser/frame_host/frame_tree_node.h"
 #include "content/browser/frame_host/navigation_controller_impl.h"
@@ -18,6 +19,7 @@
 #include "content/browser/frame_host/navigation_request_info.h"
 #include "content/browser/frame_host/navigator.h"
 #include "content/browser/frame_host/navigator_impl.h"
+#include "content/browser/frame_host/render_frame_host_impl.h"
 #include "content/browser/loader/navigation_url_loader.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
@@ -31,6 +33,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_data.h"
 #include "content/public/browser/navigation_ui_data.h"
+#include "content/public/browser/render_view_host.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/stream_handle.h"
 #include "content/public/common/appcache_info.h"
@@ -39,6 +42,7 @@
 #include "content/public/common/request_context_type.h"
 #include "content/public/common/resource_response.h"
 #include "content/public/common/url_constants.h"
+#include "content/public/common/web_preferences.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
 #include "net/base/url_util.h"
@@ -126,6 +130,7 @@ void AddAdditionalRequestHeaders(net::HttpRequestHeaders* headers,
                                  FrameMsg_Navigate_Type::Value navigation_type,
                                  BrowserContext* browser_context,
                                  const std::string& method,
+                                 const std::string user_agent_override,
                                  FrameTreeNode* frame_tree_node) {
   if (!url.SchemeIsHTTPOrHTTPS())
     return;
@@ -141,7 +146,9 @@ void AddAdditionalRequestHeaders(net::HttpRequestHeaders* headers,
     headers->SetHeaderIfMissing("Save-Data", "on");
 
   headers->SetHeaderIfMissing(net::HttpRequestHeaders::kUserAgent,
-                              GetContentClient()->GetUserAgent());
+                              user_agent_override.empty()
+                                  ? GetContentClient()->GetUserAgent()
+                                  : user_agent_override);
 
   // Check whether DevTools wants to override user agent for this request
   // after setting the default user agent.
@@ -206,18 +213,25 @@ std::unique_ptr<NavigationRequest> NavigationRequest::CreateBrowserInitiated(
   // the renderer in the first place as part of OpenURL.
   bool browser_initiated = !entry.is_renderer_initiated();
 
+  CommonNavigationParams common_params = entry.ConstructCommonNavigationParams(
+      frame_entry, request_body, dest_url, dest_referrer, navigation_type,
+      previews_state, navigation_start);
+
   std::unique_ptr<NavigationRequest> navigation_request(new NavigationRequest(
-      frame_tree_node, entry.ConstructCommonNavigationParams(
-                           frame_entry, request_body, dest_url, dest_referrer,
-                           navigation_type, previews_state, navigation_start),
+      frame_tree_node, common_params,
       BeginNavigationParams(entry.extra_headers(), net::LOAD_NORMAL,
                             false,  // has_user_gestures
                             false,  // skip_service_worker
                             REQUEST_CONTEXT_TYPE_LOCATION,
                             blink::WebMixedContentContextType::Blockable,
+                            // TODO(arthursonzogni): It can be true for form
+                            // resubmission when the user reloads the page. This
+                            // needs to be fixed.
+                            false,  // is_form_submission
                             initiator),
       entry.ConstructRequestNavigationParams(
-          frame_entry, is_history_navigation_in_new_child,
+          frame_entry, common_params.url, common_params.method,
+          is_history_navigation_in_new_child,
           entry.GetSubframeUniqueNames(frame_tree_node),
           frame_tree_node->has_committed_real_load(),
           controller->GetPendingEntryIndex() == -1,
@@ -254,8 +268,9 @@ std::unique_ptr<NavigationRequest> NavigationRequest::CreateRendererInitiated(
   // renderer and sent to the browser instead of being measured here.
   // TODO(clamy): The pending history list offset should be properly set.
   RequestNavigationParams request_params(
-      false,                          // is_overriding_user_agent
-      std::vector<GURL>(),            // redirects
+      false,                // is_overriding_user_agent
+      std::vector<GURL>(),  // redirects
+      common_params.url, common_params.method,
       false,                          // can_load_local_resources
       PageState(),                    // page_state
       0,                              // nav_entry_id
@@ -321,12 +336,14 @@ NavigationRequest::NavigationRequest(
                                 common_params_.method == "POST");
 
   // Add necessary headers that may not be present in the BeginNavigationParams.
+  const std::string user_agent_override =
+      frame_tree_node_->navigator()->GetDelegate()->GetUserAgentOverride();
   net::HttpRequestHeaders headers;
   headers.AddHeadersFromString(begin_params_.headers);
   AddAdditionalRequestHeaders(
       &headers, common_params_.url, common_params_.navigation_type,
       frame_tree_node_->navigator()->GetController()->GetBrowserContext(),
-      common_params.method, frame_tree_node);
+      common_params.method, user_agent_override, frame_tree_node);
   begin_params_.headers = headers.ToString();
 }
 
@@ -340,7 +357,7 @@ void NavigationRequest::BeginNavigation() {
   RenderFrameDevToolsAgentHost::OnBeforeNavigation(navigation_handle_.get());
 
   if (ShouldMakeNetworkRequestForURL(common_params_.url) &&
-      !navigation_handle_->IsSamePage()) {
+      !navigation_handle_->IsSameDocument()) {
     // It's safe to use base::Unretained because this NavigationRequest owns
     // the NavigationHandle where the callback will be stored.
     // TODO(clamy): pass the real value for |is_external_protocol| if needed.
@@ -384,12 +401,15 @@ void NavigationRequest::CreateNavigationHandle(int pending_nav_entry_id) {
   redirect_chain.push_back(common_params_.url);
 
   std::unique_ptr<NavigationHandleImpl> navigation_handle =
-      NavigationHandleImpl::Create(
-          common_params_.url, redirect_chain, frame_tree_node_,
-          !browser_initiated_, FrameMsg_Navigate_Type::IsSameDocument(
-                                   common_params_.navigation_type),
-          common_params_.navigation_start, pending_nav_entry_id,
-          false);  // started_in_context_menu
+      NavigationHandleImpl::Create(common_params_.url, redirect_chain,
+                                   frame_tree_node_, !browser_initiated_,
+                                   FrameMsg_Navigate_Type::IsSameDocument(
+                                       common_params_.navigation_type),
+                                   common_params_.navigation_start,
+                                   pending_nav_entry_id,
+                                   false,  // started_in_context_menu
+                                   common_params_.should_check_main_world_csp,
+                                   begin_params_.is_form_submission);
 
   if (!frame_tree_node->navigation_request()) {
     // A callback could have cancelled this request synchronously in which case
@@ -432,6 +452,7 @@ void NavigationRequest::OnRequestRedirected(
   request_params_.navigation_timing.fetch_start = base::TimeTicks::Now();
 
   request_params_.redirect_response.push_back(response->head);
+  request_params_.redirect_infos.push_back(redirect_info);
 
   request_params_.redirects.push_back(common_params_.url);
   common_params_.url = redirect_info.new_url;
@@ -515,14 +536,20 @@ void NavigationRequest::OnResponseStarted(
   }
   DCHECK(render_frame_host || !response_should_be_rendered_);
 
-  // For renderer-initiated navigations that are set to commit in a different
-  // renderer, allow the embedder to cancel the transfer.
   if (!browser_initiated_ && render_frame_host &&
-      render_frame_host != frame_tree_node_->current_frame_host() &&
-      !frame_tree_node_->navigator()->GetDelegate()->ShouldTransferNavigation(
-          frame_tree_node_->IsMainFrame())) {
-    frame_tree_node_->ResetNavigationRequest(false);
-    return;
+      render_frame_host != frame_tree_node_->current_frame_host()) {
+    // Reset the source location information if the navigation will not commit
+    // in the current renderer process. This information originated in another
+    // process (the current one), it should not be transferred to the new one.
+    common_params_.source_location.reset();
+
+    // Allow the embedder to cancel the cross-process commit if needed.
+    // TODO(clamy): Rename ShouldTransferNavigation once PlzNavigate ships.
+    if (!frame_tree_node_->navigator()->GetDelegate()->ShouldTransferNavigation(
+            frame_tree_node_->IsMainFrame())) {
+      frame_tree_node_->ResetNavigationRequest(false);
+      return;
+    }
   }
 
   if (navigation_data)
@@ -547,8 +574,53 @@ void NavigationRequest::OnRequestFailed(bool has_stale_copy_in_cache,
   DCHECK(state_ == STARTED || state_ == RESPONSE_STARTED);
   state_ = FAILED;
   navigation_handle_->set_net_error_code(static_cast<net::Error>(net_error));
-  frame_tree_node_->navigator()->FailedNavigation(
-      frame_tree_node_, has_stale_copy_in_cache, net_error);
+
+  // With PlzNavigate, debug URLs will give a failed navigation because the
+  // WebUI backend won't find a handler for them. They will be processed in the
+  // renderer, however do not discard the pending entry so that the URL bar
+  // shows them correctly.
+  if (!IsRendererDebugURL(common_params_.url)) {
+    frame_tree_node_->navigator()->DiscardPendingEntryIfNeeded(
+        navigation_handle_.get());
+  }
+
+  // If the request was canceled by the user do not show an error page.
+  if (net_error == net::ERR_ABORTED) {
+    frame_tree_node_->ResetNavigationRequest(false);
+    return;
+  }
+
+  // There are two types of error pages that need to be handled differently.
+  // * Error pages resulting from blocking the request, because the original
+  //   document wasn't even allowed to make the request. In such case,
+  //   the error pages should be committed in the process of the original
+  //   document, to avoid creating a process for the destination.
+  // * Error pages resulting from either network outage (no network, DNS
+  //   error, etc) or similar cases, where the user can reasonably expect that
+  //   a reload at a later point in time can be successful. Such error pages
+  //   do belong to the process that will host the destination URL, as a
+  //   reload will end up committing in that process anyway.
+  RenderFrameHostImpl* render_frame_host = nullptr;
+  if (net_error == net::ERR_BLOCKED_BY_CLIENT) {
+    render_frame_host = frame_tree_node_->current_frame_host();
+  } else {
+    render_frame_host =
+        frame_tree_node_->render_manager()->GetFrameHostForNavigation(*this);
+  }
+
+  // Don't ask the renderer to commit an URL if the browser will kill it when
+  // it does.
+  DCHECK(render_frame_host->CanCommitURL(common_params_.url));
+
+  NavigatorImpl::CheckWebUIRendererDoesNotDisplayNormalURL(render_frame_host,
+                                                           common_params_.url);
+
+  TransferNavigationHandleOwnership(render_frame_host);
+  render_frame_host->navigation_handle()->ReadyToCommitNavigation(
+      render_frame_host);
+  render_frame_host->FailedNavigation(common_params_, begin_params_,
+                                      request_params_, has_stale_copy_in_cache,
+                                      net_error);
 }
 
 void NavigationRequest::OnRequestStarted(base::TimeTicks timestamp) {
@@ -619,8 +691,14 @@ void NavigationRequest::OnStartChecksComplete(
   }
 
   if (IsSchemeSupportedForAppCache(common_params_.url)) {
-    navigation_handle_->InitAppCacheHandle(
-        static_cast<ChromeAppCacheService*>(partition->GetAppCacheService()));
+    RenderFrameHostImpl* render_frame_host =
+        frame_tree_node_->render_manager()->GetFrameHostForNavigation(*this);
+    if (render_frame_host->GetRenderViewHost()
+            ->GetWebkitPreferences()
+            .application_cache_enabled) {
+      navigation_handle_->InitAppCacheHandle(
+          static_cast<ChromeAppCacheService*>(partition->GetAppCacheService()));
+    }
   }
 
   // Mark the fetch_start (Navigation Timing API).
@@ -650,7 +728,7 @@ void NavigationRequest::OnStartChecksComplete(
       RenderFrameDevToolsAgentHost::IsNetworkHandlerEnabled(frame_tree_node_);
 
   loader_ = NavigationURLLoader::Create(
-      frame_tree_node_->navigator()->GetController()->GetBrowserContext(),
+      browser_context->GetResourceContext(), partition,
       base::MakeUnique<NavigationRequestInfo>(
           common_params_, begin_params_, first_party_for_cookies,
           frame_tree_node_->IsMainFrame(), parent_is_main_frame,
@@ -672,6 +750,14 @@ void NavigationRequest::OnRedirectChecksComplete(
       result == NavigationThrottle::CANCEL) {
     // TODO(clamy): distinguish between CANCEL and CANCEL_AND_IGNORE.
     OnRequestFailed(false, net::ERR_ABORTED);
+
+    // DO NOT ADD CODE after this. The previous call to OnRequestFailed has
+    // destroyed the NavigationRequest.
+    return;
+  }
+
+  if (result == NavigationThrottle::BLOCK_REQUEST) {
+    OnRequestFailed(false, net::ERR_BLOCKED_BY_CLIENT);
 
     // DO NOT ADD CODE after this. The previous call to OnRequestFailed has
     // destroyed the NavigationRequest.
@@ -716,7 +802,7 @@ void NavigationRequest::OnWillProcessResponseChecksComplete(
 
 void NavigationRequest::CommitNavigation() {
   DCHECK(response_ || !ShouldMakeNetworkRequestForURL(common_params_.url) ||
-         navigation_handle_->IsSamePage());
+         navigation_handle_->IsSameDocument());
   DCHECK(!common_params_.url.SchemeIs(url::kJavaScriptScheme));
 
   // Retrieve the RenderFrameHost that needs to commit the navigation.

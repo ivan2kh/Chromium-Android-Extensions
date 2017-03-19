@@ -8,7 +8,6 @@
           "autofill::mojom::AutofillDriver",
           "autofill::mojom::PasswordManagerDriver",
           "chrome::mojom::NetBenchmarking",
-          "chrome::mojom::FieldTrialRecorder",
           "extensions::StashService",
           "metrics::mojom::LeakDetector",
           "mojom::ModuleEventSink",
@@ -28,6 +27,7 @@
         "nacl_broker": [ "browser" ],
         "nacl_loader": [ "browser" ],
         "preferences": [ "preferences_manager" ],
+        "preferences2": [ "pref_client" ],
         "ui": [ "display_controller", "ime_registrar" ]
       }
     },
@@ -36,6 +36,7 @@
         "renderer": [
           "autofill::mojom::AutofillDriver",
           "autofill::mojom::PasswordManagerDriver",
+          "blink::mojom::InstalledAppProvider",
           "blink::mojom::ShareService",
           "bluetooth::mojom::AdapterFactory",
           "chrome::mojom::PrerenderCanceler",

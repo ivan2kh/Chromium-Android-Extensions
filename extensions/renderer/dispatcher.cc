@@ -54,6 +54,7 @@
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/common/switches.h"
 #include "extensions/common/view_type.h"
+#include "extensions/grit/extensions_renderer_resources.h"
 #include "extensions/renderer/api_activity_logger.h"
 #include "extensions/renderer/api_definitions_natives.h"
 #include "extensions/renderer/app_window_custom_bindings.h"
@@ -100,7 +101,6 @@
 #include "extensions/renderer/worker_script_context_set.h"
 #include "extensions/renderer/worker_thread_dispatcher.h"
 #include "gin/converter.h"
-#include "grit/extensions_renderer_resources.h"
 #include "mojo/public/js/constants.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURLRequest.h"
@@ -217,8 +217,8 @@ void SendEventListenersIPC(binding::EventListenersChanged changed,
   }
 }
 
-base::LazyInstance<WorkerScriptContextSet> g_worker_script_context_set =
-    LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<WorkerScriptContextSet>::DestructorAtExit
+    g_worker_script_context_set = LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
@@ -606,6 +606,15 @@ void Dispatcher::RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) {
   // |frame_helper| and |render_frame| might be dead by now.
 }
 
+void Dispatcher::RunScriptsAtDocumentIdle(content::RenderFrame* render_frame) {
+  ExtensionFrameHelper* frame_helper = ExtensionFrameHelper::Get(render_frame);
+  if (!frame_helper)
+    return;  // The frame is invisible to extensions.
+
+  frame_helper->RunScriptsAtDocumentIdle();
+  // |frame_helper| and |render_frame| might be dead by now.
+}
+
 void Dispatcher::OnExtensionResponse(int request_id,
                                      bool success,
                                      const base::ListValue& response,
@@ -744,9 +753,11 @@ std::vector<std::pair<const char*, int>> Dispatcher::GetJsResources() {
 #if defined(ENABLE_MEDIA_ROUTER)
     {"chrome/browser/media/router/mojo/media_router.mojom",
      IDR_MEDIA_ROUTER_MOJOM_JS},
-    {"mojo/common/time.mojom", IDR_MOJO_TIME_MOJOM_JS},
-    {"url/mojo/origin.mojom", IDR_ORIGIN_MOJOM_JS},
     {"media_router_bindings", IDR_MEDIA_ROUTER_BINDINGS_JS},
+    {"mojo/common/time.mojom", IDR_MOJO_TIME_MOJOM_JS},
+    {"net/interfaces/ip_address.mojom", IDR_MOJO_IP_ADDRESS_MOJOM_JS},
+    {"url/mojo/origin.mojom", IDR_ORIGIN_MOJOM_JS},
+    {"url/mojo/url.mojom", IDR_MOJO_URL_MOJOM_JS},
 #endif  // defined(ENABLE_MEDIA_ROUTER)
   };
 

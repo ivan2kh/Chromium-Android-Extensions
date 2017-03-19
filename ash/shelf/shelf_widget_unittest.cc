@@ -214,8 +214,9 @@ TEST_F(ShelfWidgetTest, ShelfEdgeOverlappingWindowHitTestMouse) {
   gfx::Rect widget_bounds = widget->GetWindowBoundsInScreen();
   EXPECT_TRUE(widget_bounds.Intersects(shelf_bounds));
 
-  ui::EventTarget* root = widget->GetNativeWindow()->GetRootWindow();
-  ui::EventTargeter* targeter = root->GetEventTargeter();
+  aura::Window* root = widget->GetNativeWindow()->GetRootWindow();
+  ui::EventTargeter* targeter =
+      root->GetHost()->dispatcher()->GetDefaultEventTargeter();
   {
     // Create a mouse-event targeting the top of the shelf widget. The
     // window-targeter should find |widget| as the target (instead of the
@@ -290,14 +291,16 @@ TEST_F(ShelfWidgetTest, HiddenShelfHitTestTouch) {
   widget->Init(params);
   widget->Show();
 
-  ui::EventTarget* root = shelf_widget->GetNativeWindow()->GetRootWindow();
-  ui::EventTargeter* targeter = root->GetEventTargeter();
+  aura::Window* root = shelf_widget->GetNativeWindow()->GetRootWindow();
+  ui::EventTargeter* targeter =
+      root->GetHost()->dispatcher()->GetDefaultEventTargeter();
   // Touch just over the shelf. Since the shelf is visible, the window-targeter
   // should not find the shelf as the target.
   {
     gfx::Point event_location(20, shelf_bounds.y() - 1);
-    ui::TouchEvent touch(ui::ET_TOUCH_PRESSED, event_location, 0,
-                         ui::EventTimeForNow());
+    ui::TouchEvent touch(
+        ui::ET_TOUCH_PRESSED, event_location, ui::EventTimeForNow(),
+        ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
     EXPECT_NE(shelf_widget->GetNativeWindow(),
               targeter->FindTargetForEvent(root, &touch));
   }
@@ -314,8 +317,9 @@ TEST_F(ShelfWidgetTest, HiddenShelfHitTestTouch) {
   // shelf as the target.
   {
     gfx::Point event_location(20, shelf_bounds.y() - 1);
-    ui::TouchEvent touch(ui::ET_TOUCH_PRESSED, event_location, 0,
-                         ui::EventTimeForNow());
+    ui::TouchEvent touch(
+        ui::ET_TOUCH_PRESSED, event_location, ui::EventTimeForNow(),
+        ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
     EXPECT_EQ(shelf_widget->GetNativeWindow(),
               targeter->FindTargetForEvent(root, &touch));
   }
@@ -329,9 +333,11 @@ class ShelfInitializer : public ShellObserver {
  public:
   ShelfInitializer(ShelfAlignment alignment, ShelfAutoHideBehavior auto_hide)
       : alignment_(alignment), auto_hide_(auto_hide) {
-    WmShell::Get()->AddShellObserver(this);
+    Shell::GetInstance()->AddShellObserver(this);
   }
-  ~ShelfInitializer() override { WmShell::Get()->RemoveShellObserver(this); }
+  ~ShelfInitializer() override {
+    Shell::GetInstance()->RemoveShellObserver(this);
+  }
 
   // ShellObserver:
   void OnShelfCreatedForRootWindow(WmWindow* root_window) override {

@@ -33,9 +33,8 @@ namespace content {
 //
 // Features
 // --------
-// Features which can be controlled by policy are defined by instances of the
-// FeaturePolicy::Feature struct. The features are referenced by the
-// |WebFeaturePolicyFeature| enum, declared in |WebFeaturePolicy.h|.
+// Features which can be controlled by policy are defined by instances of enum
+// blink::WebFeaturePolicyFeature, declared in |WebFeaturePolicy.h|.
 //
 // Whitelists
 // ----------
@@ -56,6 +55,13 @@ namespace content {
 // an inherited policy, which is determined by the context in which it is
 // embedded, or by the defaults for each feature in the case of the top-level
 // document.
+//
+// Container Policy
+// ----------------
+// A declared policy can be set on a specific frame by the embedding page using
+// the iframe "allow" attribute, or through attributes such as "allowfullscreen"
+// or "allowpaymentrequest". This is the container policy for the embedded
+// frame.
 //
 // Defaults
 // --------
@@ -83,20 +89,20 @@ namespace content {
 // They exist only because we can't transfer WebVectors directly over IPC.
 struct CONTENT_EXPORT ParsedFeaturePolicyDeclaration {
   ParsedFeaturePolicyDeclaration();
-  ParsedFeaturePolicyDeclaration(std::string feature_name,
+  ParsedFeaturePolicyDeclaration(blink::WebFeaturePolicyFeature feature,
                                  bool matches_all_origins,
                                  std::vector<url::Origin> origins);
   ParsedFeaturePolicyDeclaration(const ParsedFeaturePolicyDeclaration& rhs);
   ~ParsedFeaturePolicyDeclaration();
 
-  std::string feature_name;
+  blink::WebFeaturePolicyFeature feature;
   bool matches_all_origins;
   std::vector<url::Origin> origins;
 };
 
 using ParsedFeaturePolicyHeader = std::vector<ParsedFeaturePolicyDeclaration>;
 
-class CONTENT_EXPORT FeaturePolicy {
+class CONTENT_EXPORT FeaturePolicy : public blink::WebFeaturePolicy {
  public:
   // Represents a collection of origins which make up a whitelist in a feature
   // policy. This collection may be set to match every origin (corresponding to
@@ -105,6 +111,7 @@ class CONTENT_EXPORT FeaturePolicy {
   class Whitelist final {
    public:
     Whitelist();
+    Whitelist(const Whitelist& rhs);
     ~Whitelist();
 
     // Adds a single origin to the whitelist.
@@ -140,34 +147,26 @@ class CONTENT_EXPORT FeaturePolicy {
     EnableForAll
   };
 
-  // The FeaturePolicy::Feature struct is used to define all features under
-  // control of Feature Policy. There should only be one instance of this struct
-  // for any given feature (declared below).
-  struct Feature {
-    // The name of the feature, as it should appear in a policy string
-    const char* const feature_name;
+  using FeatureList = std::map<blink::WebFeaturePolicyFeature, FeatureDefault>;
 
-    // Controls whether the feature should be available in the platform by
-    // default, in the absence of any declared policy.
-    FeatureDefault default_policy;
-  };
-
-  using FeatureList =
-      std::map<blink::WebFeaturePolicyFeature, const FeaturePolicy::Feature*>;
-
-  ~FeaturePolicy();
+  ~FeaturePolicy() override;
 
   static std::unique_ptr<FeaturePolicy> CreateFromParentPolicy(
       const FeaturePolicy* parent_policy,
+      const ParsedFeaturePolicyHeader& container_policy,
       const url::Origin& origin);
 
-  // Returns whether or not the given feature is enabled by this policy.
+  static std::unique_ptr<FeaturePolicy> CreateFromPolicyWithOrigin(
+      const FeaturePolicy& policy,
+      const url::Origin& origin);
+
+  // WebFeaturePolicy implementation
+  bool IsFeatureEnabled(blink::WebFeaturePolicyFeature feature) const override;
+
+  // Returns whether or not the given feature is enabled by this policy for a
+  // specific origin.
   bool IsFeatureEnabledForOrigin(blink::WebFeaturePolicyFeature feature,
                                  const url::Origin& origin) const;
-
-  // Returns whether or not the given feature is enabled for the origin of the
-  // document that owns the policy.
-  bool IsFeatureEnabled(blink::WebFeaturePolicyFeature feature) const;
 
   // Sets the declared policy from the parsed Feature-Policy HTTP header.
   // Unrecognized features will be ignored.
@@ -180,8 +179,14 @@ class CONTENT_EXPORT FeaturePolicy {
   FeaturePolicy(url::Origin origin, const FeatureList& feature_list);
   static std::unique_ptr<FeaturePolicy> CreateFromParentPolicy(
       const FeaturePolicy* parent_policy,
+      const ParsedFeaturePolicyHeader& container_policy,
       const url::Origin& origin,
       const FeatureList& features);
+
+  // Updates the inherited policy with the declarations from the iframe allow*
+  // attributes.
+  void AddContainerPolicy(const ParsedFeaturePolicyHeader& container_policy,
+                          const FeaturePolicy* parent_policy);
 
   // Returns the list of features which can be controlled by Feature Policy.
   static const FeatureList& GetDefaultFeatureList();

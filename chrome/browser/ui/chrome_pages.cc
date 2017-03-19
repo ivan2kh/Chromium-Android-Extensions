@@ -337,7 +337,7 @@ void ShowSettingsSubPageForProfile(Profile* profile,
   }
   Browser* browser = chrome::FindTabbedBrowser(profile, false);
   if (!browser) {
-    browser = new Browser(Browser::CreateParams(profile));
+    browser = new Browser(Browser::CreateParams(profile, true));
   }
   ShowSettingsSubPageInTabbedBrowser(browser, sub_page_path);
 }
@@ -441,7 +441,7 @@ void ShowBrowserSignin(Browser* browser,
   if (show_avatar_bubble) {
     browser->window()->ShowAvatarBubbleFromAvatarButton(
         BrowserWindow::AVATAR_BUBBLE_MODE_SIGNIN,
-        signin::ManageAccountsParams(), access_point);
+        signin::ManageAccountsParams(), access_point, false);
   } else {
     NavigateToSingletonTab(
         browser,

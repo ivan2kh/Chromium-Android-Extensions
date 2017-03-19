@@ -28,6 +28,7 @@ import android.os.SystemClock;
 import android.support.v4.view.animation.FastOutSlowInInterpolator;
 import android.util.AttributeSet;
 import android.util.Property;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -94,10 +95,10 @@ public class ToolbarPhone extends ToolbarLayout
     private static final float UNINITIALIZED_PERCENT = -1f;
 
     /** States that the toolbar can be in regarding the tab switcher. */
-    private static final int STATIC_TAB = 0;
-    private static final int TAB_SWITCHER = 1;
-    private static final int ENTERING_TAB_SWITCHER = 2;
-    private static final int EXITING_TAB_SWITCHER = 3;
+    protected static final int STATIC_TAB = 0;
+    protected static final int TAB_SWITCHER = 1;
+    protected static final int ENTERING_TAB_SWITCHER = 2;
+    protected static final int EXITING_TAB_SWITCHER = 3;
 
     @ViewDebug.ExportedProperty(category = "chrome", mapping = {
             @ViewDebug.IntToString(from = STATIC_TAB, to = "STATIC_TAB"),
@@ -114,7 +115,7 @@ public class ToolbarPhone extends ToolbarLayout
     private LocationBarPhone mLocationBar;
 
     private ViewGroup mToolbarButtonsContainer;
-    private ImageView mToggleTabStackButton;
+    protected ImageView mToggleTabStackButton;
     private NewTabButton mNewTabButton;
     private TintedImageButton mHomeButton;
     private TextView mUrlBar;
@@ -129,7 +130,7 @@ public class ToolbarPhone extends ToolbarLayout
     private final List<View> mTabSwitcherModeViews = new ArrayList<>();
     private final Set<View> mBrowsingModeViews = new HashSet<>();
     @ViewDebug.ExportedProperty(category = "chrome")
-    private int mTabSwitcherState;
+    protected int mTabSwitcherState;
 
     // This determines whether or not the toolbar draws as expected (false) or whether it always
     // draws as if it's showing the non-tabswitcher, non-animating toolbar. This is used in grabbing
@@ -178,7 +179,7 @@ public class ToolbarPhone extends ToolbarLayout
      * maximum of {@link #mUrlFocusChangePercent} and {@link #mNtpSearchBoxScrollPercent}.
      */
     @ViewDebug.ExportedProperty(category = "chrome")
-    private float mUrlExpansionPercent;
+    protected float mUrlExpansionPercent;
     private AnimatorSet mUrlFocusLayoutAnimator;
     private boolean mDisableLocationBarRelayout;
     private boolean mLayoutLocationBarInFocusedMode;
@@ -247,7 +248,7 @@ public class ToolbarPhone extends ToolbarLayout
     /**
      * Used to specify the visual state of the toolbar.
      */
-    private enum VisualState {
+    protected enum VisualState {
         TAB_SWITCHER_INCOGNITO,
         TAB_SWITCHER_NORMAL,
         NORMAL,
@@ -258,7 +259,7 @@ public class ToolbarPhone extends ToolbarLayout
 
     private VisualState mVisualState = VisualState.NORMAL;
     private VisualState mOverlayDrawablesVisualState;
-    private boolean mUseLightToolbarDrawables;
+    protected boolean mUseLightToolbarDrawables;
 
     private NewTabPage mVisibleNewTabPage;
     private float mPreTextureCaptureAlpha = 1f;
@@ -625,8 +626,9 @@ public class ToolbarPhone extends ToolbarLayout
         if (visualState == VisualState.NEW_TAB_NORMAL) {
             return 0;
         } else if (ApiCompatibilityUtils.isLayoutRtl(this)) {
-            return Math.max(
-                    mToolbarSidePadding, mToolbarButtonsContainer.getMeasuredWidth());
+            return Math.max(mToolbarSidePadding,
+                    shouldHideEndToolbarButtons() ? 0
+                                                  : mToolbarButtonsContainer.getMeasuredWidth());
         } else {
             return getBoundsAfterAccountingForLeftButton();
         }
@@ -646,8 +648,9 @@ public class ToolbarPhone extends ToolbarLayout
         } else if (ApiCompatibilityUtils.isLayoutRtl(this)) {
             return getMeasuredWidth() - getBoundsAfterAccountingForLeftButton();
         } else {
-            int margin = Math.max(
-                    mToolbarSidePadding, mToolbarButtonsContainer.getMeasuredWidth());
+            int margin = Math.max(mToolbarSidePadding,
+                    shouldHideEndToolbarButtons() ? 0
+                                                  : mToolbarButtonsContainer.getMeasuredWidth());
             return getMeasuredWidth() - margin;
         }
     }
@@ -735,7 +738,7 @@ public class ToolbarPhone extends ToolbarLayout
     /**
      * Calculate the bounds for the location bar background and set them to {@code out}.
      */
-    private void updateLocationBarBackgroundBounds(Rect out, VisualState visualState) {
+    protected void updateLocationBarBackgroundBounds(Rect out, VisualState visualState) {
         // Calculate the visible boundaries of the left and right most child views of the
         // location bar.
         float expansion = visualState == VisualState.NEW_TAB_NORMAL ? 1 : mUrlExpansionPercent;
@@ -781,7 +784,7 @@ public class ToolbarPhone extends ToolbarLayout
      * Updates the parameters relating to expanding the location bar, as the result of either a
      * focus change or scrolling the New Tab Page.
      */
-    private void updateUrlExpansionAnimation() {
+    protected void updateUrlExpansionAnimation() {
         if (mTabSwitcherState != STATIC_TAB) {
             mToolbarButtonsContainer.setVisibility(VISIBLE);
             return;
@@ -844,6 +847,24 @@ public class ToolbarPhone extends ToolbarLayout
         } else {
             urlActionsTranslationX += mLocationBarNtpOffsetRight - mLocationBarNtpOffsetLeft;
         }
+
+        if (shouldHideEndToolbarButtons()) {
+            // When the end toolbar buttons are not hidden, url actions are shown and hidden due to
+            // a change in location bar's width. When the end toolbar buttons are hidden, the
+            // location bar's width does not change by as much, causing the end location for the url
+            // actions to be immediately visible. Translate the url action container so that their
+            // appearance is animated.
+            // TODO(twellington): polish the url action button animation when end toolbar buttons
+            //                    are hidden.
+            float urlActionsTranslationXOffset =
+                    mUrlActionContainer.getWidth() * (1 - mUrlExpansionPercent);
+            if (isLocationBarRtl) {
+                urlActionsTranslationX -= urlActionsTranslationXOffset;
+            } else {
+                urlActionsTranslationX += urlActionsTranslationXOffset;
+            }
+        }
+
         mUrlActionContainer.setTranslationX(urlActionsTranslationX);
 
         mLocationBar.setUrlFocusChangePercent(mUrlExpansionPercent);
@@ -851,7 +872,8 @@ public class ToolbarPhone extends ToolbarLayout
         // Ensure the buttons are invisible after focusing the omnibox to prevent them from
         // accepting click events.
         int toolbarButtonVisibility = mUrlExpansionPercent == 1f ? INVISIBLE : VISIBLE;
-        mToolbarButtonsContainer.setVisibility(toolbarButtonVisibility);
+        mToolbarButtonsContainer.setVisibility(
+                shouldHideEndToolbarButtons() ? GONE : toolbarButtonVisibility);
         if (mHomeButton.getVisibility() != GONE) {
             mHomeButton.setVisibility(toolbarButtonVisibility);
         }
@@ -1215,7 +1237,7 @@ public class ToolbarPhone extends ToolbarLayout
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        mBackgroundOverlayBounds.set(0, 0, w, mToolbarHeightWithoutShadow);
+        mBackgroundOverlayBounds.set(0, 0, w, h);
         super.onSizeChanged(w, h, oldw, oldh);
     }
 
@@ -1336,6 +1358,15 @@ public class ToolbarPhone extends ToolbarLayout
         }
     }
 
+    /**
+     * @return Whether the end toolbar buttons (tab switcher and menu) are currently hidden
+     *         regardless of URL bar focus. Sub-classes that hide these buttons should override
+     *         this method.
+     */
+    protected boolean shouldHideEndToolbarButtons() {
+        return false;
+    }
+
     private ObjectAnimator createEnterTabSwitcherModeAnimation() {
         ObjectAnimator enterAnimation =
                 ObjectAnimator.ofFloat(this, mTabSwitcherModePercentProperty, 1.f);
@@ -1435,6 +1466,7 @@ public class ToolbarPhone extends ToolbarLayout
 
         updateProgressBarVisibility();
         updateVisualsForToolbarState();
+        updateTabSwitcherButtonRipple();
     }
 
     private void updateProgressBarVisibility() {
@@ -1495,6 +1527,23 @@ public class ToolbarPhone extends ToolbarLayout
         if (SysUtils.isLowEndDevice()) finishAnimations();
 
         postInvalidateOnAnimation();
+    }
+
+    /**
+     * Enables or disables the tab switcher ripple depending on whether we are in or out of the tab
+     * switcher mode.
+     */
+    private void updateTabSwitcherButtonRipple() {
+        if (mTabSwitcherState == ENTERING_TAB_SWITCHER) {
+            mToggleTabStackButton.setBackgroundColor(
+                    ApiCompatibilityUtils.getColor(getResources(), android.R.color.transparent));
+        } else {
+            TypedValue outValue = new TypedValue();
+
+            // The linked style here will have to be changed if it is updated in the XML.
+            getContext().getTheme().resolveAttribute(R.style.ToolbarButton, outValue, true);
+            mToggleTabStackButton.setBackgroundResource(outValue.resourceId);
+        }
     }
 
     @Override
@@ -1974,7 +2023,7 @@ public class ToolbarPhone extends ToolbarLayout
         return VisualState.NORMAL;
     }
 
-    private void updateVisualsForToolbarState() {
+    protected void updateVisualsForToolbarState() {
         final boolean isIncognito = isIncognito();
 
         // These are important for setting visual state while the entering or leaving the tab

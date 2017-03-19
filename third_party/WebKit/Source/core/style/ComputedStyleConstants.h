@@ -52,8 +52,7 @@ enum StyleRecalcChange {
   IndependentInherit,
   Inherit,
   Force,
-  Reattach,
-  ReattachNoLayoutObject
+  Reattach
 };
 
 // Static pseudo styles. Dynamic ones are produced on the fly.
@@ -82,11 +81,9 @@ enum PseudoId {
   AfterLastInternalPseudoId,
   FirstPublicPseudoId = PseudoIdFirstLine,
   FirstInternalPseudoId = PseudoIdScrollbarThumb,
-  PublicPseudoIdMask =
-      ((1 << FirstInternalPseudoId) - 1) & ~((1 << FirstPublicPseudoId) - 1),
-  ElementPseudoIdMask = (1 << (PseudoIdBefore - 1)) |
-                        (1 << (PseudoIdAfter - 1)) |
-                        (1 << (PseudoIdBackdrop - 1))
+  ElementPseudoIdMask = (1 << (PseudoIdBefore - FirstPublicPseudoId)) |
+                        (1 << (PseudoIdAfter - FirstPublicPseudoId)) |
+                        (1 << (PseudoIdBackdrop - FirstPublicPseudoId))
 };
 
 enum ColumnFill { ColumnFillBalance, ColumnFillAuto };
@@ -338,29 +335,29 @@ enum class ECursor : unsigned {
 };
 
 enum class EDisplay : unsigned {
-  Inline,
-  Block,
-  ListItem,
-  InlineBlock,
-  Table,
-  InlineTable,
-  TableRowGroup,
-  TableHeaderGroup,
-  TableFooterGroup,
-  TableRow,
-  TableColumnGroup,
-  TableColumn,
-  TableCell,
-  TableCaption,
-  WebkitBox,
-  WebkitInlineBox,
-  Flex,
-  InlineFlex,
-  Grid,
-  InlineGrid,
-  Contents,
-  FlowRoot,
-  None
+  kInline,
+  kBlock,
+  kListItem,
+  kInlineBlock,
+  kTable,
+  kInlineTable,
+  kTableRowGroup,
+  kTableHeaderGroup,
+  kTableFooterGroup,
+  kTableRow,
+  kTableColumnGroup,
+  kTableColumn,
+  kTableCell,
+  kTableCaption,
+  kWebkitBox,
+  kWebkitInlineBox,
+  kFlex,
+  kInlineFlex,
+  kGrid,
+  kInlineGrid,
+  kContents,
+  kFlowRoot,
+  kNone
 };
 
 enum class EInsideLink : unsigned {

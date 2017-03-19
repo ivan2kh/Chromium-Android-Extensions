@@ -95,7 +95,7 @@ struct PaintPropertyTreeBuilderContext {
 // InPrePaint phase.
 class PaintPropertyTreeBuilder {
  public:
-  PaintPropertyTreeBuilderContext setupInitialContext();
+  void setupInitialContext(PaintPropertyTreeBuilderContext&);
   // Update the paint properties for a frame and ensure the context is up to
   // date.
   void updateProperties(FrameView&, PaintPropertyTreeBuilderContext&);
@@ -116,7 +116,7 @@ class PaintPropertyTreeBuilder {
   ALWAYS_INLINE static void updatePaintOffsetTranslation(
       const LayoutBoxModelObject&,
       PaintPropertyTreeBuilderContext&);
-  ALWAYS_INLINE static void updateForObjectLocation(
+  ALWAYS_INLINE static void updateForObjectLocationAndSize(
       const LayoutObject&,
       PaintPropertyTreeBuilderContext&);
   ALWAYS_INLINE static void updateTransform(const LayoutObject&,

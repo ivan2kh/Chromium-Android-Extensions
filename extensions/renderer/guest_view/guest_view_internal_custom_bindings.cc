@@ -39,7 +39,8 @@ namespace {
 // GuestViewInternalCustomBindings::RegisterView(), and accessed via
 // GuestViewInternalCustomBindings::GetViewFromID().
 using ViewMap = std::map<int, v8::Global<v8::Object>*>;
-static base::LazyInstance<ViewMap> weak_view_map = LAZY_INSTANCE_INITIALIZER;
+static base::LazyInstance<ViewMap>::DestructorAtExit weak_view_map =
+    LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
@@ -347,8 +348,7 @@ void GuestViewInternalCustomBindings::GetContentWindow(
   if (frame->isWebLocalFrame()) {
     window = frame->mainWorldScriptContext()->Global();
   } else {
-    window =
-        frame->toWebRemoteFrame()->deprecatedMainWorldScriptContext()->Global();
+    window = frame->toWebRemoteFrame()->globalProxy();
   }
   args.GetReturnValue().Set(window);
 }

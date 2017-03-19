@@ -21,6 +21,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
+#include "cc/output/begin_frame_args.h"
 #include "cc/scheduler/begin_frame_source.h"
 #include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "content/browser/compositor/image_transport_factory.h"
@@ -109,7 +110,6 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
   ui::TextInputClient* GetTextInputClient() override;
   bool HasFocus() const override;
-  bool IsSurfaceAvailableForCopy() const override;
   void Show() override;
   void Hide() override;
   bool IsShowing() override;
@@ -134,16 +134,15 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   void Destroy() override;
   void SetTooltipText(const base::string16& tooltip_text) override;
   gfx::Size GetRequestedRendererSize() const override;
-  void CopyFromCompositingSurface(
-      const gfx::Rect& src_subrect,
-      const gfx::Size& dst_size,
-      const ReadbackRequestCallback& callback,
-      const SkColorType preferred_color_type) override;
-  void CopyFromCompositingSurfaceToVideoFrame(
-      const gfx::Rect& src_subrect,
-      const scoped_refptr<media::VideoFrame>& target,
+  bool IsSurfaceAvailableForCopy() const override;
+  void CopyFromSurface(const gfx::Rect& src_rect,
+                       const gfx::Size& output_size,
+                       const ReadbackRequestCallback& callback,
+                       const SkColorType color_type) override;
+  void CopyFromSurfaceToVideoFrame(
+      const gfx::Rect& src_rect,
+      scoped_refptr<media::VideoFrame> target,
       const base::Callback<void(const gfx::Rect&, bool)>& callback) override;
-  bool CanCopyToVideoFrame() const override;
   void BeginFrameSubscription(
       std::unique_ptr<RenderWidgetHostViewFrameSubscriber> subscriber) override;
   void EndFrameSubscription() override;
@@ -168,6 +167,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   void UnlockMouse() override;
   void OnSwapCompositorFrame(uint32_t compositor_frame_sink_id,
                              cc::CompositorFrame frame) override;
+  void OnBeginFrameDidNotSwap(const cc::BeginFrameAck& ack) override;
   void ClearCompositorFrame() override;
   void DidStopFlinging() override;
   void OnDidNavigateMainFrameToNewPage() override;
@@ -330,9 +330,6 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
     return delegated_frame_host_.get();
   }
 
-  // Returns the top level window that is hosting the renderwidget.
-  virtual aura::Window* GetToplevelWindow();
-
  private:
   friend class DelegatedFrameHostClientAura;
   friend class InputMethodAuraTestBase;
@@ -367,6 +364,8 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
                            OverscrollResetsOnBlur);
   FRIEND_TEST_ALL_PREFIXES(RenderWidgetHostViewAuraTest,
                            FinishCompositionByMouse);
+  FRIEND_TEST_ALL_PREFIXES(RenderWidgetHostViewAuraTest,
+                           ForwardsBeginFrameAcks);
   FRIEND_TEST_ALL_PREFIXES(WebContentsViewAuraTest,
                            WebContentsViewReparent);
 

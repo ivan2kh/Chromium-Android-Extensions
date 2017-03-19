@@ -934,6 +934,8 @@ TEST_F(RenderFrameHostManagerTest, Navigate) {
   EXPECT_FALSE(host->GetSiteInstance()->HasSite());
   host->GetSiteInstance()->SetSite(kUrl1);
 
+  manager->GetRenderWidgetHostView()->SetBackgroundColor(SK_ColorRED);
+
   // 2) Navigate to next site. -------------------------
   const GURL kUrl2("http://www.google.com/foo");
   NavigationEntryImpl entry2(
@@ -952,6 +954,9 @@ TEST_F(RenderFrameHostManagerTest, Navigate) {
   EXPECT_TRUE(host == manager->current_frame_host());
   ASSERT_TRUE(host);
   EXPECT_TRUE(host->GetSiteInstance()->HasSite());
+
+  EXPECT_EQ(SK_ColorRED,
+            manager->GetRenderWidgetHostView()->background_color());
 
   // 3) Cross-site navigate to next site. --------------
   const GURL kUrl3("http://webkit.org/");
@@ -978,6 +983,9 @@ TEST_F(RenderFrameHostManagerTest, Navigate) {
 
   // We should observe RVH changed event.
   EXPECT_TRUE(change_observer.DidHostChange());
+
+  EXPECT_EQ(SK_ColorRED,
+            manager->GetRenderWidgetHostView()->background_color());
 }
 
 // Tests WebUI creation.
@@ -1185,7 +1193,7 @@ TEST_F(RenderFrameHostManagerTest, PageDoesBackAndReload) {
   params.transition = ui::PAGE_TRANSITION_CLIENT_REDIRECT;
   params.should_update_history = false;
   params.gesture = NavigationGestureAuto;
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   params.method = "GET";
   params.page_state = PageState::CreateFromURL(kUrl2);
 
@@ -1727,9 +1735,7 @@ TEST_F(RenderFrameHostManagerTest, CloseWithPendingWhileUnresponsive) {
   EXPECT_TRUE(contents()->CrossProcessNavigationPending());
 
   // Simulate the unresponsiveness timer.  The tab should close.
-  contents()->RendererUnresponsive(
-      rfh1->render_view_host()->GetWidget(),
-      RendererUnresponsiveType::RENDERER_UNRESPONSIVE_CLOSE_PAGE);
+  rfh1->render_view_host()->ClosePageTimeout();
   EXPECT_TRUE(close_delegate.is_closed());
 }
 
@@ -2761,7 +2767,7 @@ TEST_F(RenderFrameHostManagerTest, CanCommitOrigin) {
   params.transition = ui::PAGE_TRANSITION_LINK;
   params.should_update_history = false;
   params.gesture = NavigationGestureAuto;
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   params.method = "GET";
   params.page_state = PageState::CreateFromURL(kUrlBar);
 
@@ -3071,7 +3077,7 @@ TEST_F(RenderFrameHostManagerTestWithSiteIsolation,
   commit_params.transition = ui::PAGE_TRANSITION_AUTO_SUBFRAME;
   commit_params.should_update_history = false;
   commit_params.gesture = NavigationGestureAuto;
-  commit_params.was_within_same_page = false;
+  commit_params.was_within_same_document = false;
   commit_params.method = "GET";
   commit_params.page_state = PageState::CreateFromURL(kUrl3);
   commit_params.insecure_request_policy = blink::kLeaveInsecureRequestsAlone;

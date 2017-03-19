@@ -20,7 +20,7 @@ namespace vr_shell {
 
 class Animation;
 struct ContentRectangle;
-struct ReversibleTransform;
+struct Transform;
 
 class UiScene {
  public:
@@ -36,7 +36,7 @@ class UiScene {
   UiScene();
   virtual ~UiScene();
 
-  void AddUiElement(std::unique_ptr<ContentRectangle>& element);
+  void AddUiElement(std::unique_ptr<ContentRectangle> element);
 
   // Add a UI element according to a dictionary passed from the UI HTML.
   void AddUiElementFromDict(const base::DictionaryValue& dict);
@@ -47,7 +47,7 @@ class UiScene {
   void RemoveUiElement(int element_id);
 
   // Add an animation to the scene, on element |element_id|.
-  void AddAnimation(int element_id, std::unique_ptr<Animation>& animation);
+  void AddAnimation(int element_id, std::unique_ptr<Animation> animation);
 
   // Add an animation according to a dictionary passed from the UI HTML.
   void AddAnimationFromDict(const base::DictionaryValue& dict,
@@ -59,9 +59,9 @@ class UiScene {
   void UpdateBackgroundFromDict(const base::DictionaryValue& dict);
 
   // Update the positions of all elements in the scene, according to active
-  // animations, desired screen tilt and time.  The units of time are
-  // arbitrary, but must match the unit used in animations.
-  void UpdateTransforms(float screen_tilt, int64_t time_in_micro);
+  // animations and time.  The units of time are arbitrary, but must match the
+  // unit used in animations.
+  void UpdateTransforms(int64_t time_in_micro);
 
   // Handle a batch of commands passed from the UI HTML.
   void HandleCommands(std::unique_ptr<base::ListValue> commands,
@@ -71,20 +71,21 @@ class UiScene {
 
   ContentRectangle* GetUiElementById(int element_id);
 
-  ContentRectangle* GetContentQuad();
-
   const Colorf& GetBackgroundColor();
+  float GetBackgroundDistance();
 
  private:
   void ApplyRecursiveTransforms(const ContentRectangle& element,
-                                ReversibleTransform* transform,
-                                float* opacity);
+                                Transform* transform,
+                                float* opacity,
+                                bool* lock_to_fov);
   void ApplyDictToElement(const base::DictionaryValue& dict,
-                          ContentRectangle *element);
+                          ContentRectangle* element);
 
   std::vector<std::unique_ptr<ContentRectangle>> ui_elements_;
   ContentRectangle* content_element_ = nullptr;
   Colorf background_color_ = {0.1f, 0.1f, 0.1f, 1.0f};
+  float background_distance_ = 10.0f;
 
   DISALLOW_COPY_AND_ASSIGN(UiScene);
 };

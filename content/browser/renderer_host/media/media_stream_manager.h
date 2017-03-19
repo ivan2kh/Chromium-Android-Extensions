@@ -45,9 +45,10 @@
 #include "content/common/media/media_devices.h"
 #include "content/common/media/media_stream_options.h"
 #include "content/public/browser/media_request_state.h"
+#include "media/base/video_facing.h"
 
 namespace media {
-class AudioManager;
+class AudioSystem;
 }
 
 namespace url {
@@ -84,7 +85,7 @@ class CONTENT_EXPORT MediaStreamManager
   // logging from webrtcLoggingPrivate API. Safe to call from any thread.
   static void SendMessageToNativeLog(const std::string& message);
 
-  explicit MediaStreamManager(media::AudioManager* audio_manager);
+  explicit MediaStreamManager(media::AudioSystem* audio_system);
 
   ~MediaStreamManager() override;
 
@@ -96,6 +97,16 @@ class CONTENT_EXPORT MediaStreamManager
 
   // Used to access MediaDevicesManager.
   MediaDevicesManager* media_devices_manager();
+
+  // AddVideoCaptureObserver() and RemoveAllVideoCaptureObservers() must be
+  // called after InitializeDeviceManagersOnIOThread() and before
+  // WillDestroyCurrentMessageLoop(). They can be called more than once and it's
+  // ok to not call at all if the client is not interested in receiving
+  // media::VideoCaptureObserver callbacks.
+  // The methods must be called on BrowserThread::IO threads. The callbacks of
+  // media::VideoCaptureObserver also arrive on BrowserThread::IO threads.
+  void AddVideoCaptureObserver(media::VideoCaptureObserver* capture_observer);
+  void RemoveAllVideoCaptureObservers();
 
   // Creates a new media access request which is identified by a unique string
   // that's returned to the caller. This will trigger the infobar and ask users
@@ -253,6 +264,9 @@ class CONTENT_EXPORT MediaStreamManager
   void FlushVideoCaptureThreadForTesting();
 #endif
 
+  // This method is called when all tracks are started.
+  void OnStreamStarted(const std::string& label);
+
  private:
   // Contains all data needed to keep track of requests.
   class DeviceRequest;
@@ -389,13 +403,7 @@ class CONTENT_EXPORT MediaStreamManager
       MediaStreamType stream_type,
       const MediaDeviceInfoArray& device_infos);
 
-  // Task runner shared by VideoCaptureManager and AudioInputDeviceManager and
-  // used for enumerating audio output devices.
-  // Note: Enumeration tasks may take seconds to complete so must never be run
-  // on any of the BrowserThreads (UI, IO, etc).  See http://crbug.com/256945.
-  scoped_refptr<base::SingleThreadTaskRunner> device_task_runner_;
-
-  media::AudioManager* const audio_manager_;  // not owned
+  media::AudioSystem* const audio_system_;  // not owned
   scoped_refptr<AudioInputDeviceManager> audio_input_device_manager_;
   scoped_refptr<VideoCaptureManager> video_capture_manager_;
 #if defined(OS_WIN)

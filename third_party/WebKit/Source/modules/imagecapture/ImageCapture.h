@@ -5,6 +5,7 @@
 #ifndef ImageCapture_h
 #define ImageCapture_h
 
+#include <memory>
 #include "bindings/core/v8/ActiveScriptWrappable.h"
 #include "bindings/core/v8/ScriptPromise.h"
 #include "core/dom/ContextLifecycleObserver.h"
@@ -12,14 +13,16 @@
 #include "media/capture/mojo/image_capture.mojom-blink.h"
 #include "modules/EventTargetModules.h"
 #include "modules/ModulesExport.h"
+#include "modules/mediastream/MediaTrackCapabilities.h"
 #include "platform/AsyncMethodRunner.h"
-#include <memory>
 
 namespace blink {
 
 class ExceptionState;
 class MediaStreamTrack;
+class MediaTrackConstraintSet;
 class PhotoSettings;
+class ScriptPromiseResolver;
 class WebImageCaptureFrameGrabber;
 
 // TODO(mcasas): Consideradding a LayoutTest checking that this class is not
@@ -49,13 +52,18 @@ class MODULES_EXPORT ImageCapture final
 
   MediaStreamTrack* videoStreamTrack() const { return m_streamTrack.get(); }
 
-  ScriptPromise getPhotoCapabilities(ScriptState*, ExceptionState&);
+  ScriptPromise getPhotoCapabilities(ScriptState*);
 
-  ScriptPromise setOptions(ScriptState*, const PhotoSettings&, ExceptionState&);
+  ScriptPromise setOptions(ScriptState*, const PhotoSettings&);
 
-  ScriptPromise takePhoto(ScriptState*, ExceptionState&);
+  ScriptPromise takePhoto(ScriptState*);
 
-  ScriptPromise grabFrame(ScriptState*, ExceptionState&);
+  ScriptPromise grabFrame(ScriptState*);
+
+  MediaTrackCapabilities& getMediaTrackCapabilities();
+
+  void setMediaTrackConstraints(ScriptPromiseResolver*,
+                                const MediaTrackConstraintSet&);
 
   DECLARE_VIRTUAL_TRACE();
 
@@ -66,11 +74,13 @@ class MODULES_EXPORT ImageCapture final
                       media::mojom::blink::PhotoCapabilitiesPtr);
   void onSetOptions(ScriptPromiseResolver*, bool);
   void onTakePhoto(ScriptPromiseResolver*, media::mojom::blink::BlobPtr);
+  void onCapabilitiesBootstrap(media::mojom::blink::PhotoCapabilitiesPtr);
   void onServiceConnectionError();
 
   Member<MediaStreamTrack> m_streamTrack;
   std::unique_ptr<WebImageCaptureFrameGrabber> m_frameGrabber;
   media::mojom::blink::ImageCapturePtr m_service;
+  MediaTrackCapabilities m_capabilities;
 
   HeapHashSet<Member<ScriptPromiseResolver>> m_serviceRequests;
 };

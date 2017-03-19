@@ -14,6 +14,8 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/posix/eintr_wrapper.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_piece.h"
 #include "base/task_scheduler/post_task.h"
 #include "base/time/time.h"
 #include "net/base/address_list.h"
@@ -23,6 +25,7 @@
 #include "net/base/network_activity_monitor.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/sockaddr_storage.h"
+#include "net/http/http_util.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_source.h"
@@ -92,12 +95,15 @@ bool SystemSupportsTCPFastOpen() {
                               &system_supports_tcp_fastopen)) {
     return false;
   }
-  // The read from /proc should return '1' if TCP FastOpen is enabled in the OS.
-  if (system_supports_tcp_fastopen.empty() ||
-      (system_supports_tcp_fastopen[0] != '1')) {
-    return false;
-  }
-  return true;
+  // The read value from /proc will be set in its least significant bit if
+  // TCP FastOpen is enabled.
+  int read_int = 0;
+  base::StringToInt(
+      HttpUtil::TrimLWS(base::StringPiece(system_supports_tcp_fastopen)),
+      &read_int);
+  if ((read_int & 0x1) == 1)
+    return true;
+  return false;
 }
 
 void RegisterTCPFastOpenIntentAndSupport(bool user_enabled,
@@ -282,6 +288,21 @@ int TCPSocketPosix::Read(IOBuffer* buf,
                  // use it when Read() completes, as otherwise, this transfers
                  // ownership of buf to socket.
                  base::Unretained(this), make_scoped_refptr(buf), callback));
+  if (rv != ERR_IO_PENDING)
+    rv = HandleReadCompleted(buf, rv);
+  return rv;
+}
+
+int TCPSocketPosix::ReadIfReady(IOBuffer* buf,
+                                int buf_len,
+                                const CompletionCallback& callback) {
+  DCHECK(socket_);
+  DCHECK(!callback.is_null());
+
+  int rv =
+      socket_->ReadIfReady(buf, buf_len,
+                           base::Bind(&TCPSocketPosix::ReadIfReadyCompleted,
+                                      base::Unretained(this), callback));
   if (rv != ERR_IO_PENDING)
     rv = HandleReadCompleted(buf, rv);
   return rv;
@@ -580,10 +601,37 @@ void TCPSocketPosix::ReadCompleted(const scoped_refptr<IOBuffer>& buf,
                                    const CompletionCallback& callback,
                                    int rv) {
   DCHECK_NE(ERR_IO_PENDING, rv);
+
   callback.Run(HandleReadCompleted(buf.get(), rv));
 }
 
+void TCPSocketPosix::ReadIfReadyCompleted(const CompletionCallback& callback,
+                                          int rv) {
+  DCHECK_NE(ERR_IO_PENDING, rv);
+  DCHECK_GE(OK, rv);
+
+  HandleReadCompletedHelper(rv);
+  callback.Run(rv);
+}
+
 int TCPSocketPosix::HandleReadCompleted(IOBuffer* buf, int rv) {
+  HandleReadCompletedHelper(rv);
+
+  if (rv < 0)
+    return rv;
+
+  // Notify the watcher only if at least 1 byte was read.
+  if (rv > 0)
+    NotifySocketPerformanceWatcher();
+
+  net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_RECEIVED, rv,
+                                buf->data());
+  NetworkActivityMonitor::GetInstance()->IncrementBytesReceived(rv);
+
+  return rv;
+}
+
+void TCPSocketPosix::HandleReadCompletedHelper(int rv) {
   if (tcp_fastopen_write_attempted_ && !tcp_fastopen_connected_) {
     // A TCP FastOpen connect-with-write was attempted. This read was a
     // subsequent read, which either succeeded or failed. If the read
@@ -604,18 +652,7 @@ int TCPSocketPosix::HandleReadCompleted(IOBuffer* buf, int rv) {
   if (rv < 0) {
     net_log_.AddEvent(NetLogEventType::SOCKET_READ_ERROR,
                       CreateNetLogSocketErrorCallback(rv, errno));
-    return rv;
   }
-
-  // Notify the watcher only if at least 1 byte was read.
-  if (rv > 0)
-    NotifySocketPerformanceWatcher();
-
-  net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_RECEIVED, rv,
-                                buf->data());
-  NetworkActivityMonitor::GetInstance()->IncrementBytesReceived(rv);
-
-  return rv;
 }
 
 void TCPSocketPosix::WriteCompleted(const scoped_refptr<IOBuffer>& buf,

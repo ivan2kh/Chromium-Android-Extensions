@@ -24,12 +24,17 @@
 
 class PrefHashStore;
 class PrefService;
-class TrackedPreferenceValidationDelegate;
 
 namespace base {
 class DictionaryValue;
 class Time;
 }  // namespace base
+
+namespace prefs {
+namespace mojom {
+class TrackedPreferenceValidationDelegate;
+}
+}
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -40,21 +45,21 @@ class PrefRegistrySyncable;
 // are changed.
 class PrefHashFilter : public InterceptablePrefFilter {
  public:
-  enum EnforcementLevel { NO_ENFORCEMENT, ENFORCE_ON_LOAD };
+  enum class EnforcementLevel { NO_ENFORCEMENT, ENFORCE_ON_LOAD };
 
-  enum PrefTrackingStrategy {
+  enum class PrefTrackingStrategy {
     // Atomic preferences are tracked as a whole.
-    TRACKING_STRATEGY_ATOMIC,
+    ATOMIC,
     // Split preferences are dictionaries for which each top-level entry is
     // tracked independently. Note: preferences using this strategy must be kept
     // in sync with TrackedSplitPreferences in histograms.xml.
-    TRACKING_STRATEGY_SPLIT,
+    SPLIT,
   };
 
-  enum ValueType {
-    VALUE_IMPERSONAL,
+  enum class ValueType {
+    IMPERSONAL,
     // The preference value may contain personal information.
-    VALUE_PERSONAL,
+    PERSONAL,
   };
 
   struct TrackedPreferenceMetadata {
@@ -84,7 +89,7 @@ class PrefHashFilter : public InterceptablePrefFilter {
       StoreContentsPair external_validation_hash_store_pair_,
       const std::vector<TrackedPreferenceMetadata>& tracked_preferences,
       const base::Closure& on_reset_on_load,
-      TrackedPreferenceValidationDelegate* delegate,
+      prefs::mojom::TrackedPreferenceValidationDelegate* delegate,
       size_t reporting_ids_count,
       bool report_super_mac_validity);
 

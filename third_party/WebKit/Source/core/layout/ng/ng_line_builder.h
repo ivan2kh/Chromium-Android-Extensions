@@ -6,30 +6,38 @@
 #define NGLineBuilder_h
 
 #include "core/CoreExport.h"
+#include "core/layout/ng/geometry/ng_logical_offset.h"
+#include "core/layout/ng/ng_fragment_builder.h"
+#include "core/layout/ng/ng_layout_opportunity_iterator.h"
 #include "core/layout/ng/ng_physical_fragment.h"
-#include "core/layout/ng/ng_units.h"
+#include "platform/fonts/FontBaseline.h"
 #include "platform/heap/Handle.h"
 #include "wtf/Vector.h"
 
 namespace blink {
 
+class ComputedStyle;
+class FontMetrics;
 class NGConstraintSpace;
-class NGFragmentBuilder;
 class NGInlineNode;
+class NGLayoutInlineItem;
 
 // NGLineBuilder creates the fragment tree for a line.
 // NGLineBuilder manages the current line as a range, |start| and |end|.
 // |end| can be extended multiple times before creating a line, usually until
 // |!CanFitOnLine()|.
 // |SetBreakOpportunity| can mark the last confirmed offset that can fit.
-class CORE_EXPORT NGLineBuilder final
-    : public GarbageCollectedFinalized<NGLineBuilder> {
+class CORE_EXPORT NGLineBuilder final {
+  STACK_ALLOCATED();
+
  public:
-  NGLineBuilder(NGInlineNode*, const NGConstraintSpace*);
+  NGLineBuilder(NGInlineNode*, NGConstraintSpace*);
 
   const NGConstraintSpace& ConstraintSpace() const {
     return *constraint_space_;
   }
+
+  LayoutUnit MaxInlineSize() const { return max_inline_size_; }
 
   // Returns if the current items fit on a line.
   bool CanFitOnLine() const;
@@ -44,11 +52,8 @@ class CORE_EXPORT NGLineBuilder final
   // Set the end offset.
   void SetEnd(unsigned end_offset);
 
-  // Set the end offset, if caller knows the index and inline size since the
-  // current end offset.
-  void SetEnd(unsigned last_index,
-              unsigned end_offset,
-              LayoutUnit inline_size_since_current_end);
+  // Set the end offset if caller knows the inline size since the current end.
+  void SetEnd(unsigned end_offset, LayoutUnit inline_size_since_current_end);
 
   // Create a line up to the end offset.
   // Then set the start to the end offset, and thus empty the current line.
@@ -73,7 +78,7 @@ class CORE_EXPORT NGLineBuilder final
   void SetStartOfHangables(unsigned offset);
 
   // Create fragments for all lines created so far.
-  void CreateFragments(NGFragmentBuilder*);
+  RefPtr<NGLayoutResult> CreateFragments();
 
   // Copy fragment data of all lines created by this NGLineBuilder to
   // LayoutBlockFlow.
@@ -81,9 +86,20 @@ class CORE_EXPORT NGLineBuilder final
   // are placed.
   void CopyFragmentDataToLayoutBlockFlow();
 
-  DECLARE_VIRTUAL_TRACE();
+  // Compute inline size of an NGLayoutInlineItem.
+  // Same as NGLayoutInlineItem::InlineSize(), except that this function can
+  // compute atomic inlines by performing layout.
+  LayoutUnit InlineSize(const NGLayoutInlineItem&);
 
  private:
+  bool IsHorizontalWritingMode() const { return is_horizontal_writing_mode_; }
+
+  LayoutUnit InlineSize(const NGLayoutInlineItem&,
+                        unsigned start_offset,
+                        unsigned end_offset);
+  LayoutUnit InlineSizeFromLayout(const NGLayoutInlineItem&);
+  const NGLayoutResult* LayoutItem(const NGLayoutInlineItem&);
+
   struct LineItemChunk {
     unsigned index;
     unsigned start_offset;
@@ -93,6 +109,24 @@ class CORE_EXPORT NGLineBuilder final
 
   void BidiReorder(Vector<LineItemChunk, 32>*);
 
+  // Represents block-direction metrics for an |NGLayoutInlineItem|.
+  struct InlineItemMetrics {
+    float ascent;
+    float descent;
+    float ascent_and_leading;
+    float descent_and_leading;
+
+    // Use the leading from the 'line-height' property, or the font metrics of
+    // the primary font if 'line-height: normal'.
+    InlineItemMetrics(const ComputedStyle&, FontBaseline);
+
+    // Use the leading from the font metrics.
+    InlineItemMetrics(const FontMetrics&, FontBaseline);
+
+   private:
+    void Initialize(const FontMetrics&, FontBaseline, float line_height);
+  };
+
   // LineBoxData is a set of data for a line box that are computed in early
   // phases, such as in |CreateLine()|, and will be used in later phases.
   // TODO(kojii): Not sure if all these data are needed in fragment tree. If
@@ -101,12 +135,31 @@ class CORE_EXPORT NGLineBuilder final
   struct LineBoxData {
     unsigned fragment_end;
     LayoutUnit inline_size;
+    LayoutUnit top_with_leading;
+    float max_ascent = 0;
+    float max_descent = 0;
+    float max_ascent_and_leading = 0;
+    float max_descent_and_leading = 0;
+
+    // Include |InlineItemMetrics| into the metrics for this line box.
+    void UpdateMaxAscentAndDescent(const InlineItemMetrics&);
   };
 
-  Member<NGInlineNode> inline_box_;
-  Member<const NGConstraintSpace> constraint_space_;
-  Vector<RefPtr<NGPhysicalFragment>, 32> fragments_;
-  Vector<NGLogicalOffset, 32> offsets_;
+  void PlaceItems(const Vector<LineItemChunk, 32>&);
+  void AccumulateUsedFonts(const NGLayoutInlineItem&,
+                           const LineItemChunk&,
+                           LineBoxData*);
+  LayoutUnit PlaceAtomicInline(const NGLayoutInlineItem&,
+                               LayoutUnit estimated_baseline,
+                               LineBoxData*,
+                               NGFragmentBuilder*);
+
+  // Finds the next layout opportunity for the next text fragment.
+  void FindNextLayoutOpportunity();
+
+  Persistent<NGInlineNode> inline_box_;
+  NGConstraintSpace* constraint_space_;  // Not owned as STACK_ALLOCATED.
+  Vector<RefPtr<NGLayoutResult>, 32> layout_results_;
   Vector<LineBoxData, 32> line_box_data_list_;
   unsigned start_index_ = 0;
   unsigned start_offset_ = 0;
@@ -118,7 +171,14 @@ class CORE_EXPORT NGLineBuilder final
   LayoutUnit last_break_opportunity_position_;
   LayoutUnit content_size_;
   LayoutUnit max_inline_size_;
+  NGFragmentBuilder container_builder_;
+  RefPtr<NGLayoutResult> container_layout_result_;
+  FontBaseline baseline_type_ = FontBaseline::AlphabeticBaseline;
 
+  NGLogicalOffset bfc_offset_;
+  NGLogicalRect current_opportunity_;
+
+  unsigned is_horizontal_writing_mode_ : 1;
 #if DCHECK_IS_ON()
   unsigned is_bidi_reordered_ : 1;
 #endif

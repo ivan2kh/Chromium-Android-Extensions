@@ -66,6 +66,7 @@ class P2PSocketDispatcherHost;
 #endif
 class PermissionServiceContext;
 class PeerConnectionTrackerHost;
+class PushMessagingManager;
 class RenderFrameMessageFilter;
 class RenderWidgetHelper;
 class RenderWidgetHost;
@@ -504,7 +505,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // called.
   int instance_id_ = 1;
 
-  BrowserContext* browser_context_;
+  BrowserContext* const browser_context_;
 
   // Owned by |browser_context_|.
   StoragePartitionImpl* storage_partition_impl_;
@@ -590,6 +591,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   scoped_refptr<ResourceMessageFilter> resource_message_filter_;
   std::unique_ptr<GpuClient, BrowserThread::DeleteOnIOThread> gpu_client_;
+  std::unique_ptr<PushMessagingManager, BrowserThread::DeleteOnIOThread>
+      push_messaging_manager_;
 
   std::unique_ptr<OffscreenCanvasCompositorFrameSinkProviderImpl>
       offscreen_canvas_provider_;

@@ -113,8 +113,7 @@ class DeviceCloudPolicyManagerChromeOSTest
  protected:
   DeviceCloudPolicyManagerChromeOSTest()
       : fake_cryptohome_client_(new chromeos::FakeCryptohomeClient()),
-        state_keys_broker_(&fake_session_manager_client_,
-                           base::ThreadTaskRunnerHandle::Get()),
+        state_keys_broker_(&fake_session_manager_client_),
         store_(NULL) {
     fake_statistics_provider_.SetMachineStatistic(
         chromeos::system::kSerialNumberKey, "test_sn");
@@ -230,7 +229,7 @@ class DeviceCloudPolicyManagerChromeOSTest
     bundle.Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string()))
         .Set(key::kDeviceMetricsReportingEnabled, POLICY_LEVEL_MANDATORY,
              POLICY_SCOPE_MACHINE, POLICY_SOURCE_CLOUD,
-             base::MakeUnique<base::FundamentalValue>(false), nullptr);
+             base::MakeUnique<base::Value>(false), nullptr);
     EXPECT_TRUE(manager_->policies().Equals(bundle));
   }
 

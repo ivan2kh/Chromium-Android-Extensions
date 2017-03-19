@@ -78,7 +78,7 @@ SurfaceDrawQuad* SurfaceLayerImpl::CreateSurfaceDrawQuad(
     RenderPass* render_pass,
     SurfaceDrawQuadType surface_draw_quad_type,
     const SurfaceInfo& surface_info) {
-  if (!surface_info.id().is_valid())
+  if (!surface_info.is_valid())
     return nullptr;
 
   gfx::Rect quad_rect(surface_info.size_in_pixels());
@@ -123,7 +123,8 @@ SurfaceDrawQuad* SurfaceLayerImpl::CreateSurfaceDrawQuad(
 void SurfaceLayerImpl::GetDebugBorderProperties(SkColor* color,
                                                 float* width) const {
   *color = DebugColors::SurfaceLayerBorderColor();
-  *width = DebugColors::SurfaceLayerBorderWidth(layer_tree_impl());
+  *width = DebugColors::SurfaceLayerBorderWidth(
+      layer_tree_impl() ? layer_tree_impl()->device_scale_factor() : 1);
 }
 
 void SurfaceLayerImpl::AppendRainbowDebugBorder(RenderPass* render_pass) {

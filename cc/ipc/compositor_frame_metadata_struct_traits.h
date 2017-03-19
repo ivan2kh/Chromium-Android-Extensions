@@ -111,6 +111,16 @@ struct StructTraits<cc::mojom::CompositorFrameMetadataDataView,
     return metadata.can_activate_before_dependencies;
   }
 
+  static uint32_t content_source_id(
+      const cc::CompositorFrameMetadata& metadata) {
+    return metadata.content_source_id;
+  }
+
+  static const cc::BeginFrameAck& begin_frame_ack(
+      const cc::CompositorFrameMetadata& metadata) {
+    return metadata.begin_frame_ack;
+  }
+
   static bool Read(cc::mojom::CompositorFrameMetadataDataView data,
                    cc::CompositorFrameMetadata* out);
 };

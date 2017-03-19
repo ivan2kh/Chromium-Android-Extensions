@@ -278,6 +278,7 @@ DownloadRequestCore::CreateDownloadCreateInfo(DownloadInterruptReason result) {
   create_info->referrer_url = GURL(request()->referrer());
   create_info->result = result;
   create_info->download_id = download_id_;
+  create_info->offset = create_info->save_info->offset;
   return create_info;
 }
 
@@ -351,6 +352,9 @@ bool DownloadRequestCore::OnResponseStarted(
 
     if (!headers->GetMimeType(&create_info->original_mime_type))
       create_info->original_mime_type.clear();
+
+    create_info->accept_range =
+        headers->HasHeaderValue("Accept-Ranges", "bytes");
   }
 
   // Blink verifies that the requester of this download is allowed to set a

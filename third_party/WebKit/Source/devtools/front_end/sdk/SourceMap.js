@@ -83,6 +83,17 @@ SDK.SourceMapEntry = class {
     this.sourceColumnNumber = sourceColumnNumber;
     this.name = name;
   }
+
+  /**
+   * @param {!SDK.SourceMapEntry} entry1
+   * @param {!SDK.SourceMapEntry} entry2
+   * @return {number}
+   */
+  static compare(entry1, entry2) {
+    if (entry1.lineNumber !== entry2.lineNumber)
+      return entry1.lineNumber - entry2.lineNumber;
+    return entry1.columnNumber - entry2.columnNumber;
+  }
 };
 
 /**
@@ -374,10 +385,9 @@ SDK.TextSourceMap = class {
       return [];
     var mappings = this.mappings();
     var info = this._sourceInfos.get(sourceURL);
-    if (info.reverseMappings === null) {
-      info.reverseMappings =
-          mappings.filter((mapping) => mapping.sourceURL === sourceURL).sort(sourceMappingComparator);
-    }
+    if (info.reverseMappings === null)
+      info.reverseMappings = mappings.filter(mapping => mapping.sourceURL === sourceURL).sort(sourceMappingComparator);
+
     return info.reverseMappings;
 
     /**
@@ -482,6 +492,9 @@ SDK.TextSourceMap = class {
       this._mappings.push(new SDK.SourceMapEntry(
           lineNumber, columnNumber, sourceURL, sourceLineNumber, sourceColumnNumber, names[nameIndex]));
     }
+
+    // As per spec, mappings are not necessarily sorted.
+    this._mappings.stableSort(SDK.SourceMapEntry.compare);
   }
 
   /**

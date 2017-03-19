@@ -260,14 +260,16 @@ class CORE_EXPORT PaintLayerScrollableArea final
   bool isActive() const override;
   bool isScrollCornerVisible() const override;
   IntRect scrollCornerRect() const override;
-  IntRect convertFromScrollbarToContainingWidget(const Scrollbar&,
-                                                 const IntRect&) const override;
-  IntRect convertFromContainingWidgetToScrollbar(const Scrollbar&,
-                                                 const IntRect&) const override;
-  IntPoint convertFromScrollbarToContainingWidget(
+  IntRect convertFromScrollbarToContainingFrameViewBase(
+      const Scrollbar&,
+      const IntRect&) const override;
+  IntRect convertFromContainingFrameViewBaseToScrollbar(
+      const Scrollbar&,
+      const IntRect&) const override;
+  IntPoint convertFromScrollbarToContainingFrameViewBase(
       const Scrollbar&,
       const IntPoint&) const override;
-  IntPoint convertFromContainingWidgetToScrollbar(
+  IntPoint convertFromContainingFrameViewBaseToScrollbar(
       const Scrollbar&,
       const IntPoint&) const override;
   int scrollSize(ScrollbarOrientation) const override;
@@ -280,12 +282,14 @@ class CORE_EXPORT PaintLayerScrollableArea final
   int visibleHeight() const override;
   int visibleWidth() const override;
   IntSize contentsSize() const override;
+  void contentsResized() override;
   bool isScrollable() const override;
   IntPoint lastKnownMousePosition() const override;
   bool scrollAnimatorEnabled() const override;
   bool shouldSuspendScrollAnimations() const override;
   bool scrollbarsCanBeActive() const override;
   void scrollbarVisibilityChanged() override;
+  void scrollbarFrameRectChanged() override;
   IntRect scrollableAreaBoundingBox() const override;
   void registerForAnimation() override;
   void deregisterForAnimation() override;
@@ -352,9 +356,11 @@ class CORE_EXPORT PaintLayerScrollableArea final
   int pixelSnappedScrollHeight() const;
 
   int verticalScrollbarWidth(
-      OverlayScrollbarClipBehavior = IgnoreOverlayScrollbarSize) const override;
+      OverlayScrollbarClipBehavior =
+          IgnorePlatformOverlayScrollbarSize) const override;
   int horizontalScrollbarHeight(
-      OverlayScrollbarClipBehavior = IgnoreOverlayScrollbarSize) const override;
+      OverlayScrollbarClipBehavior =
+          IgnorePlatformOverlayScrollbarSize) const override;
 
   DoubleSize adjustedScrollOffset() const {
     return toDoubleSize(DoublePoint(scrollOrigin()) + m_scrollOffset);
@@ -419,7 +425,7 @@ class CORE_EXPORT PaintLayerScrollableArea final
   IntRect rectForHorizontalScrollbar(const IntRect& borderBoxRect) const;
   IntRect rectForVerticalScrollbar(const IntRect& borderBoxRect) const;
 
-  Widget* getWidget() override;
+  FrameViewBase* getFrameViewBase() override;
   bool shouldPerformScrollAnchoring() const override;
   ScrollAnchor* scrollAnchor() override { return &m_scrollAnchor; }
   bool isPaintLayerScrollableArea() const override { return true; }

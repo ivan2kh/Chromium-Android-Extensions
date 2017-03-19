@@ -14,16 +14,17 @@
 #include "extensions/features/features.h"
 #include "media/media_features.h"
 #include "ppapi/features/features.h"
+#include "rlz/features/features.h"
 
 namespace prefs {
 
 // Profile prefs. Please add Local State prefs below instead.
 #if defined(OS_CHROMEOS) && BUILDFLAG(ENABLE_APP_LIST)
+extern const char kArcActiveDirectoryPlayUserId[];
 extern const char kArcApps[];
 extern const char kArcBackupRestoreEnabled[];
 extern const char kArcDataRemoveRequested[];
 extern const char kArcEnabled[];
-extern const char kArcPolicyCompliant[];
 extern const char kArcTermsAccepted[];
 extern const char kArcLocationServiceEnabled[];
 extern const char kArcPackages[];
@@ -61,6 +62,10 @@ extern const char kSupervisedUserSecondCustodianProfileURL[];
 extern const char kSupervisedUserSharedSettings[];
 extern const char kSupervisedUserWhitelists[];
 extern const char kURLsToRestoreOnStartup[];
+
+#if BUILDFLAG(ENABLE_RLZ)
+extern const char kRlzPingDelaySeconds[];
+#endif  // BUILDFLAG(ENABLE_RLZ)
 
 // For OS_CHROMEOS we maintain the kApplicationLocale property in both local
 // state and the user's profile.  The global property determines the locale of
@@ -212,13 +217,6 @@ extern const char kLanguageEnabledExtensionImes[];
 extern const char kLanguageEnabledExtensionImesSyncable[];
 extern const char kLanguageImeMenuActivated[];
 extern const char kLanguageShouldMergeInputMethods[];
-extern const char kLanguageRemapCapsLockKeyTo[];
-extern const char kLanguageRemapSearchKeyTo[];
-extern const char kLanguageRemapControlKeyTo[];
-extern const char kLanguageRemapAltKeyTo[];
-extern const char kLanguageRemapEscapeKeyTo[];
-extern const char kLanguageRemapBackspaceKeyTo[];
-extern const char kLanguageRemapDiamondKeyTo[];
 extern const char kLanguageSendFunctionKeys[];
 extern const char kLanguageXkbAutoRepeatEnabled[];
 extern const char kLanguageXkbAutoRepeatDelay[];
@@ -227,6 +225,7 @@ extern const char kLanguageXkbAutoRepeatInterval[];
 // TODO(dmazzoni): move accessibility prefs out of chrome/.
 // http://crbug.com/594887
 extern const char kAccessibilityLargeCursorEnabled[];
+extern const char kAccessibilityLargeCursorDipSize[];
 extern const char kAccessibilityStickyKeysEnabled[];
 extern const char kAccessibilitySpokenFeedbackEnabled[];
 extern const char kAccessibilityHighContrastEnabled[];
@@ -358,7 +357,7 @@ extern const char kPluginsShowDetails[];
 #endif
 extern const char kPluginsAllowOutdated[];
 extern const char kPluginsAlwaysAuthorize[];
-#if BUILDFLAG(ENABLE_PLUGIN_INSTALLATION)
+#if BUILDFLAG(ENABLE_PLUGINS)
 extern const char kPluginsMetadata[];
 extern const char kPluginsResourceCacheUpdate[];
 #endif
@@ -394,6 +393,12 @@ extern const char kImportHistory[];
 extern const char kImportHomepage[];
 extern const char kImportSavedPasswords[];
 extern const char kImportSearchEngine[];
+
+extern const char kImportDialogAutofillFormData[];
+extern const char kImportDialogBookmarks[];
+extern const char kImportDialogHistory[];
+extern const char kImportDialogSavedPasswords[];
+extern const char kImportDialogSearchEngine[];
 
 extern const char kProfileAvatarIndex[];
 extern const char kProfileUsingDefaultName[];
@@ -661,7 +666,7 @@ extern const char kDeviceEnrollmentAutoStart[];
 extern const char kDeviceEnrollmentCanExit[];
 extern const char kDeviceDMToken[];
 extern const char kTimesHIDDialogShown[];
-extern const char kUsersLRUInputMethod[];
+extern const char kUsersLastInputMethod[];
 extern const char kEchoCheckedOffers[];
 extern const char kCachedMultiProfileUserBehavior[];
 extern const char kInitialLocale[];
@@ -742,7 +747,7 @@ extern const char kSystemTimezoneAutomaticDetectionPolicy[];
 
 #if defined(ENABLE_MEDIA_ROUTER)
 extern const char kEnableMediaRouter[];
-#if !defined(OS_ANDROID)
+#if 1//!defined(OS_ANDROID)
 extern const char kShowCastIconInToolbar[];
 #endif  // !defined(OS_ANDROID)
 #endif  // defined(ENABLE_MEDIA_ROUTER)
@@ -869,6 +874,7 @@ extern const char kMediaRouterTabMirroringSources[];
 
 extern const char kOriginTrialPublicKey[];
 extern const char kOriginTrialDisabledFeatures[];
+extern const char kOriginTrialDisabledTokens[];
 
 extern const char kComponentUpdatesEnabled[];
 
@@ -887,6 +893,10 @@ extern const char kWebShareVisitedTargets[];
 #if defined(OS_WIN)
 extern const char kIOSPromotionEligible[];
 extern const char kIOSPromotionDone[];
+extern const char kIOSPromotionSMSEntryPoint[];
+extern const char kIOSPromotionShownEntryPoints[];
+extern const char kIOSPromotionLastImpression[];
+extern const char kIOSPromotionVariationId[];
 extern const char kNumberSavePasswordsBubbleIOSPromoShown[];
 extern const char kSavePasswordsBubbleIOSPromoDismissed[];
 extern const char kNumberBookmarksBubbleIOSPromoShown[];
@@ -897,6 +907,10 @@ extern const char kNumberHistoryPageIOSPromoShown[];
 extern const char kHistoryPageIOSPromoDismissed[];
 #endif
 
+extern const char kSettingsResetPromptPromptWave[];
+extern const char kSettingsResetPromptLastTriggeredForDefaultSearch[];
+extern const char kSettingsResetPromptLastTriggeredForStartupUrls[];
+extern const char kSettingsResetPromptLastTriggeredForHomepage[];
 }  // namespace prefs
 
 #endif  // CHROME_COMMON_PREF_NAMES_H_

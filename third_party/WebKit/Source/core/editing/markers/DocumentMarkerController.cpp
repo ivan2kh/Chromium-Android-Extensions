@@ -67,8 +67,6 @@ DocumentMarker::MarkerTypeIndex MarkerTypeToMarkerIndex(
       return DocumentMarker::GrammarMarkerIndex;
     case DocumentMarker::TextMatch:
       return DocumentMarker::TextMatchMarkerIndex;
-    case DocumentMarker::InvisibleSpellcheck:
-      return DocumentMarker::InvisibleSpellcheckMarkerIndex;
     case DocumentMarker::Composition:
       return DocumentMarker::CompositionMarkerIndex;
   }
@@ -95,16 +93,15 @@ void DocumentMarkerController::clear() {
 void DocumentMarkerController::addMarker(const Position& start,
                                          const Position& end,
                                          DocumentMarker::MarkerType type,
-                                         const String& description,
-                                         uint32_t hash) {
+                                         const String& description) {
   // Use a TextIterator to visit the potentially multiple nodes the range
   // covers.
   for (TextIterator markedText(start, end); !markedText.atEnd();
        markedText.advance()) {
-    addMarker(markedText.currentContainer(),
-              DocumentMarker(type, markedText.startOffsetInCurrentContainer(),
-                             markedText.endOffsetInCurrentContainer(),
-                             description, hash));
+    addMarker(
+        markedText.currentContainer(),
+        DocumentMarker(type, markedText.startOffsetInCurrentContainer(),
+                       markedText.endOffsetInCurrentContainer(), description));
   }
 }
 
@@ -265,8 +262,10 @@ void DocumentMarkerController::addMarker(Node* node,
   }
 
   // repaint the affected node
-  if (node->layoutObject())
-    node->layoutObject()->setShouldDoFullPaintInvalidation();
+  if (node->layoutObject()) {
+    node->layoutObject()->setShouldDoFullPaintInvalidation(
+        PaintInvalidationDocumentMarkerChange);
+  }
 }
 
 void DocumentMarkerController::mergeOverlapping(
@@ -303,7 +302,7 @@ void DocumentMarkerController::copyMarkers(Node* srcNode,
     return;
   DCHECK(!m_markers.isEmpty());
 
-  MarkerLists* markers = m_markers.get(srcNode);
+  MarkerLists* markers = m_markers.at(srcNode);
   if (!markers)
     return;
 
@@ -338,8 +337,10 @@ void DocumentMarkerController::copyMarkers(Node* srcNode,
   }
 
   // repaint the affected node
-  if (docDirty && dstNode->layoutObject())
-    dstNode->layoutObject()->setShouldDoFullPaintInvalidation();
+  if (docDirty && dstNode->layoutObject()) {
+    dstNode->layoutObject()->setShouldDoFullPaintInvalidation(
+        PaintInvalidationDocumentMarkerChange);
+  }
 }
 
 void DocumentMarkerController::removeMarkers(
@@ -356,7 +357,7 @@ void DocumentMarkerController::removeMarkers(
     return;
   DCHECK(!(m_markers.isEmpty()));
 
-  MarkerLists* markers = m_markers.get(node);
+  MarkerLists* markers = m_markers.at(node);
   if (!markers)
     return;
 
@@ -428,8 +429,10 @@ void DocumentMarkerController::removeMarkers(
   }
 
   // repaint the affected node
-  if (docDirty && node->layoutObject())
-    node->layoutObject()->setShouldDoFullPaintInvalidation();
+  if (docDirty && node->layoutObject()) {
+    node->layoutObject()->setShouldDoFullPaintInvalidation(
+        PaintInvalidationDocumentMarkerChange);
+  }
 }
 
 DocumentMarkerVector DocumentMarkerController::markersFor(
@@ -437,7 +440,7 @@ DocumentMarkerVector DocumentMarkerController::markersFor(
     DocumentMarker::MarkerTypes markerTypes) {
   DocumentMarkerVector result;
 
-  MarkerLists* markers = m_markers.get(node);
+  MarkerLists* markers = m_markers.at(node);
   if (!markers)
     return result;
 
@@ -555,7 +558,7 @@ void DocumentMarkerController::updateMarkerRenderedRectIfNeeded(
 
 void DocumentMarkerController::invalidateRectsForMarkersInNode(
     const Node& node) {
-  MarkerLists* markers = m_markers.get(&node);
+  MarkerLists* markers = m_markers.at(&node);
 
   for (auto& markerList : *markers) {
     if (!markerList || markerList->isEmpty())
@@ -685,8 +688,10 @@ void DocumentMarkerController::removeMarkersFromList(
 
   if (needsRepainting) {
     const Node& node = *iterator->key;
-    if (LayoutObject* layoutObject = node.layoutObject())
-      layoutObject->setShouldDoFullPaintInvalidation();
+    if (LayoutObject* layoutObject = node.layoutObject()) {
+      layoutObject->setShouldDoFullPaintInvalidation(
+          PaintInvalidationDocumentMarkerChange);
+    }
     invalidatePaintForTickmarks(node);
   }
 
@@ -720,7 +725,8 @@ void DocumentMarkerController::repaintMarkers(
 
       // cause the node to be redrawn
       if (LayoutObject* layoutObject = node->layoutObject()) {
-        layoutObject->setShouldDoFullPaintInvalidation();
+        layoutObject->setShouldDoFullPaintInvalidation(
+            PaintInvalidationDocumentMarkerChange);
         break;
       }
     }
@@ -734,7 +740,7 @@ void DocumentMarkerController::shiftMarkers(Node* node,
     return;
   DCHECK(!m_markers.isEmpty());
 
-  MarkerLists* markers = m_markers.get(node);
+  MarkerLists* markers = m_markers.at(node);
   if (!markers)
     return;
 
@@ -761,8 +767,10 @@ void DocumentMarkerController::shiftMarkers(Node* node,
   if (didShiftMarker) {
     invalidateRectsForMarkersInNode(*node);
     // repaint the affected node
-    if (node->layoutObject())
-      node->layoutObject()->setShouldDoFullPaintInvalidation();
+    if (node->layoutObject()) {
+      node->layoutObject()->setShouldDoFullPaintInvalidation(
+          PaintInvalidationDocumentMarkerChange);
+    }
   }
 }
 
@@ -796,7 +804,7 @@ bool DocumentMarkerController::setMarkersActive(Node* node,
                                                 unsigned startOffset,
                                                 unsigned endOffset,
                                                 bool active) {
-  MarkerLists* markers = m_markers.get(node);
+  MarkerLists* markers = m_markers.at(node);
   if (!markers)
     return false;
 
@@ -819,8 +827,10 @@ bool DocumentMarkerController::setMarkersActive(Node* node,
   }
 
   // repaint the affected node
-  if (docDirty && node->layoutObject())
-    node->layoutObject()->setShouldDoFullPaintInvalidation();
+  if (docDirty && node->layoutObject()) {
+    node->layoutObject()->setShouldDoFullPaintInvalidation(
+        PaintInvalidationDocumentMarkerChange);
+  }
   return docDirty;
 }
 
@@ -832,7 +842,7 @@ void DocumentMarkerController::showMarkers() const {
        nodeIterator != end; ++nodeIterator) {
     const Node* node = nodeIterator->key;
     builder.append(String::format("%p", node));
-    MarkerLists* markers = m_markers.get(node);
+    MarkerLists* markers = m_markers.at(node);
     for (size_t markerListIndex = 0;
          markerListIndex < DocumentMarker::MarkerTypeIndexesCount;
          ++markerListIndex) {

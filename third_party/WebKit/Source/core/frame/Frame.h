@@ -33,8 +33,8 @@
 #include "core/frame/FrameTypes.h"
 #include "core/loader/FrameLoaderTypes.h"
 #include "core/page/FrameTree.h"
-#include "platform/feature_policy/FeaturePolicy.h"
 #include "platform/heap/Handle.h"
+#include "public/platform/WebFeaturePolicy.h"
 #include "wtf/Forward.h"
 
 namespace blink {
@@ -54,7 +54,7 @@ class Page;
 class SecurityContext;
 class Settings;
 class WindowProxy;
-class WindowProxyManagerBase;
+class WindowProxyManager;
 struct FrameLoadRequest;
 
 enum class FrameDetachType { Remove, Swap };
@@ -73,8 +73,6 @@ class CORE_EXPORT Frame : public GarbageCollectedFinalized<Frame> {
 
   virtual bool isLocalFrame() const = 0;
   virtual bool isRemoteFrame() const = 0;
-
-  virtual WindowProxy* windowProxy(DOMWrapperWorld&) = 0;
 
   virtual void navigate(Document& originDocument,
                         const KURL&,
@@ -141,7 +139,10 @@ class CORE_EXPORT Frame : public GarbageCollectedFinalized<Frame> {
   void setIsLoading(bool isLoading) { m_isLoading = isLoading; }
   bool isLoading() const { return m_isLoading; }
 
-  virtual WindowProxyManagerBase* getWindowProxyManager() const = 0;
+  WindowProxyManager* getWindowProxyManager() const {
+    return m_windowProxyManager;
+  }
+  WindowProxy* windowProxy(DOMWrapperWorld&);
 
   virtual void didChangeVisibilityState();
 
@@ -150,8 +151,12 @@ class CORE_EXPORT Frame : public GarbageCollectedFinalized<Frame> {
 
   bool isDetaching() const { return m_isDetaching; }
 
+  // Tests whether the feature-policy controlled feature is enabled by policy in
+  // the given frame.
+  bool isFeatureEnabled(WebFeaturePolicyFeature) const;
+
  protected:
-  Frame(FrameClient*, FrameHost*, FrameOwner*);
+  Frame(FrameClient*, FrameHost*, FrameOwner*, WindowProxyManager*);
 
   mutable FrameTree m_treeNode;
 
@@ -166,6 +171,7 @@ class CORE_EXPORT Frame : public GarbageCollectedFinalized<Frame> {
   bool canNavigateWithoutFramebusting(const Frame&, String& errorReason);
 
   Member<FrameClient> m_client;
+  const Member<WindowProxyManager> m_windowProxyManager;
   bool m_isLoading;
 };
 

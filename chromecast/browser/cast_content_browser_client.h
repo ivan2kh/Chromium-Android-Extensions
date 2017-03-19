@@ -13,6 +13,8 @@
 #include "base/callback_forward.h"
 #include "base/macros.h"
 #include "build/build_config.h"
+#include "build/buildflag.h"
+#include "chromecast/chromecast_features.h"
 #include "content/public/browser/certificate_request_result_type.h"
 #include "content/public/browser/content_browser_client.h"
 
@@ -41,9 +43,8 @@ class CastWindowManager;
 
 namespace media {
 class MediaCapsImpl;
-class MediaPipelineBackend;
+class MediaPipelineBackendFactory;
 class MediaPipelineBackendManager;
-struct MediaPipelineDeviceParams;
 class MediaResourceTracker;
 class VideoPlaneController;
 class VideoModeSwitcher;
@@ -53,6 +54,7 @@ class VideoResolutionPolicy;
 namespace shell {
 
 class CastBrowserMainParts;
+class CastResourceDispatcherHostDelegate;
 class URLRequestContextFactory;
 
 using DisableQuicClosure = base::OnceClosure;
@@ -84,18 +86,15 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
 
   virtual media::VideoModeSwitcher* GetVideoModeSwitcher();
 
-#if !defined(OS_ANDROID)
+#if BUILDFLAG(IS_CAST_USING_CMA_BACKEND)
   // Gets object for enforcing video resolution policy restrictions.
   virtual media::VideoResolutionPolicy* GetVideoResolutionPolicy();
 
   // Returns the task runner that must be used for media IO.
   scoped_refptr<base::SingleThreadTaskRunner> GetMediaTaskRunner();
 
-  // Creates a MediaPipelineDevice (CMA backend) for media playback, called
-  // once per media player instance.
-  virtual std::unique_ptr<media::MediaPipelineBackend>
-  CreateMediaPipelineBackend(const media::MediaPipelineDeviceParams& params,
-                             const std::string& audio_device_id);
+  // Creates a MediaPipelineBackendFactory.
+  virtual media::MediaPipelineBackendFactory* GetMediaPipelineBackendFactory();
 
   media::MediaResourceTracker* media_resource_tracker();
 
@@ -104,7 +103,7 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
   ::media::ScopedAudioManagerPtr CreateAudioManager(
       ::media::AudioLogFactory* audio_log_factory) override;
   std::unique_ptr<::media::CdmFactory> CreateCdmFactory() override;
-#endif
+#endif  // BUILDFLAG(IS_CAST_USING_CMA_BACKEND)
   media::MediaCapsImpl* media_caps();
 
   // Invoked when the metrics client ID changes.
@@ -208,6 +207,10 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
   // Created by CastContentBrowserClient but owned by BrowserMainLoop.
   CastBrowserMainParts* cast_browser_main_parts_;
   std::unique_ptr<URLRequestContextFactory> url_request_context_factory_;
+  std::unique_ptr<CastResourceDispatcherHostDelegate>
+      resource_dispatcher_host_delegate_;
+  std::unique_ptr<media::MediaPipelineBackendFactory>
+      media_pipeline_backend_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(CastContentBrowserClient);
 };

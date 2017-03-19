@@ -2,14 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/**
- * @fileoverview 'settings-passwords-and-forms-page' is the settings page
- * for passwords and auto fill.
- */
-
-(function() {
-'use strict';
-
 Polymer({
   is: 'settings-passwords-and-forms-page',
 
@@ -26,11 +18,7 @@ Polymer({
    * @private
    */
   onAutofillTap_: function(event) {
-    // Ignore clicking on the toggle button and verify autofill is enabled.
-    if (Polymer.dom(event).localTarget != this.$.autofillToggle &&
-        this.getPref('autofill.enabled').value) {
-      settings.navigateTo(settings.Route.AUTOFILL);
-    }
+    settings.navigateTo(settings.Route.AUTOFILL);
   },
 
   /**
@@ -39,12 +27,6 @@ Polymer({
    * @private
    */
   onPasswordsTap_: function(event) {
-    // Ignore clicking on the toggle button and only expand if the manager is
-    // enabled.
-    if (Polymer.dom(event).localTarget != this.$.passwordToggle &&
-        this.getPref('credentials_enable_service').value) {
-      settings.navigateTo(settings.Route.MANAGE_PASSWORDS);
-    }
+    settings.navigateTo(settings.Route.MANAGE_PASSWORDS);
   },
 });
-})();

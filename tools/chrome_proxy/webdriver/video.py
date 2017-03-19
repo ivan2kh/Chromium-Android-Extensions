@@ -7,6 +7,7 @@ import time
 import common
 from common import TestDriver
 from common import IntegrationTest
+from common import NotAndroid
 
 
 class Video(IntegrationTest):
@@ -17,7 +18,9 @@ class Video(IntegrationTest):
       t.AddChromeArg('--enable-spdy-proxy-auth')
       t.LoadURL(
         'http://check.googlezip.net/cacheable/video/buck_bunny_tiny.html')
-      for response in t.GetHTTPResponses():
+      responses = t.GetHTTPResponses()
+      self.assertEquals(2, len(responses))
+      for response in responses:
         self.assertHasChromeProxyViaHeader(response)
 
   # Videos fetched via an XHR request should not be proxied.
@@ -42,11 +45,45 @@ class Video(IntegrationTest):
           self.assertHasChromeProxyViaHeader(response)
       self.assertTrue(saw_video_response, 'No video request seen in test!')
 
+  # Check the compressed video has the same frame count, width, height, and
+  # duration as uncompressed.
+  @NotAndroid
+  def testVideoMetrics(self):
+    expected = {
+      'duration': 3.124,
+      'webkitDecodedFrameCount': 54.0,
+      'videoWidth': 1280.0,
+      'videoHeight': 720.0
+    }
+    with TestDriver() as t:
+      t.AddChromeArg('--enable-spdy-proxy-auth')
+      t.LoadURL('http://check.googlezip.net/cacheable/video/buck_bunny_tiny.html')
+      # Check request was proxied and we got a compressed video back.
+      for response in t.GetHTTPResponses():
+        self.assertHasChromeProxyViaHeader(response)
+        if ('content-type' in response.response_headers
+            and 'video' in response.response_headers['content-type']):
+          self.assertEqual('video/webm',
+            response.response_headers['content-type'])
+      t.ExecuteJavascriptStatement(
+        'document.querySelectorAll("video")[0].play()')
+      # Wait for the video to finish playing, plus some headroom.
+      time.sleep(5)
+      # Check each metric against its expected value.
+      for metric in expected:
+        actual = float(t.ExecuteJavascriptStatement(
+          'document.querySelectorAll("video")[0].%s' % metric))
+        self.assertAlmostEqual(expected[metric], actual, msg="Compressed video "
+          "metric doesn't match expected! Metric=%s Expected=%f Actual=%f"
+          % (metric, expected[metric], actual), places=None, delta=0.001)
+
   # Check the frames of a compressed video.
+  @NotAndroid
   def testVideoFrames(self):
     self.instrumentedVideoTest('http://check.googlezip.net/cacheable/video/buck_bunny_640x360_24fps_video.html')
 
   # Check the audio volume of a compressed video.
+  @NotAndroid
   def testVideoAudio(self):
     self.instrumentedVideoTest('http://check.googlezip.net/cacheable/video/buck_bunny_640x360_24fps_audio.html')
 
@@ -85,6 +122,18 @@ class Video(IntegrationTest):
         raise Exception('Test not complete after %d seconds.' % wait_time)
       if metrics['failed']:
         raise Exception('Test failed!')
+
+  # Make sure YouTube autoplays.
+  @NotAndroid
+  def testYoutube(self):
+    with TestDriver() as t:
+      t.AddChromeArg('--enable-spdy-proxy-auth')
+      t.LoadURL('http://data-saver-test.appspot.com/youtube')
+      t.WaitForJavascriptExpression(
+        'window.playerState == YT.PlayerState.PLAYING', 30)
+      for response in t.GetHTTPResponses():
+        if not response.url.startswith('https'):
+          self.assertHasChromeProxyViaHeader(response)
 
 if __name__ == '__main__':
   IntegrationTest.RunAllTests()

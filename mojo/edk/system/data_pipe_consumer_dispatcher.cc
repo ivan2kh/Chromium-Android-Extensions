@@ -80,6 +80,7 @@ DataPipeConsumerDispatcher::DataPipeConsumerDispatcher(
       node_controller_(node_controller),
       control_port_(control_port),
       pipe_id_(pipe_id),
+      watchers_(this),
       shared_ring_buffer_(shared_ring_buffer) {
   if (initialized) {
     base::AutoLock lock(lock_);
@@ -97,38 +98,19 @@ MojoResult DataPipeConsumerDispatcher::Close() {
   return CloseNoLock();
 }
 
-
-MojoResult DataPipeConsumerDispatcher::Watch(
-    MojoHandleSignals signals,
-    const Watcher::WatchCallback& callback,
-    uintptr_t context) {
-  base::AutoLock lock(lock_);
-
-  if (is_closed_ || in_transit_)
-    return MOJO_RESULT_INVALID_ARGUMENT;
-
-  return awakable_list_.AddWatcher(
-      signals, callback, context, GetHandleSignalsStateNoLock());
-}
-
-MojoResult DataPipeConsumerDispatcher::CancelWatch(uintptr_t context) {
-  base::AutoLock lock(lock_);
-
-  if (is_closed_ || in_transit_)
-    return MOJO_RESULT_INVALID_ARGUMENT;
-
-  return awakable_list_.RemoveWatcher(context);
-}
-
 MojoResult DataPipeConsumerDispatcher::ReadData(void* elements,
                                                 uint32_t* num_bytes,
                                                 MojoReadDataFlags flags) {
   base::AutoLock lock(lock_);
+
   if (!shared_ring_buffer_ || in_transit_)
     return MOJO_RESULT_INVALID_ARGUMENT;
 
   if (in_two_phase_read_)
     return MOJO_RESULT_BUSY;
+
+  const bool had_new_data = new_data_available_;
+  new_data_available_ = false;
 
   if ((flags & MOJO_READ_DATA_FLAG_QUERY)) {
     if ((flags & MOJO_READ_DATA_FLAG_PEEK) ||
@@ -138,6 +120,9 @@ MojoResult DataPipeConsumerDispatcher::ReadData(void* elements,
     DVLOG_IF(2, elements)
         << "Query mode: ignoring non-null |elements|";
     *num_bytes = static_cast<uint32_t>(bytes_available_);
+
+    if (had_new_data)
+      watchers_.NotifyState(GetHandleSignalsStateNoLock());
     return MOJO_RESULT_OK;
   }
 
@@ -160,12 +145,16 @@ MojoResult DataPipeConsumerDispatcher::ReadData(void* elements,
       all_or_none ? max_num_bytes_to_read : 0;
 
   if (min_num_bytes_to_read > bytes_available_) {
+    if (had_new_data)
+      watchers_.NotifyState(GetHandleSignalsStateNoLock());
     return peer_closed_ ? MOJO_RESULT_FAILED_PRECONDITION
                         : MOJO_RESULT_OUT_OF_RANGE;
   }
 
   uint32_t bytes_to_read = std::min(max_num_bytes_to_read, bytes_available_);
   if (bytes_to_read == 0) {
+    if (had_new_data)
+      watchers_.NotifyState(GetHandleSignalsStateNoLock());
     return peer_closed_ ? MOJO_RESULT_FAILED_PRECONDITION
                         : MOJO_RESULT_SHOULD_WAIT;
   }
@@ -197,6 +186,10 @@ MojoResult DataPipeConsumerDispatcher::ReadData(void* elements,
     NotifyRead(bytes_to_read);
   }
 
+  // We may have just read the last available data and thus changed the signals
+  // state.
+  watchers_.NotifyState(GetHandleSignalsStateNoLock());
+
   return MOJO_RESULT_OK;
 }
 
@@ -216,7 +209,12 @@ MojoResult DataPipeConsumerDispatcher::BeginReadData(const void** buffer,
       (flags & MOJO_READ_DATA_FLAG_PEEK))
     return MOJO_RESULT_INVALID_ARGUMENT;
 
+  const bool had_new_data = new_data_available_;
+  new_data_available_ = false;
+
   if (bytes_available_ == 0) {
+    if (had_new_data)
+      watchers_.NotifyState(GetHandleSignalsStateNoLock());
     return peer_closed_ ? MOJO_RESULT_FAILED_PRECONDITION
                         : MOJO_RESULT_SHOULD_WAIT;
   }
@@ -234,6 +232,9 @@ MojoResult DataPipeConsumerDispatcher::BeginReadData(const void** buffer,
   *buffer_num_bytes = bytes_to_read;
   two_phase_max_bytes_read_ = bytes_to_read;
 
+  if (had_new_data)
+    watchers_.NotifyState(GetHandleSignalsStateNoLock());
+
   return MOJO_RESULT_OK;
 }
 
@@ -247,7 +248,6 @@ MojoResult DataPipeConsumerDispatcher::EndReadData(uint32_t num_bytes_read) {
 
   CHECK(shared_ring_buffer_);
 
-  HandleSignalsState old_state = GetHandleSignalsStateNoLock();
   MojoResult rv;
   if (num_bytes_read > two_phase_max_bytes_read_ ||
       num_bytes_read % options_.element_num_bytes != 0) {
@@ -267,9 +267,7 @@ MojoResult DataPipeConsumerDispatcher::EndReadData(uint32_t num_bytes_read) {
   in_two_phase_read_ = false;
   two_phase_max_bytes_read_ = 0;
 
-  HandleSignalsState new_state = GetHandleSignalsStateNoLock();
-  if (!new_state.equals(old_state))
-    awakable_list_.AwakeForStateChange(new_state);
+  watchers_.NotifyState(GetHandleSignalsStateNoLock());
 
   return rv;
 }
@@ -279,43 +277,22 @@ HandleSignalsState DataPipeConsumerDispatcher::GetHandleSignalsState() const {
   return GetHandleSignalsStateNoLock();
 }
 
-MojoResult DataPipeConsumerDispatcher::AddAwakable(
-    Awakable* awakable,
-    MojoHandleSignals signals,
-    uintptr_t context,
-    HandleSignalsState* signals_state) {
+MojoResult DataPipeConsumerDispatcher::AddWatcherRef(
+    const scoped_refptr<WatcherDispatcher>& watcher,
+    uintptr_t context) {
   base::AutoLock lock(lock_);
-  if (!shared_ring_buffer_ || in_transit_) {
-    if (signals_state)
-      *signals_state = HandleSignalsState();
+  if (is_closed_ || in_transit_)
     return MOJO_RESULT_INVALID_ARGUMENT;
-  }
-  UpdateSignalsStateNoLock();
-  HandleSignalsState state = GetHandleSignalsStateNoLock();
-  if (state.satisfies(signals)) {
-    if (signals_state)
-      *signals_state = state;
-    return MOJO_RESULT_ALREADY_EXISTS;
-  }
-  if (!state.can_satisfy(signals)) {
-    if (signals_state)
-      *signals_state = state;
-    return MOJO_RESULT_FAILED_PRECONDITION;
-  }
-
-  awakable_list_.Add(awakable, signals, context);
-  return MOJO_RESULT_OK;
+  return watchers_.Add(watcher, context, GetHandleSignalsStateNoLock());
 }
 
-void DataPipeConsumerDispatcher::RemoveAwakable(
-    Awakable* awakable,
-    HandleSignalsState* signals_state) {
+MojoResult DataPipeConsumerDispatcher::RemoveWatcherRef(
+    WatcherDispatcher* watcher,
+    uintptr_t context) {
   base::AutoLock lock(lock_);
-  if ((!shared_ring_buffer_ || in_transit_) && signals_state)
-    *signals_state = HandleSignalsState();
-  else if (signals_state)
-    *signals_state = GetHandleSignalsStateNoLock();
-  awakable_list_.Remove(awakable);
+  if (is_closed_ || in_transit_)
+    return MOJO_RESULT_INVALID_ARGUMENT;
+  return watchers_.Remove(watcher, context);
 }
 
 void DataPipeConsumerDispatcher::StartSerialize(uint32_t* num_bytes,
@@ -419,6 +396,7 @@ DataPipeConsumerDispatcher::Deserialize(const void* data,
     base::AutoLock lock(dispatcher->lock_);
     dispatcher->read_offset_ = state->read_offset;
     dispatcher->bytes_available_ = state->bytes_available;
+    dispatcher->new_data_available_ = state->bytes_available > 0;
     dispatcher->peer_closed_ = state->flags & kFlagPeerClosed;
     dispatcher->InitializeNoLock();
     dispatcher->UpdateSignalsStateNoLock();
@@ -459,7 +437,7 @@ MojoResult DataPipeConsumerDispatcher::CloseNoLock() {
   ring_buffer_mapping_.reset();
   shared_ring_buffer_ = nullptr;
 
-  awakable_list_.CancelAll();
+  watchers_.NotifyClosed();
   if (!transferred_) {
     base::AutoUnlock unlock(lock_);
     node_controller_->ClosePort(control_port_);
@@ -474,16 +452,25 @@ DataPipeConsumerDispatcher::GetHandleSignalsStateNoLock() const {
 
   HandleSignalsState rv;
   if (shared_ring_buffer_ && bytes_available_) {
-    if (!in_two_phase_read_)
+    if (!in_two_phase_read_) {
       rv.satisfied_signals |= MOJO_HANDLE_SIGNAL_READABLE;
+      if (new_data_available_)
+        rv.satisfied_signals |= MOJO_HANDLE_SIGNAL_NEW_DATA_READABLE;
+    }
     rv.satisfiable_signals |= MOJO_HANDLE_SIGNAL_READABLE;
   } else if (!peer_closed_ && shared_ring_buffer_) {
     rv.satisfiable_signals |= MOJO_HANDLE_SIGNAL_READABLE;
   }
 
+  if (shared_ring_buffer_) {
+    if (new_data_available_ || !peer_closed_)
+      rv.satisfiable_signals |= MOJO_HANDLE_SIGNAL_NEW_DATA_READABLE;
+  }
+
   if (peer_closed_)
     rv.satisfied_signals |= MOJO_HANDLE_SIGNAL_PEER_CLOSED;
   rv.satisfiable_signals |= MOJO_HANDLE_SIGNAL_PEER_CLOSED;
+
   return rv;
 }
 
@@ -563,10 +550,12 @@ void DataPipeConsumerDispatcher::UpdateSignalsStateNoLock() {
     } while (message);
   }
 
-  if (peer_closed_ != was_peer_closed ||
-      bytes_available_ != previous_bytes_available) {
-    awakable_list_.AwakeForStateChange(GetHandleSignalsStateNoLock());
-  }
+  bool has_new_data = bytes_available_ != previous_bytes_available;
+  if (has_new_data)
+    new_data_available_ = true;
+
+  if (peer_closed_ != was_peer_closed || has_new_data)
+    watchers_.NotifyState(GetHandleSignalsStateNoLock());
 }
 
 }  // namespace edk

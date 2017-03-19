@@ -6,10 +6,9 @@
 
 #include <memory>
 
-#include "ash/common/shelf/shelf_item_types.h"
-#include "ash/common/wm_lookup.h"
 #include "ash/common/wm_shell.h"
 #include "ash/common/wm_window.h"
+#include "ash/public/cpp/shelf_item.h"
 #include "ash/root_window_controller.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
@@ -59,7 +58,7 @@ class LauncherContextMenuTest : public ash::test::AshTestBase {
 
   ash::WmShelf* GetWmShelf(int64_t display_id) {
     ash::RootWindowController* root_window_controller =
-        ash::WmLookup::Get()->GetRootWindowControllerWithDisplayId(display_id);
+        ash::Shell::GetRootWindowControllerWithDisplayId(display_id);
     EXPECT_NE(nullptr, root_window_controller);
     return root_window_controller->GetShelf();
   }

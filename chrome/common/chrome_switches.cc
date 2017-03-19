@@ -264,6 +264,10 @@ const char kDisablePushApiBackgroundMode[] = "disable-push-api-background-mode";
 // Disables the QUIC protocol.
 const char kDisableQuic[] = "disable-quic";
 
+// Disables showing the search geolocation disclosure UI. Used for perf testing.
+const char kDisableSearchGeolocationDisclosure[] =
+    "disable-search-geolocation-disclosure";
+
 // Disable settings in a separate browser window per profile
 // (see SettingsWindowEnabled() below).
 const char kDisableSettingsWindow[]          = "disable-settings-window";
@@ -478,12 +482,25 @@ const char kForceAndroidAppMode[] = "force-android-app-mode";
 // the app to be installed if it hasn't been already.
 const char kForceAppMode[]                  = "force-app-mode";
 
+// Forces Desktop to iOS promotion to appear in windows whenever an entrypoint
+// is triggered.
+const char kForceDesktopIOSPromotion[] = "force-desktop-ios-promotion";
+
 // Displays the First Run experience when the browser is started, regardless of
 // whether or not it's actually the First Run (this overrides kNoFirstRun).
 const char kForceFirstRun[]                 = "force-first-run";
 
 // Forces Chrome to use localNTP instead of server (GWS) NTP.
 const char kForceLocalNtp[]                 = "force-local-ntp";
+
+// Enables required things for the selected UI mode, regardless of whether the
+// chromebook is currently in the selected UI mode.
+const char kForceTabletMode[]               = "force-tablet-mode";
+
+// Values for the kForceTabletMode flag.
+const char kForceTabletModeAuto[]           = "auto";
+const char kForceTabletModeClamshell[]      = "clamshell";
+const char kForceTabletModeTouchView[]      = "touch_view";
 
 // Forces additional Chrome Variation Ids that will be sent in X-Client-Data
 // header, specified as a 64-bit encoded list of numeric experiment ids. Ids
@@ -545,11 +562,10 @@ const char kInterestsURL[]                  = "interests-url";
 // Used for testing - keeps browser alive after last browser window closes.
 const char kKeepAliveForTest[]              = "keep-alive-for-test";
 
-// Enable Kiosk mode.
+// Enable kiosk mode. Please note this is not Chrome OS kiosk mode.
 const char kKioskMode[]                     = "kiosk";
 
-// Print automatically in kiosk mode. |kKioskMode| must be set as well.
-// See http://crbug.com/31395.
+// Enable automatically pressing the print button in print preview.
 const char kKioskModePrinting[]             = "kiosk-printing";
 
 // Loads an extension from the specified directory.
@@ -642,6 +658,10 @@ const char kOriginalProcessStartTime[]      = "original-process-start-time";
 // Contains a list of feature names for which origin trial experiments should
 // be disabled. Names should be separated by "|" characters.
 const char kOriginTrialDisabledFeatures[] = "origin-trial-disabled-features";
+
+// Contains a list of token signatures for which origin trial experiments should
+// be disabled. Tokens should be separated by "|" characters.
+const char kOriginTrialDisabledTokens[] = "origin-trial-disabled-tokens";
 
 // Overrides the default public key for checking origin trial tokens.
 const char kOriginTrialPublicKey[] = "origin-trial-public-key";
@@ -886,10 +906,6 @@ const char kEnableAccessibilityTabSwitcher[] =
 // Enables Contextual Search.
 const char kEnableContextualSearch[] = "enable-contextual-search";
 
-// Enables Contextual Search UI integration with Contextual Cards data.
-const char kEnableContextualSearchContextualCardsBarIntegration[] =
-    "cs-contextual-cards-bar-integration";
-
 // Enables chrome hosted mode for Android.
 const char kEnableHostedMode[] = "enable-hosted-mode";
 
@@ -1126,7 +1142,7 @@ const char kAllowNaClFileHandleAPI[]        = "allow-nacl-file-handle-api";
 const char kAllowNaClSocketAPI[]            = "allow-nacl-socket-api";
 #endif
 
-#if defined(ENABLE_WAYLAND_SERVER)
+#if BUILDFLAG(ENABLE_WAYLAND_SERVER)
 // Enables Wayland display server support.
 const char kEnableWaylandServer[] = "enable-wayland-server";
 #endif

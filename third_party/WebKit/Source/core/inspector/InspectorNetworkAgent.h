@@ -100,9 +100,11 @@ class CORE_EXPORT InspectorNetworkAgent final
   void didReceiveEncodedDataLength(LocalFrame*,
                                    unsigned long identifier,
                                    int encodedDataLength);
-  void didFinishLoading(unsigned long identifier,
+  void didFinishLoading(LocalFrame*,
+                        unsigned long identifier,
                         double monotonicFinishTime,
-                        int64_t encodedDataLength);
+                        int64_t encodedDataLength,
+                        int64_t decodedBodyLength);
   void didReceiveCORSRedirectResponse(LocalFrame*,
                                       unsigned long identifier,
                                       DocumentLoader*,
@@ -158,12 +160,6 @@ class CORE_EXPORT InspectorNetworkAgent final
   void willDestroyResource(Resource*);
 
   void applyUserAgentOverride(String* userAgent);
-
-  // FIXME: InspectorNetworkAgent should not be aware of style recalculation.
-  void willRecalculateStyle(Document*);
-  void didRecalculateStyle();
-  void didScheduleStyleRecalculation(Document*);
-
   void frameScheduledNavigation(LocalFrame*, double);
   void frameClearedScheduledNavigation(LocalFrame*);
   void frameScheduledClientNavigation(LocalFrame*);
@@ -198,30 +194,31 @@ class CORE_EXPORT InspectorNetworkAgent final
   void didReceiveWebSocketFrameError(unsigned long identifier, const String&);
 
   // Called from frontend
-  Response enable(Maybe<int> totalBufferSize,
-                  Maybe<int> resourceBufferSize) override;
-  Response disable() override;
-  Response setUserAgentOverride(const String&) override;
-  Response setExtraHTTPHeaders(
+  protocol::Response enable(Maybe<int> totalBufferSize,
+                            Maybe<int> resourceBufferSize) override;
+  protocol::Response disable() override;
+  protocol::Response setUserAgentOverride(const String&) override;
+  protocol::Response setExtraHTTPHeaders(
       std::unique_ptr<protocol::Network::Headers>) override;
   void getResponseBody(const String& requestId,
                        std::unique_ptr<GetResponseBodyCallback>) override;
-  Response addBlockedURL(const String& url) override;
-  Response removeBlockedURL(const String& url) override;
-  Response replayXHR(const String& requestId) override;
-  Response setMonitoringXHREnabled(bool) override;
-  Response canClearBrowserCache(bool* result) override;
-  Response canClearBrowserCookies(bool* result) override;
-  Response emulateNetworkConditions(bool offline,
-                                    double latency,
-                                    double downloadThroughput,
-                                    double uploadThroughput,
-                                    Maybe<String> connectionType) override;
-  Response setCacheDisabled(bool) override;
-  Response setBypassServiceWorker(bool) override;
-  Response setDataSizeLimitsForTest(int maxTotalSize,
-                                    int maxResourceSize) override;
-  Response getCertificate(
+  protocol::Response setBlockedURLs(
+      std::unique_ptr<protocol::Array<String>> urls) override;
+  protocol::Response replayXHR(const String& requestId) override;
+  protocol::Response setMonitoringXHREnabled(bool) override;
+  protocol::Response canClearBrowserCache(bool* result) override;
+  protocol::Response canClearBrowserCookies(bool* result) override;
+  protocol::Response emulateNetworkConditions(
+      bool offline,
+      double latency,
+      double downloadThroughput,
+      double uploadThroughput,
+      Maybe<String> connectionType) override;
+  protocol::Response setCacheDisabled(bool) override;
+  protocol::Response setBypassServiceWorker(bool) override;
+  protocol::Response setDataSizeLimitsForTest(int maxTotalSize,
+                                              int maxResourceSize) override;
+  protocol::Response getCertificate(
       const String& origin,
       std::unique_ptr<protocol::Array<String>>* certificate) override;
 
@@ -278,10 +275,6 @@ class CORE_EXPORT InspectorNetworkAgent final
   FrameNavigationInitiatorMap m_frameNavigationInitiatorMap;
   HashSet<String> m_framesWithScheduledNavigation;
   HashSet<String> m_framesWithScheduledClientNavigation;
-
-  // FIXME: InspectorNetworkAgent should now be aware of style recalculation.
-  std::unique_ptr<protocol::Network::Initiator> m_styleRecalculationInitiator;
-  bool m_isRecalculatingStyle;
 
   HeapHashSet<Member<XMLHttpRequest>> m_replayXHRs;
   HeapHashSet<Member<XMLHttpRequest>> m_replayXHRsToBeDeleted;

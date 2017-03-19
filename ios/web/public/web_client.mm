@@ -52,7 +52,7 @@ std::string WebClient::GetProduct() const {
   return std::string();
 }
 
-std::string WebClient::GetUserAgent(bool desktop_user_agent) const {
+std::string WebClient::GetUserAgent(UserAgentType type) const {
   return std::string();
 }
 
@@ -70,7 +70,7 @@ base::RefCountedMemory* WebClient::GetDataResourceBytes(int resource_id) const {
   return nullptr;
 }
 
-NSString* WebClient::GetEarlyPageScript() const {
+NSString* WebClient::GetEarlyPageScript(BrowserState* browser_state) const {
   return @"";
 }
 

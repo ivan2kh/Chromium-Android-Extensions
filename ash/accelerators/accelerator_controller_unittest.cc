@@ -84,13 +84,12 @@ class TestTarget : public ui::AcceleratorTarget {
   DISALLOW_COPY_AND_ASSIGN(TestTarget);
 };
 
-class ReleaseAccelerator : public ui::Accelerator {
- public:
-  ReleaseAccelerator(ui::KeyboardCode keycode, int modifiers)
-      : ui::Accelerator(keycode, modifiers) {
-    set_type(ui::ET_KEY_RELEASED);
-  }
-};
+ui::Accelerator CreateReleaseAccelerator(ui::KeyboardCode key_code,
+                                         int modifiers) {
+  ui::Accelerator accelerator(key_code, modifiers);
+  accelerator.set_key_state(ui::Accelerator::KeyState::RELEASED);
+  return accelerator;
+}
 
 class DummyBrightnessControlDelegate : public BrightnessControlDelegate {
  public:
@@ -216,12 +215,12 @@ class AcceleratorControllerTest : public test::AshTestBase {
   static AcceleratorController* GetController();
 
   static bool ProcessInController(const ui::Accelerator& accelerator) {
-    if (accelerator.type() == ui::ET_KEY_RELEASED) {
+    if (accelerator.key_state() == ui::Accelerator::KeyState::RELEASED) {
       // If the |accelerator| should trigger on release, then we store the
       // pressed version of it first in history then the released one to
       // simulate what happens in reality.
       ui::Accelerator pressed_accelerator = accelerator;
-      pressed_accelerator.set_type(ui::ET_KEY_PRESSED);
+      pressed_accelerator.set_key_state(ui::Accelerator::KeyState::PRESSED);
       GetController()->accelerator_history()->StoreCurrentAccelerator(
           pressed_accelerator);
     }
@@ -279,14 +278,14 @@ class AcceleratorControllerTest : public test::AshTestBase {
 };
 
 AcceleratorController* AcceleratorControllerTest::GetController() {
-  return WmShell::Get()->accelerator_controller();
+  return Shell::Get()->accelerator_controller();
 }
 
 // Double press of exit shortcut => exiting
 TEST_F(AcceleratorControllerTest, ExitWarningHandlerTestDoublePress) {
   ui::Accelerator press(ui::VKEY_Q, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN);
   ui::Accelerator release(press);
-  release.set_type(ui::ET_KEY_RELEASED);
+  release.set_key_state(ui::Accelerator::KeyState::RELEASED);
   ExitWarningHandler* ewh = GetController()->GetExitWarningHandlerForTest();
   ASSERT_TRUE(ewh);
   StubForTest(ewh);
@@ -308,7 +307,7 @@ TEST_F(AcceleratorControllerTest, ExitWarningHandlerTestDoublePress) {
 TEST_F(AcceleratorControllerTest, ExitWarningHandlerTestSinglePress) {
   ui::Accelerator press(ui::VKEY_Q, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN);
   ui::Accelerator release(press);
-  release.set_type(ui::ET_KEY_RELEASED);
+  release.set_key_state(ui::Accelerator::KeyState::RELEASED);
   ExitWarningHandler* ewh = GetController()->GetExitWarningHandlerForTest();
   ASSERT_TRUE(ewh);
   StubForTest(ewh);
@@ -527,6 +526,25 @@ TEST_F(AcceleratorControllerTest, WindowSnapWithoutDocking) {
   EXPECT_EQ(normal_bounds.ToString(), window->bounds().ToString());
 }
 
+TEST_F(AcceleratorControllerTest, RotateScreen) {
+  // TODO: needs GetDisplayInfo http://crbug.com/622480.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
+  display::Display display = display::Screen::GetScreen()->GetPrimaryDisplay();
+  display::Display::Rotation initial_rotation =
+      GetActiveDisplayRotation(display.id());
+  ui::test::EventGenerator& generator = GetEventGenerator();
+  generator.PressKey(ui::VKEY_BROWSER_REFRESH,
+                     ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN);
+  generator.ReleaseKey(ui::VKEY_BROWSER_REFRESH,
+                       ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN);
+  display::Display::Rotation new_rotation =
+      GetActiveDisplayRotation(display.id());
+  // |new_rotation| is determined by the AcceleratorControllerDelegate.
+  EXPECT_NE(initial_rotation, new_rotation);
+}
+
 // Test class used for testing docked windows.
 class EnabledDockedWindowsAcceleratorControllerTest
     : public AcceleratorControllerTest {
@@ -667,6 +685,9 @@ TEST_F(EnabledDockedWindowsAcceleratorControllerTest,
 
 TEST_F(EnabledDockedWindowsAcceleratorControllerTest,
        WindowPanelDockLeftDockRightRestore) {
+  // TODO: http://crbug.com/632209.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
   std::unique_ptr<aura::Window> window0(
       CreateTestWindowInShellWithBounds(gfx::Rect(5, 5, 20, 20)));
 
@@ -725,11 +746,9 @@ TEST_F(EnabledDockedWindowsAcceleratorControllerTest, CenterWindowAccelerator) {
 
 TEST_F(AcceleratorControllerTest, AutoRepeat) {
   ui::Accelerator accelerator_a(ui::VKEY_A, ui::EF_CONTROL_DOWN);
-  accelerator_a.set_type(ui::ET_KEY_PRESSED);
   TestTarget target_a;
   GetController()->Register({accelerator_a}, &target_a);
   ui::Accelerator accelerator_b(ui::VKEY_B, ui::EF_CONTROL_DOWN);
-  accelerator_b.set_type(ui::ET_KEY_PRESSED);
   TestTarget target_b;
   GetController()->Register({accelerator_b}, &target_b);
 
@@ -848,6 +867,10 @@ TEST_F(AcceleratorControllerTest, ProcessOnce) {
 #endif
 
 TEST_F(AcceleratorControllerTest, GlobalAccelerators) {
+  // TODO: TestScreenshotDelegate is null in mash http://crbug.com/632111.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   // CycleBackward
   EXPECT_TRUE(ProcessInController(
       ui::Accelerator(ui::VKEY_TAB, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN)));
@@ -994,9 +1017,10 @@ TEST_F(AcceleratorControllerTest, GlobalAccelerators) {
 
 TEST_F(AcceleratorControllerTest, GlobalAcceleratorsToggleAppList) {
   app_list::test::TestAppListPresenter test_app_list_presenter;
-  WmShell::Get()->app_list()->SetAppListPresenter(
+  Shell::Get()->app_list()->SetAppListPresenter(
       test_app_list_presenter.CreateInterfacePtrAndBind());
-  AccessibilityDelegate* delegate = WmShell::Get()->accessibility_delegate();
+  AccessibilityDelegate* delegate =
+      Shell::GetInstance()->accessibility_delegate();
 
   // The press event should not toggle the AppList, the release should instead.
   EXPECT_FALSE(
@@ -1005,8 +1029,8 @@ TEST_F(AcceleratorControllerTest, GlobalAcceleratorsToggleAppList) {
   EXPECT_EQ(ui::VKEY_LWIN, GetCurrentAccelerator().key_code());
   EXPECT_EQ(0u, test_app_list_presenter.toggle_count());
 
-  EXPECT_TRUE(
-      ProcessInController(ReleaseAccelerator(ui::VKEY_LWIN, ui::EF_NONE)));
+  EXPECT_TRUE(ProcessInController(
+      CreateReleaseAccelerator(ui::VKEY_LWIN, ui::EF_NONE)));
   RunAllPendingInMessageLoop();
   EXPECT_EQ(1u, test_app_list_presenter.toggle_count());
   EXPECT_EQ(ui::VKEY_LWIN, GetPreviousAccelerator().key_code());
@@ -1015,8 +1039,8 @@ TEST_F(AcceleratorControllerTest, GlobalAcceleratorsToggleAppList) {
   delegate->ToggleSpokenFeedback(A11Y_NOTIFICATION_NONE);
   EXPECT_FALSE(
       ProcessInController(ui::Accelerator(ui::VKEY_LWIN, ui::EF_NONE)));
-  EXPECT_FALSE(
-      ProcessInController(ReleaseAccelerator(ui::VKEY_LWIN, ui::EF_NONE)));
+  EXPECT_FALSE(ProcessInController(
+      CreateReleaseAccelerator(ui::VKEY_LWIN, ui::EF_NONE)));
   delegate->ToggleSpokenFeedback(A11Y_NOTIFICATION_NONE);
   RunAllPendingInMessageLoop();
   EXPECT_EQ(1u, test_app_list_presenter.toggle_count());
@@ -1024,8 +1048,8 @@ TEST_F(AcceleratorControllerTest, GlobalAcceleratorsToggleAppList) {
   // Turning off spoken feedback should allow the AppList to toggle again.
   EXPECT_FALSE(
       ProcessInController(ui::Accelerator(ui::VKEY_LWIN, ui::EF_NONE)));
-  EXPECT_TRUE(
-      ProcessInController(ReleaseAccelerator(ui::VKEY_LWIN, ui::EF_NONE)));
+  EXPECT_TRUE(ProcessInController(
+      CreateReleaseAccelerator(ui::VKEY_LWIN, ui::EF_NONE)));
   RunAllPendingInMessageLoop();
   EXPECT_EQ(2u, test_app_list_presenter.toggle_count());
 
@@ -1035,7 +1059,7 @@ TEST_F(AcceleratorControllerTest, GlobalAcceleratorsToggleAppList) {
   RunAllPendingInMessageLoop();
   EXPECT_EQ(3u, test_app_list_presenter.toggle_count());
   EXPECT_FALSE(ProcessInController(
-      ReleaseAccelerator(ui::VKEY_BROWSER_SEARCH, ui::EF_NONE)));
+      CreateReleaseAccelerator(ui::VKEY_BROWSER_SEARCH, ui::EF_NONE)));
   RunAllPendingInMessageLoop();
   EXPECT_EQ(3u, test_app_list_presenter.toggle_count());
 }
@@ -1043,9 +1067,8 @@ TEST_F(AcceleratorControllerTest, GlobalAcceleratorsToggleAppList) {
 TEST_F(AcceleratorControllerTest, ImeGlobalAccelerators) {
   // Test IME shortcuts.
   ui::Accelerator control_space_down(ui::VKEY_SPACE, ui::EF_CONTROL_DOWN);
-  control_space_down.set_type(ui::ET_KEY_PRESSED);
   ui::Accelerator control_space_up(ui::VKEY_SPACE, ui::EF_CONTROL_DOWN);
-  control_space_up.set_type(ui::ET_KEY_RELEASED);
+  control_space_up.set_key_state(ui::Accelerator::KeyState::RELEASED);
   const ui::Accelerator convert(ui::VKEY_CONVERT, ui::EF_NONE);
   const ui::Accelerator non_convert(ui::VKEY_NONCONVERT, ui::EF_NONE);
   const ui::Accelerator wide_half_1(ui::VKEY_DBE_SBCSCHAR, ui::EF_NONE);
@@ -1176,8 +1199,8 @@ TEST_F(ToggleCapsLockTest, ToggleCapsLockAccelerators) {
   EXPECT_FALSE(ProcessInController(press_alt_then_search));
   // When you release Search before Alt, the key_code is still VKEY_LWIN and
   // Alt is still the modifier.
-  const ReleaseAccelerator release_search_before_alt(ui::VKEY_LWIN,
-                                                     ui::EF_ALT_DOWN);
+  const ui::Accelerator release_search_before_alt(
+      CreateReleaseAccelerator(ui::VKEY_LWIN, ui::EF_ALT_DOWN));
   EXPECT_TRUE(ProcessInController(release_search_before_alt));
   EXPECT_TRUE(input_method_manager->GetImeKeyboard()->CapsLockIsEnabled());
   input_method_manager->GetImeKeyboard()->SetCapsLockEnabled(false);
@@ -1192,8 +1215,8 @@ TEST_F(ToggleCapsLockTest, ToggleCapsLockAccelerators) {
 
   // 3. Press Alt, Press Search, Release Alt, Release Search.
   EXPECT_FALSE(ProcessInController(press_alt_then_search));
-  const ReleaseAccelerator release_alt_before_search(ui::VKEY_MENU,
-                                                     ui::EF_COMMAND_DOWN);
+  const ui::Accelerator release_alt_before_search(
+      CreateReleaseAccelerator(ui::VKEY_MENU, ui::EF_COMMAND_DOWN));
   EXPECT_TRUE(ProcessInController(release_alt_before_search));
   EXPECT_TRUE(input_method_manager->GetImeKeyboard()->CapsLockIsEnabled());
   input_method_manager->GetImeKeyboard()->SetCapsLockEnabled(false);
@@ -1223,6 +1246,10 @@ class PreferredReservedAcceleratorsTest : public test::AshTestBase {
 }  // namespace
 
 TEST_F(PreferredReservedAcceleratorsTest, AcceleratorsWithFullscreen) {
+  // TODO: needs LockStateController ported: http://crbug.com/632189.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   aura::Window* w1 = CreateTestWindowInShellWithId(0);
   aura::Window* w2 = CreateTestWindowInShellWithId(1);
   wm::ActivateWindow(w1);
@@ -1270,6 +1297,9 @@ TEST_F(PreferredReservedAcceleratorsTest, AcceleratorsWithFullscreen) {
 }
 
 TEST_F(PreferredReservedAcceleratorsTest, AcceleratorsWithPinned) {
+  // TODO: needs LockStateController ported: http://crbug.com/632189.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
   aura::Window* w1 = CreateTestWindowInShellWithId(0);
   aura::Window* w2 = CreateTestWindowInShellWithId(1);
   wm::ActivateWindow(w1);
@@ -1299,6 +1329,10 @@ TEST_F(PreferredReservedAcceleratorsTest, AcceleratorsWithPinned) {
 }
 
 TEST_F(AcceleratorControllerTest, DisallowedAtModalWindow) {
+  // TODO: TestScreenshotDelegate is null in mash http://crbug.com/632111.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   std::set<AcceleratorAction> all_actions;
   for (size_t i = 0; i < kAcceleratorDataLength; ++i)
     all_actions.insert(kAcceleratorData[i].action);
@@ -1399,7 +1433,8 @@ TEST_F(AcceleratorControllerTest, DisallowedAtModalWindow) {
 }
 
 TEST_F(AcceleratorControllerTest, DisallowedWithNoWindow) {
-  AccessibilityDelegate* delegate = WmShell::Get()->accessibility_delegate();
+  AccessibilityDelegate* delegate =
+      Shell::GetInstance()->accessibility_delegate();
 
   for (size_t i = 0; i < kActionsNeedingWindowLength; ++i) {
     delegate->TriggerAccessibilityAlert(A11Y_ALERT_NONE);
@@ -1448,8 +1483,9 @@ class DeprecatedAcceleratorTester : public AcceleratorControllerTest {
 
   ui::Accelerator CreateAccelerator(const AcceleratorData& data) const {
     ui::Accelerator result(data.keycode, data.modifiers);
-    result.set_type(data.trigger_on_press ? ui::ET_KEY_PRESSED
-                                          : ui::ET_KEY_RELEASED);
+    result.set_key_state(data.trigger_on_press
+                             ? ui::Accelerator::KeyState::PRESSED
+                             : ui::Accelerator::KeyState::RELEASED);
     return result;
   }
 
@@ -1484,6 +1520,10 @@ class DeprecatedAcceleratorTester : public AcceleratorControllerTest {
 }  // namespace
 
 TEST_F(DeprecatedAcceleratorTester, TestDeprecatedAcceleratorsBehavior) {
+  // TODO: disabled because of UnblockUserSession() not working:
+  // http://crbug.com/632201.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
   for (size_t i = 0; i < kDeprecatedAcceleratorsLength; ++i) {
     const AcceleratorData& entry = kDeprecatedAccelerators[i];
 

@@ -945,9 +945,9 @@ TEST_F(PipelineIntegrationTest, PlaybackWithAudioTrackDisabledThenEnabled) {
   EXPECT_HASH_EQ(kNullAudioHash, GetAudioHash());
 
   // Re-enable audio.
-  std::vector<MediaTrack::Id> audioTrackId;
-  audioTrackId.push_back("2");
-  pipeline_->OnEnabledAudioTracksChanged(audioTrackId);
+  std::vector<MediaTrack::Id> audio_track_id;
+  audio_track_id.push_back("2");
+  pipeline_->OnEnabledAudioTracksChanged(audio_track_id);
   base::RunLoop().RunUntilIdle();
 
   // Restart playback from 500ms position.
@@ -963,8 +963,7 @@ TEST_F(PipelineIntegrationTest, PlaybackWithVideoTrackDisabledThenEnabled) {
   ASSERT_EQ(PIPELINE_OK, Start("bear-320x240.webm", kHashed));
 
   // Disable video.
-  std::vector<MediaTrack::Id> empty;
-  pipeline_->OnSelectedVideoTrackChanged(empty);
+  pipeline_->OnSelectedVideoTrackChanged(base::nullopt);
   base::RunLoop().RunUntilIdle();
 
   // Seek to flush the pipeline and ensure there's no prerolled video data.
@@ -983,9 +982,7 @@ TEST_F(PipelineIntegrationTest, PlaybackWithVideoTrackDisabledThenEnabled) {
   EXPECT_HASH_EQ(kNullVideoHash, GetVideoHash());
 
   // Re-enable video.
-  std::vector<MediaTrack::Id> videoTrackId;
-  videoTrackId.push_back("1");
-  pipeline_->OnSelectedVideoTrackChanged(videoTrackId);
+  pipeline_->OnSelectedVideoTrackChanged(MediaTrack::Id("1"));
   base::RunLoop().RunUntilIdle();
 
   // Seek to flush video pipeline and reset the video hash again to clear state
@@ -1005,7 +1002,7 @@ TEST_F(PipelineIntegrationTest, PlaybackWithVideoTrackDisabledThenEnabled) {
 TEST_F(PipelineIntegrationTest, TrackStatusChangesBeforePipelineStarted) {
   std::vector<MediaTrack::Id> empty_track_ids;
   pipeline_->OnEnabledAudioTracksChanged(empty_track_ids);
-  pipeline_->OnSelectedVideoTrackChanged(empty_track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(base::nullopt);
 }
 
 TEST_F(PipelineIntegrationTest, TrackStatusChangesAfterPipelineEnded) {
@@ -1019,11 +1016,9 @@ TEST_F(PipelineIntegrationTest, TrackStatusChangesAfterPipelineEnded) {
   track_ids.push_back("2");
   pipeline_->OnEnabledAudioTracksChanged(track_ids);
   // Disable video track.
-  track_ids.clear();
-  pipeline_->OnSelectedVideoTrackChanged(track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(base::nullopt);
   // Re-enable video track.
-  track_ids.push_back("1");
-  pipeline_->OnSelectedVideoTrackChanged(track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(MediaTrack::Id("1"));
 }
 
 TEST_F(PipelineIntegrationTest, TrackStatusChangesWhileSuspended) {
@@ -1053,17 +1048,62 @@ TEST_F(PipelineIntegrationTest, TrackStatusChangesWhileSuspended) {
   ASSERT_TRUE(Suspend());
 
   // Disable video track.
-  track_ids.clear();
-  pipeline_->OnSelectedVideoTrackChanged(track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(base::nullopt);
   ASSERT_TRUE(Resume(TimestampMs(300)));
   ASSERT_TRUE(WaitUntilCurrentTimeIsAfter(TimestampMs(400)));
   ASSERT_TRUE(Suspend());
 
   // Re-enable video track.
-  track_ids.push_back("1");
-  pipeline_->OnSelectedVideoTrackChanged(track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(MediaTrack::Id("1"));
   ASSERT_TRUE(Resume(TimestampMs(400)));
   ASSERT_TRUE(WaitUntilOnEnded());
+}
+
+TEST_F(PipelineIntegrationTest, ReinitRenderersWhileAudioTrackIsDisabled) {
+  ASSERT_EQ(PIPELINE_OK, Start("bear-320x240.webm"));
+  Play();
+
+  // These get triggered every time playback is resumed.
+  EXPECT_CALL(*this, OnVideoNaturalSizeChange(gfx::Size(320, 240)))
+      .Times(AnyNumber());
+  EXPECT_CALL(*this, OnVideoOpacityChange(true)).Times(AnyNumber());
+
+  // Disable the audio track.
+  std::vector<MediaTrack::Id> track_ids;
+  pipeline_->OnEnabledAudioTracksChanged(track_ids);
+  // pipeline.Suspend() releases renderers and pipeline.Resume() recreates and
+  // reinitializes renderers while the audio track is disabled.
+  ASSERT_TRUE(Suspend());
+  ASSERT_TRUE(Resume(TimestampMs(100)));
+  // Now re-enable the audio track, playback should continue successfully.
+  EXPECT_CALL(*this, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH)).Times(1);
+  track_ids.push_back("2");
+  pipeline_->OnEnabledAudioTracksChanged(track_ids);
+  ASSERT_TRUE(WaitUntilCurrentTimeIsAfter(TimestampMs(200)));
+
+  Stop();
+}
+
+TEST_F(PipelineIntegrationTest, ReinitRenderersWhileVideoTrackIsDisabled) {
+  ASSERT_EQ(PIPELINE_OK, Start("bear-320x240.webm", kHashed));
+  Play();
+
+  // These get triggered every time playback is resumed.
+  EXPECT_CALL(*this, OnVideoNaturalSizeChange(gfx::Size(320, 240)))
+      .Times(AnyNumber());
+  EXPECT_CALL(*this, OnVideoOpacityChange(true)).Times(AnyNumber());
+
+  // Disable the video track.
+  pipeline_->OnSelectedVideoTrackChanged(base::nullopt);
+  // pipeline.Suspend() releases renderers and pipeline.Resume() recreates and
+  // reinitializes renderers while the video track is disabled.
+  ASSERT_TRUE(Suspend());
+  ASSERT_TRUE(Resume(TimestampMs(100)));
+  // Now re-enable the video track, playback should continue successfully.
+  pipeline_->OnSelectedVideoTrackChanged(MediaTrack::Id("1"));
+  ASSERT_TRUE(WaitUntilCurrentTimeIsAfter(TimestampMs(200)));
+
+  Stop();
 }
 
 TEST_F(PipelineIntegrationTest, PipelineStoppedWhileAudioRestartPending) {
@@ -1087,12 +1127,10 @@ TEST_F(PipelineIntegrationTest, PipelineStoppedWhileVideoRestartPending) {
 
   // Disable video track first, to re-enable it later and stop the pipeline
   // (which destroys the media renderer) while video restart is pending.
-  std::vector<MediaTrack::Id> track_ids;
-  pipeline_->OnSelectedVideoTrackChanged(track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(base::nullopt);
   ASSERT_TRUE(WaitUntilCurrentTimeIsAfter(TimestampMs(200)));
 
-  track_ids.push_back("1");
-  pipeline_->OnSelectedVideoTrackChanged(track_ids);
+  pipeline_->OnSelectedVideoTrackChanged(MediaTrack::Id("1"));
   Stop();
 }
 
@@ -1514,6 +1552,7 @@ TEST_F(PipelineIntegrationTest,
   EXPECT_CALL(*this, OnVideoNaturalSizeChange(gfx::Size(640, 360))).Times(1);
   scoped_refptr<DecoderBuffer> second_file =
       ReadTestDataFile("bear-640x360-av_enc-av.webm");
+
   ASSERT_TRUE(source.AppendAtTime(base::TimeDelta::FromSeconds(kAppendTimeSec),
                                   second_file->data(),
                                   second_file->data_size()));
@@ -1531,9 +1570,6 @@ TEST_F(PipelineIntegrationTest,
   Stop();
 }
 
-// TODO(xhwang): Config change from clear to encrypted is allowed by the
-// demuxer, but is not currently supported by the Renderer. See
-// http://crbug.com/597443
 TEST_F(PipelineIntegrationTest,
        MAYBE_EME(MediaSource_ConfigChange_ClearThenEncrypted_WebM)) {
   MockMediaSource source("bear-320x240-16x9-aspect.webm", kWebM,
@@ -1542,6 +1578,7 @@ TEST_F(PipelineIntegrationTest,
   EXPECT_EQ(PIPELINE_OK,
             StartPipelineWithEncryptedMedia(&source, &encrypted_media));
 
+  EXPECT_CALL(*this, OnVideoNaturalSizeChange(gfx::Size(640, 360))).Times(1);
   scoped_refptr<DecoderBuffer> second_file =
       ReadTestDataFile("bear-640x360-av_enc-av.webm");
 
@@ -1551,8 +1588,7 @@ TEST_F(PipelineIntegrationTest,
   source.EndOfStream();
 
   Play();
-
-  EXPECT_EQ(PIPELINE_ERROR_DECODE, WaitUntilEndedOrError());
+  EXPECT_TRUE(WaitUntilOnEnded());
 
   EXPECT_EQ(1u, pipeline_->GetBufferedTimeRanges().size());
   EXPECT_EQ(0, pipeline_->GetBufferedTimeRanges().start(0).InMilliseconds());
@@ -1560,6 +1596,7 @@ TEST_F(PipelineIntegrationTest,
             pipeline_->GetBufferedTimeRanges().end(0).InMilliseconds());
 
   source.Shutdown();
+  Stop();
 }
 
 // Config change from encrypted to clear is allowed by the demuxer, and is
@@ -1731,16 +1768,12 @@ TEST_P(Mp3FastSeekIntegrationTest, FastSeekAccuracy_MP3) {
   EXPECT_HASH_EQ(config.hash, GetAudioHash());
 }
 
-// TODO(CHCUNNINGHAM): Re-enable for OSX once 1% flakiness is root caused.
-// See http://crbug.com/571898
-#if !defined(OS_MACOSX)
 // CBR seeks should always be fast and accurate.
 INSTANTIATE_TEST_CASE_P(
     CBRSeek_HasTOC,
     Mp3FastSeekIntegrationTest,
     ::testing::Values(Mp3FastSeekParams("bear-audio-10s-CBR-has-TOC.mp3",
-                                        "-0.71,0.36,2.96,2.68,2.10,-1.08,")));
-#endif
+                                        "-0.71,0.36,2.96,2.68,2.11,-1.08,")));
 
 INSTANTIATE_TEST_CASE_P(
     CBRSeeks_NoTOC,

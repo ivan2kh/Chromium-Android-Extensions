@@ -45,6 +45,7 @@
 #include "chrome/browser/ui/blocked_content/popup_blocker_tab_helper.h"
 #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
 #include "chrome/browser/ui/tab_helpers.h"
+#include "chrome/common/image_context_menu_renderer.mojom.h"
 #include "chrome/common/render_messages.h"
 #include "chrome/common/url_constants.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -75,6 +76,7 @@
 #include "content/public/common/resource_request_body.h"
 #include "jni/Tab_jni.h"
 #include "net/base/escape.h"
+#include "services/service_manager/public/cpp/interface_provider.h"
 #include "skia/ext/image_operations.h"
 #include "third_party/WebKit/public/platform/WebReferrerPolicy.h"
 #include "ui/android/view_android.h"
@@ -126,7 +128,8 @@ TabAndroid::TabAndroid(JNIEnv* env, const JavaRef<jobject>& obj)
     : weak_java_tab_(env, obj),
       content_layer_(cc::Layer::Create()),
       tab_content_manager_(NULL),
-      synced_tab_delegate_(new browser_sync::SyncedTabDelegateAndroid(this)) {
+      synced_tab_delegate_(new browser_sync::SyncedTabDelegateAndroid(this)),
+      embedded_media_experience_enabled_(false) {
   Java_Tab_setNativePtr(env, obj, reinterpret_cast<intptr_t>(this));
 }
 
@@ -654,8 +657,9 @@ void TabAndroid::LoadOriginalImage(JNIEnv* env,
                                    const JavaParamRef<jobject>& obj) {
   content::RenderFrameHost* render_frame_host =
       web_contents()->GetFocusedFrame();
-  render_frame_host->Send(new ChromeViewMsg_RequestReloadImageForContextNode(
-      render_frame_host->GetRoutingID()));
+  chrome::mojom::ImageContextMenuRendererPtr renderer;
+  render_frame_host->GetRemoteInterfaces()->GetInterface(&renderer);
+  renderer->RequestReloadImageForContextNode();
 }
 
 jlong TabAndroid::GetBookmarkId(JNIEnv* env,
@@ -714,6 +718,22 @@ bool TabAndroid::HasPrerenderedUrl(JNIEnv* env,
                                    const JavaParamRef<jstring>& url) {
   GURL gurl(base::android::ConvertJavaStringToUTF8(env, url));
   return HasPrerenderedUrl(gurl);
+}
+
+void TabAndroid::EnableEmbeddedMediaExperience(
+    JNIEnv* env,
+    const base::android::JavaParamRef<jobject>& obj,
+    jboolean enabled) {
+  embedded_media_experience_enabled_ = enabled;
+
+  if (!web_contents() || !web_contents()->GetRenderViewHost())
+    return;
+
+  web_contents()->GetRenderViewHost()->OnWebkitPreferencesChanged();
+}
+
+bool TabAndroid::ShouldEnableEmbeddedMediaExperience() const {
+  return embedded_media_experience_enabled_;
 }
 
 namespace {

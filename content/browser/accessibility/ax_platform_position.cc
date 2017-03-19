@@ -4,6 +4,7 @@
 
 #include "content/browser/accessibility/ax_platform_position.h"
 
+#include "content/browser/accessibility/browser_accessibility.h"
 #include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "ui/accessibility/ax_enums.h"
 
@@ -86,7 +87,7 @@ BrowserAccessibility* AXPlatformPosition::GetNodeInTree(AXTreeID tree_id,
     return nullptr;
   }
 
-  auto manager = BrowserAccessibilityManager::FromID(tree_id);
+  auto* manager = BrowserAccessibilityManager::FromID(tree_id);
   if (!manager)
     return nullptr;
   return manager->GetFromID(node_id);
@@ -96,6 +97,22 @@ int AXPlatformPosition::MaxTextOffset() const {
   if (IsNullPosition())
     return INVALID_OFFSET;
   return static_cast<int>(GetInnerText().length());
+}
+
+// On some platforms, most objects are represented in the text of their parents
+// with a special (embedded object) character and not with their actual text
+// contents.
+int AXPlatformPosition::MaxTextOffsetInParent() const {
+#if defined(OS_WIN) || \
+    (defined(OS_LINUX) && defined(USE_X11) && !defined(OS_CHROMEOS))
+  if (IsNullPosition())
+    return INVALID_OFFSET;
+  if (GetAnchor()->IsTextOnlyObject())
+    return MaxTextOffset();
+  return 1;
+#else
+  return MaxTextOffset();
+#endif
 }
 
 bool AXPlatformPosition::IsInLineBreak() const {

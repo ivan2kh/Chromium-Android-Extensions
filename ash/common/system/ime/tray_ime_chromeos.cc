@@ -23,11 +23,12 @@
 #include "ash/common/system/tray/tri_view.h"
 #include "ash/common/system/tray_accessibility.h"
 #include "ash/common/wm_shell.h"
+#include "ash/resources/grit/ash_resources.h"
 #include "ash/resources/vector_icons/vector_icons.h"
+#include "ash/shell.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
-#include "grit/ash_resources.h"
-#include "grit/ash_strings.h"
 #include "ui/accessibility/ax_enums.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -76,7 +77,7 @@ class SelectableHoverHighlightView : public HoverHighlightView {
 class IMEDefaultView : public TrayItemMore {
  public:
   IMEDefaultView(SystemTrayItem* owner, const base::string16& label)
-      : TrayItemMore(owner, true) {
+      : TrayItemMore(owner) {
     if (MaterialDesignController::IsSystemTrayMenuMaterial()) {
       SetImage(gfx::CreateVectorIcon(kSystemMenuKeyboardIcon, kMenuIconColor));
     } else {
@@ -268,14 +269,14 @@ void TrayIME::UpdateTrayLabel(const IMEInfo& current, size_t count) {
     } else {
       tray_label_->label()->SetText(current.short_name);
     }
-    SetTrayLabelItemBorder(tray_label_, system_tray()->shelf_alignment());
     tray_label_->Layout();
   }
 }
 
 bool TrayIME::ShouldShowKeyboardToggle() {
-  return keyboard_suppressed_ &&
-         !WmShell::Get()->accessibility_delegate()->IsVirtualKeyboardEnabled();
+  return keyboard_suppressed_ && !Shell::GetInstance()
+                                      ->accessibility_delegate()
+                                      ->IsVirtualKeyboardEnabled();
 }
 
 base::string16 TrayIME::GetDefaultViewLabel(bool show_ime_label) {
@@ -329,13 +330,6 @@ void TrayIME::DestroyDefaultView() {
 
 void TrayIME::DestroyDetailedView() {
   detailed_ = NULL;
-}
-
-void TrayIME::UpdateAfterLoginStatusChange(LoginStatus status) {}
-
-void TrayIME::UpdateAfterShelfAlignmentChange(ShelfAlignment alignment) {
-  SetTrayLabelItemBorder(tray_label_, alignment);
-  tray_label_->Layout();
 }
 
 void TrayIME::OnIMERefresh() {

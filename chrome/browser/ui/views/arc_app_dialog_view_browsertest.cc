@@ -6,7 +6,9 @@
 
 #include "base/command_line.h"
 #include "base/macros.h"
+#include "chrome/browser/chromeos/arc/arc_auth_notification.h"
 #include "chrome/browser/chromeos/arc/arc_session_manager.h"
+#include "chrome/browser/chromeos/arc/arc_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/app_list_controller_delegate.h"
 #include "chrome/browser/ui/app_list/app_list_service.h"
@@ -38,6 +40,7 @@ class ArcAppUninstallDialogViewBrowserTest : public InProcessBrowserTest {
   void SetUpInProcessBrowserTestFixture() override {
     InProcessBrowserTest::SetUpInProcessBrowserTestFixture();
     ArcSessionManager::DisableUIForTesting();
+    ArcAuthNotification::DisableForTesting();
   }
 
   void SetUpOnMainThread() override {
@@ -49,9 +52,7 @@ class ArcAppUninstallDialogViewBrowserTest : public InProcessBrowserTest {
           profile_);
     }
 
-    ArcSessionManager* session_manager = ArcSessionManager::Get();
-    DCHECK(session_manager);
-    session_manager->SetArcPlayStoreEnabled(true);
+    arc::SetArcPlayStoreEnabledForProfile(profile_, true);
 
     arc_app_list_pref_ = ArcAppListPrefs::Get(profile_);
     DCHECK(arc_app_list_pref_);

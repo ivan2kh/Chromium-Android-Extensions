@@ -75,27 +75,11 @@ void BrowserList::CloseAllBrowsersWithProfile(Profile* profile) {
 }
 
 // static
-void BrowserList::CloseAllBrowsersWithProfile(Profile* profile,
-    const CloseCallback& on_close_success,
-    const CloseCallback& on_close_aborted) {
-  NOTIMPLEMENTED();
-}
-
-// static
 void BrowserList::TryToCloseBrowserList(const BrowserVector& browsers_to_close,
-    const CloseCallback& on_close_success,
-    const CloseCallback& on_close_aborted,
-    const base::FilePath& profile_path) {
-  NOTIMPLEMENTED();
-}
-
-// static
-void BrowserList::PostBeforeUnloadHandlers(
-    const BrowserVector& browsers_to_close,
-    const CloseCallback& on_close_success,
-    const CloseCallback& on_close_aborted,
-    const base::FilePath& profile_path,
-    bool tab_close_confirmed) {
+                                        const CloseCallback& on_close_success,
+                                        const CloseCallback& on_close_aborted,
+                                        const base::FilePath& profile_path,
+                                        const bool skip_beforeunload) {
   NOTIMPLEMENTED();
 }
 

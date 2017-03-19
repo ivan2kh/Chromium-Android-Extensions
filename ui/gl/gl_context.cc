@@ -25,10 +25,10 @@
 namespace gl {
 
 namespace {
-base::LazyInstance<base::ThreadLocalPointer<GLContext> >::Leaky
+base::LazyInstance<base::ThreadLocalPointer<GLContext>>::Leaky
     current_context_ = LAZY_INSTANCE_INITIALIZER;
 
-base::LazyInstance<base::ThreadLocalPointer<GLContext> >::Leaky
+base::LazyInstance<base::ThreadLocalPointer<GLContext>>::Leaky
     current_real_context_ = LAZY_INSTANCE_INITIALIZER;
 }  // namespace
 
@@ -136,6 +136,12 @@ CurrentGL* GLContext::GetCurrentGL() {
   }
 
   return current_gl_.get();
+}
+
+void GLContext::ReinitializeDynamicBindings() {
+  DCHECK(IsCurrent(nullptr));
+  dynamic_bindings_initialized_ = false;
+  InitializeDynamicBindings();
 }
 
 bool GLContext::HasExtension(const char* name) {

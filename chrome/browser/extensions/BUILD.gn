@@ -72,7 +72,6 @@ static_library("extensions") {
     "api/autofill_private/autofill_private_event_router_factory.h",
     "api/autofill_private/autofill_util.cc",
     "api/autofill_private/autofill_util.h",
-    "api/automation_internal/automation_action_adapter.h",
     "api/automation_internal/automation_event_router.cc",
     "api/automation_internal/automation_event_router.h",
     "api/automation_internal/automation_internal_api.cc",
@@ -468,6 +467,8 @@ static_library("extensions") {
     "app_data_migrator.h",
     "blacklist.cc",
     "blacklist.h",
+    "blacklist_check.cc",
+    "blacklist_check.h",
     "blacklist_factory.cc",
     "blacklist_factory.h",
     "blacklist_state_fetcher.cc",
@@ -828,8 +829,8 @@ static_library("extensions") {
     "//chrome/app/resources:platform_locale_settings",
     "//chrome/app/theme:chrome_unscaled_resources",
     "//chrome/app/theme:theme_resources",
+    "//chrome/app/vector_icons",
     "//chrome/browser/devtools",
-    "//chrome/browser/media/router",
     "//chrome/common",
     "//chrome/common/extensions/api:api_registration",
     "//chrome/common/extensions/api:extensions_features",
@@ -896,6 +897,7 @@ static_library("extensions") {
     "//extensions:extensions_resources",
     "//extensions/browser",
     "//extensions/browser/api:api_registration",
+    "//extensions/common",
     "//extensions/common/api",
     "//extensions/features",
     "//extensions/strings",
@@ -926,11 +928,16 @@ static_library("extensions") {
     "//ui/resources",
     "//ui/shell_dialogs",
     "//ui/strings",
+    "//ui/vector_icons",
     "//url",
   ]
   
   if(is_android) {
     deps -= [ "//components/web_modal" ]
+  }
+
+  if (enable_media_router) {
+    deps += [ "//chrome/browser/media/router" ]
   }
 
   if (!is_chromeos) {
@@ -966,6 +973,10 @@ static_library("extensions") {
       "api/log_private/syslog_parser.cc",
       "api/log_private/syslog_parser.h",
       "api/messaging/native_message_host_chromeos.cc",
+      "api/networking_cast_private/chrome_networking_cast_private_delegate.cc",
+      "api/networking_cast_private/chrome_networking_cast_private_delegate.h",
+      "api/networking_cast_private/networking_cast_private_api.cc",
+      "api/networking_cast_private/networking_cast_private_api.h",
       "api/networking_private/crypto_verify_impl.cc",
       "api/networking_private/crypto_verify_impl.h",
       "api/platform_keys/platform_keys_api.cc",
@@ -1007,6 +1018,7 @@ static_library("extensions") {
       "//third_party/protobuf:protobuf_lite",
       "//ui/app_list",
       "//ui/chromeos",
+      "//ui/chromeos/events",
       "//ui/file_manager",
       "//ui/views/",
     ]
@@ -1070,6 +1082,10 @@ static_library("extensions") {
 
   if (is_win || is_mac) {
     sources += [
+      "api/networking_cast_private/chrome_networking_cast_private_delegate.cc",
+      "api/networking_cast_private/chrome_networking_cast_private_delegate.h",
+      "api/networking_cast_private/networking_cast_private_api.cc",
+      "api/networking_cast_private/networking_cast_private_api.h",
       "api/networking_private/crypto_verify_impl.cc",
       "api/networking_private/crypto_verify_impl.h",
       "api/networking_private/networking_private_credentials_getter.h",
@@ -1166,12 +1182,6 @@ static_library("extensions") {
 
   if (enable_service_discovery) {
     sources += [
-      "api/gcd_private/gcd_private_api.cc",
-      "api/gcd_private/gcd_private_api.h",
-      "api/gcd_private/privet_v3_context_getter.cc",
-      "api/gcd_private/privet_v3_context_getter.h",
-      "api/gcd_private/privet_v3_session.cc",
-      "api/gcd_private/privet_v3_session.h",
       "api/mdns/dns_sd_delegate.cc",
       "api/mdns/dns_sd_delegate.h",
       "api/mdns/dns_sd_device_lister.cc",

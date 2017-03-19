@@ -24,15 +24,21 @@ class MEDIA_EXPORT AudioSystemImpl : public AudioSystem {
   void GetInputStreamParameters(
       const std::string& device_id,
       OnAudioParamsCallback on_params_cb) const override;
+
+  void GetOutputStreamParameters(
+      const std::string& device_id,
+      OnAudioParamsCallback on_params_cb) const override;
+
   void HasInputDevices(OnBoolCallback on_has_devices_cb) const override;
+
+  base::SingleThreadTaskRunner* GetTaskRunner() const override;
+
   AudioManager* GetAudioManager() const override;
 
  protected:
   AudioSystemImpl(AudioManager* audio_manager);
 
  private:
-  base::SingleThreadTaskRunner* GetTaskRunner() const;
-
   AudioManager* const audio_manager_;
 
   DISALLOW_COPY_AND_ASSIGN(AudioSystemImpl);

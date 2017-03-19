@@ -94,9 +94,13 @@ class FakeWebMediaPlayerDelegate
     return false;
   }
 
+  void SetIsEffectivelyFullscreen(int delegate_id,
+                                  bool is_fullscreen) override {
+    EXPECT_EQ(delegate_id_, delegate_id);
+  }
+
   bool IsFrameHidden() override { return is_hidden_; }
   bool IsFrameClosed() override { return false; }
-  bool IsBackgroundVideoPlaybackUnlocked() override { return false; }
 
   void set_hidden(bool is_hidden) { is_hidden_ = is_hidden; }
 
@@ -452,6 +456,7 @@ class WebMediaPlayerMSTest
   void disconnectedFromRemoteDevice() override {}
   void cancelledRemotePlaybackRequest() override {}
   void remotePlaybackStarted() override {}
+  void onBecamePersistentVideo(bool) override {}
   bool isAutoplayingMuted() override { return false; }
   void requestReload(const blink::WebURL& newUrl) override {}
   bool hasSelectedVideoTrack() override { return false; }

@@ -18,12 +18,12 @@
 namespace blink {
 
 class AutoscrollController;
-class FrameHost;
 class LayoutBox;
 class LayoutObject;
 class LocalFrame;
 class PaintLayer;
 class PaintLayerScrollableArea;
+class Page;
 class Scrollbar;
 class ScrollState;
 class WebGestureEvent;
@@ -95,14 +95,14 @@ class CORE_EXPORT ScrollManager
   WebInputEventResult handleGestureScrollUpdate(const WebGestureEvent&);
   WebInputEventResult handleGestureScrollBegin(const WebGestureEvent&);
 
-  WebInputEventResult passScrollGestureEventToWidget(const WebGestureEvent&,
-                                                     LayoutObject*);
+  WebInputEventResult passScrollGestureEvent(const WebGestureEvent&,
+                                             LayoutObject*);
 
   void clearGestureScrollState();
 
   void customizedScroll(const Node& startNode, ScrollState&);
 
-  FrameHost* frameHost() const;
+  Page* page() const;
 
   bool isViewportScrollingElement(const Element&) const;
 
@@ -121,7 +121,7 @@ class CORE_EXPORT ScrollManager
 
   Member<Node> m_scrollGestureHandlingNode;
 
-  bool m_lastGestureScrollOverWidget;
+  bool m_lastGestureScrollOverFrameViewBase;
 
   // The most recent element to scroll natively during this scroll
   // sequence. Null if no native element has scrolled this scroll

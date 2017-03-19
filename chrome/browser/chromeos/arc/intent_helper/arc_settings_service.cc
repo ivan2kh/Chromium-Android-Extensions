@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "base/command_line.h"
 #include "base/gtest_prod_util.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
@@ -14,6 +15,7 @@
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/pref_names.h"
+#include "chromeos/chromeos_switches.h"
 #include "chromeos/network/network_handler.h"
 #include "chromeos/network/network_state.h"
 #include "chromeos/network/network_state_handler.h"
@@ -138,6 +140,7 @@ class ArcSettingsServiceImpl
   void SyncReportingConsent() const;
   void SyncSpokenFeedbackEnabled() const;
   void SyncTimeZone() const;
+  void SyncTimeZoneByGeolocation() const;
   void SyncUse24HourClock() const;
 
   void OnBluetoothAdapterInitialized(
@@ -149,9 +152,17 @@ class ArcSettingsServiceImpl
   // Returns the integer value of the pref.  pref_name must exist.
   int GetIntegerPref(const std::string& pref_name) const;
 
+  // Gets whether this is a managed pref.
+  bool IsBooleanPrefManaged(const std::string& pref_name) const;
+
   // Sends boolean pref broadcast to the delegate.
   void SendBoolPrefSettingsBroadcast(const std::string& pref_name,
                                      const std::string& action) const;
+
+  // Same as above, except sends a specific boolean value.
+  void SendBoolValueSettingsBroadcast(bool value,
+                                      bool managed,
+                                      const std::string& action) const;
 
   // Sends a broadcast to the delegate.
   void SendSettingsBroadcast(const std::string& action,
@@ -220,6 +231,8 @@ void ArcSettingsServiceImpl::OnPrefChanged(const std::string& pref_name) const {
       SyncLocationServiceEnabled();
   } else if (pref_name == prefs::kUse24HourClock) {
     SyncUse24HourClock();
+  } else if (pref_name == prefs::kResolveTimezoneByGeolocation) {
+    SyncTimeZoneByGeolocation();
   } else if (pref_name == prefs::kWebKitDefaultFixedFontSize ||
              pref_name == prefs::kWebKitDefaultFontSize ||
              pref_name == prefs::kWebKitMinimumFontSize) {
@@ -267,6 +280,7 @@ void ArcSettingsServiceImpl::StartObservingSettingsChanges() {
   AddPrefToObserve(prefs::kAccessibilityVirtualKeyboardEnabled);
   AddPrefToObserve(prefs::kArcBackupRestoreEnabled);
   AddPrefToObserve(prefs::kArcLocationServiceEnabled);
+  AddPrefToObserve(prefs::kResolveTimezoneByGeolocation);
   AddPrefToObserve(prefs::kUse24HourClock);
   AddPrefToObserve(prefs::kWebKitDefaultFixedFontSize);
   AddPrefToObserve(prefs::kWebKitDefaultFontSize);
@@ -318,6 +332,7 @@ void ArcSettingsServiceImpl::SyncRuntimeSettings() const {
   SyncReportingConsent();
   SyncSpokenFeedbackEnabled();
   SyncTimeZone();
+  SyncTimeZoneByGeolocation();
   SyncUse24HourClock();
 
   if (ShouldSyncBackupEnabled())
@@ -483,9 +498,39 @@ void ArcSettingsServiceImpl::SyncReportingConsent() const {
 }
 
 void ArcSettingsServiceImpl::SyncSpokenFeedbackEnabled() const {
-  SendBoolPrefSettingsBroadcast(
-      prefs::kAccessibilitySpokenFeedbackEnabled,
-      "org.chromium.arc.intent_helper.SET_SPOKEN_FEEDBACK_ENABLED");
+  // Chrome spoken feedback triggers enabling of Android spoken feedback.
+  // There are two types of spoken feedback from Android:
+  // 1. Talkback (default)
+  // 2. accessibility helper (experimental, works through ChromeVox).
+  // These two features are mutually exclusive.
+
+  const PrefService::Preference* pref = registrar_.prefs()->FindPreference(
+      prefs::kAccessibilitySpokenFeedbackEnabled);
+  DCHECK(pref);
+  bool enabled = false;
+  bool value_exists = pref->GetValue()->GetAsBoolean(&enabled);
+  CHECK(value_exists);
+  bool managed =
+      IsBooleanPrefManaged(prefs::kAccessibilitySpokenFeedbackEnabled);
+
+  std::string talkback_setting =
+      "org.chromium.arc.intent_helper.SET_SPOKEN_FEEDBACK_ENABLED";
+  std::string accessibility_helper_setting =
+      "org.chromium.arc.intent_helper.SET_ACCESSIBILITY_HELPER_ENABLED";
+
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          chromeos::switches::kEnableChromeVoxArcSupport)) {
+    // Make sure if ChromeVox is on, TalkBack is off.
+    if (enabled)
+      SendBoolValueSettingsBroadcast(false, managed, talkback_setting);
+
+    SendBoolValueSettingsBroadcast(enabled, managed,
+                                   accessibility_helper_setting);
+
+    return;
+  }
+
+  SendBoolValueSettingsBroadcast(enabled, managed, talkback_setting);
 }
 
 void ArcSettingsServiceImpl::SyncTimeZone() const {
@@ -494,6 +539,19 @@ void ArcSettingsServiceImpl::SyncTimeZone() const {
   base::DictionaryValue extras;
   extras.SetString("olsonTimeZone", timezoneID);
   SendSettingsBroadcast("org.chromium.arc.intent_helper.SET_TIME_ZONE", extras);
+}
+
+void ArcSettingsServiceImpl::SyncTimeZoneByGeolocation() const {
+  const PrefService::Preference* pref =
+      registrar_.prefs()->FindPreference(prefs::kResolveTimezoneByGeolocation);
+  DCHECK(pref);
+  bool setTimeZoneByGeolocation = false;
+  bool value_exists = pref->GetValue()->GetAsBoolean(&setTimeZoneByGeolocation);
+  DCHECK(value_exists);
+  base::DictionaryValue extras;
+  extras.SetBoolean("autoTimeZone", setTimeZoneByGeolocation);
+  SendSettingsBroadcast("org.chromium.arc.intent_helper.SET_AUTO_TIME_ZONE",
+                        extras);
 }
 
 void ArcSettingsServiceImpl::SyncUse24HourClock() const {
@@ -533,6 +591,16 @@ int ArcSettingsServiceImpl::GetIntegerPref(const std::string& pref_name) const {
   return val;
 }
 
+bool ArcSettingsServiceImpl::IsBooleanPrefManaged(
+    const std::string& pref_name) const {
+  const PrefService::Preference* pref =
+      registrar_.prefs()->FindPreference(pref_name);
+  DCHECK(pref);
+  bool value_exists = pref->GetValue()->is_bool();
+  DCHECK(value_exists);
+  return !pref->IsUserModifiable();
+}
+
 void ArcSettingsServiceImpl::SendBoolPrefSettingsBroadcast(
     const std::string& pref_name,
     const std::string& action) const {
@@ -542,9 +610,16 @@ void ArcSettingsServiceImpl::SendBoolPrefSettingsBroadcast(
   bool enabled = false;
   bool value_exists = pref->GetValue()->GetAsBoolean(&enabled);
   DCHECK(value_exists);
+  SendBoolValueSettingsBroadcast(enabled, !pref->IsUserModifiable(), action);
+}
+
+void ArcSettingsServiceImpl::SendBoolValueSettingsBroadcast(
+    bool enabled,
+    bool managed,
+    const std::string& action) const {
   base::DictionaryValue extras;
   extras.SetBoolean("enabled", enabled);
-  extras.SetBoolean("managed", !pref->IsUserModifiable());
+  extras.SetBoolean("managed", managed);
   SendSettingsBroadcast(action, extras);
 }
 

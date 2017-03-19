@@ -37,7 +37,7 @@
 #include "platform/heap/SelfKeepAlive.h"
 #include "public/platform/WebFileSystemType.h"
 #include "public/web/WebLocalFrame.h"
-#include "web/FrameLoaderClientImpl.h"
+#include "web/LocalFrameClientImpl.h"
 #include "web/UserMediaClientImpl.h"
 #include "web/WebExport.h"
 #include "web/WebFrameImplBase.h"
@@ -45,6 +45,7 @@
 #include "web/WebInputMethodControllerImpl.h"
 #include "wtf/Compiler.h"
 #include "wtf/text/WTFString.h"
+
 #include <memory>
 
 namespace blink {
@@ -72,6 +73,7 @@ class WebView;
 class WebViewImpl;
 enum class WebFrameLoadType;
 struct FrameLoadRequest;
+struct WebContentSecurityPolicyViolation;
 struct WebPrintParams;
 
 template <typename T>
@@ -137,6 +139,7 @@ class WEB_EXPORT WebLocalFrameImpl final
       const WebScriptSource* sourceIn,
       unsigned numSources,
       bool userGesture,
+      ScriptExecutionType,
       WebScriptExecutionCallback*) override;
   v8::Local<v8::Value> callFunctionEvenIfScriptDisabled(
       v8::Local<v8::Function>,
@@ -160,7 +163,6 @@ class WEB_EXPORT WebLocalFrameImpl final
   void enableViewSourceMode(bool enable) override;
   bool isViewSourceModeEnabled() const override;
   void setReferrerForRequest(WebURLRequest&, const WebURL& referrer) override;
-  void dispatchWillSendRequest(WebURLRequest&) override;
   WebAssociatedURLLoader* createAssociatedURLLoader(
       const WebAssociatedURLLoaderOptions&) override;
   unsigned unloadListenerCount() const override;
@@ -202,6 +204,7 @@ class WEB_EXPORT WebLocalFrameImpl final
       const WebVector<WebCompositionUnderline>& underlines) override;
   void extendSelectionAndDelete(int before, int after) override;
   void deleteSurroundingText(int before, int after) override;
+  void deleteSurroundingTextInCodePoints(int before, int after) override;
   void setCaretVisible(bool) override;
   int printBegin(const WebPrintParams&,
                  const WebNode& constrainToNode) override;
@@ -260,6 +263,8 @@ class WEB_EXPORT WebLocalFrameImpl final
                 WebHistoryLoadType,
                 bool isClientRedirect) override;
   bool maybeRenderFallbackContent(const WebURLError&) const override;
+  void reportContentSecurityPolicyViolation(
+      const blink::WebContentSecurityPolicyViolation&) override;
   bool isLoading() const override;
   bool isNavigationScheduledWithin(double interval) const override;
   void setCommittedFirstRealLoad() override;
@@ -420,7 +425,7 @@ class WEB_EXPORT WebLocalFrameImpl final
   DECLARE_TRACE();
 
  private:
-  friend class FrameLoaderClientImpl;
+  friend class LocalFrameClientImpl;
 
   WebLocalFrameImpl(WebTreeScopeType,
                     WebFrameClient*,
@@ -451,7 +456,7 @@ class WEB_EXPORT WebLocalFrameImpl final
   // Returns true if the frame is focused.
   bool isFocused() const;
 
-  Member<FrameLoaderClientImpl> m_frameLoaderClientImpl;
+  Member<LocalFrameClientImpl> m_localFrameClientImpl;
 
   // The embedder retains a reference to the WebCore LocalFrame while it is
   // active in the DOM. This reference is released when the frame is removed

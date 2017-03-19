@@ -82,11 +82,20 @@ class WebStateImpl : public WebState, public NavigationManagerDelegate {
   // Called when a navigation is committed.
   void OnNavigationCommitted(const GURL& url);
 
-  // Notifies the observers that the URL hash of the current page changed.
-  void OnUrlHashChanged();
+  // Notifies the observers that same page navigation did finish.
+  void OnSamePageNavigation(const GURL& url);
 
-  // Notifies the observers that the history state of the current page changed.
-  void OnHistoryStateChanged();
+  // Notifies the observers that navigation to error page did finish.
+  void OnErrorPageNavigation(const GURL& url);
+
+  // Called when page title was changed.
+  void OnTitleChanged();
+
+  // Called when the visible security state of the page changes.
+  void OnVisibleSecurityStateChange();
+
+  // Called when a dialog or child window open request was suppressed.
+  void OnDialogSuppressed();
 
   // Notifies the observers that the render process was terminated.
   void OnRenderProcessGone();
@@ -250,6 +259,18 @@ class WebStateImpl : public WebState, public NavigationManagerDelegate {
                            NSString* default_prompt_text,
                            const DialogClosedCallback& callback);
 
+  // Instructs the delegate to create a new web state. Called when this WebState
+  // wants to open a new window. |url| is the URL of the new window;
+  // |opener_url| is the URL of the page which requested a window to be open;
+  // |initiated_by_user| is true if action was caused by the user.
+  WebState* CreateNewWebState(const GURL& url,
+                              const GURL& opener_url,
+                              bool initiated_by_user);
+
+  // Instructs the delegate to close this web state. Called when the page calls
+  // wants to close self by calling window.close() JavaScript API.
+  virtual void CloseWebState();
+
   // Notifies the delegate that request receives an authentication challenge
   // and is unable to respond using cached credentials.
   void OnAuthRequired(NSURLProtectionSpace* protection_space,
@@ -262,10 +283,17 @@ class WebStateImpl : public WebState, public NavigationManagerDelegate {
   // NavigationManagerDelegate:
   void GoToIndex(int index) override;
   void LoadURLWithParams(const NavigationManager::WebLoadParams&) override;
+  void Reload() override;
   void OnNavigationItemsPruned(size_t pruned_item_count) override;
   void OnNavigationItemChanged() override;
   void OnNavigationItemCommitted(
       const LoadCommittedDetails& load_details) override;
+
+  // Updates the HTTP response headers for the main page using the headers
+  // passed to the OnHttpResponseHeadersReceived() function below.
+  // GetHttpResponseHeaders() can be used to get the headers.
+  void UpdateHttpResponseHeaders(const GURL& url);
+
   WebState* GetWebState() override;
 
  protected:
@@ -282,11 +310,6 @@ class WebStateImpl : public WebState, public NavigationManagerDelegate {
   // Creates a WebUIIOS object for |url| that is owned by the caller. Returns
   // nullptr if |url| does not correspond to a WebUI page.
   std::unique_ptr<web::WebUIIOS> CreateWebUIIOS(const GURL& url);
-
-  // Updates the HTTP response headers for the main page using the headers
-  // passed to the OnHttpResponseHeadersReceived() function below.
-  // GetHttpResponseHeaders() can be used to get the headers.
-  void UpdateHttpResponseHeaders(const GURL& url);
 
   // Returns true if |web_controller_| has been set.
   bool Configured() const;

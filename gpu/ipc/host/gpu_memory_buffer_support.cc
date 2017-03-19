@@ -70,8 +70,9 @@ GpuMemoryBufferConfigurationSet GetNativeGpuMemoryBufferConfigurations() {
         gfx::BufferFormat::RGBX_8888, gfx::BufferFormat::BGRA_8888,
         gfx::BufferFormat::BGRX_8888, gfx::BufferFormat::UYVY_422,
         gfx::BufferFormat::YVU_420,   gfx::BufferFormat::YUV_420_BIPLANAR};
-    const gfx::BufferUsage kGPUReadWriteUsages[] = {gfx::BufferUsage::GPU_READ,
-                                                    gfx::BufferUsage::SCANOUT};
+    const gfx::BufferUsage kGPUReadWriteUsages[] = {
+        gfx::BufferUsage::GPU_READ, gfx::BufferUsage::SCANOUT,
+        gfx::BufferUsage::SCANOUT_CPU_READ_WRITE};
     for (auto format : kGPUReadWriteFormats) {
       for (auto usage : kGPUReadWriteUsages) {
         if (IsNativeGpuMemoryBufferConfigurationSupported(format, usage))
@@ -95,7 +96,7 @@ uint32_t GetImageTextureTarget(gfx::BufferFormat format,
   }
 
   switch (GetNativeGpuMemoryBufferType()) {
-    case gfx::OZONE_NATIVE_PIXMAP:
+    case gfx::NATIVE_PIXMAP:
       // GPU memory buffers that are shared with the GL using EGLImages
       // require TEXTURE_EXTERNAL_OES.
       return GL_TEXTURE_EXTERNAL_OES;

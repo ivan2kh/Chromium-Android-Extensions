@@ -62,18 +62,6 @@ bool detectTextEncoding(const char* data,
   if (encoding == UNKNOWN_ENCODING || encoding == UTF8)
     return false;
 
-  // 7-bit encodings (except ISO-2022-JP) are not supported in WHATWG encoding
-  // standard. Mark them as ASCII to keep the raw bytes intact.
-  switch (encoding) {
-    case HZ_GB_2312:
-    case ISO_2022_KR:
-    case ISO_2022_CN:
-    case UTF7:
-      encoding = ASCII_7BIT;
-      break;
-    default:
-      break;
-  }
   *detectedEncoding = WTF::TextEncoding(MimeEncodingName(encoding));
   return true;
 }

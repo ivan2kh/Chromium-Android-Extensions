@@ -9,7 +9,6 @@
 #include "base/debug/crash_logging.h"
 #include "base/environment.h"
 #include "base/files/file_util.h"
-#include "base/lazy_instance.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
@@ -25,13 +24,6 @@
 
 namespace crash_reporter {
 namespace internal {
-
-namespace {
-
-base::LazyInstance<crashpad::CrashpadClient>::Leaky g_crashpad_client =
-    LAZY_INSTANCE_INITIALIZER;
-
-}  // namespace
 
 void GetPlatformCrashpadAnnotations(
     std::map<std::string, std::string>* annotations) {
@@ -94,9 +86,7 @@ base::FilePath PlatformCrashpadInitialization(bool initial_client,
 
     base::FilePath exe_file(exe_file_path);
 
-    bool is_per_user_install =
-        crash_reporter_client->GetIsPerUserInstall(exe_file.value());
-    if (crash_reporter_client->GetShouldDumpLargerDumps(is_per_user_install)) {
+    if (crash_reporter_client->GetShouldDumpLargerDumps()) {
       const uint32_t kIndirectMemoryLimit = 4 * 1024 * 1024;
       crashpad::CrashpadInfo::GetCrashpadInfo()
           ->set_gather_indirectly_referenced_memory(
@@ -118,26 +108,19 @@ base::FilePath PlatformCrashpadInitialization(bool initial_client,
       exe_file = exe_dir.Append(FILE_PATH_LITERAL("crashpad_handler.exe"));
     }
 
-    if (!g_crashpad_client.Get().StartHandler(
-            exe_file, database_path, metrics_path, url, process_annotations,
-            arguments, false, true)) {
-      // This means that CreateThread() failed, so this process is very messed
-      // up. This should be effectively unreachable. It is unlikely that there
-      // is any utility to ever making this non-fatal, however, if this is done,
-      // calls to BlockUntilHandlerStarted() will have to be amended.
-      LOG(FATAL) << "synchronous part of handler startup failed";
-    }
+    GetCrashpadClient().StartHandler(exe_file, database_path, metrics_path, url,
+                                     process_annotations, arguments, false,
+                                     false);
 
     // If we're the browser, push the pipe name into the environment so child
     // processes can connect to it. If we inherited another crashpad_handler's
     // pipe name, we'll overwrite it here.
     env->SetVar(kPipeNameVar,
-                base::UTF16ToUTF8(g_crashpad_client.Get().GetHandlerIPCPipe()));
+                base::UTF16ToUTF8(GetCrashpadClient().GetHandlerIPCPipe()));
   } else {
     std::string pipe_name_utf8;
     if (env->GetVar(kPipeNameVar, &pipe_name_utf8)) {
-      g_crashpad_client.Get().SetHandlerIPCPipe(
-          base::UTF8ToUTF16(pipe_name_utf8));
+      GetCrashpadClient().SetHandlerIPCPipe(base::UTF8ToUTF16(pipe_name_utf8));
     }
   }
 
@@ -214,16 +197,6 @@ MSVC_ENABLE_OPTIMIZE()
 }  // namespace
 
 }  // namespace internal
-
-void BlockUntilHandlerStarted() {
-  // We know that the StartHandler() at least started asynchronous startup if
-  // we're here, as if it doesn't, we abort.
-  const unsigned int kTimeoutMS = 5000;
-  if (!internal::g_crashpad_client.Get().WaitForHandlerStart(kTimeoutMS)) {
-    LOG(ERROR) << "Crashpad handler failed to start, crash reporting disabled";
-  }
-}
-
 }  // namespace crash_reporter
 
 extern "C" {
@@ -236,7 +209,7 @@ extern "C" {
 // releases of Chrome. Please contact syzygy-team@chromium.org before doing so!
 int __declspec(dllexport) CrashForException(
     EXCEPTION_POINTERS* info) {
-  crash_reporter::internal::g_crashpad_client.Get().DumpAndCrash(info);
+  crash_reporter::GetCrashpadClient().DumpAndCrash(info);
   return EXCEPTION_CONTINUE_SEARCH;
 }
 

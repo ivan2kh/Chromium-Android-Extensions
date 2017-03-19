@@ -87,13 +87,14 @@ const std::string& EventFilter::GetEventName(MatcherID id) {
 bool EventFilter::CreateConditionSets(
     EventMatcher* matcher,
     URLMatcherConditionSet::Vector* condition_sets) {
-  if (matcher->GetURLFilterCount() == 0) {
+  int url_filter_count = matcher->GetURLFilterCount();
+  if (url_filter_count == 0) {
     // If there are no URL filters then we want to match all events, so create a
     // URLFilter from an empty dictionary.
     base::DictionaryValue empty_dict;
     return AddDictionaryAsConditionSet(&empty_dict, condition_sets);
   }
-  for (int i = 0; i < matcher->GetURLFilterCount(); i++) {
+  for (int i = 0; i < url_filter_count; i++) {
     base::DictionaryValue* url_filter;
     if (!matcher->GetURLFilter(i, &url_filter))
       return false;
@@ -176,7 +177,7 @@ std::set<EventFilter::MatcherID> EventFilter::MatchEvent(
   return matchers;
 }
 
-int EventFilter::GetMatcherCountForEvent(const std::string& name) {
+int EventFilter::GetMatcherCountForEventForTesting(const std::string& name) {
   EventMatcherMultiMap::const_iterator it = event_matchers_.find(name);
   if (it == event_matchers_.end())
     return 0;

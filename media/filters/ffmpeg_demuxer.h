@@ -32,7 +32,9 @@
 
 #include "base/callback.h"
 #include "base/macros.h"
-#include "base/threading/thread.h"
+#include "base/memory/weak_ptr.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/decoder_buffer_queue.h"
@@ -239,10 +241,11 @@ class MEDIA_EXPORT FFmpegDemuxer : public Demuxer {
   void NotifyDemuxerError(PipelineStatus error);
 
   void OnEnabledAudioTracksChanged(const std::vector<MediaTrack::Id>& track_ids,
-                                   base::TimeDelta currTime) override;
-  // |track_ids| is either empty or contains a single video track id.
-  void OnSelectedVideoTrackChanged(const std::vector<MediaTrack::Id>& track_ids,
-                                   base::TimeDelta currTime) override;
+                                   base::TimeDelta curr_time) override;
+  // |track_id| either contains the selected video track id or is null,
+  // indicating that all video tracks are deselected/disabled.
+  void OnSelectedVideoTrackChanged(base::Optional<MediaTrack::Id> track_id,
+                                   base::TimeDelta curr_time) override;
 
   // The lowest demuxed timestamp.  If negative, DemuxerStreams must use this to
   // adjust packet timestamps such that external clients see a zero-based
@@ -294,8 +297,12 @@ class MEDIA_EXPORT FFmpegDemuxer : public Demuxer {
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
-  // Thread on which all blocking FFmpeg operations are executed.
-  base::Thread blocking_thread_;
+  // Task runner on which all blocking FFmpeg operations are executed; retrieved
+  // from base::TaskScheduler.
+  scoped_refptr<base::SequencedTaskRunner> blocking_task_runner_;
+
+  // Indicates if Stop() has been called.
+  bool stopped_;
 
   // Tracks if there's an outstanding av_read_frame() operation.
   //

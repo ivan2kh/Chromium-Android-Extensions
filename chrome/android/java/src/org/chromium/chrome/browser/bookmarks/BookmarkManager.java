@@ -9,6 +9,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -230,6 +231,20 @@ public class BookmarkManager implements BookmarkDelegate {
 
     public View getView() {
         return mMainView;
+    }
+
+    /**
+     * See {@link SelectableListLayout#detachToolbarView()}.
+     */
+    public Toolbar detachToolbarView() {
+        return mSelectableListLayout.detachToolbarView();
+    }
+
+    /**
+     * @return The vertical scroll offset of the content view.
+     */
+    public int getVerticalScrollOffset() {
+        return mRecyclerView.computeVerticalScrollOffset();
     }
 
     /**

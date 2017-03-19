@@ -12,11 +12,15 @@
 #ifndef V8TestTypedefs_h
 #define V8TestTypedefs_h
 
+#include "bindings/core/v8/ByteStringSequenceSequenceOrByteStringByteStringRecord.h"
 #include "bindings/core/v8/GeneratedCodeHelper.h"
+#include "bindings/core/v8/NativeValueTraits.h"
+#include "bindings/core/v8/NodeOrLongSequenceOrEventOrXMLHttpRequestOrStringOrStringByteStringOrNodeListRecord.h"
 #include "bindings/core/v8/ScriptWrappable.h"
 #include "bindings/core/v8/StringOrDouble.h"
 #include "bindings/core/v8/TestInterfaceOrTestInterfaceEmpty.h"
 #include "bindings/core/v8/ToV8.h"
+#include "bindings/core/v8/UnsignedLongLongOrBooleanOrTestCallbackInterface.h"
 #include "bindings/core/v8/V8Binding.h"
 #include "bindings/core/v8/V8DOMWrapper.h"
 #include "bindings/core/v8/WrapperTypeInfo.h"
@@ -61,6 +65,17 @@ class V8TestTypedefs {
   CORE_EXPORT static void domStringOrDoubleMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
   CORE_EXPORT static void arrayOfStringsMethodArrayOfStringsArgMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
   CORE_EXPORT static void stringArrayMethodStringArrayArgMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+  CORE_EXPORT static void methodTakingRecordMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+  CORE_EXPORT static void methodTakingOilpanValueRecordMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+  CORE_EXPORT static void unionWithRecordMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+  CORE_EXPORT static void methodThatReturnsRecordMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+  CORE_EXPORT static void voidMethodNestedUnionTypeMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+  CORE_EXPORT static void voidMethodUnionWithTypedefMethodCallback(const v8::FunctionCallbackInfo<v8::Value>&);
+};
+
+template <>
+struct NativeValueTraits<TestTypedefs> : public NativeValueTraitsBase<TestTypedefs> {
+  CORE_EXPORT static TestTypedefs* nativeValue(v8::Isolate*, v8::Local<v8::Value>, ExceptionState&);
 };
 
 template <>

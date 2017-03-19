@@ -19,13 +19,6 @@ namespace extensions {
 
 class NetworkingPrivateDelegateObserver;
 
-namespace api {
-namespace networking_private {
-struct DeviceStateProperties;
-struct VerificationProperties;
-}  // networking_private
-}  // api
-
 // Base class for platform dependent networkingPrivate API implementations.
 // All inputs and results for this class use ONC values. See
 // networking_private.idl for descriptions of the expected inputs and results.
@@ -121,6 +114,7 @@ class NetworkingPrivateDelegate : public KeyedService {
                         const FailureCallback& failure_callback) = 0;
   virtual void SetProperties(const std::string& guid,
                              std::unique_ptr<base::DictionaryValue> properties,
+                             bool allow_set_shared_config,
                              const VoidCallback& success_callback,
                              const FailureCallback& failure_callback) = 0;
   virtual void CreateNetwork(bool shared,

@@ -8,6 +8,7 @@
 #include "ash/common/wm/window_state.h"
 #include "ash/common/wm_shell.h"
 #include "ash/common/wm_window.h"
+#include "ash/shell.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/stl_util.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -56,12 +57,12 @@ bool AcceleratorRouter::ProcessAccelerator(WmWindow* target,
       !CanConsumeSystemKeys(target, key_event)) {
     // System keys are always consumed regardless of whether they trigger an
     // accelerator to prevent windows from seeing unexpected key up events.
-    WmShell::Get()->accelerator_controller()->Process(accelerator);
+    Shell::Get()->accelerator_controller()->Process(accelerator);
     return true;
   }
   if (!ShouldProcessAcceleratorNow(target, key_event, accelerator))
     return false;
-  return WmShell::Get()->accelerator_controller()->Process(accelerator);
+  return Shell::Get()->accelerator_controller()->Process(accelerator);
 }
 
 void AcceleratorRouter::RecordSearchKeyStats(
@@ -107,7 +108,7 @@ bool AcceleratorRouter::ShouldProcessAcceleratorNow(
     return true;
 
   AcceleratorController* accelerator_controller =
-      WmShell::Get()->accelerator_controller();
+      Shell::Get()->accelerator_controller();
 
   // Reserved accelerators (such as Power button) always have a prority.
   if (accelerator_controller->IsReserved(accelerator))
@@ -128,7 +129,7 @@ bool AcceleratorRouter::ShouldProcessAcceleratorNow(
   if (accelerator_controller->IsPreferred(accelerator))
     return true;
 
-  return WmShell::Get()->GetAppListTargetVisibility();
+  return Shell::Get()->GetAppListTargetVisibility();
 }
 
 }  // namespace ash

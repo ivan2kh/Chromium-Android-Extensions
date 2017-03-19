@@ -378,7 +378,9 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
   // layer starts in and adds in the offset. See
   // http://www.chromium.org/developers/design-documents/multi-column-layout for
   // more info.
-  LayoutPoint visualOffsetFromAncestor(const PaintLayer* ancestorLayer) const;
+  LayoutPoint visualOffsetFromAncestor(
+      const PaintLayer* ancestorLayer,
+      LayoutPoint offset = LayoutPoint()) const;
 
   // Convert a bounding box from flow thread coordinates, relative to |this|, to
   // visual coordinates, relative to |ancestorLayer|.
@@ -707,10 +709,6 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
   void updateAncestorDependentCompositingInputs(
       const AncestorDependentCompositingInputs&,
       bool hasAncestorWithClipPath);
-  void updateDescendantDependentCompositingInputs(
-      bool hasDescendantWithClipPath,
-      bool hasNonIsolatedDescendantWithBlendMode,
-      bool hasRootScrollerAsDescendant);
   void didUpdateCompositingInputs();
 
   const IntRect& clippedAbsoluteBoundingBox() const {
@@ -788,11 +786,6 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
   // stacking contexts.
   bool hasNonIsolatedDescendantWithBlendMode() const;
 
-  bool hasRootScrollerAsDescendant() const {
-    DCHECK(!m_needsDescendantDependentFlagsUpdate);
-    return m_hasRootScrollerAsDescendant;
-  }
-
   bool lostGroupedMapping() const {
     DCHECK(isAllowedToQueryCompositingState());
     return m_lostGroupedMapping;
@@ -852,7 +845,7 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
       const LayoutRect& dirtyRect,
       ClipRectsCacheSlot,
       GeometryMapperOption,
-      OverlayScrollbarClipBehavior = IgnoreOverlayScrollbarSize,
+      OverlayScrollbarClipBehavior = IgnorePlatformOverlayScrollbarSize,
       ShouldRespectOverflowClipType = RespectOverflowClip,
       const LayoutPoint* offsetFromRoot = 0,
       const LayoutSize& subPixelAccumulation = LayoutSize());
@@ -862,7 +855,7 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
       const LayoutRect& dirtyRect,
       ClipRectsCacheSlot,
       GeometryMapperOption,
-      OverlayScrollbarClipBehavior = IgnoreOverlayScrollbarSize,
+      OverlayScrollbarClipBehavior = IgnorePlatformOverlayScrollbarSize,
       ShouldRespectOverflowClipType = RespectOverflowClip,
       const LayoutPoint* offsetFromRoot = 0,
       const LayoutSize& subPixelAccumulation = LayoutSize(),
@@ -1204,7 +1197,6 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
   unsigned m_hasDescendantWithClipPath : 1;
   unsigned m_hasNonIsolatedDescendantWithBlendMode : 1;
   unsigned m_hasAncestorWithClipPath : 1;
-  unsigned m_hasRootScrollerAsDescendant : 1;
 
   unsigned m_selfPaintingStatusChanged : 1;
 

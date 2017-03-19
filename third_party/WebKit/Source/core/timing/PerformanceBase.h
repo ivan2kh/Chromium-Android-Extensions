@@ -49,18 +49,17 @@
 namespace blink {
 
 class ExceptionState;
-class LocalFrame;
 class PerformanceObserver;
 class PerformanceTiming;
 class ResourceResponse;
 class ResourceTimingInfo;
+class SecurityOrigin;
 class UserTiming;
 
 using PerformanceEntryVector = HeapVector<Member<PerformanceEntry>>;
 using PerformanceObservers = HeapListHashSet<Member<PerformanceObserver>>;
 
 class CORE_EXPORT PerformanceBase : public EventTargetWithInlineData {
-  friend class PerformanceBaseTest;
 
  public:
   ~PerformanceBase() override;
@@ -88,7 +87,7 @@ class CORE_EXPORT PerformanceBase : public EventTargetWithInlineData {
 
   double timeOrigin() const { return m_timeOrigin; }
 
-  PerformanceEntryVector getEntries() const;
+  PerformanceEntryVector getEntries();
   PerformanceEntryVector getEntriesByType(const String& entryType);
   PerformanceEntryVector getEntriesByName(const String& name,
                                           const String& entryType);
@@ -112,7 +111,7 @@ class CORE_EXPORT PerformanceBase : public EventTargetWithInlineData {
 
   void addResourceTiming(const ResourceTimingInfo&);
 
-  void addNavigationTiming(LocalFrame*);
+  void notifyNavigationTimingToObservers();
 
   void addFirstPaintTiming(double startTime);
 
@@ -133,18 +132,18 @@ class CORE_EXPORT PerformanceBase : public EventTargetWithInlineData {
   void activateObserver(PerformanceObserver&);
   void resumeSuspendedObservers();
 
-  DECLARE_VIRTUAL_TRACE();
-
- private:
-  static PerformanceNavigationTiming::NavigationType getNavigationType(
-      NavigationType,
-      const Document*);
-
   static bool allowsTimingRedirect(const Vector<ResourceResponse>&,
                                    const ResourceResponse&,
                                    const SecurityOrigin&,
                                    ExecutionContext*);
 
+  static PerformanceNavigationTiming::NavigationType getNavigationType(
+      NavigationType,
+      const Document*);
+
+  DECLARE_VIRTUAL_TRACE();
+
+ private:
   static bool passesTimingAllowCheck(const ResourceResponse&,
                                      const SecurityOrigin&,
                                      const AtomicString&,
@@ -154,6 +153,12 @@ class CORE_EXPORT PerformanceBase : public EventTargetWithInlineData {
 
  protected:
   explicit PerformanceBase(double timeOrigin, RefPtr<WebTaskRunner>);
+
+  // Expect Performance to override this method,
+  // WorkerPerformance doesn't have to override this.
+  virtual PerformanceNavigationTiming* createNavigationTimingInstance() {
+    return nullptr;
+  }
 
   bool isResourceTimingBufferFull();
   void addResourceTimingBuffer(PerformanceEntry&);

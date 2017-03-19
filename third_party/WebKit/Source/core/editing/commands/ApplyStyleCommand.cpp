@@ -473,7 +473,7 @@ void ApplyStyleCommand::applyRelativeFontStyleChange(
         copyStyleOrCreateEmpty(element->inlineStyle());
     float currentFontSize = computedFontSize(node);
     float desiredFontSize = max(
-        MinimumFontSize, startingFontSizes.get(node) + style->fontSizeDelta());
+        MinimumFontSize, startingFontSizes.at(node) + style->fontSizeDelta());
     const CSSValue* value =
         inlineStyle->getPropertyCSSValue(CSSPropertyFontSize);
     if (value) {
@@ -1386,6 +1386,10 @@ void ApplyStyleCommand::removeInlineStyle(EditingStyle* style,
   // FIXME: We should assert that start/end are not in the middle of a text
   // node.
 
+  // TODO(editing-dev): Use of updateStyleAndLayoutIgnorePendingStylesheets
+  // needs to be audited.  See http://crbug.com/590369 for more details.
+  document().updateStyleAndLayoutIgnorePendingStylesheets();
+
   Position pushDownStart = mostForwardCaretPosition(start);
   // If the pushDownStart is at the end of a text node, then this node is not
   // fully selected. Move it to the next deep quivalent position to avoid
@@ -1397,6 +1401,11 @@ void ApplyStyleCommand::removeInlineStyle(EditingStyle* style,
       pushDownStart.computeOffsetInContainerNode() ==
           pushDownStartContainer->maxCharacterOffset())
     pushDownStart = nextVisuallyDistinctCandidate(pushDownStart);
+
+  // TODO(editing-dev): Use of updateStyleAndLayoutIgnorePendingStylesheets
+  // needs to be audited.  See http://crbug.com/590369 for more details.
+  document().updateStyleAndLayoutIgnorePendingStylesheets();
+
   Position pushDownEnd = mostBackwardCaretPosition(end);
   // If pushDownEnd is at the start of a text node, then this node is not fully
   // selected. Move it to the previous deep equivalent position to avoid

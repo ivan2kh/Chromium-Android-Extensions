@@ -27,8 +27,10 @@ namespace extensions {
 
 namespace {
 
-base::LazyInstance<std::set<const ExtensionFrameHelper*>> g_frame_helpers =
-    LAZY_INSTANCE_INITIALIZER;
+constexpr int kMainWorldId = 0;
+
+base::LazyInstance<std::set<const ExtensionFrameHelper*>>::DestructorAtExit
+    g_frame_helpers = LAZY_INSTANCE_INITIALIZER;
 
 // Returns true if the render frame corresponding with |frame_helper| matches
 // the given criteria.
@@ -169,6 +171,12 @@ void ExtensionFrameHelper::RunScriptsAtDocumentEnd() {
   // |this| might be dead by now.
 }
 
+void ExtensionFrameHelper::RunScriptsAtDocumentIdle() {
+  RunCallbacksWhileFrameIsValid(weak_ptr_factory_.GetWeakPtr(),
+                                &document_idle_callbacks_);
+  // |this| might be dead by now.
+}
+
 void ExtensionFrameHelper::ScheduleAtDocumentStart(
     const base::Closure& callback) {
   document_element_created_callbacks_.push_back(callback);
@@ -177,6 +185,11 @@ void ExtensionFrameHelper::ScheduleAtDocumentStart(
 void ExtensionFrameHelper::ScheduleAtDocumentEnd(
     const base::Closure& callback) {
   document_load_finished_callbacks_.push_back(callback);
+}
+
+void ExtensionFrameHelper::ScheduleAtDocumentIdle(
+    const base::Closure& callback) {
+  document_idle_callbacks_.push_back(callback);
 }
 
 void ExtensionFrameHelper::DidMatchCSS(
@@ -198,16 +211,15 @@ void ExtensionFrameHelper::DidStartProvisionalLoad(
       render_frame()->GetWebFrame()->mainWorldScriptContext();
   v8::Context::Scope context_scope(context);
   extension_dispatcher_->DidCreateScriptContext(render_frame()->GetWebFrame(),
-                                                context, 0);
+                                                context, kMainWorldId);
   // TODO(devlin): Add constants for main world id, no extension group.
 }
 
 void ExtensionFrameHelper::DidCreateScriptContext(
     v8::Local<v8::Context> context,
     int world_id) {
-  if (context == render_frame()->GetWebFrame()->mainWorldScriptContext() &&
+  if (world_id == kMainWorldId &&
       render_frame()->IsBrowserSideNavigationPending()) {
-    DCHECK_EQ(0, world_id);
     DCHECK(!delayed_main_world_script_initialization_);
     // Defer initializing the extensions script context now because it depends
     // on having the URL of the provisional load which isn't available at this

@@ -12,7 +12,6 @@
 
 namespace blink {
 
-class NGConstraintSpace;
 class NGInlineNode;
 class NGLineBuilder;
 
@@ -29,16 +28,14 @@ class CORE_EXPORT NGTextLayoutAlgorithm : public NGLayoutAlgorithm {
   // @param space The constraint space which the algorithm should generate a
   //              fragments within.
   NGTextLayoutAlgorithm(NGInlineNode* inline_box,
-                        NGConstraintSpace* space,
                         NGBreakToken* break_token = nullptr);
 
-  RefPtr<NGPhysicalFragment> Layout() override;
+  RefPtr<NGLayoutResult> Layout() override;
   void LayoutInline(NGLineBuilder*);
 
  private:
   Persistent<NGInlineNode> inline_box_;
-  Persistent<NGConstraintSpace> constraint_space_;
-  Persistent<NGBreakToken> break_token_;
+  NGBreakToken* break_token_;
 
   friend class NGInlineNodeTest;
 };

@@ -353,7 +353,8 @@ String Notification::permissionString(
   return "denied";
 }
 
-String Notification::permission(ExecutionContext* context) {
+String Notification::permission(ScriptState* scriptState) {
+  ExecutionContext* context = scriptState->getExecutionContext();
   return permissionString(
       NotificationManager::from(context)->permissionStatus(context));
 }
@@ -380,8 +381,7 @@ ScriptPromise Notification::requestPermission(
         "Only request notification permission in response to a user gesture.",
         0, nullptr);
   }
-  InspectorInstrumentation::NativeBreakpoint nativeBreakpoint(
-      context, "Notification.requestPermission", true);
+  probe::breakableLocation(context, "Notification.requestPermission");
 
   return NotificationManager::from(context)->requestPermission(
       scriptState, deprecatedCallback);

@@ -14,8 +14,8 @@
 #include "platform/LayoutTestSupport.h"
 #include "public/platform/Platform.h"
 #include "public/platform/modules/serviceworker/WebServiceWorkerEventResult.h"
+#include "v8/include/v8.h"
 #include "wtf/Assertions.h"
-#include <v8.h>
 
 namespace blink {
 
@@ -196,6 +196,14 @@ void WaitUntilObserver::decrementPendingActivity() {
     case PaymentRequest:
       client->didHandlePaymentRequestEvent(m_eventID, result,
                                            m_eventDispatchTime);
+      break;
+    case BackgroundFetchAbort:
+      client->didHandleBackgroundFetchAbortEvent(m_eventID, result,
+                                                 m_eventDispatchTime);
+      break;
+    case BackgroundFetchClick:
+      client->didHandleBackgroundFetchClickEvent(m_eventID, result,
+                                                 m_eventDispatchTime);
       break;
   }
   m_executionContext = nullptr;

@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/ash/palette_delegate_chromeos.h"
 
 #include "ash/accelerators/accelerator_controller_delegate_aura.h"
+#include "ash/aura/wm_shell_aura.h"
 #include "ash/common/system/chromeos/palette/palette_utils.h"
 #include "ash/screenshot_delegate.h"
 #include "ash/shell.h"
@@ -56,11 +57,9 @@ bool PaletteDelegateChromeOS::HasNoteApp() {
   return chromeos::NoteTakingHelper::Get()->IsAppAvailable(profile_);
 }
 
-void PaletteDelegateChromeOS::ActiveUserChanged(const AccountId& account_id) {
-  const user_manager::User* user =
-      user_manager::UserManager::Get()->FindUser(account_id);
-  Profile* profile = ProfileHelper::Get()->GetProfileByUser(user);
-  SetProfile(profile);
+void PaletteDelegateChromeOS::ActiveUserChanged(
+    const user_manager::User* active_user) {
+  SetProfile(ProfileHelper::Get()->GetProfileByUser(active_user));
 }
 
 void PaletteDelegateChromeOS::Observe(
@@ -73,9 +72,9 @@ void PaletteDelegateChromeOS::Observe(
       SetProfile(ProfileManager::GetActiveUserProfile());
 
       // Add a session state observer to be able to monitor session changes.
-      if (!session_state_observer_.get() && ash::Shell::HasInstance()) {
+      if (!session_state_observer_.get()) {
         session_state_observer_.reset(
-            new ash::ScopedSessionStateObserver(this));
+            new user_manager::ScopedUserSessionStateObserver(this));
       }
       break;
     case chrome::NOTIFICATION_PROFILE_DESTROYED: {
@@ -134,7 +133,7 @@ bool PaletteDelegateChromeOS::ShouldShowPalette() {
 }
 
 void PaletteDelegateChromeOS::TakeScreenshot() {
-  auto* screenshot_delegate = ash::Shell::GetInstance()
+  auto* screenshot_delegate = ash::WmShellAura::Get()
                                   ->accelerator_controller_delegate()
                                   ->screenshot_delegate();
   screenshot_delegate->HandleTakeScreenshotForAllRootWindows();
@@ -143,7 +142,7 @@ void PaletteDelegateChromeOS::TakeScreenshot() {
 void PaletteDelegateChromeOS::TakePartialScreenshot(const base::Closure& done) {
   auto* screenshot_controller =
       ash::Shell::GetInstance()->screenshot_controller();
-  auto* screenshot_delegate = ash::Shell::GetInstance()
+  auto* screenshot_delegate = ash::WmShellAura::Get()
                                   ->accelerator_controller_delegate()
                                   ->screenshot_delegate();
 

@@ -44,6 +44,9 @@ const int kFadeInOutDuration = 200;
 }  // namespace.
 
 // static
+const char ToastContentsView::kViewClassName[] = "ToastContentsView";
+
+// static
 gfx::Size ToastContentsView::GetToastSizeForView(const views::View* view) {
   int width = kNotificationWidth + view->GetInsets().width();
   return gfx::Size(width, view->GetHeightForWidth(width));
@@ -168,6 +171,12 @@ void ToastContentsView::SetBoundsWithAnimation(gfx::Rect new_bounds) {
   bounds_animation_->Show();
 }
 
+void ToastContentsView::ActivateToast() {
+  set_can_activate(true);
+  if (GetWidget())
+    GetWidget()->Activate();
+}
+
 void ToastContentsView::StartFadeIn() {
   // The decrement is done in OnBoundsAnimationEndedOrCancelled callback.
   if (collection_)
@@ -253,7 +262,7 @@ void ToastContentsView::OnDisplayChanged() {
     return;
 
   collection_->OnDisplayMetricsChanged(
-      Screen::GetScreen()->GetDisplayNearestWindow(native_view));
+      Screen::GetScreen()->GetDisplayNearestView(native_view));
 }
 
 void ToastContentsView::OnWorkAreaChanged() {
@@ -266,7 +275,7 @@ void ToastContentsView::OnWorkAreaChanged() {
     return;
 
   collection_->OnDisplayMetricsChanged(
-      Screen::GetScreen()->GetDisplayNearestWindow(native_view));
+      Screen::GetScreen()->GetDisplayNearestView(native_view));
 }
 
 // views::View
@@ -313,6 +322,10 @@ void ToastContentsView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
   if (child_count() > 0)
     child_at(0)->GetAccessibleNodeData(node_data);
   node_data->role = ui::AX_ROLE_WINDOW;
+}
+
+const char* ToastContentsView::GetClassName() const {
+  return kViewClassName;
 }
 
 void ToastContentsView::ClickOnNotification(

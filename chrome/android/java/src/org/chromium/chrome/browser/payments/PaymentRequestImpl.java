@@ -44,8 +44,12 @@ import org.chromium.chrome.browser.tabmodel.TabModel.TabSelectionType;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
+import org.chromium.components.payments.CurrencyFormatter;
+import org.chromium.components.payments.PaymentValidator;
 import org.chromium.components.url_formatter.UrlFormatter;
+import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.WebContentsStatics;
 import org.chromium.mojo.system.MojoException;
 import org.chromium.payments.mojom.CanMakePaymentQueryResult;
 import org.chromium.payments.mojom.PaymentComplete;
@@ -76,7 +80,7 @@ import javax.annotation.Nullable;
 
 /**
  * Android implementation of the PaymentRequest service defined in
- * components/payments/payment_request.mojom.
+ * components/payments/content/payment_request.mojom.
  */
 public class PaymentRequestImpl
         implements PaymentRequest, PaymentRequestUI.Client, PaymentApp.InstrumentsCallback,
@@ -119,42 +123,51 @@ public class PaymentRequestImpl
         void onPaymentRequestServiceCanMakePaymentQueryResponded();
     }
 
-    /** The object to keep track of cached payment query results. */
+    /** The object to keep track of payment queries. */
     private static class CanMakePaymentQuery {
         private final Set<PaymentRequestImpl> mObservers = new HashSet<>();
-        private final Set<String> mMethods;
-        private Boolean mResponse;
+        private final Map<String, String> mMethods;
 
         /**
          * Keeps track of a payment query.
          *
-         * @param methods The payment methods that are being queried.
+         * @param methods The map of the payment methods that are being queried to the corresponding
+         *                payment method data.
          */
-        public CanMakePaymentQuery(Set<String> methods) {
+        public CanMakePaymentQuery(Map<String, PaymentMethodData> methods) {
             assert methods != null;
-            mMethods = methods;
+            mMethods = new HashMap<>();
+            for (Map.Entry<String, PaymentMethodData> method : methods.entrySet()) {
+                mMethods.put(method.getKey(),
+                        method.getValue() == null ? "" : method.getValue().stringifiedData);
+            }
         }
 
         /**
-         * Checks whether the given payment methods matches the previously queried payment methods.
+         * Checks whether the given payment methods and data match the previously queried payment
+         * methods and data.
          *
-         * @param methods The payment methods that are being queried.
-         * @return True if the given methods match the previously queried payment methods.
+         * @param methods The map of the payment methods that are being queried to the corresponding
+         *                payment method data.
+         * @return True if the given methods and data match the previously queried payment methods
+         *         and data.
          */
-        public boolean matchesPaymentMethods(Set<String> methods) {
-            return mMethods.equals(methods);
-        }
+        public boolean matchesPaymentMethods(Map<String, PaymentMethodData> methods) {
+            if (!mMethods.keySet().equals(methods.keySet())) return false;
 
-        /** @return Whether payment can be made, or null if response is not known yet. */
-        public Boolean getPreviousResponse() {
-            return mResponse;
+            for (Map.Entry<String, String> thisMethod : mMethods.entrySet()) {
+                PaymentMethodData otherMethod = methods.get(thisMethod.getKey());
+                String otherData = otherMethod == null ? "" : otherMethod.stringifiedData;
+                if (!thisMethod.getValue().equals(otherData)) return false;
+            }
+
+            return true;
         }
 
         /** @param response Whether payment can be made. */
-        public void setResponse(boolean response) {
-            if (mResponse == null) mResponse = response;
+        public void notifyObserversOfResponse(boolean response) {
             for (PaymentRequestImpl observer : mObservers) {
-                observer.respondCanMakePaymentQuery(mResponse.booleanValue());
+                observer.respondCanMakePaymentQuery(response);
             }
             mObservers.clear();
         }
@@ -211,10 +224,10 @@ public class PaymentRequestImpl
     private static boolean sIsAnyPaymentRequestShowing;
 
     /**
-     * In-memory mapping of the origins of websites that have recently called canMakePayment()
-     * to the list of the payment methods that were being queried. Used for throttling the usage of
-     * this call. The mapping is shared among all instances of PaymentRequestImpl in the browser
-     * process on UI thread. The user can reset the throttling mechanism by restarting the browser.
+     * In-memory mapping of the origins of iframes that have recently called canMakePayment() to the
+     * list of the payment methods that were being queried. Used for throttling the usage of this
+     * call. The mapping is shared among all instances of PaymentRequestImpl in the browser process
+     * on UI thread. The user can reset the throttling mechanism by restarting the browser.
      */
     private static Map<String, CanMakePaymentQuery> sCanMakePaymentQueries;
 
@@ -235,13 +248,18 @@ public class PaymentRequestImpl
     };
 
     private final Handler mHandler = new Handler();
+    private final RenderFrameHost mRenderFrameHost;
     private final WebContents mWebContents;
+    private final String mSchemelessOriginForPaymentApp;
+    private final String mOriginForDisplay;
+    private final String mSchemelessIFrameOriginForPaymentApp;
     private final String mMerchantName;
-    private final String mOrigin;
+    @Nullable
     private final byte[][] mCertificateChain;
     private final AddressEditor mAddressEditor;
     private final CardEditor mCardEditor;
     private final PaymentRequestJourneyLogger mJourneyLogger = new PaymentRequestJourneyLogger();
+    private final boolean mIsIncognito;
 
     private PaymentRequestClient mClient;
     private boolean mIsCurrentPaymentRequestShowing;
@@ -304,6 +322,12 @@ public class PaymentRequestImpl
     /** Aborts should only be recorded if the Payment Request was shown to the user. */
     private boolean mShouldRecordAbortReason;
 
+    /**
+     * There are a few situations were the Payment Request can appear, from a code perspective, to
+     * be shown more than once. This boolean is used to make sure it is only logged once.
+     */
+    private boolean mDidRecordShowEvent;
+
     /** True if any of the requested payment methods are supported. */
     private boolean mArePaymentMethodsSupported;
 
@@ -327,17 +351,24 @@ public class PaymentRequestImpl
     /**
      * Builds the PaymentRequest service implementation.
      *
-     * @param webContents The web contents that have invoked the PaymentRequest API.
+     * @param renderFrameHost The host of the frame that has invoked the PaymentRequest API.
      */
-    public PaymentRequestImpl(WebContents webContents) {
-        assert webContents != null;
+    public PaymentRequestImpl(RenderFrameHost renderFrameHost) {
+        assert renderFrameHost != null;
 
-        mWebContents = webContents;
+        mRenderFrameHost = renderFrameHost;
+        mSchemelessIFrameOriginForPaymentApp = UrlFormatter.formatUrlForSecurityDisplay(
+                mRenderFrameHost.getLastCommittedURL(), false /* omit scheme for payment apps. */);
+        mWebContents = WebContentsStatics.fromRenderFrameHost(renderFrameHost);
 
-        mMerchantName = webContents.getTitle();
-        // The feature is available only in secure context, so it's OK to not show HTTPS.
-        mOrigin = UrlFormatter.formatUrlForSecurityDisplay(
-                mWebContents.getLastCommittedUrl(), false);
+        mSchemelessOriginForPaymentApp = UrlFormatter.formatUrlForSecurityDisplay(
+                mWebContents.getLastCommittedUrl(), false /* omit scheme for payment apps. */);
+
+        mOriginForDisplay = UrlFormatter.formatUrlForSecurityDisplay(
+                mWebContents.getLastCommittedUrl(), true /* include scheme in display */);
+
+        mMerchantName = mWebContents.getTitle();
+
         mCertificateChain = CertificateChainHelper.getCertificateChain(mWebContents);
 
         mApps = new ArrayList<>();
@@ -345,11 +376,16 @@ public class PaymentRequestImpl
         mAddressEditor = new AddressEditor();
         mCardEditor = new CardEditor(mWebContents, mAddressEditor, sObserverForTest);
 
+        ChromeActivity activity = ChromeActivity.fromWebContents(mWebContents);
+        mIsIncognito = activity != null && activity.getCurrentTabModel() != null
+                && activity.getCurrentTabModel().isIncognito();
+
         if (sCanMakePaymentQueries == null) sCanMakePaymentQueries = new ArrayMap<>();
 
         recordSuccessFunnelHistograms("Initiated");
     }
 
+    @Override
     protected void finalize() throws Throwable {
         super.finalize();
         if (mCurrencyFormatter != null) {
@@ -384,8 +420,8 @@ public class PaymentRequestImpl
 
         if (!parseAndValidateDetailsOrDisconnectFromClient(details)) return;
 
-        PaymentAppFactory.getInstance().create(
-                mWebContents, Collections.unmodifiableSet(mMethodData.keySet()), this);
+        PaymentAppFactory.getInstance().create(mWebContents,
+                Collections.unmodifiableSet(mMethodData.keySet()), this /* callback */);
 
         mRequestShipping = options != null && options.requestShipping;
         mRequestPayerName = options != null && options.requestPayerName;
@@ -434,7 +470,7 @@ public class PaymentRequestImpl
         mUI = new PaymentRequestUI(activity, this, mRequestShipping,
                 mRequestPayerName || mRequestPayerPhone || mRequestPayerEmail,
                 mMerchantSupportsAutofillPaymentInstruments,
-                !PaymentPreferencesUtil.isPaymentCompleteOnce(), mMerchantName, mOrigin,
+                !PaymentPreferencesUtil.isPaymentCompleteOnce(), mMerchantName, mOriginForDisplay,
                 new ShippingStrings(mShippingType));
 
         final FaviconHelper faviconHelper = new FaviconHelper();
@@ -444,7 +480,7 @@ public class PaymentRequestImpl
                 new FaviconHelper.FaviconImageCallback() {
                     @Override
                     public void onFaviconAvailable(Bitmap bitmap, String iconUrl) {
-                        if (bitmap != null) mUI.setTitleBitmap(bitmap);
+                        if (mUI != null && bitmap != null) mUI.setTitleBitmap(bitmap);
                         faviconHelper.destroy();
                     }
                 });
@@ -551,8 +587,9 @@ public class PaymentRequestImpl
                 && mIsCurrentPaymentRequestShowing) {
             assert !mPaymentMethodsSection.isEmpty();
 
-            recordSuccessFunnelHistograms("Shown");
+            mDidRecordShowEvent = true;
             mShouldRecordAbortReason = true;
+            recordSuccessFunnelHistograms("Shown");
             mJourneyLogger.setShowCalled();
 
             onPayClicked(null /* selectedShippingAddress */, null /* selectedShippingOption */,
@@ -612,11 +649,22 @@ public class PaymentRequestImpl
             }
         }
 
+        if (queryApps.isEmpty()) {
+            CanMakePaymentQuery query =
+                    sCanMakePaymentQueries.get(mSchemelessIFrameOriginForPaymentApp);
+            if (query != null && query.matchesPaymentMethods(mMethodData)) {
+                query.notifyObserversOfResponse(mCanMakePayment);
+            }
+        }
+
+        if (disconnectIfNoPaymentMethodsSupported()) return;
+
         // Query instruments after mMerchantSupportsAutofillPaymentInstruments has been initialized,
         // so a fast response from a non-autofill payment app at the front of the app list does not
         // cause NOT_SUPPORTED payment rejection.
         for (Map.Entry<PaymentApp, Map<String, PaymentMethodData>> q : queryApps.entrySet()) {
-            q.getKey().getInstruments(q.getValue(), mOrigin, mCertificateChain, this);
+            q.getKey().getInstruments(q.getValue(), mSchemelessOriginForPaymentApp,
+                    mSchemelessIFrameOriginForPaymentApp, mCertificateChain, this);
         }
     }
 
@@ -818,7 +866,7 @@ public class PaymentRequestImpl
         mHandler.post(new Runnable() {
             @Override
             public void run() {
-                providePaymentInformation();
+                if (mUI != null) providePaymentInformation();
             }
         });
     }
@@ -829,9 +877,12 @@ public class PaymentRequestImpl
                         mUiShippingOptions, mContactSection, mPaymentMethodsSection));
         mPaymentInformationCallback = null;
 
-        recordSuccessFunnelHistograms("Shown");
-        mShouldRecordAbortReason = true;
-        mJourneyLogger.setShowCalled();
+        if (!mDidRecordShowEvent) {
+            mDidRecordShowEvent = true;
+            mShouldRecordAbortReason = true;
+            recordSuccessFunnelHistograms("Shown");
+            mJourneyLogger.setShowCalled();
+        }
     }
 
     @Override
@@ -1104,7 +1155,6 @@ public class PaymentRequestImpl
         assert mPaymentMethodsSection.getSelectedItem() instanceof AutofillPaymentInstrument;
 
         mUI.showProcessingMessage();
-        mPaymentResponseHelper.onInstrumentsDetailsLoading();
     }
 
     @Override
@@ -1135,7 +1185,8 @@ public class PaymentRequestImpl
             }
         }
 
-        instrument.invokePaymentApp(mMerchantName, mOrigin, mCertificateChain,
+        instrument.invokePaymentApp(mMerchantName, mSchemelessOriginForPaymentApp,
+                mSchemelessIFrameOriginForPaymentApp, mCertificateChain,
                 Collections.unmodifiableMap(methodData), mRawTotal, mRawLineItems,
                 Collections.unmodifiableMap(modifiers), this);
 
@@ -1223,19 +1274,18 @@ public class PaymentRequestImpl
     public void canMakePayment() {
         if (mClient == null) return;
 
-        CanMakePaymentQuery query = sCanMakePaymentQueries.get(mOrigin);
+        CanMakePaymentQuery query =
+                sCanMakePaymentQueries.get(mSchemelessIFrameOriginForPaymentApp);
         if (query == null) {
-            query = new CanMakePaymentQuery(mMethodData.keySet());
-            sCanMakePaymentQueries.put(mOrigin, query);
+            query = new CanMakePaymentQuery(Collections.unmodifiableMap(mMethodData));
+            sCanMakePaymentQueries.put(mSchemelessIFrameOriginForPaymentApp, query);
             mHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    sCanMakePaymentQueries.remove(mOrigin);
+                    sCanMakePaymentQueries.remove(mSchemelessIFrameOriginForPaymentApp);
                 }
             }, CAN_MAKE_PAYMENT_QUERY_PERIOD_MS);
-        }
-
-        if (!query.matchesPaymentMethods(mMethodData.keySet())) {
+        } else if (!query.matchesPaymentMethods(Collections.unmodifiableMap(mMethodData))) {
             mClient.onCanMakePayment(CanMakePaymentQueryResult.QUERY_QUOTA_EXCEEDED);
             if (sObserverForTest != null) {
                 sObserverForTest.onPaymentRequestServiceCanMakePaymentQueryResponded();
@@ -1243,22 +1293,16 @@ public class PaymentRequestImpl
             return;
         }
 
-        if (query.getPreviousResponse() != null) {
-            respondCanMakePaymentQuery(query.getPreviousResponse().booleanValue());
-            return;
-        }
-
         query.addObserver(this);
-        if (isFinishedQueryingPaymentApps()) {
-            query.setResponse(mCanMakePayment);
-            mJourneyLogger.setCanMakePaymentValue(mCanMakePayment);
-        }
+        if (isFinishedQueryingPaymentApps()) query.notifyObserversOfResponse(mCanMakePayment);
     }
 
     private void respondCanMakePaymentQuery(boolean response) {
-        mClient.onCanMakePayment(response ? CanMakePaymentQueryResult.CAN_MAKE_PAYMENT
-                : CanMakePaymentQueryResult.CANNOT_MAKE_PAYMENT);
-        mJourneyLogger.setCanMakePaymentValue(mCanMakePayment);
+        if (mClient == null) return;
+        mClient.onCanMakePayment(response || mIsIncognito
+                        ? CanMakePaymentQueryResult.CAN_MAKE_PAYMENT
+                        : CanMakePaymentQueryResult.CANNOT_MAKE_PAYMENT);
+        mJourneyLogger.setCanMakePaymentValue(response || mIsIncognito);
         if (sObserverForTest != null) {
             sObserverForTest.onPaymentRequestServiceCanMakePaymentQueryResponded();
         }
@@ -1371,8 +1415,11 @@ public class PaymentRequestImpl
             }
         }
 
-        CanMakePaymentQuery query = sCanMakePaymentQueries.get(mOrigin);
-        if (query != null) query.setResponse(mCanMakePayment);
+        CanMakePaymentQuery query =
+                sCanMakePaymentQueries.get(mSchemelessIFrameOriginForPaymentApp);
+        if (query != null && query.matchesPaymentMethods(mMethodData)) {
+            query.notifyObserversOfResponse(mCanMakePayment);
+        }
 
         // The list of payment instruments is ready to display.
         List<PaymentInstrument> sortedInstruments = new ArrayList<>();
@@ -1398,20 +1445,20 @@ public class PaymentRequestImpl
      * @return True if no payment methods are supported
      */
     private boolean disconnectIfNoPaymentMethodsSupported() {
-        if (!isFinishedQueryingPaymentApps()) return false;
+        if (!isFinishedQueryingPaymentApps() || !mIsCurrentPaymentRequestShowing) return false;
 
         boolean foundPaymentMethods = mPaymentMethodsSection != null
                 && !mPaymentMethodsSection.isEmpty();
         boolean userCanAddCreditCard = mMerchantSupportsAutofillPaymentInstruments
                 && !ChromeFeatureList.isEnabled(ChromeFeatureList.NO_CREDIT_CARD_ABORT);
 
-        if (!mArePaymentMethodsSupported || (mIsCurrentPaymentRequestShowing && !foundPaymentMethods
-                                                    && !userCanAddCreditCard)) {
+        if (!mArePaymentMethodsSupported || (!foundPaymentMethods && !userCanAddCreditCard)) {
             // All payment apps have responded, but none of them have instruments. It's possible to
             // add credit cards, but the merchant does not support them either. The payment request
             // must be rejected.
             disconnectFromClientWithDebugMessage("Requested payment methods have no instruments",
-                    PaymentErrorReason.NOT_SUPPORTED);
+                    mIsIncognito ? PaymentErrorReason.USER_CANCEL
+                                 : PaymentErrorReason.NOT_SUPPORTED);
             recordNoShowReasonHistogram(mArePaymentMethodsSupported
                             ? PaymentRequestMetrics.NO_SHOW_NO_MATCHING_PAYMENT_METHOD
                             : PaymentRequestMetrics.NO_SHOW_NO_SUPPORTED_PAYMENT_METHOD);

@@ -76,6 +76,8 @@ class CORE_EXPORT LayoutText : public LayoutObject {
   ~LayoutText() override;
 #endif
 
+  static LayoutText* createEmptyAnonymous(Document&);
+
   const char* name() const override { return "LayoutText"; }
 
   virtual bool isTextFragment() const;
@@ -180,6 +182,10 @@ class CORE_EXPORT LayoutText : public LayoutObject {
                          unsigned len,
                          bool force = false);
 
+  // TODO(kojii): setTextInternal() is temporarily public for NGInlineNode.
+  // This will be back to protected when NGInlineNode can paint directly.
+  virtual void setTextInternal(PassRefPtr<StringImpl>);
+
   virtual void transformText();
 
   bool canBeSelectionLeaf() const override { return true; }
@@ -227,7 +233,6 @@ class CORE_EXPORT LayoutText : public LayoutObject {
   void styleWillChange(StyleDifference, const ComputedStyle&) final {}
   void styleDidChange(StyleDifference, const ComputedStyle* oldStyle) override;
 
-  virtual void setTextInternal(PassRefPtr<StringImpl>);
   virtual UChar previousCharacter() const;
 
   void addLayerHitTestRects(LayerHitTestRects&,
@@ -356,6 +361,7 @@ inline LayoutText* Text::layoutObject() const {
 }
 
 void applyTextTransform(const ComputedStyle*, String&, UChar);
+AtomicString localeForLineBreakIterator(const ComputedStyle&);
 
 }  // namespace blink
 

@@ -7,17 +7,16 @@
 #include "base/memory/ptr_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
-#include "ios/chrome/browser/experimental_flags.h"
 #include "ios/chrome/browser/ui/ui_util.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/web/public/test/http_server.h"
 #include "ios/web/public/test/http_server_util.h"
 #include "ios/web/public/test/response_providers/html_response_provider.h"
+#include "ios/web/public/test/url_test_util.h"
 #include "url/gurl.h"
 
 using chrome_test_util::WebViewContainingText;
@@ -174,10 +173,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL during
 // pending back and forward navigations.
 - (void)testBackForwardNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -224,10 +219,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL during
 // pending navigations initialted from back history popover.
 - (void)testHistoryNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -237,8 +228,9 @@ class PausableResponseProvider : public HtmlResponseProvider {
   // though URL1 is a pending URL.
   [[EarlGrey selectElementWithMatcher:chrome_test_util::BackButton()]
       performAction:grey_longPress()];
-  NSString* URL1Spec = base::SysUTF8ToNSString(_testURL1.spec());
-  [[EarlGrey selectElementWithMatcher:grey_text(URL1Spec)]
+  NSString* URL1Title =
+      base::SysUTF16ToNSString(web::GetDisplayTitleForUrl(_testURL1));
+  [[EarlGrey selectElementWithMatcher:grey_text(URL1Title)]
       performAction:grey_tap()];
   GREYAssert([self waitForServerToReceiveRequestWithURL:_testURL1],
              @"Last request URL: %@", self.lastRequestURLSpec);
@@ -256,10 +248,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that stopping a pending Back navigation and reloading reloads committed
 // URL, not pending URL.
 - (void)testStoppingPendingBackNavigationAndReload {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -293,10 +281,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL during
 // back forward navigations initiated with JS.
 - (void)testJSBackForwardNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -342,10 +326,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL during go
 // navigations initiated with JS.
 - (void)testJSGoNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -392,10 +372,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL during go
 // back navigation started with pending reload in progress.
 - (void)testBackNavigationWithPendingReload {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -434,10 +410,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // back navigation initiated with pending renderer-initiated navigation in
 // progress.
 - (void)testBackNavigationWithPendingRendererInitiatedNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -468,10 +440,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // renderer-initiated navigation started with pending back navigation in
 // progress.
 - (void)testRendererInitiatedNavigationWithPendingBackNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Purge web view caches and pause the server to make sure that tests can
   // verify omnibox state before server starts responding.
   PurgeCachedWebViewPages();
@@ -502,10 +470,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL if user
 // issues 2 go back commands.
 - (void)testDoubleBackNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Create 3rd entry in the history, to be able to go back twice.
   [ChromeEarlGrey loadURL:_testURL3];
 
@@ -537,10 +501,6 @@ class PausableResponseProvider : public HtmlResponseProvider {
 // Tests that visible URL is always the same as last committed URL if page calls
 // window.history.back() twice.
 - (void)testDoubleBackJSNavigation {
-  if (!experimental_flags::IsPendingIndexNavigationEnabled()) {
-    EARL_GREY_TEST_SKIPPED(@"Pending Index Navigation experiment is disabled");
-  }
-
   // Create 3rd entry in the history, to be able to go back twice.
   [ChromeEarlGrey loadURL:_testURL3];
 

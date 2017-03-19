@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.download;
 
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -32,6 +31,7 @@ public class DownloadBroadcastReceiver extends BroadcastReceiver {
             case DownloadNotificationService.ACTION_DOWNLOAD_CANCEL:
             case DownloadNotificationService.ACTION_DOWNLOAD_PAUSE:
             case DownloadNotificationService.ACTION_DOWNLOAD_OPEN:
+            case DownloadNotificationService.ACTION_DOWNLOAD_UPDATE_SUMMARY_ICON:
                 performDownloadOperation(context, intent);
                 break;
             default:
@@ -63,8 +63,12 @@ public class DownloadBroadcastReceiver extends BroadcastReceiver {
                 intent, DownloadNotificationService.EXTRA_DOWNLOAD_FILE_PATH);
         boolean isSupportedMimeType =  IntentUtils.safeGetBooleanExtra(
                 intent, DownloadNotificationService.EXTRA_IS_SUPPORTED_MIME_TYPE, false);
+        boolean isOffTheRecord = IntentUtils.safeGetBooleanExtra(
+                intent, DownloadNotificationService.EXTRA_IS_OFF_THE_RECORD, false);
+        String downloadGuid = IntentUtils.safeGetStringExtra(
+                intent, DownloadNotificationService.EXTRA_DOWNLOAD_GUID);
         DownloadManagerService.openDownloadedContent(
-                context, downloadFilename, isSupportedMimeType, id);
+                context, downloadFilename, isSupportedMimeType, isOffTheRecord, downloadGuid, id);
     }
 
     /**
@@ -75,10 +79,7 @@ public class DownloadBroadcastReceiver extends BroadcastReceiver {
      */
     private void performDownloadOperation(final Context context, Intent intent) {
         if (DownloadNotificationService.isDownloadOperationIntent(intent)) {
-            Intent launchIntent = new Intent(intent);
-            launchIntent.setComponent(new ComponentName(
-                    context.getPackageName(), DownloadNotificationService.class.getName()));
-            context.startService(launchIntent);
+            DownloadNotificationService.startDownloadNotificationService(context, intent);
         }
     }
 }

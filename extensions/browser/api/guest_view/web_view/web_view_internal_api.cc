@@ -311,10 +311,11 @@ bool WebViewInternalCaptureVisibleRegionFunction::RunAsyncSafe(
   }
 
   is_guest_transparent_ = guest->allow_transparency();
-  return CaptureAsync(guest->web_contents(), image_details.get(),
-                      base::Bind(&WebViewInternalCaptureVisibleRegionFunction::
-                                     CopyFromBackingStoreComplete,
-                                 this));
+  return CaptureAsync(
+      guest->web_contents(), image_details.get(),
+      base::Bind(
+          &WebViewInternalCaptureVisibleRegionFunction::CopyFromSurfaceComplete,
+          this));
 }
 bool WebViewInternalCaptureVisibleRegionFunction::IsScreenshotEnabled() {
   // TODO(wjmaclean): Is it ok to always return true here?
@@ -333,7 +334,7 @@ void WebViewInternalCaptureVisibleRegionFunction::OnCaptureSuccess(
     return;
   }
 
-  SetResult(base::MakeUnique<base::StringValue>(base64_result));
+  SetResult(base::MakeUnique<base::Value>(base64_result));
   SendResponse(true);
 }
 
@@ -643,8 +644,7 @@ ExtensionFunction::ResponseAction WebViewInternalGetZoomFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
   double zoom_factor = guest_->GetZoom();
-  return RespondNow(
-      OneArgument(base::MakeUnique<base::FundamentalValue>(zoom_factor)));
+  return RespondNow(OneArgument(base::MakeUnique<base::Value>(zoom_factor)));
 }
 
 WebViewInternalSetZoomModeFunction::WebViewInternalSetZoomModeFunction() {
@@ -703,8 +703,8 @@ ExtensionFunction::ResponseAction WebViewInternalGetZoomModeFunction::Run() {
       NOTREACHED();
   }
 
-  return RespondNow(OneArgument(base::MakeUnique<base::StringValue>(
-      web_view_internal::ToString(zoom_mode))));
+  return RespondNow(OneArgument(
+      base::MakeUnique<base::Value>(web_view_internal::ToString(zoom_mode))));
 }
 
 WebViewInternalFindFunction::WebViewInternalFindFunction() {
@@ -806,8 +806,7 @@ ExtensionFunction::ResponseAction WebViewInternalGoFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
   bool successful = guest_->Go(params->relative_index);
-  return RespondNow(
-      OneArgument(base::MakeUnique<base::FundamentalValue>(successful)));
+  return RespondNow(OneArgument(base::MakeUnique<base::Value>(successful)));
 }
 
 WebViewInternalReloadFunction::WebViewInternalReloadFunction() {
@@ -861,7 +860,7 @@ ExtensionFunction::ResponseAction WebViewInternalSetPermissionFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(result !=
                               WebViewPermissionHelper::SET_PERMISSION_INVALID);
 
-  return RespondNow(OneArgument(base::MakeUnique<base::FundamentalValue>(
+  return RespondNow(OneArgument(base::MakeUnique<base::Value>(
       result == WebViewPermissionHelper::SET_PERMISSION_ALLOWED)));
 }
 

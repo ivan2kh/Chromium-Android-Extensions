@@ -33,9 +33,9 @@
 
 namespace blink {
 
-class Document;
-class LayoutObject;
 class ComputedStyle;
+class LayoutObject;
+class PseudoElement;
 
 class ContentData : public GarbageCollectedFinalized<ContentData> {
  public:
@@ -51,7 +51,8 @@ class ContentData : public GarbageCollectedFinalized<ContentData> {
   virtual bool isQuote() const { return false; }
   virtual bool isText() const { return false; }
 
-  virtual LayoutObject* createLayoutObject(Document&, ComputedStyle&) const = 0;
+  virtual LayoutObject* createLayoutObject(PseudoElement&,
+                                           ComputedStyle&) const = 0;
 
   virtual ContentData* clone() const;
 
@@ -79,12 +80,13 @@ class ImageContentData final : public ContentData {
   const StyleImage* image() const { return m_image.get(); }
   StyleImage* image() { return m_image.get(); }
   void setImage(StyleImage* image) {
-    ASSERT(image);
+    DCHECK(image);
     m_image = image;
   }
 
   bool isImage() const override { return true; }
-  LayoutObject* createLayoutObject(Document&, ComputedStyle&) const override;
+  LayoutObject* createLayoutObject(PseudoElement&,
+                                   ComputedStyle&) const override;
 
   bool equals(const ContentData& data) const override {
     if (!data.isImage())
@@ -95,7 +97,7 @@ class ImageContentData final : public ContentData {
   DECLARE_VIRTUAL_TRACE();
 
  private:
-  ImageContentData(StyleImage* image) : m_image(image) { ASSERT(m_image); }
+  ImageContentData(StyleImage* image) : m_image(image) { DCHECK(m_image); }
 
   ContentData* cloneInternal() const override {
     StyleImage* image = const_cast<StyleImage*>(this->image());
@@ -115,7 +117,8 @@ class TextContentData final : public ContentData {
   void setText(const String& text) { m_text = text; }
 
   bool isText() const override { return true; }
-  LayoutObject* createLayoutObject(Document&, ComputedStyle&) const override;
+  LayoutObject* createLayoutObject(PseudoElement&,
+                                   ComputedStyle&) const override;
 
   bool equals(const ContentData& data) const override {
     if (!data.isText())
@@ -143,7 +146,8 @@ class CounterContentData final : public ContentData {
   }
 
   bool isCounter() const override { return true; }
-  LayoutObject* createLayoutObject(Document&, ComputedStyle&) const override;
+  LayoutObject* createLayoutObject(PseudoElement&,
+                                   ComputedStyle&) const override;
 
  private:
   CounterContentData(std::unique_ptr<CounterContent> counter)
@@ -175,7 +179,8 @@ class QuoteContentData final : public ContentData {
   void setQuote(QuoteType quote) { m_quote = quote; }
 
   bool isQuote() const override { return true; }
-  LayoutObject* createLayoutObject(Document&, ComputedStyle&) const override;
+  LayoutObject* createLayoutObject(PseudoElement&,
+                                   ComputedStyle&) const override;
 
   bool equals(const ContentData& data) const override {
     if (!data.isQuote())

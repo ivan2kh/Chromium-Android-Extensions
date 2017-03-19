@@ -8,6 +8,7 @@
 #include "ui/events/event_utils.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
 #include "ui/events/mojo/event_constants.mojom.h"
+#include "ui/events/mojo/latency_info_struct_traits.h"
 
 namespace mojo {
 namespace {
@@ -137,6 +138,12 @@ int64_t StructTraits<ui::mojom::EventDataView, EventUniquePtr>::time_stamp(
   return event->time_stamp().ToInternalValue();
 }
 
+const ui::LatencyInfo&
+StructTraits<ui::mojom::EventDataView, EventUniquePtr>::latency(
+    const EventUniquePtr& event) {
+  return *event->latency();
+}
+
 ui::mojom::KeyDataPtr
 StructTraits<ui::mojom::EventDataView, EventUniquePtr>::key_data(
     const EventUniquePtr& event) {
@@ -231,6 +238,8 @@ StructTraits<ui::mojom::EventDataView, EventUniquePtr>::pointer_data(
 bool StructTraits<ui::mojom::EventDataView, EventUniquePtr>::Read(
     ui::mojom::EventDataView event,
     EventUniquePtr* out) {
+  DCHECK(!out->get());
+
   switch (event.action()) {
     case ui::mojom::EventType::KEY_PRESSED:
     case ui::mojom::EventType::KEY_RELEASED: {
@@ -241,16 +250,18 @@ bool StructTraits<ui::mojom::EventDataView, EventUniquePtr>::Read(
       if (key_data->is_char) {
         out->reset(new ui::KeyEvent(
             static_cast<base::char16>(key_data->character),
-            static_cast<ui::KeyboardCode>(key_data->key_code), event.flags()));
-        return true;
-      }
-      out->reset(new ui::KeyEvent(
-          event.action() == ui::mojom::EventType::KEY_PRESSED
-              ? ui::ET_KEY_PRESSED
-              : ui::ET_KEY_RELEASED,
+            static_cast<ui::KeyboardCode>(key_data->key_code), event.flags(),
+            base::TimeTicks::FromInternalValue(event.time_stamp())));
 
-          static_cast<ui::KeyboardCode>(key_data->key_code), event.flags()));
-      return true;
+      } else {
+        out->reset(new ui::KeyEvent(
+            event.action() == ui::mojom::EventType::KEY_PRESSED
+                ? ui::ET_KEY_PRESSED
+                : ui::ET_KEY_RELEASED,
+            static_cast<ui::KeyboardCode>(key_data->key_code), event.flags(),
+            base::TimeTicks::FromInternalValue(event.time_stamp())));
+      }
+      break;
     }
     case ui::mojom::EventType::POINTER_DOWN:
     case ui::mojom::EventType::POINTER_UP:
@@ -283,7 +294,7 @@ bool StructTraits<ui::mojom::EventDataView, EventUniquePtr>::Read(
                   : ui::PointerDetails(
                         ui::EventPointerType::POINTER_TYPE_MOUSE),
               ui::EventTimeForNow()));
-          return true;
+          break;
         }
         case ui::mojom::PointerKind::TOUCH: {
           out->reset(new ui::PointerEvent(
@@ -291,24 +302,29 @@ bool StructTraits<ui::mojom::EventDataView, EventUniquePtr>::Read(
               screen_location, event.flags(), pointer_data->pointer_id,
               pointer_data->changed_button_flags,
               ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH,
+                                 /* pointer_id*/ 0,
                                  pointer_data->brush_data->width,
                                  pointer_data->brush_data->height,
                                  pointer_data->brush_data->pressure,
                                  pointer_data->brush_data->tilt_x,
                                  pointer_data->brush_data->tilt_y),
               ui::EventTimeForNow()));
-          return true;
+          break;
         }
         case ui::mojom::PointerKind::PEN:
           NOTIMPLEMENTED();
           return false;
       }
+      break;
     }
     case ui::mojom::EventType::UNKNOWN:
       return false;
   }
 
-  return false;
+  if (!out->get())
+    return false;
+
+  return event.ReadLatency((*out)->latency());
 }
 
 }  // namespace mojo

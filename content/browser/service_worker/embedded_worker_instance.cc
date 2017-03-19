@@ -825,6 +825,12 @@ void EmbeddedWorkerInstance::RemoveListener(Listener* listener) {
   listener_list_.RemoveObserver(listener);
 }
 
+void EmbeddedWorkerInstance::SetDevToolsAttached(bool attached) {
+  devtools_attached_ = attached;
+  if (attached)
+    registry_->OnDevToolsAttached(embedded_worker_id_);
+}
+
 void EmbeddedWorkerInstance::OnNetworkAccessedForScriptLoad() {
   starting_phase_ = SCRIPT_DOWNLOADING;
   network_accessed_for_script_ = true;
@@ -866,10 +872,8 @@ base::TimeDelta EmbeddedWorkerInstance::UpdateStepTime() {
 void EmbeddedWorkerInstance::AddMessageToConsole(
     blink::WebConsoleMessage::Level level,
     const std::string& message) {
-  if (status_ != EmbeddedWorkerStatus::RUNNING &&
-      status_ != EmbeddedWorkerStatus::STARTING) {
+  if (process_id() == ChildProcessHost::kInvalidUniqueID)
     return;
-  }
   DCHECK(client_.is_bound());
   client_->AddMessageToConsole(level, message);
 }

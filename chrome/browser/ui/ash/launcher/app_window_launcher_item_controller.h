@@ -23,10 +23,10 @@ class BaseWindow;
 
 class ChromeLauncherController;
 
-// This is a LauncherItemController for abstract app windows. There is one
-// instance per app, per launcher id. For apps with multiple windows, each item
-// controller keeps track of all windows associated with the app and their
-// activation order. Instances are owned by ash::ShelfModel.
+// This is a LauncherItemController for abstract app windows (extension or ARC).
+// There is one instance per app, per launcher id. For apps with multiple
+// windows, each item controller keeps track of all windows associated with the
+// app and their activation order. Instances are owned by ash::ShelfModel.
 //
 // Tests are in chrome_launcher_controller_impl_browsertest.cc
 class AppWindowLauncherItemController : public LauncherItemController,
@@ -44,11 +44,11 @@ class AppWindowLauncherItemController : public LauncherItemController,
 
   // LauncherItemController overrides:
   AppWindowLauncherItemController* AsAppWindowLauncherItemController() override;
-  ash::ShelfAction ItemSelected(ui::EventType event_type,
-                                int event_flags,
-                                int64_t display_id,
-                                ash::ShelfLaunchSource source) override;
-  ash::ShelfAppMenuItemList GetAppMenuItems(int event_flags) override;
+  void ItemSelected(std::unique_ptr<ui::Event> event,
+                    int64_t display_id,
+                    ash::ShelfLaunchSource source,
+                    const ItemSelectedCallback& callback) override;
+  void ExecuteCommand(uint32_t command_id, int32_t event_flags) override;
   void Close() override;
 
   // aura::WindowObserver overrides:

@@ -11,6 +11,7 @@
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
 #include "ui/aura/aura_export.h"
+#include "ui/base/dragdrop/os_exchange_data_provider_factory.h"
 #include "ui/events/event_handler.h"
 #include "ui/events/event_target.h"
 #include "ui/gfx/geometry/point.h"
@@ -39,7 +40,9 @@ class WindowTreeClient;
 class WindowTreeHost;
 
 // A singleton object that tracks general state within Aura.
-class AURA_EXPORT Env : public ui::EventTarget, public base::SupportsUserData {
+class AURA_EXPORT Env : public ui::EventTarget,
+                        public ui::OSExchangeDataProviderFactory::Factory,
+                        public base::SupportsUserData {
  public:
   enum class Mode {
     // Classic aura.
@@ -121,6 +124,11 @@ class AURA_EXPORT Env : public ui::EventTarget, public base::SupportsUserData {
 
   void Init();
 
+  // After calling this method, all OSExchangeDataProvider instances will be
+  // Mus instances. We can't do this work in Init(), because our mode may
+  // changed via the EnvTestHelper.
+  void EnableMusOSExchangeDataProvider();
+
   // Called by the Window when it is initialized. Notifies observers.
   void NotifyWindowInitialized(Window* window);
 
@@ -138,9 +146,15 @@ class AURA_EXPORT Env : public ui::EventTarget, public base::SupportsUserData {
   std::unique_ptr<ui::EventTargetIterator> GetChildIterator() const override;
   ui::EventTargeter* GetEventTargeter() override;
 
+  // Overridden from ui::OSExchangeDataProviderFactory::Factory:
+  std::unique_ptr<ui::OSExchangeData::Provider> BuildProvider() override;
+
   // This is not const for tests, which may share Env across tests and so needs
   // to reset the value.
   Mode mode_;
+
+  // Intentionally not exposed publicly. Someday we might want to support
+  // multiple WindowTreeClients. Use EnvTestHelper in tests.
   WindowTreeClient* window_tree_client_ = nullptr;
 
   base::ObserverList<EnvObserver> observers_;
@@ -153,6 +167,8 @@ class AURA_EXPORT Env : public ui::EventTarget, public base::SupportsUserData {
   // This may be set to true in tests to force using |last_mouse_location_|
   // rather than querying WindowTreeClient.
   bool always_use_last_mouse_location_ = false;
+  // Whether we set ourselves as the OSExchangeDataProviderFactory.
+  bool is_os_exchange_data_provider_factory_ = false;
 
   std::unique_ptr<InputStateLookup> input_state_lookup_;
   std::unique_ptr<ui::PlatformEventSource> event_source_;

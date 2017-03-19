@@ -167,9 +167,6 @@ NSString* const kStartupAttemptReset = @"StartupAttempReset";
 // Constants for deferring memory debugging tools startup.
 NSString* const kMemoryDebuggingToolsStartup = @"MemoryDebuggingToolsStartup";
 
-// Constants for deferring memory monitoring startup.
-NSString* const kMemoryMonitoring = @"MemoryMonitoring";
-
 // Constants for deferred check if it is necessary to send pings to
 // Chrome distribution related services.
 NSString* const kSendInstallPingIfNecessary = @"SendInstallPingIfNecessary";
@@ -258,12 +255,6 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
   // Parameters received at startup time when the app is launched from another
   // app.
   base::scoped_nsobject<AppStartupParameters> _startupParameters;
-
-  // Whether Voice Search should be started upon tab switcher dismissal.
-  BOOL _startVoiceSearchAfterTabSwitcherDismissal;
-
-  // Whether the QR Scanner should be started upon tab switcher dismissal.
-  BOOL _startQRScannerAfterTabSwitcherDismissal;
 
   // Navigation View controller for the settings.
   base::scoped_nsobject<SettingsNavigationController>
@@ -372,6 +363,10 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
 // switcher dismissal. It can only be YES if the QR Scanner experiment is
 // enabled.
 @property(nonatomic, readwrite) BOOL startQRScannerAfterTabSwitcherDismissal;
+// Whether the QR Scanner should be started upon tab switcher dismissal.
+@property(nonatomic, readwrite) BOOL startVoiceSearchAfterTabSwitcherDismissal;
+// Whether the omnibox should be focused upon tab switcher dismissal.
+@property(nonatomic, readwrite) BOOL startFocusOmniboxAfterTabSwitcherDismissal;
 
 // Activates browsing and enables web views if |enabled| is YES.
 // Disables browsing and purges web views if |enabled| is NO.
@@ -481,7 +476,7 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
 // Asynchronously schedule the init of the memoryDebuggerManager.
 - (void)scheduleMemoryDebuggingTools;
 // Asynchronously kick off regular free memory checks.
-- (void)scheduleFreeMemoryMonitoring;
+- (void)startFreeMemoryMonitoring;
 // Asynchronously schedules the notification of the AuthenticationService.
 - (void)scheduleAuthenticationServiceNotification;
 // Asynchronously schedules the reset of the failed startup attempt counter.
@@ -544,6 +539,12 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
 @synthesize window = _window;
 @synthesize isPresentingFirstRunUI = _isPresentingFirstRunUI;
 @synthesize isColdStart = _isColdStart;
+@synthesize startVoiceSearchAfterTabSwitcherDismissal =
+    _startVoiceSearchAfterTabSwitcherDismissal;
+@synthesize startQRScannerAfterTabSwitcherDismissal =
+    _startQRScannerAfterTabSwitcherDismissal;
+@synthesize startFocusOmniboxAfterTabSwitcherDismissal =
+    _startFocusOmniboxAfterTabSwitcherDismissal;
 
 #pragma mark - Application lifecycle
 
@@ -932,14 +933,6 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
   _settingsNavigationController.reset([settingsNavigationController retain]);
 }
 
-- (BOOL)startQRScannerAfterTabSwitcherDismissal {
-  return _startQRScannerAfterTabSwitcherDismissal;
-}
-
-- (void)setStartQRScannerAfterTabSwitcherDismissal:(BOOL)startQRScanner {
-  _startQRScannerAfterTabSwitcherDismissal = startQRScanner;
-}
-
 #pragma mark - StartupInformation implementation.
 
 - (FirstUserActionRecorder*)firstUserActionRecorder {
@@ -1170,17 +1163,9 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
   }
 }
 
-- (void)scheduleFreeMemoryMonitoring {
-  // TODO(crbug.com/649338): See if this method cannot call PostBlockingPoolTask
-  // directly instead of enqueueing a block.
-  [[DeferredInitializationRunner sharedInstance]
-      enqueueBlockNamed:kMemoryMonitoring
-                  block:^{
-                    web::WebThread::PostBlockingPoolTask(
-                        FROM_HERE,
-                        base::Bind(
-                            &ios_internal::AsynchronousFreeMemoryMonitor));
-                  }];
+- (void)startFreeMemoryMonitoring {
+  web::WebThread::PostBlockingPoolTask(
+      FROM_HERE, base::Bind(&ios_internal::AsynchronousFreeMemoryMonitor));
 }
 
 - (void)scheduleLowPriorityStartupTasks {
@@ -1197,7 +1182,7 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
   [self scheduleSpotlightResync];
   [self scheduleDeleteDownloadsDirectory];
   [self scheduleStartupAttemptReset];
-  [self scheduleFreeMemoryMonitoring];
+  [self startFreeMemoryMonitoring];
   [self scheduleAppDistributionPings];
   [self scheduleCheckNativeApps];
 }
@@ -1560,7 +1545,6 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
       self.currentBVC = [command inIncognito] ? self.otrBVC : self.mainBVC;
       [self.currentBVC webPageOrderedOpen:[command url]
                                  referrer:[command referrer]
-                               windowName:[command windowName]
                              inBackground:[command inBackground]
                                  appendTo:[command appendTo]];
     }];
@@ -1909,12 +1893,15 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
 
   // Start Voice Search or QR Scanner now that they can be presented from the
   // current BVC.
-  if (_startVoiceSearchAfterTabSwitcherDismissal) {
-    _startVoiceSearchAfterTabSwitcherDismissal = NO;
+  if (self.startVoiceSearchAfterTabSwitcherDismissal) {
+    self.startVoiceSearchAfterTabSwitcherDismissal = NO;
     [self.currentBVC startVoiceSearch];
-  } else if ([self startQRScannerAfterTabSwitcherDismissal]) {
-    [self setStartQRScannerAfterTabSwitcherDismissal:NO];
+  } else if (self.startQRScannerAfterTabSwitcherDismissal) {
+    self.startQRScannerAfterTabSwitcherDismissal = NO;
     [self.currentBVC showQRScanner];
+  } else if (self.startFocusOmniboxAfterTabSwitcherDismissal) {
+    self.startFocusOmniboxAfterTabSwitcherDismissal = NO;
+    [self.currentBVC focusOmnibox];
   }
 
   [_tabSwitcherController setDelegate:nil];
@@ -2291,8 +2278,8 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
     if (_tabSwitcherIsActive || _dismissingStackView) {
       // Since VoiceSearch is presented by the BVC, it must be started after the
       // Tab Switcher dismissal completes and the BVC's view is in the
-      // hiararchy.
-      _startVoiceSearchAfterTabSwitcherDismissal = YES;
+      // hierarchy.
+      self.startVoiceSearchAfterTabSwitcherDismissal = YES;
     } else {
       // When starting the application from the Notification center,
       // ApplicationWillResignActive is sent just after startup.
@@ -2306,13 +2293,21 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
     if (_tabSwitcherIsActive || _dismissingStackView) {
       // QR Scanner is presented by the BVC, similarly to VoiceSearch. It must
       // also be started after the BVC's view is in the hierarchy.
-      [self setStartQRScannerAfterTabSwitcherDismissal:YES];
+      self.startQRScannerAfterTabSwitcherDismissal = YES;
     } else {
       // Start the QR Scanner asynchronously to prevent the application from
       // dismissing the modal view if QR Scanner is started from the
       // Notification center.
       dispatch_async(dispatch_get_main_queue(), ^{
         [self.currentBVC showQRScanner];
+      });
+    }
+  } else if ([_startupParameters launchFocusOmnibox]) {
+    if (_tabSwitcherIsActive || _dismissingStackView) {
+      self.startFocusOmniboxAfterTabSwitcherDismissal = YES;
+    } else {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        [self.currentBVC focusOmnibox];
       });
     }
   }
@@ -2607,7 +2602,7 @@ enum class StackViewDismissalMode { NONE, NORMAL, INCOGNITO };
   callbackCounter->IncrementCount();
   [self removeBrowsingDataFromBrowserState:_mainBrowserState
                                       mask:removeAllMask
-                                timePeriod:browsing_data::ALL_TIME
+                                timePeriod:browsing_data::TimePeriod::ALL_TIME
                          completionHandler:decrementCallbackCounterCount];
 }
 

@@ -68,6 +68,7 @@
 #include "chrome/browser/pepper_broker_infobar_delegate.h"
 #include "chrome/browser/permissions/permission_request_manager.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
+#include "chrome/browser/printing/background_printing_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_destroyer.h"
 #include "chrome/browser/profiles/profile_metrics.h"
@@ -82,7 +83,6 @@
 #include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/sync/sync_ui_util.h"
-#include "chrome/browser/tab_contents/retargeting_details.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -124,6 +124,7 @@
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
 #include "chrome/browser/ui/javascript_dialogs/javascript_dialog_tab_helper.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/permission_bubble/chooser_bubble_delegate.h"
 #include "chrome/browser/ui/search/search_delegate.h"
 #include "chrome/browser/ui/search/search_model.h"
 #include "chrome/browser/ui/search/search_tab_helper.h"
@@ -140,7 +141,6 @@
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/validation_message_bubble.h"
-#include "chrome/browser/ui/website_settings/chooser_bubble_delegate.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service_factory.h"
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
@@ -250,8 +250,8 @@ namespace {
 // How long we wait before updating the browser chrome while loading a page.
 const int kUIUpdateCoalescingTimeMS = 200;
 
-BrowserWindow* CreateBrowserWindow(Browser* browser) {
-  return BrowserWindow::CreateBrowserWindow(browser);
+BrowserWindow* CreateBrowserWindow(Browser* browser, bool user_gesture) {
+  return BrowserWindow::CreateBrowserWindow(browser, user_gesture);
 }
 
 // Is the fast tab unload experiment enabled?
@@ -282,20 +282,24 @@ const extensions::Extension* GetExtensionForOrigin(
 ////////////////////////////////////////////////////////////////////////////////
 // Browser, CreateParams:
 
-Browser::CreateParams::CreateParams(Profile* profile)
+Browser::CreateParams::CreateParams(Profile* profile, bool user_gesture)
     : type(TYPE_TABBED),
       profile(profile),
       trusted_source(false),
       initial_show_state(ui::SHOW_STATE_DEFAULT),
       is_session_restore(false),
+      user_gesture(user_gesture),
       window(NULL) {}
 
-Browser::CreateParams::CreateParams(Type type, Profile* profile)
+Browser::CreateParams::CreateParams(Type type,
+                                    Profile* profile,
+                                    bool user_gesture)
     : type(type),
       profile(profile),
       trusted_source(false),
       initial_show_state(ui::SHOW_STATE_DEFAULT),
       is_session_restore(false),
+      user_gesture(user_gesture),
       window(NULL) {}
 
 Browser::CreateParams::CreateParams(const CreateParams& other) = default;
@@ -305,10 +309,11 @@ Browser::CreateParams Browser::CreateParams::CreateForApp(
     const std::string& app_name,
     bool trusted_source,
     const gfx::Rect& window_bounds,
-    Profile* profile) {
+    Profile* profile,
+    bool user_gesture) {
   DCHECK(!app_name.empty());
 
-  CreateParams params(TYPE_POPUP, profile);
+  CreateParams params(TYPE_POPUP, profile, user_gesture);
   params.app_name = app_name;
   params.trusted_source = trusted_source;
   params.initial_bounds = window_bounds;
@@ -319,7 +324,7 @@ Browser::CreateParams Browser::CreateParams::CreateForApp(
 // static
 Browser::CreateParams Browser::CreateParams::CreateForDevTools(
     Profile* profile) {
-  CreateParams params(TYPE_POPUP, profile);
+  CreateParams params(TYPE_POPUP, profile, true);
   params.app_name = DevToolsWindow::kDevToolsApp;
   params.trusted_source = true;
   return params;
@@ -438,7 +443,8 @@ Browser::Browser(const CreateParams& params)
 
   ProfileMetrics::LogProfileLaunch(profile_);
 
-  window_ = params.window ? params.window : CreateBrowserWindow(this);
+  window_ = params.window ? params.window
+                          : CreateBrowserWindow(this, params.user_gesture);
 
   if (hosted_app_controller_)
     hosted_app_controller_->UpdateLocationBarVisibility(false);
@@ -531,6 +537,14 @@ Browser::~Browser() {
       profiles::RemoveBrowsingDataForProfile(profile_->GetPath());
 #endif
     } else {
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+      // The Printing Background Manager holds onto preview dialog WebContents
+      // whose corresponding print jobs have not yet fully spooled. Make sure
+      // these get destroyed before tearing down the incognito profile so that
+      // their render frame hosts can exit in time - see crbug.com/579155
+      g_browser_process->background_printing_manager()
+          ->DeletePreviewContentsForBrowserContext(profile_);
+#endif
       // An incognito profile is no longer needed, this indirectly frees
       // its cache and cookies once it gets destroyed at the appropriate time.
       ProfileDestroyer::DestroyProfileWhenAppropriate(profile_);
@@ -651,28 +665,29 @@ void Browser::FormatTitleForDisplay(base::string16* title) {
 bool Browser::ShouldCloseWindow() {
   if (!CanCloseWithInProgressDownloads())
     return false;
-
   if (IsFastTabUnloadEnabled())
     return fast_unload_controller_->ShouldCloseWindow();
   return unload_controller_->ShouldCloseWindow();
 }
 
-bool Browser::CallBeforeUnloadHandlers(
+bool Browser::TryToCloseWindow(
+    bool skip_beforeunload,
     const base::Callback<void(bool)>& on_close_confirmed) {
   cancel_download_confirmation_state_ = RESPONSE_RECEIVED;
   if (IsFastTabUnloadEnabled()) {
-    return fast_unload_controller_->CallBeforeUnloadHandlers(
-        on_close_confirmed);
+    return fast_unload_controller_->TryToCloseWindow(skip_beforeunload,
+                                                     on_close_confirmed);
   }
-  return unload_controller_->CallBeforeUnloadHandlers(on_close_confirmed);
+  return unload_controller_->TryToCloseWindow(skip_beforeunload,
+                                              on_close_confirmed);
 }
 
-void Browser::ResetBeforeUnloadHandlers() {
+void Browser::ResetTryToCloseWindow() {
   cancel_download_confirmation_state_ = NOT_PROMPTED;
   if (IsFastTabUnloadEnabled())
-    fast_unload_controller_->ResetBeforeUnloadHandlers();
+    fast_unload_controller_->ResetTryToCloseWindow();
   else
-    unload_controller_->ResetBeforeUnloadHandlers();
+    unload_controller_->ResetTryToCloseWindow();
 }
 
 bool Browser::HasCompletedUnloadProcessing() const {
@@ -957,9 +972,9 @@ void Browser::TabInsertedAt(TabStripModel* tab_strip_model,
                             bool foreground) {
   SetAsDelegate(contents, true);
 
-  SessionTabHelper* session_tab_helper =
-      SessionTabHelper::FromWebContents(contents);
-  session_tab_helper->SetWindowID(session_id());
+  SessionTabHelper::FromWebContents(contents)->SetWindowID(session_id());
+
+  SearchTabHelper::FromWebContents(contents)->OnTabAttachedToWindow(window_);
 
   content::NotificationService::current()->Notify(
       chrome::NOTIFICATION_TAB_PARENTED,
@@ -1035,6 +1050,22 @@ void Browser::ActiveTabChanged(WebContents* old_contents,
                                WebContents* new_contents,
                                int index,
                                int reason) {
+  // Copies the background color from an old WebContents to a new one that
+  // replaces it on the screen. This allows the new WebContents to use the
+  // old one's background color as the starting background color, before having
+  // loaded any contents. As a result, we avoid flashing white when moving to
+  // a new tab. (There is also code in RenderFrameHostManager to do something
+  // similar for intra-tab navigations.)
+  if (old_contents && new_contents) {
+    // While GetMainFrame() is guaranteed to return non-null, GetView() is not,
+    // e.g. between WebContents creation and creation of the
+    // RenderWidgetHostView.
+    RenderWidgetHostView* old_view = old_contents->GetMainFrame()->GetView();
+    RenderWidgetHostView* new_view = new_contents->GetMainFrame()->GetView();
+    if (old_view && new_view)
+      new_view->SetBackgroundColor(old_view->background_color());
+  }
+
   content::RecordAction(UserMetricsAction("ActiveTabChanged"));
 
   // Update the bookmark state, since the BrowserWindow may query it during
@@ -1694,19 +1725,6 @@ void Browser::WebContentsCreated(WebContents* source_contents,
 
   // Make the tab show up in the task manager.
   task_manager::WebContentsTags::CreateForTabContents(new_contents);
-
-  // Notify.
-  RetargetingDetails details;
-  details.source_web_contents = source_contents;
-  details.source_render_process_id = opener_render_process_id;
-  details.source_render_frame_id = opener_render_frame_id;
-  details.target_url = target_url;
-  details.target_web_contents = new_contents;
-  details.not_yet_in_tabstrip = true;
-  content::NotificationService::current()->Notify(
-      chrome::NOTIFICATION_RETARGETING,
-      content::Source<Profile>(profile_),
-      content::Details<RetargetingDetails>(&details));
 }
 
 void Browser::RendererUnresponsive(
@@ -1846,16 +1864,6 @@ void Browser::UnregisterProtocolHandler(WebContents* web_contents,
   registry->RemoveHandler(handler);
 }
 
-void Browser::UpdatePreferredSize(WebContents* source,
-                                  const gfx::Size& pref_size) {
-  window_->UpdatePreferredSize(source, pref_size);
-}
-
-void Browser::ResizeDueToAutoResize(WebContents* source,
-                                    const gfx::Size& new_size) {
-  window_->ResizeDueToAutoResize(source, new_size);
-}
-
 void Browser::FindReply(WebContents* web_contents,
                         int request_id,
                         int number_of_matches,
@@ -1972,20 +1980,6 @@ bool Browser::CanReloadContents(content::WebContents* web_contents) const {
 
 bool Browser::CanSaveContents(content::WebContents* web_contents) const {
   return chrome::CanSavePage(this);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Browser, SearchTabHelperDelegate implementation:
-
-void Browser::OnWebContentsInstantSupportDisabled(
-    const content::WebContents* web_contents) {
-  DCHECK(web_contents);
-  if (tab_strip_model_->GetActiveWebContents() == web_contents)
-    UpdateToolbar(false);
-}
-
-OmniboxView* Browser::GetOmniboxView() {
-  return window_->GetLocationBar()->GetOmniboxView();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2428,7 +2422,6 @@ void Browser::SetAsDelegate(WebContents* web_contents, bool set_delegate) {
   WebContentsModalDialogManager::FromWebContents(web_contents)->
       SetDelegate(delegate);
   CoreTabHelper::FromWebContents(web_contents)->set_delegate(delegate);
-  SearchTabHelper::FromWebContents(web_contents)->set_delegate(delegate);
   translate::ContentTranslateDriver& content_translate_driver =
       ChromeTranslateClient::FromWebContents(web_contents)->translate_driver();
   if (delegate) {

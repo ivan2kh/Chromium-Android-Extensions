@@ -4,7 +4,10 @@
 
 #include "chrome/browser/ui/views/payments/credit_card_editor_view_controller.h"
 
+#include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "base/memory/ptr_util.h"
 #include "base/strings/string16.h"
@@ -21,10 +24,12 @@
 #include "components/autofill/core/browser/autofill_type.h"
 #include "components/autofill/core/browser/credit_card.h"
 #include "components/autofill/core/browser/field_types.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
 #include "components/autofill/core/browser/validation.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_constants.h"
-#include "components/payments/payment_request.h"
+#include "components/payments/content/payment_request_spec.h"
+#include "components/payments/content/payment_request_state.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/native_theme/native_theme.h"
@@ -75,9 +80,10 @@ std::vector<base::string16> GetExpirationYearItems() {
 }  // namespace
 
 CreditCardEditorViewController::CreditCardEditorViewController(
-    PaymentRequest* request,
+    PaymentRequestSpec* spec,
+    PaymentRequestState* state,
     PaymentRequestDialogView* dialog)
-    : EditorViewController(request, dialog) {}
+    : EditorViewController(spec, state, dialog) {}
 
 CreditCardEditorViewController::~CreditCardEditorViewController() {}
 
@@ -92,11 +98,11 @@ std::unique_ptr<views::View>
 CreditCardEditorViewController::CreateHeaderView() {
   std::unique_ptr<views::View> view = base::MakeUnique<views::View>();
 
-  // 9dp is required between the first and second row.
-  constexpr int kRowVerticalInset = 9;
+  // 9dp is required between the first row (label) and second row (icons).
+  constexpr int kRowVerticalSpacing = 9;
   views::BoxLayout* layout = new views::BoxLayout(
       views::BoxLayout::kVertical, payments::kPaymentRequestRowHorizontalInsets,
-      payments::kPaymentRequestRowVerticalInsets, kRowVerticalInset);
+      0, kRowVerticalSpacing);
   layout->set_main_axis_alignment(views::BoxLayout::MAIN_AXIS_ALIGNMENT_START);
   layout->set_cross_axis_alignment(
       views::BoxLayout::CROSS_AXIS_ALIGNMENT_START);
@@ -119,12 +125,14 @@ CreditCardEditorViewController::CreateHeaderView() {
 
   constexpr gfx::Size kCardIconSize = gfx::Size(30, 18);
   for (const std::string& supported_network :
-       request()->supported_card_networks()) {
+       spec()->supported_card_networks()) {
     const std::string autofill_card_type =
         autofill::data_util::GetCardTypeForBasicCardPaymentType(
             supported_network);
-    std::unique_ptr<views::ImageView> card_icon_view =
-        CreateCardIconView(autofill_card_type);
+    std::unique_ptr<views::ImageView> card_icon_view = CreateInstrumentIconView(
+        autofill::data_util::GetPaymentRequestData(autofill_card_type)
+            .icon_resource_id,
+        base::UTF8ToUTF16(supported_network));
     card_icon_view->SetImageSize(kCardIconSize);
 
     icons_row->AddChildView(card_icon_view.release());
@@ -134,13 +142,17 @@ CreditCardEditorViewController::CreateHeaderView() {
   return view;
 }
 
+int CreditCardEditorViewController::GetViewHeaderTitleId() const {
+  return IDS_PAYMENT_REQUEST_CREDIT_CARD_EDITOR_ADD_TITLE;
+}
+
 std::vector<EditorField> CreditCardEditorViewController::GetFieldDefinitions() {
   return std::vector<EditorField>{
-      {autofill::CREDIT_CARD_NAME_FULL,
-       l10n_util::GetStringUTF16(IDS_AUTOFILL_FIELD_LABEL_NAME_ON_CARD),
-       EditorField::LengthHint::HINT_LONG, /* required= */ true},
       {autofill::CREDIT_CARD_NUMBER,
        l10n_util::GetStringUTF16(IDS_AUTOFILL_FIELD_LABEL_CREDIT_CARD_NUMBER),
+       EditorField::LengthHint::HINT_LONG, /* required= */ true},
+      {autofill::CREDIT_CARD_NAME_FULL,
+       l10n_util::GetStringUTF16(IDS_AUTOFILL_FIELD_LABEL_NAME_ON_CARD),
        EditorField::LengthHint::HINT_LONG, /* required= */ true},
       {autofill::CREDIT_CARD_EXP_MONTH,
        l10n_util::GetStringUTF16(IDS_AUTOFILL_FIELD_LABEL_EXPIRATION_MONTH),
@@ -181,7 +193,7 @@ bool CreditCardEditorViewController::ValidateModelAndSave() {
     return false;
 
   // Add the card (will not add a duplicate).
-  request()->personal_data_manager()->AddCreditCard(credit_card);
+  state()->GetPersonalDataManager()->AddCreditCard(credit_card);
 
   return true;
 }
@@ -189,8 +201,14 @@ bool CreditCardEditorViewController::ValidateModelAndSave() {
 std::unique_ptr<ValidationDelegate>
 CreditCardEditorViewController::CreateValidationDelegate(
     const EditorField& field) {
+  // The supported card networks for non-cc-number types are not passed to avoid
+  // the data copy in the delegate.
   return base::MakeUnique<
-      CreditCardEditorViewController::CreditCardValidationDelegate>(field);
+      CreditCardEditorViewController::CreditCardValidationDelegate>(
+      field, this,
+      field.type == autofill::CREDIT_CARD_NUMBER
+          ? spec()->supported_card_networks()
+          : std::vector<std::string>());
 }
 
 std::unique_ptr<ui::ComboboxModel>
@@ -215,8 +233,14 @@ CreditCardEditorViewController::GetComboboxModelForType(
 }
 
 CreditCardEditorViewController::CreditCardValidationDelegate::
-    CreditCardValidationDelegate(const EditorField& field)
-    : field_(field) {}
+    CreditCardValidationDelegate(
+        const EditorField& field,
+        EditorViewController* controller,
+        const std::vector<std::string>& supported_card_networks)
+    : field_(field),
+      controller_(controller),
+      supported_card_networks_(supported_card_networks.begin(),
+                               supported_card_networks.end()) {}
 CreditCardEditorViewController::CreditCardValidationDelegate::
     ~CreditCardValidationDelegate() {}
 
@@ -234,12 +258,22 @@ bool CreditCardEditorViewController::CreditCardValidationDelegate::
     ValidateValue(const base::string16& value) {
   if (!value.empty()) {
     base::string16 error_message;
-    // TODO(mathp): Display |error_message| around |textfield|.
-    return autofill::IsValidForType(value, field_.type, &error_message);
+    bool is_valid =
+        field_.type == autofill::CREDIT_CARD_NUMBER
+            ? autofill::IsValidCreditCardNumberForBasicCardNetworks(
+                  value, supported_card_networks_, &error_message)
+            : autofill::IsValidForType(value, field_.type, &error_message);
+    controller_->DisplayErrorMessageForField(field_, error_message);
+    return is_valid;
   }
 
-  // TODO(mathp): Display "required" error if applicable.
-  return !field_.required;
+  bool is_required_valid = !field_.required;
+  const base::string16 displayed_message =
+      is_required_valid ? base::ASCIIToUTF16("")
+                        : l10n_util::GetStringUTF16(
+                              IDS_PAYMENTS_FIELD_REQUIRED_VALIDATION_MESSAGE);
+  controller_->DisplayErrorMessageForField(field_, displayed_message);
+  return is_required_valid;
 }
 
 }  // namespace payments

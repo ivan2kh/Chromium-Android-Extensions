@@ -4,10 +4,10 @@
 
 #include "cc/layers/layer_impl.h"
 
+#include "cc/base/filter_operation.h"
+#include "cc/base/filter_operations.h"
 #include "cc/layers/painted_scrollbar_layer_impl.h"
 #include "cc/layers/solid_color_scrollbar_layer_impl.h"
-#include "cc/output/filter_operation.h"
-#include "cc/output/filter_operations.h"
 #include "cc/test/animation_test_common.h"
 #include "cc/test/fake_compositor_frame_sink.h"
 #include "cc/test/fake_impl_task_runner_provider.h"
@@ -249,7 +249,6 @@ TEST(LayerImplTest, VerifyNeedsUpdateDrawProperties) {
   host_impl.active_tree()->SetRootLayerForTesting(
       LayerImpl::Create(host_impl.active_tree(), 1));
   LayerImpl* root = host_impl.active_tree()->root_layer_for_testing();
-  root->SetHasRenderSurface(true);
   std::unique_ptr<LayerImpl> layer_ptr =
       LayerImpl::Create(host_impl.active_tree(), 2);
   LayerImpl* layer = layer_ptr.get();
@@ -277,13 +276,11 @@ TEST(LayerImplTest, VerifyNeedsUpdateDrawProperties) {
   // verified.
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetDrawsContent(true));
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(layer2->SetDrawsContent(true));
-  // Render surface functions should not trigger update draw properties, because
-  // creating render surface is part of update draw properties.
-  VERIFY_NO_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetHasRenderSurface(true));
-  VERIFY_NO_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetHasRenderSurface(false));
+
   // Create a render surface, because we must have a render surface if we have
   // filters.
-  VERIFY_NO_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetHasRenderSurface(true));
+  layer->test_properties()->force_render_surface = true;
+  host_impl.active_tree()->BuildLayerListAndPropertyTreesForTesting();
 
   // Related filter functions.
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(
@@ -307,6 +304,8 @@ TEST(LayerImplTest, VerifyNeedsUpdateDrawProperties) {
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetBounds(large_size));
   VERIFY_NO_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetBounds(large_size));
   host_impl.active_tree()->BuildLayerListAndPropertyTreesForTesting();
+  host_impl.active_tree()->set_needs_update_draw_properties();
+  host_impl.active_tree()->UpdateDrawProperties(false /* update_lcd_text */);
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(layer->ScrollBy(arbitrary_vector2d));
   VERIFY_NO_NEEDS_UPDATE_DRAW_PROPERTIES(layer->ScrollBy(gfx::Vector2d()));
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(
@@ -322,6 +321,8 @@ TEST(LayerImplTest, VerifyNeedsUpdateDrawProperties) {
 
   // Unrelated functions, always set to new values, always set needs update.
   host_impl.active_tree()->BuildLayerListAndPropertyTreesForTesting();
+  host_impl.active_tree()->set_needs_update_draw_properties();
+  host_impl.active_tree()->UpdateDrawProperties(false /* update_lcd_text */);
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetMasksToBounds(true);
                                       layer->NoteLayerPropertyChanged());
   VERIFY_NEEDS_UPDATE_DRAW_PROPERTIES(layer->SetContentsOpaque(true);

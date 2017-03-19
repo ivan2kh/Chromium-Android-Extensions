@@ -6,7 +6,18 @@
 
 #include <string>
 
+#include "base/command_line.h"
 #include "base/feature_list.h"
+
+namespace switches {
+
+// This flag significantly shortens the delay between WebContentsObserver events
+// and SnapshotController's StartSnapshot calls. The purpose is to speed up
+// integration tests.
+const char kOfflinePagesUseTestingSnapshotDelay[] =
+    "short-offline-page-snapshot-delay-for-test";
+
+}  // namespace switches
 
 namespace offline_pages {
 
@@ -30,6 +41,9 @@ const base::Feature kBackgroundLoaderForDownloadsFeature{
 
 const base::Feature kOfflinePagesAsyncDownloadFeature{
     "OfflinePagesAsyncDownload", base::FEATURE_DISABLED_BY_DEFAULT};
+
+const base::Feature kPrefetchingOfflinePagesFeature{
+    "OfflinePagesPrefetching", base::FEATURE_DISABLED_BY_DEFAULT};
 
 const base::Feature kNewBackgroundLoaderFeature {
     "BackgroundLoader", base::FEATURE_DISABLED_BY_DEFAULT
@@ -64,8 +78,17 @@ bool IsOfflinePagesAsyncDownloadEnabled() {
   return base::FeatureList::IsEnabled(kOfflinePagesAsyncDownloadFeature);
 }
 
+bool IsPrefetchingOfflinePagesEnabled() {
+  return base::FeatureList::IsEnabled(kPrefetchingOfflinePagesFeature);
+}
+
 bool ShouldUseNewBackgroundLoader() {
   return base::FeatureList::IsEnabled(kNewBackgroundLoaderFeature);
+}
+
+bool ShouldUseTestingSnapshotDelay() {
+  base::CommandLine* cl = base::CommandLine::ForCurrentProcess();
+  return cl->HasSwitch(switches::kOfflinePagesUseTestingSnapshotDelay);
 }
 
 }  // namespace offline_pages

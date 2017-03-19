@@ -138,7 +138,7 @@ void StyleInvalidator::rescheduleSiblingInvalidationsAsDescendants(
     Element& element) {
   DCHECK(element.parentNode());
   PendingInvalidations* pendingInvalidations =
-      m_pendingInvalidationMap.get(&element);
+      m_pendingInvalidationMap.at(&element);
   if (!pendingInvalidations || pendingInvalidations->siblings().isEmpty())
     return;
 
@@ -283,18 +283,22 @@ void StyleInvalidator::pushInvalidationSetsForContainerNode(
     RecursionData& recursionData,
     SiblingData& siblingData) {
   PendingInvalidations* pendingInvalidations =
-      m_pendingInvalidationMap.get(&node);
+      m_pendingInvalidationMap.at(&node);
   DCHECK(pendingInvalidations);
 
-  for (const auto& invalidationSet : pendingInvalidations->siblings())
+  for (const auto& invalidationSet : pendingInvalidations->siblings()) {
+    RELEASE_ASSERT(invalidationSet->isAlive());
     siblingData.pushInvalidationSet(toSiblingInvalidationSet(*invalidationSet));
+  }
 
   if (node.getStyleChangeType() >= SubtreeStyleChange)
     return;
 
   if (!pendingInvalidations->descendants().isEmpty()) {
-    for (const auto& invalidationSet : pendingInvalidations->descendants())
+    for (const auto& invalidationSet : pendingInvalidations->descendants()) {
+      RELEASE_ASSERT(invalidationSet->isAlive());
       recursionData.pushInvalidationSet(*invalidationSet);
+    }
     if (UNLIKELY(*s_tracingEnabled)) {
       TRACE_EVENT_INSTANT1(
           TRACE_DISABLED_BY_DEFAULT("devtools.timeline.invalidationTracking"),

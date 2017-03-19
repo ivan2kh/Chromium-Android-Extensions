@@ -282,13 +282,13 @@ void MediaRouterWebUIMessageHandler::OnCreateRouteResponseReceived(
     std::unique_ptr<base::DictionaryValue> route_value(RouteToValue(
         *route, false, media_router_ui_->GetRouteProviderExtensionId(),
         incognito_, current_cast_mode));
-    web_ui()->CallJavascriptFunctionUnsafe(
-        kOnCreateRouteResponseReceived, base::StringValue(sink_id),
-        *route_value, base::FundamentalValue(route->for_display()));
+    web_ui()->CallJavascriptFunctionUnsafe(kOnCreateRouteResponseReceived,
+                                           base::Value(sink_id), *route_value,
+                                           base::Value(route->for_display()));
   } else {
     web_ui()->CallJavascriptFunctionUnsafe(
-        kOnCreateRouteResponseReceived, base::StringValue(sink_id),
-        *base::Value::CreateNullValue(), base::FundamentalValue(false));
+        kOnCreateRouteResponseReceived, base::Value(sink_id),
+        *base::Value::CreateNullValue(), base::Value(false));
   }
 }
 
@@ -296,7 +296,7 @@ void MediaRouterWebUIMessageHandler::ReturnSearchResult(
     const std::string& sink_id) {
   DVLOG(2) << "ReturnSearchResult";
   web_ui()->CallJavascriptFunctionUnsafe(kReceiveSearchResult,
-                                         base::StringValue(sink_id));
+                                         base::Value(sink_id));
 }
 
 void MediaRouterWebUIMessageHandler::UpdateIssue(const Issue& issue) {
@@ -312,8 +312,7 @@ void MediaRouterWebUIMessageHandler::ClearIssue() {
 
 void MediaRouterWebUIMessageHandler::UpdateMaxDialogHeight(int height) {
   DVLOG(2) << "UpdateMaxDialogHeight";
-  web_ui()->CallJavascriptFunctionUnsafe(kUpdateMaxHeight,
-                                         base::FundamentalValue(height));
+  web_ui()->CallJavascriptFunctionUnsafe(kUpdateMaxHeight, base::Value(height));
 }
 
 void MediaRouterWebUIMessageHandler::RegisterMessages() {

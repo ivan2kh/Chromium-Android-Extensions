@@ -103,7 +103,7 @@ void LayoutFullScreen::updateStyle(LayoutObject* parent) {
   fullscreenStyle->setFontDescription(FontDescription());
   fullscreenStyle->font().update(nullptr);
 
-  fullscreenStyle->setDisplay(EDisplay::Flex);
+  fullscreenStyle->setDisplay(EDisplay::kFlex);
   fullscreenStyle->setJustifyContentPosition(ContentPositionCenter);
   // TODO (lajava): Since the FullScrenn layout object is anonymous, its Default
   // Alignment (align-items) value can't be used to resolve its children Self
@@ -114,7 +114,7 @@ void LayoutFullScreen::updateStyle(LayoutObject* parent) {
   fullscreenStyle->setPosition(EPosition::kFixed);
   fullscreenStyle->setLeft(Length(0, blink::Fixed));
   fullscreenStyle->setTop(Length(0, blink::Fixed));
-  IntSize viewportSize = document().page()->frameHost().visualViewport().size();
+  IntSize viewportSize = document().page()->visualViewport().size();
   fullscreenStyle->setWidth(Length(viewportSize.width(), blink::Fixed));
   fullscreenStyle->setHeight(Length(viewportSize.height(), blink::Fixed));
 

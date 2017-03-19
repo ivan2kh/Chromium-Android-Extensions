@@ -52,7 +52,8 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
       if (!browser) {
         NOTIMPLEMENTED();
         browser = NULL;
-        //new Browser(Browser::CreateParams(Browser::TYPE_TABBED, profile));
+        //browser = new Browser(
+        //    Browser::CreateParams(Browser::TYPE_TABBED, profile, true));
       }
       web_contents = browser->tab_strip_model()->GetActiveWebContents();
     }

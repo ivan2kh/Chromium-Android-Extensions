@@ -16,7 +16,7 @@
 #include "ash/common/system/tray/tri_view.h"
 #include "ash/common/wm_shell.h"
 #include "ash/resources/vector_icons/vector_icons.h"
-#include "grit/ash_strings.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/paint_vector_icon.h"
@@ -35,10 +35,10 @@ class DefaultTracingView : public ActionableView {
     TriView* tri_view = TrayPopupUtils::CreateDefaultRowView();
     AddChildView(tri_view);
 
-    auto image = TrayPopupUtils::CreateMainImageView();
+    auto* image = TrayPopupUtils::CreateMainImageView();
     tri_view->AddView(TriView::Container::START, image);
 
-    auto label = TrayPopupUtils::CreateDefaultLabel();
+    auto* label = TrayPopupUtils::CreateDefaultLabel();
     label->SetMultiLine(true);
     label->SetText(l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_TRACING));
     tri_view->AddView(TriView::Container::CENTER, label);

@@ -13,6 +13,7 @@
 #include "content/browser/android/background_sync_network_observer_android.h"
 #include "content/browser/android/browser_startup_controller.h"
 #include "content/browser/android/child_process_launcher_android.h"
+#include "content/browser/android/content_feature_list.h"
 #include "content/browser/android/content_video_view.h"
 #include "content/browser/android/content_view_core_impl.h"
 #include "content/browser/android/content_view_render_view.h"
@@ -24,6 +25,7 @@
 #include "content/browser/android/tracing_controller_android.h"
 #include "content/browser/android/web_contents_observer_proxy.h"
 #include "content/browser/frame_host/navigation_controller_android.h"
+#include "content/browser/frame_host/render_frame_host_android.h"
 #include "content/browser/media/session/audio_focus_delegate_android.h"
 #include "content/browser/media/session/media_session_android.h"
 #include "content/browser/memory/memory_monitor_android.h"
@@ -39,6 +41,7 @@ base::android::RegistrationMethod kContentRegisteredMethods[] = {
     {"AudioFocusDelegate", content::AudioFocusDelegateAndroid::Register},
     {"BrowserStartupController", content::RegisterBrowserStartupController},
     {"ChildProcessLauncher", content::RegisterChildProcessLauncher},
+    {"ContentFeatureList", content::android::RegisterContentFeatureListJni},
     {"ContentVideoView", content::ContentVideoView::RegisterContentVideoView},
     {"CoreImpl", mojo::android::RegisterCoreImpl},
     {"MemoryMonitorAndroid", content::MemoryMonitorAndroid::Register},
@@ -60,6 +63,7 @@ base::android::RegistrationMethod kContentRegisteredMethods[] = {
     {"NavigationControllerAndroid",
      content::NavigationControllerAndroid::Register},
     {"RegisterImeAdapter", content::RegisterImeAdapter},
+    {"RenderFrameHostAndroid", content::RenderFrameHostAndroid::Register},
     {"SpeechRecognizerImplAndroid",
      content::SpeechRecognizerImplAndroid::RegisterSpeechRecognizer},
     {"TracingControllerAndroid", content::RegisterTracingControllerAndroid},

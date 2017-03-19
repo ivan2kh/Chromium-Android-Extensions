@@ -20,6 +20,7 @@
 #include "content/browser/service_worker/embedded_worker_status.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
+#include "content/browser/service_worker/service_worker_dispatcher_host.h"
 #include "content/common/service_worker/embedded_worker_messages.h"
 #include "content/common/service_worker/embedded_worker_start_params.h"
 #include "content/common/service_worker/service_worker_messages.h"
@@ -35,6 +36,29 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace content {
+
+namespace {
+
+class MockServiceWorkerDispatcherHost : public ServiceWorkerDispatcherHost {
+ public:
+  MockServiceWorkerDispatcherHost(int process_id,
+                                  ResourceContext* resource_context,
+                                  IPC::Sender* sender)
+      : ServiceWorkerDispatcherHost(process_id, resource_context),
+        sender_(sender) {}
+
+  bool Send(IPC::Message* message) override { return sender_->Send(message); }
+
+ protected:
+  ~MockServiceWorkerDispatcherHost() override {}
+
+ private:
+  IPC::Sender* sender_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockServiceWorkerDispatcherHost);
+};
+
+}  // namespace
 
 EmbeddedWorkerTestHelper::MockEmbeddedWorkerInstanceClient::
     MockEmbeddedWorkerInstanceClient(
@@ -126,6 +150,30 @@ class EmbeddedWorkerTestHelper::MockServiceWorkerEventDispatcher
 
   ~MockServiceWorkerEventDispatcher() override {}
 
+  void DispatchActivateEvent(
+      const DispatchActivateEventCallback& callback) override {
+    if (!helper_)
+      return;
+    helper_->OnActivateEventStub(callback);
+  }
+
+  void DispatchBackgroundFetchAbortEvent(
+      const std::string& tag,
+      const DispatchBackgroundFetchAbortEventCallback& callback) override {
+    if (!helper_)
+      return;
+    helper_->OnBackgroundFetchAbortEventStub(tag, callback);
+  }
+
+  void DispatchBackgroundFetchClickEvent(
+      const std::string& tag,
+      mojom::BackgroundFetchState state,
+      const DispatchBackgroundFetchClickEventCallback& callback) override {
+    if (!helper_)
+      return;
+    helper_->OnBackgroundFetchClickEventStub(tag, state, callback);
+  }
+
   void DispatchFetchEvent(int fetch_event_id,
                           const ServiceWorkerFetchRequest& request,
                           mojom::FetchEventPreloadHandlePtr preload_handle,
@@ -212,7 +260,14 @@ EmbeddedWorkerTestHelper::EmbeddedWorkerTestHelper(
                          base::ThreadTaskRunnerHandle::Get(), nullptr, nullptr);
   wrapper_->process_manager()->SetProcessIdForTest(mock_render_process_id());
   wrapper_->process_manager()->SetNewProcessIdForTest(new_render_process_id());
-  registry()->AddChildProcessSender(mock_render_process_id_, this);
+
+  scoped_refptr<ServiceWorkerDispatcherHost> dispatcher_host(
+      new MockServiceWorkerDispatcherHost(
+          mock_render_process_id_, browser_context_->GetResourceContext(),
+          this));
+  wrapper_->context()->AddDispatcherHost(mock_render_process_id_,
+                                         dispatcher_host.get());
+  dispatcher_hosts_[mock_render_process_id_] = std::move(dispatcher_host);
 
   // Setup process level interface registry.
   render_process_interface_registry_ =
@@ -228,7 +283,13 @@ EmbeddedWorkerTestHelper::~EmbeddedWorkerTestHelper() {
 
 void EmbeddedWorkerTestHelper::SimulateAddProcessToPattern(const GURL& pattern,
                                                            int process_id) {
-  registry()->AddChildProcessSender(process_id, this);
+  if (!context()->GetDispatcherHost(process_id)) {
+    scoped_refptr<ServiceWorkerDispatcherHost> dispatcher_host(
+        new MockServiceWorkerDispatcherHost(
+            process_id, browser_context_->GetResourceContext(), this));
+    wrapper_->context()->AddDispatcherHost(process_id, dispatcher_host.get());
+    dispatcher_hosts_[process_id] = std::move(dispatcher_host);
+  }
   wrapper_->process_manager()->AddProcessReferenceToPattern(pattern,
                                                             process_id);
 }
@@ -319,7 +380,6 @@ bool EmbeddedWorkerTestHelper::OnMessageToWorker(int thread_id,
   bool handled = true;
   current_embedded_worker_id_ = embedded_worker_id;
   IPC_BEGIN_MESSAGE_MAP(EmbeddedWorkerTestHelper, message)
-    IPC_MESSAGE_HANDLER(ServiceWorkerMsg_ActivateEvent, OnActivateEventStub)
     IPC_MESSAGE_HANDLER(ServiceWorkerMsg_InstallEvent, OnInstallEventStub)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
@@ -328,11 +388,26 @@ bool EmbeddedWorkerTestHelper::OnMessageToWorker(int thread_id,
   return handled;
 }
 
-void EmbeddedWorkerTestHelper::OnActivateEvent(int embedded_worker_id,
-                                               int request_id) {
-  SimulateSend(new ServiceWorkerHostMsg_ActivateEventFinished(
-      embedded_worker_id, request_id,
-      blink::WebServiceWorkerEventResultCompleted, base::Time::Now()));
+void EmbeddedWorkerTestHelper::OnActivateEvent(
+    const mojom::ServiceWorkerEventDispatcher::DispatchActivateEventCallback&
+        callback) {
+  dispatched_events()->push_back(Event::Activate);
+  callback.Run(SERVICE_WORKER_OK, base::Time::Now());
+}
+
+void EmbeddedWorkerTestHelper::OnBackgroundFetchAbortEvent(
+    const std::string& tag,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchBackgroundFetchAbortEventCallback& callback) {
+  callback.Run(SERVICE_WORKER_OK, base::Time::Now());
+}
+
+void EmbeddedWorkerTestHelper::OnBackgroundFetchClickEvent(
+    const std::string& tag,
+    mojom::BackgroundFetchState state,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchBackgroundFetchClickEventCallback& callback) {
+  callback.Run(SERVICE_WORKER_OK, base::Time::Now());
 }
 
 void EmbeddedWorkerTestHelper::OnExtendableMessageEvent(
@@ -419,16 +494,19 @@ void EmbeddedWorkerTestHelper::SimulateWorkerScriptCached(
   int64_t version_id =
       embedded_worker_id_service_worker_version_id_map_[embedded_worker_id];
   ServiceWorkerVersion* version = context()->GetLiveVersion(version_id);
-  if (!version || version->script_cache_map()->size())
+  if (!version)
     return;
-  std::vector<ServiceWorkerDatabase::ResourceRecord> records;
-  // Add a dummy ResourceRecord for the main script to the script cache map of
-  // the ServiceWorkerVersion. We use embedded_worker_id for resource_id to
-  // avoid ID collision.
-  records.push_back(ServiceWorkerDatabase::ResourceRecord(
-      embedded_worker_id, version->script_url(), 100));
-  version->script_cache_map()->SetResources(records);
-  version->SetMainScriptHttpResponseInfo(CreateHttpResponseInfo());
+  if (!version->script_cache_map()->size()) {
+    std::vector<ServiceWorkerDatabase::ResourceRecord> records;
+    // Add a dummy ResourceRecord for the main script to the script cache map of
+    // the ServiceWorkerVersion. We use embedded_worker_id for resource_id to
+    // avoid ID collision.
+    records.push_back(ServiceWorkerDatabase::ResourceRecord(
+        embedded_worker_id, version->script_url(), 100));
+    version->script_cache_map()->SetResources(records);
+  }
+  if (!version->GetMainScriptHttpResponseInfo())
+    version->SetMainScriptHttpResponseInfo(CreateHttpResponseInfo());
 }
 
 void EmbeddedWorkerTestHelper::SimulateWorkerScriptLoaded(
@@ -519,11 +597,33 @@ void EmbeddedWorkerTestHelper::OnMessageToWorkerStub(
           AsWeakPtr(), thread_id, embedded_worker_id, message));
 }
 
-void EmbeddedWorkerTestHelper::OnActivateEventStub(int request_id) {
+void EmbeddedWorkerTestHelper::OnActivateEventStub(
+    const mojom::ServiceWorkerEventDispatcher::DispatchActivateEventCallback&
+        callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::Bind(&EmbeddedWorkerTestHelper::OnActivateEvent,
+                            AsWeakPtr(), callback));
+}
+
+void EmbeddedWorkerTestHelper::OnBackgroundFetchAbortEventStub(
+    const std::string& tag,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchBackgroundFetchAbortEventCallback& callback) {
   base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
-      base::Bind(&EmbeddedWorkerTestHelper::OnActivateEvent, AsWeakPtr(),
-                 current_embedded_worker_id_, request_id));
+      base::Bind(&EmbeddedWorkerTestHelper::OnBackgroundFetchAbortEvent,
+                 AsWeakPtr(), tag, callback));
+}
+
+void EmbeddedWorkerTestHelper::OnBackgroundFetchClickEventStub(
+    const std::string& tag,
+    mojom::BackgroundFetchState state,
+    const mojom::ServiceWorkerEventDispatcher::
+        DispatchBackgroundFetchClickEventCallback& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE,
+      base::Bind(&EmbeddedWorkerTestHelper::OnBackgroundFetchClickEvent,
+                 AsWeakPtr(), tag, state, callback));
 }
 
 void EmbeddedWorkerTestHelper::OnExtendableMessageEventStub(

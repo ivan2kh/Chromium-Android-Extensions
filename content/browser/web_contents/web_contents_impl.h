@@ -21,6 +21,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "content/browser/frame_host/frame_tree.h"
+#include "content/browser/frame_host/frame_tree_node.h"
 #include "content/browser/frame_host/navigation_controller_delegate.h"
 #include "content/browser/frame_host/navigation_controller_impl.h"
 #include "content/browser/frame_host/navigator_delegate.h"
@@ -30,7 +31,7 @@
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
-#include "content/common/accessibility_mode_enums.h"
+#include "content/common/accessibility_mode.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/color_chooser.h"
 #include "content/public/browser/notification_observer.h"
@@ -345,7 +346,7 @@ class CONTENT_EXPORT WebContentsImpl
   void PasteAndMatchStyle() override;
   void Delete() override;
   void SelectAll() override;
-  void Unselect() override;
+  void CollapseSelection() override;
   void Replace(const base::string16& word) override;
   void ReplaceMisspelling(const base::string16& word) override;
   void NotifyContextMenuClosed(
@@ -515,6 +516,10 @@ class CONTENT_EXPORT WebContentsImpl
                                          bool allowed_per_prefs,
                                          const url::Origin& origin,
                                          const GURL& resource_url) override;
+#if defined(OS_ANDROID)
+  base::android::ScopedJavaLocalRef<jobject> GetJavaRenderFrameHostDelegate()
+      override;
+#endif
 
   // RenderViewHostDelegate ----------------------------------------------------
   RenderViewHostDelegateView* GetDelegateView() override;
@@ -571,6 +576,7 @@ class CONTENT_EXPORT WebContentsImpl
   bool IsVirtualKeyboardRequested() override;
   bool IsOverridingUserAgent() override;
   bool IsJavaScriptDialogShowing() const override;
+  bool ShouldIgnoreUnresponsiveRenderer() override;
   bool HideDownloadUI() const override;
   bool HasPersistentVideo() const override;
 
@@ -599,8 +605,6 @@ class CONTENT_EXPORT WebContentsImpl
   void NotifyChangedNavigationState(InvalidateTypes changed_flags) override;
   void DidStartNavigationToPendingEntry(const GURL& url,
                                         ReloadType reload_type) override;
-  void RequestOpenURL(RenderFrameHostImpl* render_frame_host,
-                      const OpenURLParams& params) override;
   bool ShouldTransferNavigation(bool is_main_frame_navigation) override;
   bool ShouldPreserveAbortedURLs() override;
   void DidStartLoading(FrameTreeNode* frame_tree_node,
@@ -648,8 +652,7 @@ class CONTENT_EXPORT WebContentsImpl
   RenderWidgetHostImpl* GetRenderWidgetHostWithPageFocus() override;
   void FocusOwningWebContents(
       RenderWidgetHostImpl* render_widget_host) override;
-  void RendererUnresponsive(RenderWidgetHostImpl* render_widget_host,
-                            RendererUnresponsiveType type) override;
+  void RendererUnresponsive(RenderWidgetHostImpl* render_widget_host) override;
   void RendererResponsive(RenderWidgetHostImpl* render_widget_host) override;
   void RequestToLockMouse(RenderWidgetHostImpl* render_widget_host,
                           bool user_gesture,
@@ -793,7 +796,14 @@ class CONTENT_EXPORT WebContentsImpl
   void DecrementBluetoothConnectedDeviceCount();
 
   // Called when the WebContents gains or loses a persistent video.
-  void SetHasPersistentVideo(bool value);
+  void SetHasPersistentVideo(bool has_persistent_video);
+
+  // Whether the WebContents has an active player is effectively fullscreen.
+  // That means that the video is either fullscreen or it is the content of
+  // a fullscreen page (in other words, a fullscreen video with custom
+  // controls).
+  // |IsFullscreen| must return |true| when this method is called.
+  bool HasActiveEffectivelyFullscreenVideo() const;
 
 #if defined(OS_ANDROID)
   // Called by FindRequestManager when all of the find match rects are in.
@@ -833,6 +843,8 @@ class CONTENT_EXPORT WebContentsImpl
                            CrossSiteIframeAccessibility);
   FRIEND_TEST_ALL_PREFIXES(WebContentsImplBrowserTest,
                            JavaScriptDialogsInMainAndSubframes);
+  FRIEND_TEST_ALL_PREFIXES(RenderFrameHostImplBrowserTest,
+                           IframeBeforeUnloadParentHang);
 
   // So |find_request_manager_| can be accessed for testing.
   friend class FindRequestManagerTest;
@@ -851,31 +863,38 @@ class CONTENT_EXPORT WebContentsImpl
   // referred to as "inner WebContents".
   // For each inner WebContents, the outer WebContents will have a
   // corresponding FrameTreeNode.
-  struct WebContentsTreeNode {
+  class WebContentsTreeNode final : public FrameTreeNode::Observer {
    public:
-    WebContentsTreeNode();
-    ~WebContentsTreeNode();
-
-    typedef std::set<WebContentsTreeNode*> ChildrenSet;
+    explicit WebContentsTreeNode(WebContentsImpl* current_web_contents);
+    ~WebContentsTreeNode() final;
 
     void ConnectToOuterWebContents(WebContentsImpl* outer_web_contents,
                                    RenderFrameHostImpl* outer_contents_frame);
 
-    WebContentsImpl* outer_web_contents() { return outer_web_contents_; }
+    WebContentsImpl* outer_web_contents() const { return outer_web_contents_; }
     int outer_contents_frame_tree_node_id() const {
       return outer_contents_frame_tree_node_id_;
     }
+    FrameTreeNode* OuterContentsFrameTreeNode() const;
 
     WebContentsImpl* focused_web_contents() { return focused_web_contents_; }
     void SetFocusedWebContents(WebContentsImpl* web_contents);
 
    private:
-    // The outer WebContents.
+    // FrameTreeNode::Observer implementation.
+    void OnFrameTreeNodeDestroyed(FrameTreeNode* node) final;
+
+    // The WebContents that owns this WebContentsTreeNode.
+    WebContentsImpl* const current_web_contents_;
+
+    // The outer WebContents of |current_web_contents_|, or nullptr if
+    // |current_web_contents_| is the outermost WebContents.
     WebContentsImpl* outer_web_contents_;
-    // The ID of the FrameTreeNode in outer WebContents that is hosting us.
+
+    // The ID of the FrameTreeNode in the |outer_web_contents_| that hosts
+    // |current_web_contents_| as an inner WebContents.
     int outer_contents_frame_tree_node_id_;
-    // List of inner WebContents that we host.
-    ChildrenSet inner_web_contents_tree_nodes_;
+
     // Only the root node should have this set. This indicates the WebContents
     // whose frame tree has the focused frame. The WebContents tree could be
     // arbitrarily deep.
@@ -1226,9 +1245,8 @@ class CONTENT_EXPORT WebContentsImpl
   // Manages the frame tree of the page and process swaps in each node.
   FrameTree frame_tree_;
 
-  // If this WebContents is part of a "tree of WebContents", then this contains
-  // information about the structure.
-  std::unique_ptr<WebContentsTreeNode> node_;
+  // Contains information about the WebContents tree structure.
+  WebContentsTreeNode node_;
 
   // SavePackage, lazily created.
   scoped_refptr<SavePackage> save_package_;

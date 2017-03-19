@@ -31,6 +31,7 @@
 #include "base/threading/thread_local.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/elapsed_timer.h"
+#include "base/trace_event/memory_dump_manager.h"
 #include "base/tracked_objects.h"
 #include "build/build_config.h"
 #include "components/tracing/child/child_trace_message_filter.h"
@@ -41,7 +42,6 @@
 #include "content/child/fileapi/webfilesystem_impl.h"
 #include "content/child/memory/child_memory_message_filter.h"
 #include "content/child/notifications/notification_dispatcher.h"
-#include "content/child/push_messaging/push_dispatcher.h"
 #include "content/child/quota_dispatcher.h"
 #include "content/child/quota_message_filter.h"
 #include "content/child/resource_dispatcher.h"
@@ -67,6 +67,7 @@
 #include "mojo/public/cpp/system/platform_handle.h"
 #include "services/device/public/cpp/power_monitor/power_monitor_broadcast_source.h"
 #include "services/device/public/interfaces/constants.mojom.h"
+#include "services/resource_coordinator/public/cpp/memory/memory_dump_manager_delegate_impl.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/cpp/interface_factory.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
@@ -86,8 +87,8 @@ namespace {
 // How long to wait for a connection to the browser process before giving up.
 const int kConnectionTimeoutS = 15;
 
-base::LazyInstance<base::ThreadLocalPointer<ChildThreadImpl> > g_lazy_tls =
-    LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<base::ThreadLocalPointer<ChildThreadImpl>>::DestructorAtExit
+    g_lazy_tls = LAZY_INSTANCE_INITIALIZER;
 
 // This isn't needed on Windows because there the sandbox's job object
 // terminates child processes automatically. For unsandboxed processes (i.e.
@@ -227,7 +228,8 @@ void QuitClosure::PostQuitFromNonMainThread() {
   closure_.Run();
 }
 
-base::LazyInstance<QuitClosure> g_quit_closure = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<QuitClosure>::DestructorAtExit g_quit_closure =
+    LAZY_INSTANCE_INITIALIZER;
 #endif
 
 void InitializeMojoIPCChannel() {
@@ -490,13 +492,11 @@ void ChildThreadImpl::Init(const Options& options) {
                                               quota_message_filter_.get()));
   notification_dispatcher_ =
       new NotificationDispatcher(thread_safe_sender_.get());
-  push_dispatcher_ = new PushDispatcher(thread_safe_sender_.get());
 
   channel_->AddFilter(histogram_message_filter_.get());
   channel_->AddFilter(resource_message_filter_.get());
   channel_->AddFilter(quota_message_filter_->GetFilter());
   channel_->AddFilter(notification_dispatcher_->GetFilter());
-  channel_->AddFilter(push_dispatcher_->GetFilter());
   channel_->AddFilter(service_worker_message_filter_->GetFilter());
 
   if (!IsInBrowserProcess()) {
@@ -505,6 +505,14 @@ void ChildThreadImpl::Init(const Options& options) {
     channel_->AddFilter(new tracing::ChildTraceMessageFilter(
         ChildProcess::current()->io_task_runner()));
     channel_->AddFilter(new ChildMemoryMessageFilter());
+
+    memory_instrumentation::MemoryDumpManagerDelegateImpl::Config config(
+        GetRemoteInterfaces());
+    auto delegate =
+        base::MakeUnique<memory_instrumentation::MemoryDumpManagerDelegateImpl>(
+            config);
+    base::trace_event::MemoryDumpManager::GetInstance()->Initialize(
+        std::move(delegate));
   }
 
   // In single process mode we may already have a power monitor,

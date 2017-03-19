@@ -5,15 +5,51 @@
 Polymer({
   is: 'bookmarks-folder-node',
 
-  properties: {
-    /** @type {BookmarkTreeNode} */
-    item: Object,
+  behaviors: [
+    bookmarks.StoreClient,
+  ],
 
-    isSelectedFolder: {
+  properties: {
+    itemId: {
+      type: String,
+      observer: 'updateFromStore',
+    },
+
+    depth: {
+      type: Number,
+      observer: 'depthChanged_',
+    },
+
+    /** @type {BookmarkNode} */
+    item_: Object,
+
+    /** @private */
+    isClosed_: Boolean,
+
+    /** @private */
+    selectedFolder_: String,
+
+    /** @private */
+    isSelectedFolder_: {
       type: Boolean,
       value: false,
       reflectToAttribute: true,
+      computed: 'computeIsSelected_(itemId, selectedFolder_)'
     },
+  },
+
+  attached: function() {
+    this.watch('item_', function(state) {
+      return state.nodes[this.itemId];
+    }.bind(this));
+    this.watch('isClosed_', function(state) {
+      return !!state.closedFolders[this.itemId];
+    }.bind(this));
+    this.watch('selectedFolder_', function(state) {
+      return state.selectedFolder;
+    });
+
+    this.updateFromStore();
   },
 
   /**
@@ -21,31 +57,33 @@ Polymer({
    * @return {string}
    */
   getFolderIcon_: function() {
-    return this.isSelectedFolder ? 'bookmarks:folder-open' : 'cr:folder';
-  },
-
-  /**
-   * @private
-   * @return {string}
-   */
-  getArrowIcon_: function() {
-    return this.item.isOpen ? 'cr:arrow-drop-up' : 'cr:arrow-drop-down';
+    return this.isSelectedFolder_ ? 'bookmarks:folder-open' : 'cr:folder';
   },
 
   /** @private */
   selectFolder_: function() {
-    this.fire('selected-folder-changed', this.item.id);
+    this.dispatch(bookmarks.actions.selectFolder(this.item_.id));
   },
 
   /**
    * Occurs when the drop down arrow is tapped.
    * @private
+   * @param {!Event} e
    */
-  toggleFolder_: function() {
-    this.fire('folder-open-changed', {
-      id: this.item.id,
-      open: !this.item.isOpen,
-    });
+  toggleFolder_: function(e) {
+    this.dispatch(
+        bookmarks.actions.changeFolderOpen(this.item_.id, this.isClosed_));
+    e.stopPropagation();
+  },
+
+  /**
+   * @private
+   * @param {string} itemId
+   * @param {string} selectedFolder
+   * @return {boolean}
+   */
+  computeIsSelected_: function(itemId, selectedFolder) {
+    return itemId == selectedFolder;
   },
 
   /**
@@ -53,19 +91,32 @@ Polymer({
    * @return {boolean}
    */
   hasChildFolder_: function() {
-    for (var i = 0; i < this.item.children.length; i++) {
-      if (!this.item.children[i].url)
+    for (var i = 0; i < this.item_.children.length; i++) {
+      if (this.isFolder_(this.item_.children[i]))
         return true;
     }
     return false;
   },
 
+  /** @private */
+  depthChanged_: function() {
+    this.style.setProperty('--node-depth', String(this.depth));
+  },
+
   /**
-   * @param {BookmarkTreeNode} item
+   * @private
+   * @return {number}
+   */
+  getChildDepth_: function() {
+    return this.depth + 1;
+  },
+
+  /**
+   * @param {string} itemId
    * @private
    * @return {boolean}
    */
-  isFolder_: function(item) {
-    return !item.url;
+  isFolder_: function(itemId) {
+    return !this.getState().nodes[itemId].url;
   }
 });

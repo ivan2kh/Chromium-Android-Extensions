@@ -12,10 +12,11 @@ include_rules = [
   "+content/public/test",
   "+crypto",
   "-extensions/components",
+  "+extensions/grit/extensions_renderer_resources.h",
+  "+extensions/grit/extensions_resources.h",
   "+extensions/test",
-  "+grit/extensions_renderer_resources.h",
-  "+grit/extensions_resources.h",
   "+mojo/public",
+  "+services/service_manager/public",
   "+testing",
   "+third_party/skia/include",
 

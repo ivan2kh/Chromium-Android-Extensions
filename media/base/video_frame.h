@@ -355,6 +355,15 @@ class MEDIA_EXPORT VideoFrame : public base::RefCountedThreadSafe<VideoFrame> {
   CVPixelBufferRef cv_pixel_buffer() const;
 #endif
 
+  // Sets the mailbox release callback.
+  //
+  // The callback may be run from ANY THREAD, and so it is up to the client to
+  // ensure thread safety.
+  //
+  // WARNING: This method is not thread safe; it should only be called if you
+  // are still the only owner of this VideoFrame.
+  void SetReleaseMailboxCB(const ReleaseMailboxCB& release_mailbox_cb);
+
   // Adds a callback to be run when the VideoFrame is about to be destroyed.
   // The callback may be run from ANY THREAD, and so it is up to the client to
   // ensure thread safety.  Although read-only access to the members of this
@@ -392,6 +401,9 @@ class MEDIA_EXPORT VideoFrame : public base::RefCountedThreadSafe<VideoFrame> {
   // Unique identifier for this video frame; generated at construction time and
   // guaranteed to be unique within a single process.
   int unique_id() const { return unique_id_; }
+
+  // Returns the number of bits per channel for given |format|.
+  int BitsPerChannel(VideoPixelFormat format);
 
  protected:
   friend class base::RefCountedThreadSafe<VideoFrame>;

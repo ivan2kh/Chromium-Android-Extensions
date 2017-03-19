@@ -39,6 +39,7 @@
 #include "net/android/network_library.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/android/overscroll_refresh_handler.h"
+#include "ui/android/window_android.h"
 #include "ui/gfx/android/java_bitmap.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -59,7 +60,7 @@ namespace {
 
 // Track all WebContentsAndroid objects here so that we don't deserialize a
 // destroyed WebContents object.
-base::LazyInstance<base::hash_set<WebContentsAndroid*> >::Leaky
+base::LazyInstance<base::hash_set<WebContentsAndroid*>>::Leaky
     g_allocated_web_contents_androids = LAZY_INSTANCE_INITIALIZER;
 
 void JavaScriptResultCallback(const ScopedJavaGlobalRef<jobject>& callback,
@@ -284,6 +285,21 @@ WebContentsAndroid::GetJavaObject() {
   return base::android::ScopedJavaLocalRef<jobject>(obj_);
 }
 
+base::android::ScopedJavaLocalRef<jobject>
+WebContentsAndroid::GetTopLevelNativeWindow(JNIEnv* env,
+                                            const JavaParamRef<jobject>& obj) {
+  ui::WindowAndroid* window_android = web_contents_->GetTopLevelNativeWindow();
+  if (!window_android)
+    return nullptr;
+  return window_android->GetJavaObject();
+}
+
+ScopedJavaLocalRef<jobject> WebContentsAndroid::GetMainFrame(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& obj) const {
+  return web_contents_->GetMainFrame()->GetJavaRenderFrameHost();
+}
+
 ScopedJavaLocalRef<jstring> WebContentsAndroid::GetTitle(
     JNIEnv* env,
     const JavaParamRef<jobject>& obj) const {
@@ -336,9 +352,9 @@ void WebContentsAndroid::SelectAll(JNIEnv* env,
   web_contents_->SelectAll();
 }
 
-void WebContentsAndroid::Unselect(JNIEnv* env,
-                                  const JavaParamRef<jobject>& obj) {
-  web_contents_->Unselect();
+void WebContentsAndroid::CollapseSelection(JNIEnv* env,
+                                           const JavaParamRef<jobject>& obj) {
+  web_contents_->CollapseSelection();
 }
 
 RenderWidgetHostViewAndroid*
@@ -646,31 +662,20 @@ void WebContentsAndroid::SetOverscrollRefreshHandler(
 void WebContentsAndroid::GetContentBitmap(
     JNIEnv* env,
     const JavaParamRef<jobject>& obj,
-    const JavaParamRef<jobject>& jcallback,
-    const JavaParamRef<jobject>& color_type,
-    jfloat scale,
-    jfloat x,
-    jfloat y,
-    jfloat width,
-    jfloat height) {
+    jint width,
+    jint height,
+    const JavaParamRef<jobject>& jcallback) {
   RenderWidgetHostViewAndroid* view = GetRenderWidgetHostViewAndroid();
   const ReadbackRequestCallback result_callback = base::Bind(
       &WebContentsAndroid::OnFinishGetContentBitmap, weak_factory_.GetWeakPtr(),
       ScopedJavaGlobalRef<jobject>(env, obj),
       ScopedJavaGlobalRef<jobject>(env, jcallback));
-  SkColorType pref_color_type = gfx::ConvertToSkiaColorType(color_type);
-  if (!view || pref_color_type == kUnknown_SkColorType) {
+  if (!view) {
     result_callback.Run(SkBitmap(), READBACK_FAILED);
     return;
   }
-  if (!view->IsSurfaceAvailableForCopy()) {
-    result_callback.Run(SkBitmap(), READBACK_SURFACE_UNAVAILABLE);
-    return;
-  }
-  view->GetScaledContentBitmap(scale,
-                               pref_color_type,
-                               gfx::Rect(x, y, width, height),
-                               result_callback);
+  view->CopyFromSurface(gfx::Rect(), gfx::Size(width, height), result_callback,
+                        kN32_SkColorType);
 }
 
 void WebContentsAndroid::ReloadLoFiImages(JNIEnv* env,
@@ -708,6 +713,19 @@ void WebContentsAndroid::SetHasPersistentVideo(
     const base::android::JavaParamRef<jobject>& obj,
     jboolean value) {
   web_contents_->SetHasPersistentVideo(value);
+}
+
+bool WebContentsAndroid::HasActiveEffectivelyFullscreenVideo(
+    JNIEnv* env,
+    const base::android::JavaParamRef<jobject>& obj) {
+  return web_contents_->HasActiveEffectivelyFullscreenVideo();
+}
+
+ScopedJavaLocalRef<jobject> WebContentsAndroid::GetOrCreateEventForwarder(
+    JNIEnv* env,
+    const base::android::JavaParamRef<jobject>& obj) {
+  gfx::NativeView native_view = web_contents_->GetView()->GetNativeView();
+  return native_view->GetEventForwarder();
 }
 
 void WebContentsAndroid::OnFinishGetContentBitmap(

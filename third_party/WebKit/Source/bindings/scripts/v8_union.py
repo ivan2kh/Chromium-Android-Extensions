@@ -13,6 +13,7 @@ UNION_CPP_INCLUDES = frozenset([
 UNION_H_INCLUDES = frozenset([
     'bindings/core/v8/Dictionary.h',
     'bindings/core/v8/ExceptionState.h',
+    'bindings/core/v8/NativeValueTraits.h',
     'bindings/core/v8/V8Binding.h',
     'platform/heap/Handle.h',
 ])
@@ -33,7 +34,7 @@ header_forward_decls = set()
 header_includes = set()
 
 
-def container_context(union_type, interfaces_info):
+def container_context(union_type, info_provider):
     cpp_includes.clear()
     header_forward_decls.clear()
     header_includes.clear()
@@ -51,9 +52,10 @@ def container_context(union_type, interfaces_info):
     interface_types = []
     numeric_type = None
     object_type = None
+    record_type = None
     string_type = None
-    for member in union_type.member_types:
-        context = member_context(member, interfaces_info)
+    for member in sorted(union_type.flattened_member_types, key=lambda m: m.name):
+        context = member_context(member, info_provider)
         members.append(context)
         if member.base_type == 'ArrayBuffer':
             if array_buffer_type:
@@ -73,9 +75,13 @@ def container_context(union_type, interfaces_info):
             array_or_sequence_type = context
         # "Dictionary" is an object, rather than an IDL dictionary.
         elif member.base_type == 'Dictionary':
-            if object_type:
+            if object_type or record_type:
                 raise Exception('%s is ambiguous.' % union_type.name)
             object_type = context
+        elif member.is_record_type:
+            if object_type or record_type:
+                raise Exception('%s is ambiguous.' % union_type.name)
+            record_type = context
         elif member.is_interface_type:
             interface_types.append(context)
         elif member is union_type.boolean_member_type:
@@ -110,13 +116,15 @@ def container_context(union_type, interfaces_info):
         'members': members,
         'numeric_type': numeric_type,
         'object_type': object_type,
+        'record_type': record_type,
         'string_type': string_type,
         'type_string': str(union_type),
         'v8_class': v8_types.v8_type(cpp_class),
     }
 
 
-def _update_includes_and_forward_decls(member, interface_info):
+def _update_includes_and_forward_decls(member, info_provider):
+    interface_info = info_provider.interfaces_info.get(member.name, None)
     if interface_info:
         cpp_includes.update(interface_info.get(
             'dependencies_include_paths', []))
@@ -127,12 +135,23 @@ def _update_includes_and_forward_decls(member, interface_info):
             cpp_includes.update(member.includes_for_type())
             header_forward_decls.add(member.implemented_as)
     else:
-        cpp_includes.update(member.includes_for_type())
+        if member.is_record_type:
+            _update_includes_and_forward_decls(member.key_type, info_provider)
+            _update_includes_and_forward_decls(member.value_type, info_provider)
+        elif member.is_array_or_sequence_type:
+            _update_includes_and_forward_decls(member.element_type, info_provider)
+        else:
+            if member.is_union_type:
+                # Reaching this block means we have a union that is inside a
+                # record or sequence.
+                header_forward_decls.add(member.name)
+                cpp_includes.update([info_provider.include_path_for_union_types(member)])
+            else:
+                cpp_includes.update(member.includes_for_type())
 
 
-def member_context(member, interfaces_info):
-    interface_info = interfaces_info.get(member.name, None)
-    _update_includes_and_forward_decls(member, interface_info)
+def member_context(member, info_provider):
+    _update_includes_and_forward_decls(member, info_provider)
     if member.is_nullable:
         member = member.inner_type
     return {
@@ -150,5 +169,5 @@ def member_context(member, interfaces_info):
         'type_name': member.name,
         'v8_value_to_local_cpp_value': member.v8_value_to_local_cpp_value(
             {}, 'v8Value', 'cppValue', isolate='isolate',
-            use_exception_state=True, restricted_float=True),
+            use_exception_state=True)
     }

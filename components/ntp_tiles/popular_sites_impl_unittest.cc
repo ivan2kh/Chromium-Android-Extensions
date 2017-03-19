@@ -18,9 +18,11 @@
 #include "base/memory/ptr_util.h"
 #include "base/optional.h"
 #include "base/run_loop.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/sequenced_worker_pool_owner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
+#include "components/ntp_tiles/constants.h"
 #include "components/ntp_tiles/json_unsafe_parser.h"
 #include "components/ntp_tiles/pref_names.h"
 #include "components/ntp_tiles/switches.h"
@@ -34,6 +36,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using testing::Eq;
+using testing::Gt;
 using testing::IsEmpty;
 
 namespace ntp_tiles {
@@ -59,7 +62,7 @@ size_t GetNumberOfDefaultPopularSitesForPlatform() {
 #if defined(OS_ANDROID) || defined(OS_IOS)
   return 8ul;
 #else
-  return 0;
+  return 0ul;
 #endif
 }
 
@@ -82,18 +85,19 @@ class PopularSitesTest : public ::testing::Test {
             {kFaviconUrl, "https://www.chromium.org/favicon.ico"},
         },
         worker_pool_owner_(2, "PopularSitesTest."),
+        prefs_(new sync_preferences::TestingPrefServiceSyncable()),
         url_fetcher_factory_(nullptr) {
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         switches::kEnableNTPPopularSites);
-    PopularSitesImpl::RegisterProfilePrefs(prefs_.registry());
+    PopularSitesImpl::RegisterProfilePrefs(prefs_->registry());
     CHECK(scoped_cache_dir_.CreateUniqueTempDir());
     cache_dir_ = scoped_cache_dir_.GetPath();
   }
 
   void SetCountryAndVersion(const std::string& country,
                             const std::string& version) {
-    prefs_.SetString(prefs::kPopularSitesOverrideCountry, country);
-    prefs_.SetString(prefs::kPopularSitesOverrideVersion, version);
+    prefs_->SetString(prefs::kPopularSitesOverrideCountry, country);
+    prefs_->SetString(prefs::kPopularSitesOverrideVersion, version);
   }
 
   void RespondWithJSON(const std::string& url,
@@ -120,6 +124,11 @@ class PopularSitesTest : public ::testing::Test {
   void RespondWith404(const std::string& url) {
     url_fetcher_factory_.SetFakeResponse(GURL(url), "404", net::HTTP_NOT_FOUND,
                                          net::URLRequestStatus::SUCCESS);
+  }
+
+  void ReregisterProfilePrefs() {
+    prefs_ = base::MakeUnique<sync_preferences::TestingPrefServiceSyncable>();
+    PopularSitesImpl::RegisterProfilePrefs(prefs_->registry());
   }
 
   // Returns an optional bool representing whether the completion callback was
@@ -151,7 +160,7 @@ class PopularSitesTest : public ::testing::Test {
   std::unique_ptr<PopularSites> CreatePopularSites(
       net::URLRequestContextGetter* context) {
     return base::MakeUnique<PopularSitesImpl>(
-        worker_pool_owner_.pool().get(), &prefs_,
+        worker_pool_owner_.pool().get(), prefs_.get(),
         /*template_url_service=*/nullptr,
         /*variations_service=*/nullptr, context, cache_dir_,
         base::Bind(JsonUnsafeParser::Parse));
@@ -165,11 +174,34 @@ class PopularSitesTest : public ::testing::Test {
   base::SequencedWorkerPoolOwner worker_pool_owner_;
   base::ScopedTempDir scoped_cache_dir_;
   base::FilePath cache_dir_;
-  sync_preferences::TestingPrefServiceSyncable prefs_;
+  std::unique_ptr<sync_preferences::TestingPrefServiceSyncable> prefs_;
   net::FakeURLFetcherFactory url_fetcher_factory_;
 };
 
-TEST_F(PopularSitesTest, Basic) {
+TEST_F(PopularSitesTest, ContainsDefaultTilesRightAfterConstruction) {
+  scoped_refptr<net::TestURLRequestContextGetter> url_request_context(
+      new net::TestURLRequestContextGetter(
+          base::ThreadTaskRunnerHandle::Get()));
+
+  auto popular_sites = CreatePopularSites(url_request_context.get());
+  EXPECT_THAT(popular_sites->sites().size(),
+              Eq(GetNumberOfDefaultPopularSitesForPlatform()));
+}
+
+TEST_F(PopularSitesTest, IsEmptyOnConstructionIfDisabledByTrial) {
+  base::test::ScopedFeatureList override_features;
+  override_features.InitAndDisableFeature(kPopularSitesBakedInContentFeature);
+  ReregisterProfilePrefs();
+
+  scoped_refptr<net::TestURLRequestContextGetter> url_request_context(
+      new net::TestURLRequestContextGetter(
+          base::ThreadTaskRunnerHandle::Get()));
+  auto popular_sites = CreatePopularSites(url_request_context.get());
+
+  EXPECT_THAT(popular_sites->sites().size(), Eq(0ul));
+}
+
+TEST_F(PopularSitesTest, ShouldSucceedFetching) {
   SetCountryAndVersion("ZZ", "9");
   RespondWithJSON(
       "https://www.gstatic.com/chrome/ntp/suggested_sites_ZZ_9.json",
@@ -185,15 +217,6 @@ TEST_F(PopularSitesTest, Basic) {
   EXPECT_THAT(sites[0].large_icon_url,
               URLEq("https://zz.m.wikipedia.org/wikipedia.png"));
   EXPECT_THAT(sites[0].favicon_url, URLEq(""));
-}
-
-TEST_F(PopularSitesTest, ContainsDefaultTilesRightAfterConstruction) {
-  scoped_refptr<net::TestURLRequestContextGetter> url_request_context(
-      new net::TestURLRequestContextGetter(
-          base::ThreadTaskRunnerHandle::Get()));
-
-  EXPECT_THAT(CreatePopularSites(url_request_context.get())->sites().size(),
-              Eq(GetNumberOfDefaultPopularSitesForPlatform()));
 }
 
 TEST_F(PopularSitesTest, Fallback) {
@@ -232,6 +255,21 @@ TEST_F(PopularSitesTest, PopulatesWithDefaultResoucesOnFailure) {
   EXPECT_THAT(FetchPopularSites(/*force_download=*/false, &sites),
               Eq(base::Optional<bool>(false)));
   EXPECT_THAT(sites.size(), Eq(GetNumberOfDefaultPopularSitesForPlatform()));
+}
+
+TEST_F(PopularSitesTest, AddsIconResourcesToDefaultPages) {
+  scoped_refptr<net::TestURLRequestContextGetter> url_request_context(
+      new net::TestURLRequestContextGetter(
+          base::ThreadTaskRunnerHandle::Get()));
+  std::unique_ptr<PopularSites> popular_sites =
+      CreatePopularSites(url_request_context.get());
+
+#if defined(GOOGLE_CHROME_BUILD) && (defined(OS_ANDROID) || defined(OS_IOS))
+  ASSERT_FALSE(popular_sites->sites().empty());
+  for (const auto& site : popular_sites->sites()) {
+    EXPECT_THAT(site.default_icon_resource, Gt(0));
+  }
+#endif
 }
 
 TEST_F(PopularSitesTest, ProvidesDefaultSitesUntilCallbackReturns) {

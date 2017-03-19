@@ -12,10 +12,10 @@
 #include "V8TestDictionary.h"
 
 #include "bindings/core/v8/Dictionary.h"
-#include "bindings/core/v8/DoubleOrString.h"
 #include "bindings/core/v8/ExceptionState.h"
+#include "bindings/core/v8/IDLTypes.h"
+#include "bindings/core/v8/NativeValueTraitsImpl.h"
 #include "bindings/core/v8/ScriptValue.h"
-#include "bindings/core/v8/TestInterface2OrUint8Array.h"
 #include "bindings/core/v8/V8ArrayBufferView.h"
 #include "bindings/core/v8/V8Element.h"
 #include "bindings/core/v8/V8EventTarget.h"
@@ -39,13 +39,10 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
     exceptionState.throwTypeError("cannot convert to dictionary.");
     return;
   }
+  v8::Local<v8::Object> v8Object = v8Value.As<v8::Object>();
+  ALLOW_UNUSED_LOCAL(v8Object);
 
   v8::TryCatch block(isolate);
-  v8::Local<v8::Object> v8Object;
-  if (!v8Call(v8Value->ToObject(isolate->GetCurrentContext()), v8Object, block)) {
-    exceptionState.rethrowV8Exception(block.Exception());
-    return;
-  }
   v8::Local<v8::Value> anyMemberValue;
   if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "anyMember")).ToLocal(&anyMemberValue)) {
     exceptionState.rethrowV8Exception(block.Exception());
@@ -66,7 +63,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   if (booleanMemberValue.IsEmpty() || booleanMemberValue->IsUndefined()) {
     // Do nothing.
   } else {
-    bool booleanMember = toBoolean(isolate, booleanMemberValue, exceptionState);
+    bool booleanMember = NativeValueTraits<IDLBoolean>::nativeValue(isolate, booleanMemberValue, exceptionState);
     if (exceptionState.hadException())
       return;
     impl.setBooleanMember(booleanMember);
@@ -80,7 +77,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   if (createValue.IsEmpty() || createValue->IsUndefined()) {
     // Do nothing.
   } else {
-    bool create = toBoolean(isolate, createValue, exceptionState);
+    bool create = NativeValueTraits<IDLBoolean>::nativeValue(isolate, createValue, exceptionState);
     if (exceptionState.hadException())
       return;
     impl.setCreateMember(create);
@@ -95,7 +92,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
     // Do nothing.
   } else {
     Deprecation::countDeprecation(currentExecutionContext(isolate), UseCounter::CreateMember);
-    bool deprecatedCreateMember = toBoolean(isolate, deprecatedCreateMemberValue, exceptionState);
+    bool deprecatedCreateMember = NativeValueTraits<IDLBoolean>::nativeValue(isolate, deprecatedCreateMemberValue, exceptionState);
     if (exceptionState.hadException())
       return;
     impl.setCreateMember(deprecatedCreateMember);
@@ -109,7 +106,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   if (dictionaryMemberValue.IsEmpty() || dictionaryMemberValue->IsUndefined()) {
     // Do nothing.
   } else {
-    Dictionary dictionaryMember = Dictionary(isolate, dictionaryMemberValue, exceptionState);
+    Dictionary dictionaryMember = NativeValueTraits<Dictionary>::nativeValue(isolate, dictionaryMemberValue, exceptionState);
     if (exceptionState.hadException())
       return;
     if (!dictionaryMember.isObject()) {
@@ -129,7 +126,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   } else if (doubleOrNullMemberValue->IsNull()) {
     impl.setDoubleOrNullMemberToNull();
   } else {
-    double doubleOrNullMember = toRestrictedDouble(isolate, doubleOrNullMemberValue, exceptionState);
+    double doubleOrNullMember = NativeValueTraits<IDLDouble>::nativeValue(isolate, doubleOrNullMemberValue, exceptionState);
     if (exceptionState.hadException())
       return;
     impl.setDoubleOrNullMember(doubleOrNullMember);
@@ -242,6 +239,20 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
     impl.setEventTargetMember(eventTargetMember);
   }
 
+  v8::Local<v8::Value> garbageCollectedRecordMemberValue;
+  if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "garbageCollectedRecordMember")).ToLocal(&garbageCollectedRecordMemberValue)) {
+    exceptionState.rethrowV8Exception(block.Exception());
+    return;
+  }
+  if (garbageCollectedRecordMemberValue.IsEmpty() || garbageCollectedRecordMemberValue->IsUndefined()) {
+    // Do nothing.
+  } else {
+    HeapVector<std::pair<String, Member<TestObject>>> garbageCollectedRecordMember = NativeValueTraits<IDLRecord<IDLUSVString, TestObject>>::nativeValue(isolate, garbageCollectedRecordMemberValue, exceptionState);
+    if (exceptionState.hadException())
+      return;
+    impl.setGarbageCollectedRecordMember(garbageCollectedRecordMember);
+  }
+
   v8::Local<v8::Value> internalDictionarySequenceMemberValue;
   if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "internalDictionarySequenceMember")).ToLocal(&internalDictionarySequenceMemberValue)) {
     exceptionState.rethrowV8Exception(block.Exception());
@@ -264,7 +275,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   if (longMemberValue.IsEmpty() || longMemberValue->IsUndefined()) {
     // Do nothing.
   } else {
-    int longMember = toInt32(isolate, longMemberValue, NormalConversion, exceptionState);
+    int32_t longMember = NativeValueTraits<IDLLong>::nativeValue(isolate, longMemberValue, exceptionState, NormalConversion);
     if (exceptionState.hadException())
       return;
     impl.setLongMember(longMember);
@@ -335,6 +346,20 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
     impl.setPrefixGetMember(prefixGetMember);
   }
 
+  v8::Local<v8::Value> recordMemberValue;
+  if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "recordMember")).ToLocal(&recordMemberValue)) {
+    exceptionState.rethrowV8Exception(block.Exception());
+    return;
+  }
+  if (recordMemberValue.IsEmpty() || recordMemberValue->IsUndefined()) {
+    // Do nothing.
+  } else {
+    Vector<std::pair<String, int8_t>> recordMember = NativeValueTraits<IDLRecord<IDLByteString, IDLByte>>::nativeValue(isolate, recordMemberValue, exceptionState);
+    if (exceptionState.hadException())
+      return;
+    impl.setRecordMember(recordMember);
+  }
+
   v8::Local<v8::Value> restrictedDoubleMemberValue;
   if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "restrictedDoubleMember")).ToLocal(&restrictedDoubleMemberValue)) {
     exceptionState.rethrowV8Exception(block.Exception());
@@ -343,7 +368,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   if (restrictedDoubleMemberValue.IsEmpty() || restrictedDoubleMemberValue->IsUndefined()) {
     // Do nothing.
   } else {
-    double restrictedDoubleMember = toRestrictedDouble(isolate, restrictedDoubleMemberValue, exceptionState);
+    double restrictedDoubleMember = NativeValueTraits<IDLDouble>::nativeValue(isolate, restrictedDoubleMemberValue, exceptionState);
     if (exceptionState.hadException())
       return;
     impl.setRestrictedDoubleMember(restrictedDoubleMember);
@@ -358,7 +383,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
     if (runtimeMemberValue.IsEmpty() || runtimeMemberValue->IsUndefined()) {
       // Do nothing.
     } else {
-      bool runtimeMember = toBoolean(isolate, runtimeMemberValue, exceptionState);
+      bool runtimeMember = NativeValueTraits<IDLBoolean>::nativeValue(isolate, runtimeMemberValue, exceptionState);
       if (exceptionState.hadException())
         return;
       impl.setRuntimeMember(runtimeMember);
@@ -564,6 +589,35 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
     impl.setUint8ArrayMember(uint8ArrayMember);
   }
 
+  v8::Local<v8::Value> unionInRecordMemberValue;
+  if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "unionInRecordMember")).ToLocal(&unionInRecordMemberValue)) {
+    exceptionState.rethrowV8Exception(block.Exception());
+    return;
+  }
+  if (unionInRecordMemberValue.IsEmpty() || unionInRecordMemberValue->IsUndefined()) {
+    // Do nothing.
+  } else {
+    HeapVector<std::pair<String, LongOrBoolean>> unionInRecordMember = NativeValueTraits<IDLRecord<IDLByteString, LongOrBoolean>>::nativeValue(isolate, unionInRecordMemberValue, exceptionState);
+    if (exceptionState.hadException())
+      return;
+    impl.setUnionInRecordMember(unionInRecordMember);
+  }
+
+  v8::Local<v8::Value> unionWithTypedefsValue;
+  if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "unionWithTypedefs")).ToLocal(&unionWithTypedefsValue)) {
+    exceptionState.rethrowV8Exception(block.Exception());
+    return;
+  }
+  if (unionWithTypedefsValue.IsEmpty() || unionWithTypedefsValue->IsUndefined()) {
+    // Do nothing.
+  } else {
+    FloatOrBoolean unionWithTypedefs;
+    V8FloatOrBoolean::toImpl(isolate, unionWithTypedefsValue, unionWithTypedefs, UnionTypeConversionMode::NotNullable, exceptionState);
+    if (exceptionState.hadException())
+      return;
+    impl.setUnionWithTypedefs(unionWithTypedefs);
+  }
+
   v8::Local<v8::Value> unrestrictedDoubleMemberValue;
   if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "unrestrictedDoubleMember")).ToLocal(&unrestrictedDoubleMemberValue)) {
     exceptionState.rethrowV8Exception(block.Exception());
@@ -572,7 +626,7 @@ void V8TestDictionary::toImpl(v8::Isolate* isolate, v8::Local<v8::Value> v8Value
   if (unrestrictedDoubleMemberValue.IsEmpty() || unrestrictedDoubleMemberValue->IsUndefined()) {
     // Do nothing.
   } else {
-    double unrestrictedDoubleMember = toDouble(isolate, unrestrictedDoubleMemberValue, exceptionState);
+    double unrestrictedDoubleMember = NativeValueTraits<IDLUnrestrictedDouble>::nativeValue(isolate, unrestrictedDoubleMemberValue, exceptionState);
     if (exceptionState.hadException())
       return;
     impl.setUnrestrictedDoubleMember(unrestrictedDoubleMember);
@@ -649,7 +703,7 @@ bool toV8TestDictionary(const TestDictionary& impl, v8::Local<v8::Object> dictio
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "enumMember"), v8String(isolate, impl.enumMember()))))
       return false;
   } else {
-    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "enumMember"), v8String(isolate, String("foo")))))
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "enumMember"), v8String(isolate, "foo"))))
       return false;
   }
 
@@ -660,6 +714,11 @@ bool toV8TestDictionary(const TestDictionary& impl, v8::Local<v8::Object> dictio
 
   if (impl.hasEventTargetMember()) {
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "eventTargetMember"), ToV8(impl.eventTargetMember(), creationContext, isolate))))
+      return false;
+  }
+
+  if (impl.hasGarbageCollectedRecordMember()) {
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "garbageCollectedRecordMember"), ToV8(impl.garbageCollectedRecordMember(), creationContext, isolate))))
       return false;
   }
 
@@ -695,13 +754,18 @@ bool toV8TestDictionary(const TestDictionary& impl, v8::Local<v8::Object> dictio
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "otherDoubleOrStringMember"), ToV8(impl.otherDoubleOrStringMember(), creationContext, isolate))))
       return false;
   } else {
-    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "otherDoubleOrStringMember"), ToV8(DoubleOrString::fromString(String("default string value")), creationContext, isolate))))
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "otherDoubleOrStringMember"), ToV8(DoubleOrString::fromString("default string value"), creationContext, isolate))))
       return false;
   }
 
   if (impl.hasPrefixGetMember()) {
     DCHECK(impl.getPrefixGetMember().isObject());
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "prefixGetMember"), impl.getPrefixGetMember().v8Value())))
+      return false;
+  }
+
+  if (impl.hasRecordMember()) {
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "recordMember"), ToV8(impl.recordMember(), creationContext, isolate))))
       return false;
   }
 
@@ -732,7 +796,7 @@ bool toV8TestDictionary(const TestDictionary& impl, v8::Local<v8::Object> dictio
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "stringOrNullMember"), v8String(isolate, impl.stringOrNullMember()))))
       return false;
   } else {
-    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "stringOrNullMember"), v8String(isolate, String("default string value")))))
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "stringOrNullMember"), v8String(isolate, "default string value"))))
       return false;
   }
 
@@ -798,6 +862,16 @@ bool toV8TestDictionary(const TestDictionary& impl, v8::Local<v8::Object> dictio
 
   if (impl.hasUint8ArrayMember()) {
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "uint8ArrayMember"), ToV8(impl.uint8ArrayMember(), creationContext, isolate))))
+      return false;
+  }
+
+  if (impl.hasUnionInRecordMember()) {
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "unionInRecordMember"), ToV8(impl.unionInRecordMember(), creationContext, isolate))))
+      return false;
+  }
+
+  if (impl.hasUnionWithTypedefs()) {
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "unionWithTypedefs"), ToV8(impl.unionWithTypedefs(), creationContext, isolate))))
       return false;
   }
 

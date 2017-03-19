@@ -37,13 +37,6 @@ public abstract class ChromeSwitches {
     /** Force the crash dump to be uploaded regardless of preferences. */
     public static final String FORCE_CRASH_DUMP_UPLOAD = "force-dump-upload";
 
-    /**
-     * Force the crash dump NOT to be uploaded regardless of preferences.
-     * This is intended for testing use, when command-line switches may be needed.
-     * Overrides any other upload preference.
-     */
-    public static final String DISABLE_CRASH_DUMP_UPLOAD = "disable-dump-upload";
-
     /** Whether or not to enable the experimental tablet tab stack. */
     public static final String ENABLE_TABLET_TAB_STACK = "enable-tablet-tab-stack";
 
@@ -56,10 +49,6 @@ public abstract class ChromeSwitches {
 
     /** Enable Contextual Search. */
     public static final String ENABLE_CONTEXTUAL_SEARCH = "enable-contextual-search";
-
-    /** Contextual Search UI integration with Contextual Cards data.*/
-    public static final String CONTEXTUAL_SEARCH_CONTEXTUAL_CARDS_BAR_INTEGRATION =
-            "cs-contextual-cards-bar-integration";
 
     // How many thumbnails should we allow in the cache (per tab stack)?
     public static final String THUMBNAILS = "thumbnails";

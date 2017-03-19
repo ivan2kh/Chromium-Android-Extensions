@@ -209,7 +209,6 @@ const char kChromeUIHangHost[] = "hang";
 const char kChromeUIHangUIHost[] = "uithreadhang";
 const char kChromeUIHelpFrameHost[] = "help-frame";
 const char kChromeUIHelpHost[] = "help";
-const char kChromeUIHistoryHost[] = "history";
 const char kChromeUIHistoryFrameHost[] = "history-frame";
 const char kChromeUIIdentityInternalsHost[] = "identity-internals";
 const char kChromeUIInspectHost[] = "inspect";
@@ -290,7 +289,7 @@ const char kChromeUISnippetsInternalsHost[] = "snippets-internals";
 const char kChromeUIWebApksHost[] = "webapks";
 #endif
 
-#if defined(ENABLE_WEBVR)
+#if BUILDFLAG(ENABLE_WEBVR)
 const char kChromeUIVrShellUIHost[] = "vr-shell-ui";
 #endif
 
@@ -555,13 +554,13 @@ const char kChromiumProjectURL[] = "https://www.chromium.org/";
 const char kLearnMoreReportingURL[] =
     "https://support.google.com/chrome/?p=ui_usagestat";
 
-#if BUILDFLAG(ENABLE_PLUGIN_INSTALLATION)
+#if BUILDFLAG(ENABLE_PLUGINS)
 const char kOutdatedPluginLearnMoreURL[] =
     "https://support.google.com/chrome/?p=ib_outdated_plugin";
-#endif
 
 const char kBlockedPluginLearnMoreURL[] =
     "https://support.google.com/chrome/?p=ib_blocked_plugin";
+#endif
 
 const char kHotwordLearnMoreURL[] =
     "https://support.google.com/chrome/?p=ui_hotword_search";
@@ -644,7 +643,6 @@ const char* const kChromeHostURLs[] = {
     kChromeUIDeviceLogHost,
     kChromeUIFlagsHost,
     kChromeUIGCMInternalsHost,
-    kChromeUIHistoryHost,
     kChromeUIInvalidationsHost,
     kChromeUILocalStateHost,
     kChromeUINetExportHost,
@@ -675,6 +673,7 @@ const char* const kChromeHostURLs[] = {
     content::kChromeUIDinoHost,
     content::kChromeUIGpuHost,
     content::kChromeUIHistogramHost,
+    content::kChromeUIHistoryHost,
     content::kChromeUIIndexedDBInternalsHost,
     content::kChromeUIMediaInternalsHost,
     content::kChromeUINetworkErrorHost,
@@ -747,6 +746,7 @@ const char* const kChromeHostURLs[] = {
 const size_t kNumberOfChromeHostURLs = arraysize(kChromeHostURLs);
 
 const char* const kChromeDebugURLs[] = {content::kChromeUIBadCastCrashURL,
+                                        content::kChromeUIBrowserCrashURL,
                                         content::kChromeUICrashURL,
                                         content::kChromeUIDumpURL,
                                         content::kChromeUIKillURL,

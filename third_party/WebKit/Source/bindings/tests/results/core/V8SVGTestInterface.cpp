@@ -12,6 +12,8 @@
 #include "V8SVGTestInterface.h"
 
 #include "bindings/core/v8/ExceptionState.h"
+#include "bindings/core/v8/IDLTypes.h"
+#include "bindings/core/v8/NativeValueTraitsImpl.h"
 #include "bindings/core/v8/V8DOMConfiguration.h"
 #include "bindings/core/v8/V8ObjectConstructor.h"
 #include "core/SVGNames.h"
@@ -90,8 +92,8 @@ void V8SVGTestInterface::typeAttributeSetterCallback(const v8::FunctionCallbackI
   SVGTestInterfaceV8Internal::typeAttributeSetter(v8Value, info);
 }
 
-const V8DOMConfiguration::AccessorConfiguration V8SVGTestInterfaceAccessors[] = {
-    {"type", V8SVGTestInterface::typeAttributeGetterCallback, V8SVGTestInterface::typeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
+static const V8DOMConfiguration::AccessorConfiguration V8SVGTestInterfaceAccessors[] = {
+    {"type", V8SVGTestInterface::typeAttributeGetterCallback, V8SVGTestInterface::typeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds},
 };
 
 static void installV8SVGTestInterfaceTemplate(v8::Isolate* isolate, const DOMWrapperWorld& world, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
@@ -123,6 +125,10 @@ v8::Local<v8::Object> V8SVGTestInterface::findInstanceInPrototypeChain(v8::Local
 
 SVGTestInterface* V8SVGTestInterface::toImplWithTypeCheck(v8::Isolate* isolate, v8::Local<v8::Value> value) {
   return hasInstance(value, isolate) ? toImpl(v8::Local<v8::Object>::Cast(value)) : nullptr;
+}
+
+SVGTestInterface* NativeValueTraits<SVGTestInterface>::nativeValue(v8::Isolate* isolate, v8::Local<v8::Value> value, ExceptionState& exceptionState) {
+  return V8SVGTestInterface::toImplWithTypeCheck(isolate, value);
 }
 
 }  // namespace blink

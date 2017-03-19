@@ -114,10 +114,6 @@ class MockScreenshotManager : public content::NavigationEntryScreenshotManager {
   }
 
  private:
-  // Overridden from content::NavigationEntryScreenshotManager:
-  void TakeScreenshotImpl(content::RenderViewHost* host,
-                          content::NavigationEntryImpl* entry) override {}
-
   void OnScreenshotSet(content::NavigationEntryImpl* entry) override {
     encoding_screenshot_in_progress_ = false;
     NavigationEntryScreenshotManager::OnScreenshotSet(entry);
@@ -331,7 +327,7 @@ class LoadCommittedDetailsObserver : public WebContentsObserver {
     navigation_type_ = static_cast<NavigationHandleImpl*>(navigation_handle)
                            ->navigation_type();
     previous_url_ = navigation_handle->GetPreviousURL();
-    is_in_page_ = navigation_handle->IsSamePage();
+    is_in_page_ = navigation_handle->IsSameDocument();
     is_main_frame_ = navigation_handle->IsInMainFrame();
     did_replace_entry_ = navigation_handle->DidReplaceEntry();
   }
@@ -2638,8 +2634,8 @@ TEST_F(NavigationControllerTest, InPage) {
   EXPECT_EQ(1U, navigation_entry_committed_counter_);
   navigation_entry_committed_counter_ = 0;
 
-  // Ensure main page navigation to same url respects the was_within_same_page
-  // hint provided in the params.
+  // Ensure main page navigation to same url respects the
+  // was_within_same_document hint provided in the params.
   FrameHostMsg_DidCommitProvisionalLoad_Params self_params;
   self_params.nav_entry_id = 0;
   self_params.did_create_new_entry = false;
@@ -2653,7 +2649,7 @@ TEST_F(NavigationControllerTest, InPage) {
   self_params.page_state = PageState::CreateForTestingWithSequenceNumbers(
       url1, self_params.item_sequence_number,
       self_params.document_sequence_number);
-  self_params.was_within_same_page = true;
+  self_params.was_within_same_document = true;
 
   LoadCommittedDetailsObserver observer(contents());
   main_test_rfh()->SendRendererInitiatedNavigationRequest(url1, false);
@@ -2680,7 +2676,7 @@ TEST_F(NavigationControllerTest, InPage) {
   params.document_sequence_number = self_params.document_sequence_number;
   params.page_state = PageState::CreateForTestingWithSequenceNumbers(
       url2, params.item_sequence_number, params.document_sequence_number);
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
 
   // This should generate a new entry.
   main_test_rfh()->SendNavigateWithParams(&params);
@@ -2737,7 +2733,7 @@ TEST_F(NavigationControllerTest, InPage) {
   params.item_sequence_number = 0;
   params.document_sequence_number = 0;
   params.page_state = PageState::CreateFromURL(url3);
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   navigation_entry_committed_counter_ = 0;
   main_test_rfh()->SendRendererInitiatedNavigationRequest(url3, false);
   main_test_rfh()->PrepareForCommit();
@@ -2771,7 +2767,7 @@ TEST_F(NavigationControllerTest, InPage_Replace) {
   params.gesture = NavigationGestureUser;
   params.method = "GET";
   params.page_state = PageState::CreateFromURL(url2);
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
 
   // This should NOT generate a new entry, nor prune the list.
   LoadCommittedDetailsObserver observer(contents());
@@ -2823,7 +2819,7 @@ TEST_F(NavigationControllerTest, ClientRedirectAfterInPageNavigation) {
     params.gesture = NavigationGestureUnknown;
     params.method = "GET";
     params.page_state = PageState::CreateFromURL(url);
-    params.was_within_same_page = true;
+    params.was_within_same_document = true;
 
     // This should NOT generate a new entry, nor prune the list.
     LoadCommittedDetailsObserver observer(contents());
@@ -2883,7 +2879,7 @@ TEST_F(NavigationControllerTest, PushStateWithoutPreviousEntry)
   params.did_create_new_entry = true;
   params.url = url;
   params.page_state = PageState::CreateFromURL(url);
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
   main_test_rfh()->SendRendererInitiatedNavigationRequest(url, false);
   main_test_rfh()->PrepareForCommit();
   contents()->GetMainFrame()->SendNavigateWithParams(&params);
@@ -3876,7 +3872,7 @@ TEST_F(NavigationControllerTest, IsInPageNavigationWithUniversalFileAccess) {
   params.transition = ui::PAGE_TRANSITION_LINK;
   params.gesture = NavigationGestureUser;
   params.page_state = PageState::CreateFromURL(different_origin_url);
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
   params.method = "GET";
   params.post_id = -1;
   main_test_rfh()->SendRendererInitiatedNavigationRequest(different_origin_url,
@@ -4978,7 +4974,7 @@ TEST_F(NavigationControllerTest, PushStateUpdatesTitleAndFavicon) {
   params.did_create_new_entry = true;
   params.url = kUrl2;
   params.page_state = PageState::CreateFromURL(kUrl2);
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
   main_test_rfh()->SendNavigateWithParams(&params);
 
   // The title should immediately be visible on the new NavigationEntry.
@@ -5056,7 +5052,7 @@ TEST_F(NavigationControllerTest, PostThenReplaceStateThenReload) {
   params.transition = ui::PAGE_TRANSITION_FORM_SUBMIT;
   params.gesture = NavigationGestureUser;
   params.page_state = PageState::CreateFromURL(url);
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   params.method = "POST";
   params.post_id = 2;
   main_test_rfh()->SendRendererInitiatedNavigationRequest(url, false);
@@ -5071,7 +5067,7 @@ TEST_F(NavigationControllerTest, PostThenReplaceStateThenReload) {
   params.transition = ui::PAGE_TRANSITION_LINK;
   params.gesture = NavigationGestureUser;
   params.page_state = PageState::CreateFromURL(replace_url);
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
   params.method = "GET";
   params.post_id = -1;
   contents()->GetMainFrame()->SendNavigateWithParams(&params);
@@ -5093,7 +5089,7 @@ TEST_F(NavigationControllerTest, UnreachableURLGivesErrorPage) {
   params.transition = ui::PAGE_TRANSITION_LINK;
   params.gesture = NavigationGestureUser;
   params.page_state = PageState::CreateFromURL(url);
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   params.method = "POST";
   params.post_id = 2;
   params.url_is_unreachable = true;
@@ -5137,10 +5133,10 @@ TEST_F(NavigationControllerTest, UnreachableURLGivesErrorPage) {
     EXPECT_EQ(NAVIGATION_TYPE_SAME_PAGE, observer.navigation_type());
   }
 
-  // Navigate in page.
+  // Navigate without changing document.
   params.url = GURL("http://foo#foo");
   params.transition = ui::PAGE_TRANSITION_LINK;
-  params.was_within_same_page = true;
+  params.was_within_same_document = true;
   {
     LoadCommittedDetailsObserver observer(contents());
     main_test_rfh()->SendNavigateWithParams(&params);

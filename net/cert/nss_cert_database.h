@@ -25,12 +25,10 @@
 namespace base {
 template <class ObserverType>
 class ObserverListThreadSafe;
+class TaskRunner;
 }
 
 namespace net {
-
-class CryptoModule;
-typedef std::vector<scoped_refptr<CryptoModule> > CryptoModuleList;
 
 // Provides functions to manipulate the NSS certificate stores.
 // Forwards notifications about certificate changes to the global CertDatabase
@@ -145,8 +143,8 @@ class NET_EXPORT NSSCertDatabase {
 
   // Get all modules.
   // If |need_rw| is true, only writable modules will be returned.
-  // TODO(mattm): come up with better alternative to CryptoModuleList.
-  virtual void ListModules(CryptoModuleList* modules, bool need_rw) const;
+  virtual void ListModules(std::vector<crypto::ScopedPK11Slot>* modules,
+                           bool need_rw) const;
 
   // Import certificates and private keys from PKCS #12 blob into the module.
   // If |is_extractable| is false, mark the private key as being unextractable
@@ -235,6 +233,10 @@ class NET_EXPORT NSSCertDatabase {
   // Check whether cert is stored in a hardware slot.
   bool IsHardwareBacked(const X509Certificate* cert) const;
 
+  // Overrides task runner that's used for running slow tasks.
+  void SetSlowTaskRunnerForTest(
+      const scoped_refptr<base::TaskRunner>& task_runner);
+
  protected:
   // Certificate listing implementation used by |ListCerts*| and
   // |ListCertsSync|. Static so it may safely be used on the worker thread.
@@ -242,6 +244,11 @@ class NET_EXPORT NSSCertDatabase {
   // |slot|.
   static void ListCertsImpl(crypto::ScopedPK11Slot slot,
                             CertificateList* certs);
+
+  // Gets task runner that should be used for slow tasks like certificate
+  // listing. Defaults to a base::WorkerPool runner, but may be overriden
+  // in tests (see SetSlowTaskRunnerForTest).
+  scoped_refptr<base::TaskRunner> GetSlowTaskRunner() const;
 
  protected:
   // Broadcasts notifications to all registered observers.
@@ -274,6 +281,9 @@ class NET_EXPORT NSSCertDatabase {
 
   // A helper observer that forwards events from this database to CertDatabase.
   std::unique_ptr<Observer> cert_notification_forwarder_;
+
+  // Task runner that should be used in tests if set.
+  scoped_refptr<base::TaskRunner> slow_task_runner_for_test_;
 
   const scoped_refptr<base::ObserverListThreadSafe<Observer>> observer_list_;
 

@@ -29,14 +29,12 @@
 #include "bindings/core/v8/ScriptState.h"
 #include "core/dom/Document.h"
 #include "core/frame/LocalFrame.h"
+#include "core/frame/LocalFrameClient.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/FrameLoader.h"
-#include "core/loader/FrameLoaderClient.h"
 #include "core/loader/HistoryItem.h"
 #include "core/loader/NavigationScheduler.h"
 #include "core/page/Page.h"
-#include "platform/RuntimeEnabledFeatures.h"
-#include "platform/instrumentation/tracing/TraceEvent.h"
 #include "platform/weborigin/KURL.h"
 #include "platform/weborigin/SecurityOrigin.h"
 #include "wtf/text/StringView.h"
@@ -154,11 +152,8 @@ void History::go(ScriptState* scriptState, int delta) {
     // Otherwise, navigation happens on the root frame.
     // This behavior is designed in the following spec.
     // https://html.spec.whatwg.org/multipage/browsers.html#dom-history-go
-    FrameLoadType reloadType =
-        RuntimeEnabledFeatures::fasterLocationReloadEnabled()
-            ? FrameLoadTypeReloadMainResource
-            : FrameLoadTypeReload;
-    frame()->reload(reloadType, ClientRedirectPolicy::ClientRedirect);
+    frame()->reload(FrameLoadTypeReloadMainResource,
+                    ClientRedirectPolicy::ClientRedirect);
   }
 }
 
@@ -166,7 +161,6 @@ void History::pushState(PassRefPtr<SerializedScriptValue> data,
                         const String& title,
                         const String& url,
                         ExceptionState& exceptionState) {
-  TRACE_EVENT0("blink", "History::pushState");
   stateObjectAdded(std::move(data), title, url, scrollRestorationInternal(),
                    FrameLoadTypeStandard, exceptionState);
 }

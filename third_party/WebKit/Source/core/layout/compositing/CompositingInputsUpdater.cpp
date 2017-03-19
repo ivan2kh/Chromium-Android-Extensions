@@ -102,23 +102,27 @@ void CompositingInputsUpdater::updateRecursive(PaintLayer* layer,
   layer->updateAncestorOverflowLayer(info.lastOverflowClipLayer);
   if (info.lastOverflowClipLayer && layer->needsCompositingInputsUpdate() &&
       layer->layoutObject().style()->position() == EPosition::kSticky) {
-    if (info.lastOverflowClipLayer != previousOverflowLayer &&
-        !RuntimeEnabledFeatures::rootLayerScrollingEnabled()) {
-      // Old ancestor scroller should no longer have these constraints.
-      ASSERT(!previousOverflowLayer ||
-             !previousOverflowLayer->getScrollableArea()
-                  ->stickyConstraintsMap()
-                  .contains(layer));
+    if (!RuntimeEnabledFeatures::rootLayerScrollingEnabled()) {
+      if (info.lastOverflowClipLayer != previousOverflowLayer) {
+        // Old ancestor scroller should no longer have these constraints.
+        DCHECK(!previousOverflowLayer ||
+               !previousOverflowLayer->getScrollableArea()
+                    ->stickyConstraintsMap()
+                    .contains(layer));
+
+        // If our ancestor scroller has changed and the previous one was the
+        // root layer, we are no longer viewport constrained.
+        if (previousOverflowLayer && previousOverflowLayer->isRootLayer()) {
+          layer->layoutObject()
+              .view()
+              ->frameView()
+              ->removeViewportConstrainedObject(layer->layoutObject());
+        }
+      }
 
       if (info.lastOverflowClipLayer->isRootLayer()) {
         layer->layoutObject().view()->frameView()->addViewportConstrainedObject(
             layer->layoutObject());
-      } else if (previousOverflowLayer &&
-                 previousOverflowLayer->isRootLayer()) {
-        layer->layoutObject()
-            .view()
-            ->frameView()
-            ->removeViewportConstrainedObject(layer->layoutObject());
       }
     }
     layer->layoutObject().updateStickyPositionConstraints();
@@ -157,14 +161,14 @@ void CompositingInputsUpdater::updateRecursive(PaintLayer* layer,
         if (properties.unclippedAbsoluteBoundingBox.isEmpty())
           properties.unclippedAbsoluteBoundingBox.setSize(IntSize(1, 1));
 
-        IntRect clipRect = pixelSnappedIntRect(
-            layer->clipper(PaintLayer::DoNotUseGeometryMapper)
-                .backgroundClipRect(
-                    ClipRectsContext(m_rootLayer, AbsoluteClipRects))
-                .rect());
+        ClipRect clipRect;
+        layer->clipper(PaintLayer::DoNotUseGeometryMapper)
+            .calculateBackgroundClipRect(
+                ClipRectsContext(m_rootLayer, AbsoluteClipRects), clipRect);
+        IntRect snappedClipRect = pixelSnappedIntRect(clipRect.rect());
         properties.clippedAbsoluteBoundingBox =
             properties.unclippedAbsoluteBoundingBox;
-        properties.clippedAbsoluteBoundingBox.intersect(clipRect);
+        properties.clippedAbsoluteBoundingBox.intersect(snappedClipRect);
       }
 
       const PaintLayer* parent = layer->parent();

@@ -24,6 +24,7 @@
 #include "components/autofill/core/common/password_form.h"
 #include "components/password_manager/core/browser/affiliation_utils.h"
 #include "components/password_manager/core/browser/browser_save_password_progress_logger.h"
+#include "components/password_manager/core/browser/form_fetcher_impl.h"
 #include "components/password_manager/core/browser/form_saver.h"
 #include "components/password_manager/core/browser/log_manager.h"
 #include "components/password_manager/core/browser/password_manager.h"
@@ -228,16 +229,16 @@ PasswordFormManager::PasswordFormManager(
       submit_result_(kSubmitResultNotSubmitted),
       form_type_(kFormTypeUnspecified),
       form_saver_(std::move(form_saver)),
-      form_fetcher_impl_(form_fetcher
-                             ? nullptr
-                             : base::MakeUnique<FormFetcherImpl>(
-                                   PasswordStore::FormDigest(observed_form),
-                                   client,
-                                   /* should_migrate_http_passwords */ true)),
-      form_fetcher_(form_fetcher ? form_fetcher : form_fetcher_impl_.get()),
+      owned_form_fetcher_(form_fetcher
+                              ? nullptr
+                              : base::MakeUnique<FormFetcherImpl>(
+                                    PasswordStore::FormDigest(observed_form),
+                                    client,
+                                    /* should_migrate_http_passwords */ true)),
+      form_fetcher_(form_fetcher ? form_fetcher : owned_form_fetcher_.get()),
       is_main_frame_secure_(client->IsMainFrameSecure()) {
-  if (form_fetcher_impl_)
-    form_fetcher_impl_->Fetch();
+  if (owned_form_fetcher_)
+    owned_form_fetcher_->Fetch();
   DCHECK_EQ(observed_form.scheme == PasswordForm::SCHEME_HTML,
             driver != nullptr);
   if (driver)
@@ -286,9 +287,11 @@ base::string16 PasswordFormManager::PasswordToSave(const PasswordForm& form) {
   return form.new_password_value;
 }
 
-// TODO(timsteele): use a hash of some sort in the future?
+// TODO(crbug.com/700420): Refactor this function, to make comparison more
+// reliable.
 PasswordFormManager::MatchResultMask PasswordFormManager::DoesManage(
-    const PasswordForm& form) const {
+    const PasswordForm& form,
+    const password_manager::PasswordManagerDriver* driver) const {
   // Non-HTML form case.
   if (observed_form_.scheme != PasswordForm::SCHEME_HTML ||
       form.scheme != PasswordForm::SCHEME_HTML) {
@@ -299,6 +302,9 @@ PasswordFormManager::MatchResultMask PasswordFormManager::DoesManage(
 
   // HTML form case.
   MatchResultMask result = RESULT_NO_MATCH;
+
+  if (observed_form_.signon_realm != form.signon_realm)
+    return result;
 
   // Easiest case of matching origins.
   bool origins_match = form.origin == observed_form_.origin;
@@ -321,10 +327,18 @@ PasswordFormManager::MatchResultMask PasswordFormManager::DoesManage(
         base::StartsWith(new_path, old_path, base::CompareCase::SENSITIVE);
   }
 
+  if (driver)
+    origins_match =
+        origins_match ||
+        std::any_of(drivers_.begin(), drivers_.end(),
+                    [driver](const base::WeakPtr<PasswordManagerDriver>& d) {
+                      return d.get() == driver;
+                    });
+
   if (!origins_match)
     return result;
 
-  result |= RESULT_ORIGINS_MATCH;
+  result |= RESULT_ORIGINS_OR_FRAMES_MATCH;
 
   // Autofill predictions can overwrite our default username selection so
   // if this form was parsed with autofill predictions then allow the username
@@ -372,8 +386,6 @@ bool PasswordFormManager::IsPendingCredentialsPublicSuffixMatch() const {
 void PasswordFormManager::ProvisionallySave(
     const PasswordForm& credentials,
     OtherPossibleUsernamesAction action) {
-  DCHECK_NE(RESULT_NO_MATCH, DoesManage(credentials));
-
   std::unique_ptr<autofill::PasswordForm> mutable_submitted_form(
       new PasswordForm(credentials));
   if (credentials.IsPossibleChangePasswordForm() &&
@@ -1208,6 +1220,14 @@ void PasswordFormManager::SaveGenerationFieldDetectedByClassifier(
   generation_element_detected_by_classifier_ = generation_field;
 }
 
+void PasswordFormManager::ResetStoredMatches() {
+  preferred_match_ = nullptr;
+  best_matches_.clear();
+  not_best_matches_.clear();
+  blacklisted_matches_.clear();
+  new_blacklisted_.reset();
+}
+
 void PasswordFormManager::SendVotesOnSave() {
   if (observed_form_.IsPossibleChangePasswordFormWithoutUsername())
     return;
@@ -1288,7 +1308,7 @@ base::Optional<PasswordForm> PasswordFormManager::UpdatePendingAndGetOldKey(
     DCHECK(best_matches_.end() != updated_password_it);
     const base::string16& old_password =
         updated_password_it->second->password_value;
-    for (const auto& not_best_match : not_best_matches_) {
+    for (auto* not_best_match : not_best_matches_) {
       if (not_best_match->username_value ==
               pending_credentials_.username_value &&
           not_best_match->password_value == old_password) {

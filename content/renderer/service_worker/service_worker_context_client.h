@@ -19,7 +19,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/strings/string16.h"
 #include "base/time/time.h"
-#include "components/payments/payment_app.mojom.h"
+#include "components/payments/content/payment_app.mojom.h"
 #include "content/child/webmessageportchannel_impl.h"
 #include "content/common/service_worker/service_worker_event_dispatcher.mojom.h"
 #include "content/common/service_worker/service_worker_status_code.h"
@@ -40,7 +40,6 @@ class TaskRunner;
 
 namespace blink {
 class WebDataConsumerHandle;
-class WebDataSource;
 struct WebServiceWorkerClientQueryOptions;
 class WebServiceWorkerContextProxy;
 class WebServiceWorkerProvider;
@@ -142,6 +141,12 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
   void didHandleActivateEvent(int request_id,
                               blink::WebServiceWorkerEventResult,
                               double dispatch_event_time) override;
+  void didHandleBackgroundFetchAbortEvent(int request_id,
+                                          blink::WebServiceWorkerEventResult,
+                                          double dispatch_event_time) override;
+  void didHandleBackgroundFetchClickEvent(int request_id,
+                                          blink::WebServiceWorkerEventResult,
+                                          double dispatch_event_time) override;
   void didHandleExtendableMessageEvent(
       int request_id,
       blink::WebServiceWorkerEventResult result,
@@ -176,8 +181,8 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
                                     double dispatch_event_time) override;
 
   // Called on the main thread.
-  blink::WebServiceWorkerNetworkProvider* createServiceWorkerNetworkProvider(
-      blink::WebDataSource* data_source) override;
+  blink::WebServiceWorkerNetworkProvider* createServiceWorkerNetworkProvider()
+      override;
   blink::WebServiceWorkerProvider* createServiceWorkerProvider() override;
 
   void postMessageToClient(const blink::WebString& uuid,
@@ -212,6 +217,15 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
       const ServiceWorkerVersionAttributes& attrs);
 
   // mojom::ServiceWorkerEventDispatcher
+  void DispatchActivateEvent(
+      const DispatchActivateEventCallback& callback) override;
+  void DispatchBackgroundFetchAbortEvent(
+      const std::string& tag,
+      const DispatchBackgroundFetchAbortEventCallback& callback) override;
+  void DispatchBackgroundFetchClickEvent(
+      const std::string& tag,
+      mojom::BackgroundFetchState state,
+      const DispatchBackgroundFetchClickEventCallback& callback) override;
   void DispatchExtendableMessageEvent(
       mojom::ExtendableMessageEventPtr event,
       const DispatchExtendableMessageEventCallback& callback) override;
@@ -239,7 +253,6 @@ class ServiceWorkerContextClient : public blink::WebServiceWorkerContextClient,
       payments::mojom::PaymentAppRequestPtr app_request,
       const DispatchPaymentRequestEventCallback& callback) override;
 
-  void OnActivateEvent(int request_id);
   void OnInstallEvent(int request_id);
   void OnNotificationClickEvent(
       int request_id,

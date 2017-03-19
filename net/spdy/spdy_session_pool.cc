@@ -130,6 +130,7 @@ base::WeakPtr<SpdySession> SpdySessionPool::CreateAvailableSessionFromSocket(
 base::WeakPtr<SpdySession> SpdySessionPool::FindAvailableSession(
     const SpdySessionKey& key,
     const GURL& url,
+    bool enable_ip_based_pooling,
     const NetLogWithSource& net_log) {
   UnclaimedPushedStreamMap::iterator url_it =
       unclaimed_pushed_streams_.find(url);
@@ -162,15 +163,38 @@ base::WeakPtr<SpdySession> SpdySessionPool::FindAvailableSession(
 
   AvailableSessionMap::iterator it = LookupAvailableSessionByKey(key);
   if (it != available_sessions_.end()) {
-    UMA_HISTOGRAM_ENUMERATION(
-        "Net.SpdySessionGet", FOUND_EXISTING, SPDY_SESSION_GET_MAX);
-    net_log.AddEvent(
-        NetLogEventType::HTTP2_SESSION_POOL_FOUND_EXISTING_SESSION,
-        it->second->net_log().source().ToEventParametersCallback());
+    if (key.Equals(it->second->spdy_session_key())) {
+      UMA_HISTOGRAM_ENUMERATION("Net.SpdySessionGet", FOUND_EXISTING,
+                                SPDY_SESSION_GET_MAX);
+      net_log.AddEvent(
+          NetLogEventType::HTTP2_SESSION_POOL_FOUND_EXISTING_SESSION,
+          it->second->net_log().source().ToEventParametersCallback());
+    } else {
+      if (!enable_ip_based_pooling) {
+        // Remove session from available sessions and from aliases, and remove
+        // key from the session's pooled alias set, so that a new session can be
+        // created with this |key|.
+        it->second->RemovePooledAlias(key);
+        UnmapKey(key);
+        RemoveAliases(key);
+        return base::WeakPtr<SpdySession>();
+      }
+
+      UMA_HISTOGRAM_ENUMERATION("Net.SpdySessionGet",
+                                FOUND_EXISTING_FROM_IP_POOL,
+                                SPDY_SESSION_GET_MAX);
+      net_log.AddEvent(
+          NetLogEventType::
+              HTTP2_SESSION_POOL_FOUND_EXISTING_SESSION_FROM_IP_POOL,
+          it->second->net_log().source().ToEventParametersCallback());
+    }
     return it->second;
   }
 
-  // Look up the key's from the resolver's cache.
+  if (!enable_ip_based_pooling)
+    return base::WeakPtr<SpdySession>();
+
+  // Look up IP addresses from resolver cache.
   HostResolver::RequestInfo resolve_info(key.host_port_pair());
   AddressList addresses;
   int rv = resolver_->ResolveFromCache(resolve_info, &addresses, net_log);
@@ -282,7 +306,7 @@ void SpdySessionPool::RegisterUnclaimedPushedStream(
     GURL url,
     base::WeakPtr<SpdySession> spdy_session) {
   DCHECK(!url.is_empty());
-  // This SpdySessionPool  must own |spdy_session|.
+  // This SpdySessionPool must own |spdy_session|.
   DCHECK(base::ContainsKey(sessions_, spdy_session.get()));
   UnclaimedPushedStreamMap::iterator url_it =
       unclaimed_pushed_streams_.lower_bound(url);
@@ -380,15 +404,15 @@ void SpdySessionPool::DumpMemoryStats(
   size_t total_size = 0;
   size_t buffer_size = 0;
   size_t cert_count = 0;
-  size_t serialized_cert_size = 0;
+  size_t cert_size = 0;
   size_t num_active_sessions = 0;
-  for (const auto& session : sessions_) {
+  for (auto* session : sessions_) {
     StreamSocket::SocketMemoryStats stats;
     bool is_session_active = false;
     total_size += session->DumpMemoryStats(&stats, &is_session_active);
     buffer_size += stats.buffer_size;
     cert_count += stats.cert_count;
-    serialized_cert_size += stats.serialized_cert_size;
+    cert_size += stats.cert_size;
     if (is_session_active)
       num_active_sessions++;
   }
@@ -412,9 +436,9 @@ void SpdySessionPool::DumpMemoryStats(
   dump->AddScalar("cert_count",
                   base::trace_event::MemoryAllocatorDump::kUnitsObjects,
                   cert_count);
-  dump->AddScalar("serialized_cert_size",
+  dump->AddScalar("cert_size",
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                  serialized_cert_size);
+                  cert_size);
 }
 
 bool SpdySessionPool::IsSessionAvailable(

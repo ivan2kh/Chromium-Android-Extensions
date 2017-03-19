@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -17,12 +18,14 @@
 #include "base/memory/memory_coordinator_client.h"
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/ref_counted.h"
+#include "base/metrics/field_trial.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/observer_list.h"
 #include "base/strings/string16.h"
 #include "base/threading/thread_checker.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
+#include "components/variations/child_process_field_trial_syncer.h"
 #include "content/child/child_thread_impl.h"
 #include "content/child/memory/child_memory_coordinator_impl.h"
 #include "content/common/associated_interface_registry_impl.h"
@@ -157,6 +160,7 @@ class CONTENT_EXPORT RenderThreadImpl
       public blink::scheduler::RendererScheduler::RAILModeObserver,
       public ChildMemoryCoordinatorDelegate,
       public base::MemoryCoordinatorClient,
+      public base::FieldTrialList::Observer,
       NON_EXPORTED_BASE(public mojom::Renderer),
       NON_EXPORTED_BASE(public CompositorDependencies) {
  public:
@@ -210,6 +214,8 @@ class CONTENT_EXPORT RenderThreadImpl
   int32_t GetClientId() override;
   scoped_refptr<base::SingleThreadTaskRunner> GetTimerTaskRunner() override;
   scoped_refptr<base::SingleThreadTaskRunner> GetLoadingTaskRunner() override;
+  void SetFieldTrialGroup(const std::string& trial_name,
+                          const std::string& group_name) override;
 
   // IPC::Listener implementation via ChildThreadImpl:
   void OnAssociatedInterfaceRequest(
@@ -236,6 +242,7 @@ class CONTENT_EXPORT RenderThreadImpl
   bool AreImageDecodeTasksEnabled() override;
   bool IsThreadedAnimationEnabled() override;
   bool IsScrollAnimatorEnabled() override;
+  bool IsSurfaceSynchronizationEnabled() override;
 
   // blink::scheduler::RendererScheduler::RAILModeObserver implementation.
   void OnRAILModeChanged(v8::RAILMode rail_mode) override;
@@ -538,6 +545,10 @@ class CONTENT_EXPORT RenderThreadImpl
   void OnTransferBitmap(const SkBitmap& bitmap, int resource_id);
   void OnGetAccessibilityTree();
 
+  // base::FieldTrialList::Observer:
+  void OnFieldTrialGroupFinalized(const std::string& trial_name,
+                                  const std::string& group_name) override;
+
   // mojom::Renderer:
   void CreateView(mojom::CreateViewParamsPtr params) override;
   void CreateFrame(mojom::CreateFrameParamsPtr params) override;
@@ -665,7 +676,8 @@ class CONTENT_EXPORT RenderThreadImpl
   // TODO(dcastagna): This should be just one scoped_ptr once
   // http://crbug.com/580386 is fixed.
   // NOTE(dcastagna): At worst this accumulates a few bytes per context lost.
-  ScopedVector<content::RendererGpuVideoAcceleratorFactories> gpu_factories_;
+  std::vector<std::unique_ptr<RendererGpuVideoAcceleratorFactories>>
+      gpu_factories_;
 
   // Thread for running multimedia operations (e.g., video decoding).
   std::unique_ptr<base::Thread> media_thread_;
@@ -722,6 +734,7 @@ class CONTENT_EXPORT RenderThreadImpl
   bool are_image_decode_tasks_enabled_;
   bool is_threaded_animation_enabled_;
   bool is_scroll_animator_enabled_;
+  bool is_surface_synchronization_enabled_;
 
   class PendingFrameCreate : public base::RefCounted<PendingFrameCreate> {
    public:
@@ -769,6 +782,8 @@ class CONTENT_EXPORT RenderThreadImpl
   bool needs_to_record_first_active_paint_;
 
   int32_t client_id_;
+
+  variations::ChildProcessFieldTrialSyncer field_trial_syncer_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderThreadImpl);
 };

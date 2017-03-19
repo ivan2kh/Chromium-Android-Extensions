@@ -25,6 +25,7 @@
 
 #include "core/html/HTMLFormElement.h"
 
+#include <limits>
 #include "bindings/core/v8/RadioNodeListOrElement.h"
 #include "bindings/core/v8/ScriptController.h"
 #include "bindings/core/v8/ScriptEventListener.h"
@@ -37,6 +38,7 @@
 #include "core/events/ScopedEventQueue.h"
 #include "core/frame/LocalDOMWindow.h"
 #include "core/frame/LocalFrame.h"
+#include "core/frame/LocalFrameClient.h"
 #include "core/frame/RemoteFrame.h"
 #include "core/frame/UseCounter.h"
 #include "core/frame/csp/ContentSecurityPolicy.h"
@@ -52,14 +54,12 @@
 #include "core/layout/LayoutObject.h"
 #include "core/loader/FormSubmission.h"
 #include "core/loader/FrameLoader.h"
-#include "core/loader/FrameLoaderClient.h"
 #include "core/loader/MixedContentChecker.h"
 #include "core/loader/NavigationScheduler.h"
 #include "platform/UserGestureIndicator.h"
 #include "public/platform/WebInsecureRequestPolicy.h"
 #include "wtf/AutoReset.h"
 #include "wtf/text/AtomicString.h"
-#include <limits>
 
 namespace blink {
 
@@ -123,13 +123,14 @@ bool HTMLFormElement::layoutObjectIsNeeded(const ComputedStyle& style) {
 
   EDisplay display = style.display();
   bool formIsTablePart =
-      display == EDisplay::Table || display == EDisplay::InlineTable ||
-      display == EDisplay::TableRowGroup ||
-      display == EDisplay::TableHeaderGroup ||
-      display == EDisplay::TableFooterGroup || display == EDisplay::TableRow ||
-      display == EDisplay::TableColumnGroup ||
-      display == EDisplay::TableColumn || display == EDisplay::TableCell ||
-      display == EDisplay::TableCaption;
+      display == EDisplay::kTable || display == EDisplay::kInlineTable ||
+      display == EDisplay::kTableRowGroup ||
+      display == EDisplay::kTableHeaderGroup ||
+      display == EDisplay::kTableFooterGroup ||
+      display == EDisplay::kTableRow ||
+      display == EDisplay::kTableColumnGroup ||
+      display == EDisplay::kTableColumn || display == EDisplay::kTableCell ||
+      display == EDisplay::kTableCaption;
 
   return formIsTablePart;
 }
@@ -706,7 +707,7 @@ Element* HTMLFormElement::elementFromPastNamesMap(
     const AtomicString& pastName) {
   if (pastName.isEmpty() || !m_pastNamesMap)
     return 0;
-  Element* element = m_pastNamesMap->get(pastName);
+  Element* element = m_pastNamesMap->at(pastName);
 #if DCHECK_IS_ON()
   if (!element)
     return 0;

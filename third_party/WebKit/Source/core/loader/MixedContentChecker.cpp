@@ -31,12 +31,12 @@
 #include "core/dom/Document.h"
 #include "core/frame/Frame.h"
 #include "core/frame/LocalFrame.h"
+#include "core/frame/LocalFrameClient.h"
 #include "core/frame/Settings.h"
 #include "core/frame/UseCounter.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/FrameLoader.h"
-#include "core/loader/FrameLoaderClient.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/network/NetworkUtils.h"
 #include "platform/weborigin/SchemeRegistry.h"
@@ -293,7 +293,7 @@ bool MixedContentChecker::shouldBlockFetch(
     WebURLRequest::FrameType frameType,
     ResourceRequest::RedirectStatus redirectStatus,
     const KURL& url,
-    MixedContentChecker::ReportingStatus reportingStatus) {
+    SecurityViolationReportingPolicy reportingPolicy) {
   // Frame-level loads are checked by the browser if PlzNavigate is enabled. No
   // need to check them again here.
   if (frame->settings()->getBrowserSideNavigationEnabled() &&
@@ -315,7 +315,7 @@ bool MixedContentChecker::shouldBlockFetch(
   Settings* settings = mixedFrame->settings();
   // Use the current local frame's client; the embedder doesn't distinguish
   // mixed content signals from different frames on the same page.
-  FrameLoaderClient* client = frame->loader().client();
+  LocalFrameClient* client = frame->loader().client();
   SecurityOrigin* securityOrigin =
       mixedFrame->securityContext()->getSecurityOrigin();
   bool allowed = false;
@@ -394,7 +394,7 @@ bool MixedContentChecker::shouldBlockFetch(
       break;
   };
 
-  if (reportingStatus == SendReport) {
+  if (reportingPolicy == SecurityViolationReportingPolicy::Report) {
     logToConsoleAboutFetch(frame, mainResourceUrlForFrame(mixedFrame), url,
                            requestContext, allowed);
   }
@@ -425,7 +425,7 @@ void MixedContentChecker::logToConsoleAboutWebSocket(
 bool MixedContentChecker::shouldBlockWebSocket(
     LocalFrame* frame,
     const KURL& url,
-    MixedContentChecker::ReportingStatus reportingStatus) {
+    SecurityViolationReportingPolicy reportingPolicy) {
   Frame* mixedFrame =
       inWhichFrameIsContentMixed(frame, WebURLRequest::FrameTypeNone, url);
   if (!mixedFrame)
@@ -442,7 +442,7 @@ bool MixedContentChecker::shouldBlockWebSocket(
   Settings* settings = mixedFrame->settings();
   // Use the current local frame's client; the embedder doesn't distinguish
   // mixed content signals from different frames on the same page.
-  FrameLoaderClient* client = frame->loader().client();
+  LocalFrameClient* client = frame->loader().client();
   SecurityOrigin* securityOrigin =
       mixedFrame->securityContext()->getSecurityOrigin();
   bool allowed = false;
@@ -463,16 +463,17 @@ bool MixedContentChecker::shouldBlockWebSocket(
   if (allowed)
     client->didRunInsecureContent(securityOrigin, url);
 
-  if (reportingStatus == SendReport) {
+  if (reportingPolicy == SecurityViolationReportingPolicy::Report) {
     logToConsoleAboutWebSocket(frame, mainResourceUrlForFrame(mixedFrame), url,
                                allowed);
   }
   return !allowed;
 }
 
-bool MixedContentChecker::isMixedFormAction(LocalFrame* frame,
-                                            const KURL& url,
-                                            ReportingStatus reportingStatus) {
+bool MixedContentChecker::isMixedFormAction(
+    LocalFrame* frame,
+    const KURL& url,
+    SecurityViolationReportingPolicy reportingPolicy) {
   // For whatever reason, some folks handle forms via JavaScript, and submit to
   // `javascript:void(0)` rather than calling `preventDefault()`. We
   // special-case `javascript:` URLs here, as they don't introduce MixedContent
@@ -491,7 +492,7 @@ bool MixedContentChecker::isMixedFormAction(LocalFrame* frame,
   // mixed content signals from different frames on the same page.
   frame->loader().client()->didDisplayInsecureContent();
 
-  if (reportingStatus == SendReport) {
+  if (reportingPolicy == SecurityViolationReportingPolicy::Report) {
     String message = String::format(
         "Mixed Content: The page at '%s' was loaded over a secure connection, "
         "but contains a form which targets an insecure endpoint '%s'. This "
@@ -553,7 +554,7 @@ void MixedContentChecker::handleCertificateError(
 
   // Use the current local frame's client; the embedder doesn't distinguish
   // mixed content signals from different frames on the same page.
-  FrameLoaderClient* client = frame->loader().client();
+  LocalFrameClient* client = frame->loader().client();
   bool strictMixedContentCheckingForPlugin =
       effectiveFrame->settings() &&
       effectiveFrame->settings()->getStrictMixedContentCheckingForPlugin();

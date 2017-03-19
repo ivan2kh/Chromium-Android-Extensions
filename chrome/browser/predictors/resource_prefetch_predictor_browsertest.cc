@@ -13,6 +13,7 @@
 #include "chrome/browser/browsing_data/browsing_data_helper.h"
 #include "chrome/browser/browsing_data/browsing_data_remover.h"
 #include "chrome/browser/browsing_data/browsing_data_remover_factory.h"
+#include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/predictors/resource_prefetch_predictor.h"
 #include "chrome/browser/predictors/resource_prefetch_predictor_factory.h"
 #include "chrome/browser/predictors/resource_prefetch_predictor_test_util.h"
@@ -258,17 +259,30 @@ class LearningObserver : public TestObserver {
 };
 
 // Helper class to track and allow waiting for a single OnPrefetchingFinished
-// event. No learning events should be fired while this observer is active.
+// event. Checks also that {Start,Stop}Prefetching are called with the right
+// argument.
 class PrefetchingObserver : public TestObserver {
  public:
   PrefetchingObserver(ResourcePrefetchPredictor* predictor,
-                      const GURL& expected_main_frame_url)
-      : TestObserver(predictor), main_frame_url_(expected_main_frame_url) {}
+                      const GURL& expected_main_frame_url,
+                      bool is_learning_allowed)
+      : TestObserver(predictor),
+        main_frame_url_(expected_main_frame_url),
+        is_learning_allowed_(is_learning_allowed) {}
 
   // TestObserver:
   void OnNavigationLearned(size_t url_visit_count,
                            const PageRequestSummary& summary) override {
-    ADD_FAILURE() << "Prefetching shouldn't activate learning";
+    if (!is_learning_allowed_)
+      ADD_FAILURE() << "Prefetching shouldn't activate learning";
+  }
+
+  void OnPrefetchingStarted(const GURL& main_frame_url) override {
+    EXPECT_EQ(main_frame_url_, main_frame_url);
+  }
+
+  void OnPrefetchingStopped(const GURL& main_frame_url) override {
+    EXPECT_EQ(main_frame_url_, main_frame_url);
   }
 
   void OnPrefetchingFinished(const GURL& main_frame_url) override {
@@ -281,6 +295,7 @@ class PrefetchingObserver : public TestObserver {
  private:
   base::RunLoop run_loop_;
   GURL main_frame_url_;
+  bool is_learning_allowed_;
 
   DISALLOW_COPY_AND_ASSIGN(PrefetchingObserver);
 };
@@ -316,8 +331,14 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
     predictor_ =
         ResourcePrefetchPredictorFactory::GetForProfile(browser()->profile());
     ASSERT_TRUE(predictor_);
+    // URLs from the test server contain a port number.
+    ResourcePrefetchPredictor::SetAllowPortInUrlsForTesting(true);
     EnsurePredictorInitialized();
     histogram_tester_.reset(new base::HistogramTester());
+  }
+
+  void TearDownOnMainThread() override {
+    ResourcePrefetchPredictor::SetAllowPortInUrlsForTesting(false);
   }
 
   void TestLearningAndPrefetching(const GURL& main_frame_url) {
@@ -381,8 +402,18 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
       navigation_id_history_.insert(nav);
   }
 
+  void NavigateToURLAndCheckPrefetching(const GURL& main_frame_url) {
+    PrefetchingObserver observer(predictor_, main_frame_url, true);
+    ui_test_utils::NavigateToURL(browser(), main_frame_url);
+    observer.Wait();
+    for (auto& kv : resources_) {
+      if (kv.second.is_observable)
+        kv.second.request.was_cached = true;
+    }
+  }
+
   void PrefetchURL(const GURL& main_frame_url) {
-    PrefetchingObserver observer(predictor_, main_frame_url);
+    PrefetchingObserver observer(predictor_, main_frame_url, false);
     predictor_->StartPrefetching(main_frame_url, PrefetchOrigin::EXTERNAL);
     observer.Wait();
     for (auto& kv : resources_) {
@@ -444,9 +475,9 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
     BrowsingDataRemover* remover =
         BrowsingDataRemoverFactory::GetForBrowserContext(browser()->profile());
     BrowsingDataRemoverObserver observer(remover);
-    remover->RemoveAndReply(base::Time(), base::Time::Max(),
-                            BrowsingDataRemover::REMOVE_CACHE,
-                            BrowsingDataHelper::UNPROTECTED_WEB, &observer);
+    remover->RemoveAndReply(
+        base::Time(), base::Time::Max(), BrowsingDataRemover::DATA_TYPE_CACHE,
+        BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB, &observer);
     observer.Wait();
 
     for (auto& kv : resources_)
@@ -635,6 +666,21 @@ class ResourcePrefetchPredictorBrowserTest : public InProcessBrowserTest {
   std::map<GURL, RedirectEdge> redirects_;
   std::map<GURL, size_t> visit_count_;
   std::set<NavigationID> navigation_id_history_;
+};
+
+// Subclass to test PrefetchOrigin::NAVIGATION.
+class ResourcePrefetchPredictorPrefetchingBrowserTest
+    : public ResourcePrefetchPredictorBrowserTest {
+ protected:
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    command_line->AppendSwitchASCII("force-fieldtrials", "trial/group");
+    std::string parameter = base::StringPrintf(
+        "trial.group:%s/%s", kModeParamName, kPrefetchingMode);
+    command_line->AppendSwitchASCII("force-fieldtrial-params", parameter);
+    std::string enabled_feature = base::StringPrintf(
+        "%s<trial", kSpeculativeResourcePrefetchingFeatureName);
+    command_line->AppendSwitchASCII("enable-features", enabled_feature);
+  }
 };
 
 IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest, Simple) {
@@ -897,6 +943,45 @@ IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorBrowserTest,
   // so this prefetch works.
   PrefetchURL(GetURL(kHtmlSubresourcesPath));
   NavigateToURLAndCheckSubresourcesAllCached(GetURL(kHtmlSubresourcesPath));
+}
+
+// Makes sure that {Stop,Start}Prefetching are called with the same argument.
+IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorPrefetchingBrowserTest,
+                       Simple) {
+  AddResource(GetURL(kImagePath), content::RESOURCE_TYPE_IMAGE, net::LOWEST);
+  AddResource(GetURL(kStylePath), content::RESOURCE_TYPE_STYLESHEET,
+              net::HIGHEST);
+  AddResource(GetURL(kScriptPath), content::RESOURCE_TYPE_SCRIPT, net::MEDIUM);
+  AddResource(GetURL(kFontPath), content::RESOURCE_TYPE_FONT_RESOURCE,
+              net::HIGHEST);
+
+  GURL main_frame_url = GetURL(kHtmlSubresourcesPath);
+  NavigateToURLAndCheckSubresources(main_frame_url);
+  ClearCache();
+  NavigateToURLAndCheckSubresources(main_frame_url);
+  ClearCache();
+  NavigateToURLAndCheckPrefetching(main_frame_url);
+}
+
+// Makes sure that {Stop,Start}Prefetching are called with the same argument in
+// presence of redirect.
+IN_PROC_BROWSER_TEST_F(ResourcePrefetchPredictorPrefetchingBrowserTest,
+                       Redirect) {
+  GURL initial_url = embedded_test_server()->GetURL(kFooHost, kRedirectPath);
+  AddRedirectChain(initial_url, {{net::HTTP_MOVED_PERMANENTLY,
+                                  GetURL(kHtmlSubresourcesPath)}});
+  AddResource(GetURL(kImagePath), content::RESOURCE_TYPE_IMAGE, net::LOWEST);
+  AddResource(GetURL(kStylePath), content::RESOURCE_TYPE_STYLESHEET,
+              net::HIGHEST);
+  AddResource(GetURL(kScriptPath), content::RESOURCE_TYPE_SCRIPT, net::MEDIUM);
+  AddResource(GetURL(kFontPath), content::RESOURCE_TYPE_FONT_RESOURCE,
+              net::HIGHEST);
+
+  NavigateToURLAndCheckSubresources(initial_url);
+  ClearCache();
+  NavigateToURLAndCheckSubresources(initial_url);
+  ClearCache();
+  NavigateToURLAndCheckPrefetching(initial_url);
 }
 
 }  // namespace predictors

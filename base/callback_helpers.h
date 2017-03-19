@@ -8,8 +8,8 @@
 // generated).  Instead, consider adding methods here.
 //
 // ResetAndReturn(&cb) is like cb.Reset() but allows executing a callback (via a
-// copy) after the original callback is Reset().  This can be handy if Run()
-// reads/writes the variable holding the Callback.
+// move or copy) after the original callback is Reset().  This can be handy if
+// Run() reads/writes the variable holding the Callback.
 
 #ifndef BASE_CALLBACK_HELPERS_H_
 #define BASE_CALLBACK_HELPERS_H_
@@ -25,8 +25,8 @@ template <typename Signature,
           internal::RepeatMode repeat_mode>
 base::Callback<Signature, copy_mode, repeat_mode> ResetAndReturn(
     base::Callback<Signature, copy_mode, repeat_mode>* cb) {
-  base::Callback<Signature, copy_mode, repeat_mode> ret(*cb);
-  cb->Reset();
+  base::Callback<Signature, copy_mode, repeat_mode> ret(std::move(*cb));
+  DCHECK(!*cb);
   return ret;
 }
 

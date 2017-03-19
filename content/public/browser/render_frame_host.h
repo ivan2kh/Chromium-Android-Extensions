@@ -40,9 +40,6 @@ class RenderViewHost;
 class RenderWidgetHostView;
 class SiteInstance;
 struct FileChooserFileInfo;
-struct FormFieldData;
-
-using FormFieldDataCallback = base::Callback<void(const FormFieldData&)>;
 
 // The interface provides a communication conduit with a frame in the renderer.
 class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
@@ -219,9 +216,6 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
       const TextSurroundingSelectionCallback& callback,
       int max_length) = 0;
 
-  // Retrieves the text input info associated with the current form field.
-  virtual void RequestFocusedFormFieldData(FormFieldDataCallback& callback) = 0;
-
   // Tell the render frame to enable a set of javascript bindings. The argument
   // should be a combination of values from BindingsPolicy.
   virtual void AllowBindings(int binding_flags) = 0;
@@ -229,6 +223,14 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
   // Returns a bitwise OR of bindings types that have been enabled for this
   // RenderFrame. See BindingsPolicy for details.
   virtual int GetEnabledBindings() const = 0;
+
+#if defined(OS_ANDROID)
+  // Returns an InterfaceProvider for Java-implemented interfaces that are
+  // scoped to this RenderFrameHost. This provides access to interfaces
+  // implemented in Java in the browser process to C++ code in the browser
+  // process.
+  virtual service_manager::InterfaceProvider* GetJavaInterfaces() = 0;
+#endif  // OS_ANDROID
 
  private:
   // This interface should only be implemented inside content.

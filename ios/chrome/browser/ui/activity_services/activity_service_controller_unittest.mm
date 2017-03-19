@@ -164,27 +164,27 @@ class ActivityServiceControllerTest : public PlatformTest {
         passwordAppExDidFinish:ShareTo::ShareResult::SHARE_CANCEL
                       username:OCMOCK_ANY
                       password:OCMOCK_ANY
-                successMessage:OCMOCK_ANY];
+             completionMessage:OCMOCK_ANY];
     [[[shareToDelegateMock stub] andDo:validationBlock]
         passwordAppExDidFinish:ShareTo::ShareResult::SHARE_NETWORK_FAILURE
                       username:OCMOCK_ANY
                       password:OCMOCK_ANY
-                successMessage:OCMOCK_ANY];
+             completionMessage:OCMOCK_ANY];
     [[[shareToDelegateMock stub] andDo:validationBlock]
         passwordAppExDidFinish:ShareTo::ShareResult::SHARE_SIGN_IN_FAILURE
                       username:OCMOCK_ANY
                       password:OCMOCK_ANY
-                successMessage:OCMOCK_ANY];
+             completionMessage:OCMOCK_ANY];
     [[[shareToDelegateMock stub] andDo:validationBlock]
         passwordAppExDidFinish:ShareTo::ShareResult::SHARE_ERROR
                       username:OCMOCK_ANY
                       password:OCMOCK_ANY
-                successMessage:OCMOCK_ANY];
+             completionMessage:OCMOCK_ANY];
     [[[shareToDelegateMock stub] andDo:validationBlock]
         passwordAppExDidFinish:ShareTo::ShareResult::SHARE_UNKNOWN_RESULT
                       username:OCMOCK_ANY
                       password:OCMOCK_ANY
-                successMessage:OCMOCK_ANY];
+             completionMessage:OCMOCK_ANY];
     [activityController setShareToDelegateForTesting:(id)shareToDelegateMock];
 
     // Sets up the returned item from a Password Management App Extension.
@@ -209,7 +209,7 @@ class ActivityServiceControllerTest : public PlatformTest {
 
 TEST_F(ActivityServiceControllerTest, PresentAndDismissController) {
   [[shareToDelegate_ expect] shareDidComplete:ShareTo::ShareResult::SHARE_CANCEL
-                               successMessage:[OCMArg isNil]];
+                            completionMessage:[OCMArg isNil]];
 
   UIViewController* parentController =
       static_cast<UIViewController*>(parentController_);
@@ -307,10 +307,9 @@ TEST_F(ActivityServiceControllerTest, ActivityItemsForDataWithPasswordAppEx) {
   EXPECT_NSEQ(@"https://chromium.org/login.html", appExUrlString);
 
   // Checks that the list includes the page's title.
-  NSArray* sources =
-      FindItemsOfClass(items, [UIActivityFindLoginActionSource class]);
+  NSArray* sources = FindItemsOfClass(items, [UIActivityURLSource class]);
   EXPECT_EQ(1U, [sources count]);
-  UIActivityFindLoginActionSource* actionSource = sources[0];
+  UIActivityURLSource* actionSource = sources[0];
   id mockActivityViewController =
       [OCMockObject niceMockForClass:[UIActivityViewController class]];
   NSString* title = [actionSource
@@ -352,7 +351,7 @@ TEST_F(ActivityServiceControllerTest, ProcessItemsReturnedSuccessfully) {
       [[ActivityServiceController alloc] init];
 
   // Sets up a Mock ShareToDelegate object to check that the callback function
-  // -passwordAppExDidFinish:username:password:successMessage:
+  // -passwordAppExDidFinish:username:password:completionMessage:
   // is correct with the correct username and password.
   OCMockObject* shareToDelegateMock =
       [OCMockObject mockForProtocol:@protocol(ShareToDelegate)];
@@ -373,7 +372,7 @@ TEST_F(ActivityServiceControllerTest, ProcessItemsReturnedSuccessfully) {
       passwordAppExDidFinish:ShareTo::ShareResult::SHARE_SUCCESS
                     username:OCMOCK_ANY
                     password:OCMOCK_ANY
-              successMessage:OCMOCK_ANY];
+           completionMessage:OCMOCK_ANY];
   [activityController setShareToDelegateForTesting:(id)shareToDelegateMock];
 
   // Sets up the returned item from a Password Management App Extension.
@@ -393,7 +392,7 @@ TEST_F(ActivityServiceControllerTest, ProcessItemsReturnedSuccessfully) {
                                                     status:result
                                                      items:@[ extensionItem ]];
   ASSERT_FALSE(resetUI);
-  // Wait for -passwordAppExDidFinish:username:password:successMessage:
+  // Wait for -passwordAppExDidFinish:username:password:completionMessage:
   // to be called.
   base::test::ios::WaitUntilCondition(^{
     return blockCalled;

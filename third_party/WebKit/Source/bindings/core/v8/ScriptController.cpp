@@ -33,21 +33,14 @@
 #include "bindings/core/v8/ScriptController.h"
 
 #include "bindings/core/v8/ScriptSourceCode.h"
-#include "bindings/core/v8/ScriptValue.h"
 #include "bindings/core/v8/V8Binding.h"
-#include "bindings/core/v8/V8Event.h"
 #include "bindings/core/v8/V8GCController.h"
-#include "bindings/core/v8/V8HTMLElement.h"
-#include "bindings/core/v8/V8PerContextData.h"
 #include "bindings/core/v8/V8ScriptRunner.h"
-#include "bindings/core/v8/V8Window.h"
 #include "bindings/core/v8/WindowProxy.h"
 #include "core/dom/Document.h"
-#include "core/dom/Node.h"
 #include "core/dom/ScriptableDocumentParser.h"
-#include "core/events/Event.h"
-#include "core/events/EventListener.h"
-#include "core/frame/LocalDOMWindow.h"
+#include "core/frame/LocalFrame.h"
+#include "core/frame/LocalFrameClient.h"
 #include "core/frame/Settings.h"
 #include "core/frame/UseCounter.h"
 #include "core/frame/csp/ContentSecurityPolicy.h"
@@ -58,29 +51,24 @@
 #include "core/inspector/MainThreadDebugger.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/FrameLoader.h"
-#include "core/loader/FrameLoaderClient.h"
 #include "core/loader/NavigationScheduler.h"
 #include "core/loader/ProgressTracker.h"
 #include "core/plugins/PluginView.h"
+#include "platform/FrameViewBase.h"
 #include "platform/Histogram.h"
 #include "platform/UserGestureIndicator.h"
-#include "platform/Widget.h"
 #include "platform/instrumentation/tracing/TraceEvent.h"
 #include "platform/weborigin/SecurityOrigin.h"
-#include "public/platform/Platform.h"
 #include "wtf/CurrentTime.h"
 #include "wtf/StdLibExtras.h"
 #include "wtf/StringExtras.h"
 #include "wtf/text/CString.h"
 #include "wtf/text/StringBuilder.h"
-#include "wtf/text/TextPosition.h"
 
 namespace blink {
 
-ScriptController::ScriptController(LocalFrame* frame)
-    : m_windowProxyManager(LocalWindowProxyManager::create(*frame)) {}
-
 DEFINE_TRACE(ScriptController) {
+  visitor->trace(m_frame);
   visitor->trace(m_windowProxyManager);
 }
 
@@ -126,9 +114,6 @@ v8::Local<v8::Value> ScriptController::executeScriptAndReturnValue(
   TRACE_EVENT1("devtools.timeline", "EvaluateScript", "data",
                InspectorEvaluateScriptEvent::data(
                    frame(), source.url().getString(), source.startPosition()));
-  InspectorInstrumentation::NativeBreakpoint nativeBreakpoint(
-      frame()->document(), "scriptFirstStatement", false);
-
   v8::Local<v8::Value> result;
   {
     V8CacheOptions v8CacheOptions =
@@ -153,23 +138,13 @@ v8::Local<v8::Value> ScriptController::executeScriptAndReturnValue(
       return result;
   }
 
-  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
-                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
-                       InspectorUpdateCountersEvent::data());
-
   return result;
-}
-
-LocalWindowProxy* ScriptController::windowProxy(DOMWrapperWorld& world) {
-  LocalWindowProxy* windowProxy = m_windowProxyManager->windowProxy(world);
-  windowProxy->initializeIfNeeded();
-  return windowProxy;
 }
 
 bool ScriptController::shouldBypassMainWorldCSP() {
   v8::HandleScope handleScope(isolate());
   v8::Local<v8::Context> context = isolate()->GetCurrentContext();
-  if (context.IsEmpty() || !toDOMWindow(context))
+  if (context.IsEmpty() || !toLocalDOMWindow(context))
     return false;
   DOMWrapperWorld& world = DOMWrapperWorld::current(isolate());
   return world.isIsolatedWorld() ? world.isolatedWorldHasContentSecurityPolicy()
@@ -187,7 +162,8 @@ TextPosition ScriptController::eventHandlerPosition() const {
 void ScriptController::enableEval() {
   v8::HandleScope handleScope(isolate());
   v8::Local<v8::Context> v8Context =
-      m_windowProxyManager->mainWorldProxy()->contextIfInitialized();
+      m_windowProxyManager->mainWorldProxyMaybeUninitialized()
+          ->contextIfInitialized();
   if (v8Context.IsEmpty())
     return;
   v8Context->AllowCodeGenerationFromStrings(true);
@@ -196,7 +172,8 @@ void ScriptController::enableEval() {
 void ScriptController::disableEval(const String& errorMessage) {
   v8::HandleScope handleScope(isolate());
   v8::Local<v8::Context> v8Context =
-      m_windowProxyManager->mainWorldProxy()->contextIfInitialized();
+      m_windowProxyManager->mainWorldProxyMaybeUninitialized()
+          ->contextIfInitialized();
   if (v8Context.IsEmpty())
     return;
   v8Context->AllowCodeGenerationFromStrings(false);
@@ -205,15 +182,15 @@ void ScriptController::disableEval(const String& errorMessage) {
 }
 
 PassRefPtr<SharedPersistent<v8::Object>> ScriptController::createPluginWrapper(
-    Widget* widget) {
-  ASSERT(widget);
+    FrameViewBase* frameViewBase) {
+  DCHECK(frameViewBase);
 
-  if (!widget->isPluginView())
+  if (!frameViewBase->isPluginView())
     return nullptr;
 
   v8::HandleScope handleScope(isolate());
   v8::Local<v8::Object> scriptableObject =
-      toPluginView(widget)->scriptableObject(isolate());
+      toPluginView(frameViewBase)->scriptableObject(isolate());
 
   if (scriptableObject.IsEmpty())
     return nullptr;
@@ -244,7 +221,7 @@ void ScriptController::clearWindowProxy() {
 }
 
 void ScriptController::updateDocument() {
-  m_windowProxyManager->mainWorldProxy()->updateDocument();
+  m_windowProxyManager->mainWorldProxyMaybeUninitialized()->updateDocument();
 }
 
 bool ScriptController::executeScriptIfJavaScriptURL(const KURL& url,
@@ -252,12 +229,16 @@ bool ScriptController::executeScriptIfJavaScriptURL(const KURL& url,
   if (!url.protocolIsJavaScript())
     return false;
 
+  const int javascriptSchemeLength = sizeof("javascript:") - 1;
+  String scriptSource = decodeURLEscapeSequences(url.getString())
+                            .substring(javascriptSchemeLength);
+
   bool shouldBypassMainWorldContentSecurityPolicy =
       ContentSecurityPolicy::shouldBypassMainWorld(frame()->document());
   if (!frame()->page() ||
       (!shouldBypassMainWorldContentSecurityPolicy &&
        !frame()->document()->contentSecurityPolicy()->allowJavaScriptURLs(
-           element, frame()->document()->url(),
+           element, scriptSource, frame()->document()->url(),
            eventHandlerPosition().m_line))) {
     return true;
   }
@@ -270,16 +251,13 @@ bool ScriptController::executeScriptIfJavaScriptURL(const KURL& url,
 
   Document* ownerDocument = frame()->document();
 
-  const int javascriptSchemeLength = sizeof("javascript:") - 1;
-
   bool locationChangeBefore =
       frame()->navigationScheduler().locationChangePending();
 
-  String decodedURL = decodeURLEscapeSequences(url.getString());
   v8::HandleScope handleScope(isolate());
   v8::Local<v8::Value> result = evaluateScriptInMainWorld(
-      ScriptSourceCode(decodedURL.substring(javascriptSchemeLength)),
-      NotSharableCrossOrigin, DoNotExecuteScriptWhenScriptsDisabled);
+      ScriptSourceCode(scriptSource), NotSharableCrossOrigin,
+      DoNotExecuteScriptWhenScriptsDisabled);
 
   // If executing script caused this frame to be removed from the page, we
   // don't want to try to replace its document!
@@ -294,7 +272,7 @@ bool ScriptController::executeScriptIfJavaScriptURL(const KURL& url,
   String scriptResult = toCoreString(v8::Local<v8::String>::Cast(result));
 
   // We're still in a frame, so there should be a DocumentLoader.
-  ASSERT(frame()->document()->loader());
+  DCHECK(frame()->document()->loader());
   if (!locationChangeBefore &&
       frame()->navigationScheduler().locationChangePending())
     return true;
@@ -355,7 +333,7 @@ void ScriptController::executeScriptInIsolatedWorld(
     int worldID,
     const HeapVector<ScriptSourceCode>& sources,
     Vector<v8::Local<v8::Value>>* results) {
-  ASSERT(worldID > 0);
+  DCHECK_GT(worldID, 0);
 
   RefPtr<DOMWrapperWorld> world =
       DOMWrapperWorld::ensureIsolatedWorld(isolate(), worldID);

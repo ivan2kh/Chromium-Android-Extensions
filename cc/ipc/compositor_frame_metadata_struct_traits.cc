@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "cc/ipc/compositor_frame_metadata_struct_traits.h"
+#include "cc/ipc/begin_frame_args_struct_traits.h"
 #include "cc/ipc/selection_struct_traits.h"
 #include "cc/ipc/surface_id_struct_traits.h"
 #include "ui/events/mojo/latency_info_struct_traits.h"
@@ -36,13 +37,15 @@ bool StructTraits<cc::mojom::CompositorFrameMetadataDataView,
   out->top_controls_shown_ratio = data.top_controls_shown_ratio();
   out->bottom_controls_height = data.bottom_controls_height();
   out->bottom_controls_shown_ratio = data.bottom_controls_shown_ratio();
+  out->content_source_id = data.content_source_id();
 
   out->root_background_color = data.root_background_color();
   out->can_activate_before_dependencies =
       data.can_activate_before_dependencies();
   return data.ReadSelection(&out->selection) &&
          data.ReadLatencyInfo(&out->latency_info) &&
-         data.ReadReferencedSurfaces(&out->referenced_surfaces);
+         data.ReadReferencedSurfaces(&out->referenced_surfaces) &&
+         data.ReadBeginFrameAck(&out->begin_frame_ack);
 }
 
 }  // namespace mojo

@@ -53,11 +53,19 @@ class CORE_EXPORT FirstMeaningfulPaintDetector
  private:
   friend class FirstMeaningfulPaintDetectorTest;
 
-  Document* document();
-  void networkStableTimerFired(TimerBase*);
+  // The page is n-quiet if there are no more than n active network requests for
+  // this duration of time.
+  static constexpr double kNetwork2QuietWindowSeconds = 3;
+  static constexpr double kNetwork0QuietWindowSeconds = 0.5;
 
-  enum State { NextPaintIsNotMeaningful, NextPaintIsMeaningful, Reported };
-  State m_state = NextPaintIsNotMeaningful;
+  Document* document();
+  int activeConnections();
+  void setNetworkQuietTimers(int activeConnections);
+  void network0QuietTimerFired(TimerBase*);
+  void network2QuietTimerFired(TimerBase*);
+  void reportHistograms();
+
+  bool m_nextPaintIsMeaningful = false;
 
   Member<PaintTiming> m_paintTiming;
   double m_provisionalFirstMeaningfulPaint = 0.0;
@@ -65,7 +73,12 @@ class CORE_EXPORT FirstMeaningfulPaintDetector
   double m_accumulatedSignificanceWhileHavingBlankText = 0.0;
   unsigned m_prevLayoutObjectCount = 0;
   bool m_seenFirstMeaningfulPaintCandidate = false;
-  TaskRunnerTimer<FirstMeaningfulPaintDetector> m_networkStableTimer;
+  bool m_network0QuietReached = false;
+  bool m_network2QuietReached = false;
+  double m_firstMeaningfulPaint0Quiet = 0.0;
+  double m_firstMeaningfulPaint2Quiet = 0.0;
+  TaskRunnerTimer<FirstMeaningfulPaintDetector> m_network0QuietTimer;
+  TaskRunnerTimer<FirstMeaningfulPaintDetector> m_network2QuietTimer;
 };
 
 }  // namespace blink

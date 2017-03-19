@@ -21,8 +21,9 @@ namespace exo {
 // WMHelperAsh, public:
 
 WMHelperAsh::WMHelperAsh() {
-  ash::WmShell::Get()->AddShellObserver(this);
+  ash::Shell::GetInstance()->AddShellObserver(this);
   ash::Shell::GetInstance()->activation_client()->AddObserver(this);
+  ash::Shell::GetInstance()->window_tree_host_manager()->AddObserver(this);
   aura::client::FocusClient* focus_client =
       aura::client::GetFocusClient(ash::Shell::GetPrimaryRootWindow());
   focus_client->AddObserver(this);
@@ -36,8 +37,9 @@ WMHelperAsh::~WMHelperAsh() {
   aura::client::FocusClient* focus_client =
       aura::client::GetFocusClient(ash::Shell::GetPrimaryRootWindow());
   focus_client->RemoveObserver(this);
+  ash::Shell::GetInstance()->window_tree_host_manager()->RemoveObserver(this);
   ash::Shell::GetInstance()->activation_client()->RemoveObserver(this);
-  ash::WmShell::Get()->RemoveShellObserver(this);
+  ash::Shell::GetInstance()->RemoveShellObserver(this);
   ui::DeviceDataManager::GetInstance()->RemoveObserver(this);
   ash::WmShell::Get()->system_tray_notifier()->RemoveAccessibilityObserver(
       this);
@@ -53,7 +55,7 @@ const display::ManagedDisplayInfo WMHelperAsh::GetDisplayInfo(
 }
 
 aura::Window* WMHelperAsh::GetContainer(int container_id) {
-  return ash::Shell::GetContainer(ash::Shell::GetTargetRootWindow(),
+  return ash::Shell::GetContainer(ash::Shell::GetRootWindowForNewWindows(),
                                   container_id);
 }
 
@@ -98,13 +100,14 @@ bool WMHelperAsh::IsMaximizeModeWindowManagerEnabled() const {
 }
 
 bool WMHelperAsh::IsSpokenFeedbackEnabled() const {
-  return ash::WmShell::Get()
+  return ash::Shell::GetInstance()
       ->accessibility_delegate()
       ->IsSpokenFeedbackEnabled();
 }
 
 void WMHelperAsh::PlayEarcon(int sound_key) const {
-  return ash::WmShell::Get()->accessibility_delegate()->PlayEarcon(sound_key);
+  return ash::Shell::GetInstance()->accessibility_delegate()->PlayEarcon(
+      sound_key);
 }
 
 void WMHelperAsh::OnWindowActivated(
@@ -136,8 +139,16 @@ void WMHelperAsh::OnMaximizeModeStarted() {
   NotifyMaximizeModeStarted();
 }
 
+void WMHelperAsh::OnMaximizeModeEnding() {
+  NotifyMaximizeModeEnding();
+}
+
 void WMHelperAsh::OnMaximizeModeEnded() {
   NotifyMaximizeModeEnded();
+}
+
+void WMHelperAsh::OnDisplayConfigurationChanged() {
+  NotifyDisplayConfigurationChanged();
 }
 
 void WMHelperAsh::OnKeyboardDeviceConfigurationChanged() {

@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/bind.h"
@@ -80,6 +81,10 @@
 using content::BrowserContext;
 using content::BrowserThread;
 
+using EnforcementLevel = PrefHashFilter::EnforcementLevel;
+using PrefTrackingStrategy = PrefHashFilter::PrefTrackingStrategy;
+using ValueType = PrefHashFilter::ValueType;
+
 namespace {
 
 #if defined(OS_WIN)
@@ -96,132 +101,80 @@ bool g_disable_domain_check_for_testing = false;
 // See CleanupDeprecatedTrackedPreferences() in pref_hash_filter.cc to remove a
 // deprecated tracked preference.
 const PrefHashFilter::TrackedPreferenceMetadata kTrackedPrefs[] = {
-  {
-    0, prefs::kShowHomeButton,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
-  {
-    1, prefs::kHomePageIsNewTabPage,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
-  {
-    2, prefs::kHomePage,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
-  {
-    3, prefs::kRestoreOnStartup,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
-  {
-    4, prefs::kURLsToRestoreOnStartup,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {0, prefs::kShowHomeButton, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
+    {1, prefs::kHomePageIsNewTabPage, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
+    {2, prefs::kHomePage, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
+    {3, prefs::kRestoreOnStartup, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
+    {4, prefs::kURLsToRestoreOnStartup, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  {
-    5, extensions::pref_names::kExtensions,
-    PrefHashFilter::NO_ENFORCEMENT,
-    PrefHashFilter::TRACKING_STRATEGY_SPLIT,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {5, extensions::pref_names::kExtensions, EnforcementLevel::NO_ENFORCEMENT,
+     PrefTrackingStrategy::SPLIT, ValueType::IMPERSONAL},
 #endif
-  {
-    6, prefs::kGoogleServicesLastUsername,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_PERSONAL
-  },
-  {
-    7, prefs::kSearchProviderOverrides,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {6, prefs::kGoogleServicesLastUsername, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::PERSONAL},
+    {7, prefs::kSearchProviderOverrides, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
 #if !defined(OS_ANDROID)
-  {
-    11, prefs::kPinnedTabs,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {11, prefs::kPinnedTabs, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
 #endif
-  {
-    14, DefaultSearchManager::kDefaultSearchProviderDataPrefName,
-    PrefHashFilter::NO_ENFORCEMENT,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
-  {
-    // Protecting kPreferenceResetTime does two things:
-    //  1) It ensures this isn't accidently set by someone stomping the pref
-    //     file.
-    //  2) More importantly, it declares kPreferenceResetTime as a protected
-    //     pref which is required for it to be visible when queried via the
-    //     SegregatedPrefStore. This is because it's written directly in the
-    //     protected JsonPrefStore by that store's PrefHashFilter if there was
-    //     a reset in FilterOnLoad and SegregatedPrefStore will not look for it
-    //     in the protected JsonPrefStore unless it's declared as a protected
-    //     preference here.
-    15, user_prefs::kPreferenceResetTime,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
-  // kSyncRemainingRollbackTries is deprecated and will be removed a few
-  // releases after M50.
-  {
-    18, prefs::kSafeBrowsingIncidentsSent,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {14, DefaultSearchManager::kDefaultSearchProviderDataPrefName,
+     EnforcementLevel::NO_ENFORCEMENT, PrefTrackingStrategy::ATOMIC,
+     ValueType::IMPERSONAL},
+    {// Protecting kPreferenceResetTime does two things:
+     //  1) It ensures this isn't accidently set by someone stomping the pref
+     //     file.
+     //  2) More importantly, it declares kPreferenceResetTime as a protected
+     //     pref which is required for it to be visible when queried via the
+     //     SegregatedPrefStore. This is because it's written directly in the
+     //     protected JsonPrefStore by that store's PrefHashFilter if there was
+     //     a reset in FilterOnLoad and SegregatedPrefStore will not look for it
+     //     in the protected JsonPrefStore unless it's declared as a protected
+     //     preference here.
+     15, user_prefs::kPreferenceResetTime, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
+    // kSyncRemainingRollbackTries is deprecated and will be removed a few
+    // releases after M50.
+    {18, prefs::kSafeBrowsingIncidentsSent, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
 #if defined(OS_WIN)
-  {
-    19, prefs::kSwReporterPromptVersion,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {19, prefs::kSwReporterPromptVersion, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
 #endif
-  // This pref is deprecated and will be removed a few releases after M43.
-  // kGoogleServicesAccountId replaces it.
-  {
-    21, prefs::kGoogleServicesUsername,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_PERSONAL
-  },
+    // This pref is deprecated and will be removed a few releases after M43.
+    // kGoogleServicesAccountId replaces it.
+    {21, prefs::kGoogleServicesUsername, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::PERSONAL},
 #if defined(OS_WIN)
-  {
-    22, prefs::kSwReporterPromptSeed,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_IMPERSONAL
-  },
+    {22, prefs::kSwReporterPromptSeed, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
 #endif
-  {
-    23, prefs::kGoogleServicesAccountId,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_PERSONAL
-  },
-  {
-    24, prefs::kGoogleServicesLastAccountId,
-    PrefHashFilter::ENFORCE_ON_LOAD,
-    PrefHashFilter::TRACKING_STRATEGY_ATOMIC,
-    PrefHashFilter::VALUE_PERSONAL
-  },
-  // See note at top, new items added here also need to be added to
-  // histograms.xml's TrackedPreference enum.
+    {23, prefs::kGoogleServicesAccountId, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::PERSONAL},
+    {24, prefs::kGoogleServicesLastAccountId, EnforcementLevel::ENFORCE_ON_LOAD,
+     PrefTrackingStrategy::ATOMIC, ValueType::PERSONAL},
+#if defined(OS_WIN)
+    {25, prefs::kSettingsResetPromptPromptWave,
+     EnforcementLevel::ENFORCE_ON_LOAD, PrefTrackingStrategy::ATOMIC,
+     ValueType::IMPERSONAL},
+    {26, prefs::kSettingsResetPromptLastTriggeredForDefaultSearch,
+     EnforcementLevel::ENFORCE_ON_LOAD, PrefTrackingStrategy::ATOMIC,
+     ValueType::IMPERSONAL},
+    {27, prefs::kSettingsResetPromptLastTriggeredForStartupUrls,
+     EnforcementLevel::ENFORCE_ON_LOAD, PrefTrackingStrategy::ATOMIC,
+     ValueType::IMPERSONAL},
+    {28, prefs::kSettingsResetPromptLastTriggeredForHomepage,
+     EnforcementLevel::ENFORCE_ON_LOAD, PrefTrackingStrategy::ATOMIC,
+     ValueType::IMPERSONAL},
+#endif  // defined(OS_WIN)
+
+    // See note at top, new items added here also need to be added to
+    // histograms.xml's TrackedPreference enum.
 };
 
 // One more than the last tracked preferences ID above.
@@ -246,13 +199,13 @@ SettingsEnforcementGroup GetSettingsEnforcementGroup() {
 # if defined(OS_WIN)
   if (!g_disable_domain_check_for_testing) {
     static bool first_call = true;
-    static const bool is_enrolled_to_domain = base::win::IsEnrolledToDomain();
+    static const bool is_managed = base::win::IsEnterpriseManaged();
     if (first_call) {
       UMA_HISTOGRAM_BOOLEAN("Settings.TrackedPreferencesNoEnforcementOnDomain",
-                            is_enrolled_to_domain);
+                            is_managed);
       first_call = false;
     }
-    if (is_enrolled_to_domain)
+    if (is_managed)
       return GROUP_NO_ENFORCEMENT;
   }
 #endif
@@ -315,20 +268,20 @@ GetTrackingConfiguration() {
 
     if (GROUP_NO_ENFORCEMENT == enforcement_group) {
       // Remove enforcement for all tracked preferences.
-      data.enforcement_level = PrefHashFilter::NO_ENFORCEMENT;
+      data.enforcement_level = EnforcementLevel::NO_ENFORCEMENT;
     }
 
     if (enforcement_group >= GROUP_ENFORCE_ALWAYS_WITH_DSE &&
         data.name == DefaultSearchManager::kDefaultSearchProviderDataPrefName) {
       // Specifically enable default search settings enforcement.
-      data.enforcement_level = PrefHashFilter::ENFORCE_ON_LOAD;
+      data.enforcement_level = EnforcementLevel::ENFORCE_ON_LOAD;
     }
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
     if (enforcement_group >= GROUP_ENFORCE_ALWAYS_WITH_EXTENSIONS_AND_DSE &&
         data.name == extensions::pref_names::kExtensions) {
       // Specifically enable extension settings enforcement.
-      data.enforcement_level = PrefHashFilter::ENFORCE_ON_LOAD;
+      data.enforcement_level = EnforcementLevel::ENFORCE_ON_LOAD;
     }
 #endif
 
@@ -471,12 +424,13 @@ std::unique_ptr<PrefService> CreateLocalState(
 std::unique_ptr<sync_preferences::PrefServiceSyncable> CreateProfilePrefs(
     const base::FilePath& profile_path,
     base::SequencedTaskRunner* pref_io_task_runner,
-    TrackedPreferenceValidationDelegate* validation_delegate,
+    prefs::mojom::TrackedPreferenceValidationDelegate* validation_delegate,
     policy::PolicyService* policy_service,
     SupervisedUserSettingsService* supervised_user_settings,
     const scoped_refptr<PrefStore>& extension_prefs,
     const scoped_refptr<user_prefs::PrefRegistrySyncable>& pref_registry,
-    bool async) {
+    bool async,
+    service_manager::Connector* connector) {
   TRACE_EVENT0("browser", "chrome_prefs::CreateProfilePrefs");
   SCOPED_UMA_HISTOGRAM_TIMER("PrefService.CreateProfilePrefsTime");
 
@@ -500,7 +454,7 @@ std::unique_ptr<sync_preferences::PrefServiceSyncable> CreateProfilePrefs(
                  supervised_user_settings, user_pref_store, extension_prefs,
                  async);
   std::unique_ptr<sync_preferences::PrefServiceSyncable> pref_service =
-      factory.CreateSyncable(pref_registry.get());
+      factory.CreateSyncable(pref_registry.get(), connector);
 
   return pref_service;
 }
@@ -513,9 +467,9 @@ void DisableDomainCheckForTesting() {
 
 bool InitializePrefsFromMasterPrefs(
     const base::FilePath& profile_path,
-    const base::DictionaryValue& master_prefs) {
+    std::unique_ptr<base::DictionaryValue> master_prefs) {
   return CreateProfilePrefStoreManager(profile_path)
-      ->InitializePrefsFromMasterPrefs(master_prefs);
+      ->InitializePrefsFromMasterPrefs(std::move(master_prefs));
 }
 
 base::Time GetResetTime(Profile* profile) {

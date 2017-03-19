@@ -17,16 +17,15 @@
 #include "ash/common/system/tray/tray_popup_utils.h"
 #include "ash/common/system/tray/tri_view.h"
 #include "ash/common/wm_shell.h"
+#include "ash/resources/grit/ash_resources.h"
 #include "ash/resources/vector_icons/vector_icons.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "device/bluetooth/bluetooth_common.h"
-#include "grit/ash_resources.h"
-#include "grit/ash_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/gfx/vector_icons_public.h"
 #include "ui/views/controls/button/toggle_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -112,9 +111,7 @@ const int kDisabledPanelLabelBaselineY = 20;
 
 class BluetoothDefaultView : public TrayItemMore {
  public:
-  BluetoothDefaultView(SystemTrayItem* owner, bool show_more)
-      : TrayItemMore(owner, show_more) {}
-
+  explicit BluetoothDefaultView(SystemTrayItem* owner) : TrayItemMore(owner) {}
   ~BluetoothDefaultView() override {}
 
   void Update() {
@@ -136,9 +133,10 @@ class BluetoothDefaultView : public TrayItemMore {
 
  protected:
   // TrayItemMore:
-  std::unique_ptr<TrayPopupItemStyle> CreateStyle() const override {
+  std::unique_ptr<TrayPopupItemStyle> HandleCreateStyle() const override {
     SystemTrayDelegate* delegate = WmShell::Get()->system_tray_delegate();
-    std::unique_ptr<TrayPopupItemStyle> style = TrayItemMore::CreateStyle();
+    std::unique_ptr<TrayPopupItemStyle> style =
+        TrayItemMore::HandleCreateStyle();
     style->set_color_style(
         delegate->GetBluetoothEnabled()
             ? TrayPopupItemStyle::ColorStyle::ACTIVE
@@ -267,10 +265,12 @@ class BluetoothDetailedView : public TrayDetailsView {
     bool is_bluetooth_enabled =
         WmShell::Get()->system_tray_delegate()->GetBluetoothEnabled();
     if (toggle_)
-      toggle_->SetIsOn(is_bluetooth_enabled, false);
+      toggle_->SetIsOn(is_bluetooth_enabled, true);
   }
 
   void UpdateDeviceScrollList() {
+    std::string focused_device_address = GetFocusedDeviceAddress();
+
     device_map_.clear();
     scroll_content()->RemoveAllChildViews(true);
 
@@ -319,6 +319,10 @@ class BluetoothDetailedView : public TrayDetailsView {
         scroll_content()->AddChildView(container);
       }
     }
+
+    // Focus the device which was focused before the device-list update.
+    if (!focused_device_address.empty())
+      FocusDeviceByAddress(focused_device_address);
 
     scroll_content()->InvalidateLayout();
   }
@@ -550,6 +554,23 @@ class BluetoothDetailedView : public TrayDetailsView {
     return container;
   }
 
+  std::string GetFocusedDeviceAddress() {
+    for (auto& view_and_address : device_map_) {
+      if (view_and_address.first->HasFocus())
+        return view_and_address.second;
+    }
+    return std::string();
+  }
+
+  void FocusDeviceByAddress(const std::string& address) {
+    for (auto& view_and_address : device_map_) {
+      if (view_and_address.second == address) {
+        view_and_address.first->RequestFocus();
+        return;
+      }
+    }
+  }
+
   LoginStatus login_;
 
   std::map<views::View*, std::string> device_map_;
@@ -588,8 +609,8 @@ views::View* TrayBluetooth::CreateTrayView(LoginStatus status) {
 
 views::View* TrayBluetooth::CreateDefaultView(LoginStatus status) {
   CHECK(default_ == NULL);
-  default_ =
-      new tray::BluetoothDefaultView(this, status != LoginStatus::LOCKED);
+  default_ = new tray::BluetoothDefaultView(this);
+  default_->SetEnabled(status != LoginStatus::LOCKED);
   default_->Update();
   return default_;
 }

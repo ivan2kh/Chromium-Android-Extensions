@@ -9,13 +9,6 @@
 
 namespace blink {
 {% set dom_template = '%s::domTemplate' % v8_class if not is_array_buffer_or_view else '0' %}
-{% set has_prepare_prototype_and_interface_object =
-    unscopables or has_conditional_attributes_on_prototype or
-    methods | conditionally_exposed(is_partial) %}
-{% set prepare_prototype_and_interface_object_func =
-    '%s::preparePrototypeAndInterfaceObject' % v8_class
-    if has_prepare_prototype_and_interface_object
-    else 'nullptr' %}
 {% set parent_wrapper_type_info = '&V8%s::wrapperTypeInfo' % parent_interface
                                   if parent_interface else '0' %}
 {% set wrapper_type_prototype = 'WrapperTypeExceptionPrototype' if is_exception else
@@ -33,7 +26,7 @@ namespace blink {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-{{wrapper_type_info_const}}WrapperTypeInfo {{v8_class}}::wrapperTypeInfo = { gin::kEmbedderBlink, {{dom_template}}, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func}}, "{{interface_name}}", {{parent_wrapper_type_info}}, WrapperTypeInfo::{{wrapper_type_prototype}}, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{lifetime}} };
+{{wrapper_type_info_const}}WrapperTypeInfo {{v8_class}}::wrapperTypeInfo = { gin::kEmbedderBlink, {{dom_template}}, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func or 'nullptr'}}, "{{interface_name}}", {{parent_wrapper_type_info}}, WrapperTypeInfo::{{wrapper_type_prototype}}, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{lifetime}} };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -251,10 +244,10 @@ bool {{v8_class_or_partial}}::securityCheck(v8::Local<v8::Context> accessingCont
     return false;  // the frame is gone.
 
   const DOMWindow* targetWindow = V8Window::toImpl(window);
-  return BindingSecurity::shouldAllowAccessTo(toLocalDOMWindow(toDOMWindow(accessingContext)), targetWindow, BindingSecurity::ErrorReportOption::DoNotReport);
+  return BindingSecurity::shouldAllowAccessTo(toLocalDOMWindow(accessingContext), targetWindow, BindingSecurity::ErrorReportOption::DoNotReport);
   {% elif interface_name == 'Location' %}
   {{cpp_class}}* impl = {{v8_class}}::toImpl(accessedObject);
-  return BindingSecurity::shouldAllowAccessTo(toLocalDOMWindow(toDOMWindow(accessingContext)), impl, BindingSecurity::ErrorReportOption::DoNotReport);
+  return BindingSecurity::shouldAllowAccessTo(toLocalDOMWindow(accessingContext), impl, BindingSecurity::ErrorReportOption::DoNotReport);
   {% else %}
   #error "Unexpected security check for interface {{interface_name}}"
   {% endif %}
@@ -346,9 +339,9 @@ void {{v8_class_or_partial}}::crossOriginIndexedGetter(uint32_t index, const v8:
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-const V8DOMConfiguration::AttributeConfiguration {{v8_class}}Attributes[] = {
+static const V8DOMConfiguration::AttributeConfiguration {{v8_class}}Attributes[] = {
     {% for data_attribute in data_attributes %}
-    {{attribute_configuration(data_attribute)}},
+    {{attribute_configuration(data_attribute) | indent(4)}},
     {% endfor %}
 };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
@@ -367,9 +360,9 @@ const V8DOMConfiguration::AttributeConfiguration {{v8_class}}Attributes[] = {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-const V8DOMConfiguration::AttributeConfiguration {{v8_class}}LazyDataAttributes[] = {
+static const V8DOMConfiguration::AttributeConfiguration {{v8_class}}LazyDataAttributes[] = {
     {% for data_attribute in lazy_data_attributes %}
-    {{attribute_configuration(data_attribute)}},
+    {{attribute_configuration(data_attribute) | indent(4)}},
     {% endfor %}
 };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
@@ -382,9 +375,9 @@ const V8DOMConfiguration::AttributeConfiguration {{v8_class}}LazyDataAttributes[
 {% block install_accessors %}
 {% from 'attributes.cpp.tmpl' import attribute_configuration with context %}
 {% if accessors %}
-const V8DOMConfiguration::AccessorConfiguration {{v8_class}}Accessors[] = {
+static const V8DOMConfiguration::AccessorConfiguration {{v8_class}}Accessors[] = {
     {% for accessor in accessors %}
-    {{attribute_configuration(accessor)}},
+    {{attribute_configuration(accessor) | indent(4)}},
     {% endfor %}
 };
 
@@ -394,9 +387,9 @@ const V8DOMConfiguration::AccessorConfiguration {{v8_class}}Accessors[] = {
 {% block install_methods %}
 {% from 'methods.cpp.tmpl' import method_configuration with context %}
 {% if methods | has_method_configuration(is_partial) %}
-const V8DOMConfiguration::MethodConfiguration {{v8_class}}Methods[] = {
+static const V8DOMConfiguration::MethodConfiguration {{v8_class}}Methods[] = {
     {% for method in methods | has_method_configuration(is_partial) %}
-    {{method_configuration(method)}},
+    {{method_configuration(method) | indent(4)}},
     {% endfor %}
 };
 
@@ -492,11 +485,17 @@ static void install{{v8_class}}Template(v8::Isolate* isolate, const DOMWrapperWo
   {% filter runtime_enabled(feature_name) %}
   {% for attribute in attribute_list | unique_by('name') | sort %}
   {% if attribute.is_data_type_property %}
-  const V8DOMConfiguration::AttributeConfiguration attribute{{attribute.name}}Configuration = {{attribute_configuration(attribute)}};
-  V8DOMConfiguration::installAttribute(isolate, world, instanceTemplate, prototypeTemplate, attribute{{attribute.name}}Configuration);
+  static const V8DOMConfiguration::AttributeConfiguration attribute{{attribute.name}}Configuration[] = {
+    {{attribute_configuration(attribute) | indent(2)}}
+  };
+  for (const auto& attributeConfig : attribute{{attribute.name}}Configuration)
+    V8DOMConfiguration::installAttribute(isolate, world, instanceTemplate, prototypeTemplate, attributeConfig);
   {% else %}
-  const V8DOMConfiguration::AccessorConfiguration accessor{{attribute.name}}Configuration = {{attribute_configuration(attribute)}};
-  V8DOMConfiguration::installAccessor(isolate, world, instanceTemplate, prototypeTemplate, interfaceTemplate, signature, accessor{{attribute.name}}Configuration);
+  static const V8DOMConfiguration::AccessorConfiguration accessor{{attribute.name}}Configuration[] = {
+    {{attribute_configuration(attribute) | indent(2)}}
+  };
+  for (const auto& accessorConfig : accessor{{attribute.name}}Configuration)
+    V8DOMConfiguration::installAccessor(isolate, world, instanceTemplate, prototypeTemplate, interfaceTemplate, signature, accessorConfig);
   {% endif %}
   {% endfor %}
   {% endfilter %}
@@ -531,7 +530,7 @@ static void install{{v8_class}}Template(v8::Isolate* isolate, const DOMWrapperWo
   {% filter exposed(iterator_method.exposed_test) %}
   {% filter runtime_enabled(iterator_method.runtime_enabled_feature_name) %}
   // Iterator (@@iterator)
-  const V8DOMConfiguration::SymbolKeyedMethodConfiguration symbolKeyedIteratorConfiguration = { v8::Symbol::GetIterator, {{v8_class_or_partial}}::iteratorMethodCallback, 0, v8::DontEnum, V8DOMConfiguration::OnPrototype };
+  static const V8DOMConfiguration::SymbolKeyedMethodConfiguration symbolKeyedIteratorConfiguration = { v8::Symbol::GetIterator, {{v8_class_or_partial}}::iteratorMethodCallback, 0, v8::DontEnum, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess };
   V8DOMConfiguration::installMethod(isolate, world, prototypeTemplate, signature, symbolKeyedIteratorConfiguration);
   {% endfilter %}
   {% endfilter %}
@@ -570,7 +569,7 @@ static void install{{v8_class}}Template(v8::Isolate* isolate, const DOMWrapperWo
   {# TODO(dcheng): Currently, bindings must create a function object for each
      realm as a hack to support the incumbent realm. Remove this when Blink
      properly supports the incumbent realm. #}
-  {{install_origin_safe_method(method, '', 'instanceTemplate', 'prototypeTemplate') | indent(2)}}
+  {{install_origin_safe_method(method, 'instanceTemplate', 'prototypeTemplate') | indent(2)}}
   {% else %}
   {{install_custom_signature(method, 'instanceTemplate', 'prototypeTemplate', 'interfaceTemplate', 'signature') | indent(2)}}
   {% endif %}
@@ -606,11 +605,17 @@ void {{v8_class_or_partial}}::installRuntimeEnabledFeatures(v8::Isolate* isolate
   {% filter runtime_enabled(feature_name) %}
   {% for attribute in attrs | unique_by('name') | sort %}
   {% if attribute.is_data_type_property %}
-  const V8DOMConfiguration::AttributeConfiguration attribute{{attribute.name}}Configuration = {{attribute_configuration(attribute)}};
-  V8DOMConfiguration::installAttribute(isolate, world, instance, prototype, attribute{{attribute.name}}Configuration);
+  static const V8DOMConfiguration::AttributeConfiguration attribute{{attribute.name}}Configuration[] = {
+    {{attribute_configuration(attribute) | indent(2)}}
+  };
+  for (const auto& attributeConfig : attribute{{attribute.name}}Configuration)
+    V8DOMConfiguration::installAttribute(isolate, world, instance, prototype, attributeConfig);
   {% else %}
-  const V8DOMConfiguration::AccessorConfiguration accessor{{attribute.name}}Configuration = {{attribute_configuration(attribute)}};
-  V8DOMConfiguration::installAccessor(isolate, world, instance, prototype, interface, signature, accessor{{attribute.name}}Configuration);
+  static const V8DOMConfiguration::AccessorConfiguration accessor{{attribute.name}}Configuration[] = {
+    {{attribute_configuration(attribute) | indent(2)}}
+  };
+  for (const auto& accessorConfig : accessor{{attribute.name}}Configuration)
+    V8DOMConfiguration::installAccessor(isolate, world, instance, prototype, interface, signature, accessorConfig);
   {% endif %}
   {% endfor %}
   {% endfilter %}
@@ -662,11 +667,17 @@ void {{v8_class_or_partial}}::install{{feature.name}}(v8::Isolate* isolate, cons
   {# Origin-Trial-enabled attributes #}
   {% for attribute in feature.attributes %}
   {% if attribute.is_data_type_property %}
-  const V8DOMConfiguration::AttributeConfiguration attribute{{attribute.name}}Configuration = {{attribute_configuration(attribute)}};
-  V8DOMConfiguration::installAttribute(isolate, world, instance, prototype, attribute{{attribute.name}}Configuration);
+  static const V8DOMConfiguration::AttributeConfiguration attribute{{attribute.name}}Configuration[] = {
+    {{attribute_configuration(attribute) | indent(2)}}
+  };
+  for (const auto& attributeConfig : attribute{{attribute.name}}Configuration)
+    V8DOMConfiguration::installAttribute(isolate, world, instance, prototype, attributeConfig);
   {% else %}
-  const V8DOMConfiguration::AccessorConfiguration accessor{{attribute.name}}Configuration = {{attribute_configuration(attribute)}};
-  V8DOMConfiguration::installAccessor(isolate, world, instance, prototype, interface, signature, accessor{{attribute.name}}Configuration);
+  static const V8DOMConfiguration::AccessorConfiguration accessor{{attribute.name}}Configuration[] = {
+    {{attribute_configuration(attribute) | indent(2)}}
+  };
+  for (const auto& accessorConfig : accessor{{attribute.name}}Configuration)
+    V8DOMConfiguration::installAccessor(isolate, world, instance, prototype, interface, signature, accessorConfig);
   {% endif %}
   {% endfor %}
   {# Origin-Trial-enabled constants #}
@@ -678,8 +689,11 @@ void {{v8_class_or_partial}}::install{{feature.name}}(v8::Isolate* isolate, cons
   {# Origin-Trial-enabled methods (no overloads) #}
   {% for method in feature.methods %}
   {% set method_name = method.name.title().replace('_', '') %}
-  const V8DOMConfiguration::MethodConfiguration method{{method_name}}Configuration = {{method_configuration(method)}};
-  V8DOMConfiguration::installMethod(isolate, world, instance, prototype, interface, signature, method{{method_name}}Configuration);
+  static const V8DOMConfiguration::MethodConfiguration method{{method_name}}Configuration[] = {
+    {{method_configuration(method) | indent(2)}}
+  };
+  for (const auto& methodConfig : method{{method_name}}Configuration)
+    V8DOMConfiguration::installMethod(isolate, world, instance, prototype, interface, signature, methodConfig);
   {% endfor %}
 }
 
@@ -705,11 +719,12 @@ void {{v8_class_or_partial}}::install{{feature.name}}(ScriptState* scriptState) 
 {% block has_instance %}{% endblock %}
 {% block to_impl %}{% endblock %}
 {% block to_impl_with_type_check %}{% endblock %}
+{% block native_value_traits %}{% endblock %}
 {##############################################################################}
 {% block prepare_prototype_and_interface_object %}
 {% from 'attributes.cpp.tmpl' import install_conditionally_enabled_attributes_on_prototype with context %}
 {% from 'methods.cpp.tmpl' import install_conditionally_enabled_methods with context %}
-{% if has_prepare_prototype_and_interface_object %}
+{% if prepare_prototype_and_interface_object_func %}
 void {{v8_class_or_partial}}::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
   {% if is_partial %}
   {{v8_class}}::preparePrototypeAndInterfaceObject(context, world, prototypeObject, interfaceObject, interfaceTemplate);

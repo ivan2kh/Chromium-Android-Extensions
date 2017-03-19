@@ -12,6 +12,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/build_config.h"
 #include "content/common/accessibility_messages.h"
 #include "content/renderer/accessibility/blink_ax_enum_conversion.h"
 #include "content/renderer/accessibility/render_accessibility_impl.h"
@@ -414,7 +415,6 @@ void BlinkAXTreeSource::SerializeNode(blink::WebAXObject src,
         ui::AX_ATTR_DESCRIBEDBY_IDS, descriptionObjects, dst);
   }
 
-  std::string value;
   if (src.valueDescription().length()) {
     dst->AddStringAttribute(ui::AX_ATTR_VALUE, src.valueDescription().utf8());
   } else {
@@ -433,13 +433,26 @@ void BlinkAXTreeSource::SerializeNode(blink::WebAXObject src,
   // The following set of attributes are only accessed when the accessibility
   // mode is set to screen reader mode, otherwise only the more basic
   // attributes are populated.
-  if (accessibility_mode_ & ACCESSIBILITY_MODE_FLAG_SCREEN_READER) {
+  if (accessibility_mode_.has_mode(AccessibilityMode::kScreenReader)) {
     blink::WebString web_placeholder = src.placeholder(nameFrom);
     if (!web_placeholder.isEmpty())
       dst->AddStringAttribute(ui::AX_ATTR_PLACEHOLDER, web_placeholder.utf8());
 
     if (dst->role == ui::AX_ROLE_COLOR_WELL)
       dst->AddIntAttribute(ui::AX_ATTR_COLOR_VALUE, src.colorValue());
+
+    if (dst->role == ui::AX_ROLE_LINK) {
+      blink::WebAXObject target = src.inPageLinkTarget();
+      if (!target.isNull()) {
+        int32_t target_id = target.axID();
+        dst->AddIntAttribute(ui::AX_ATTR_IN_PAGE_LINK_TARGET_ID, target_id);
+      }
+    }
+
+    if (dst->role == ui::AX_ROLE_RADIO_BUTTON) {
+      AddIntListAttributeFromWebObjects(ui::AX_ATTR_RADIO_GROUP_IDS,
+                                        src.radioButtonsInGroup(), dst);
+    }
 
     // Text attributes.
     if (src.backgroundColor())
@@ -750,7 +763,7 @@ void BlinkAXTreeSource::SerializeNode(blink::WebAXObject src,
     WebElement element = node.to<WebElement>();
     is_iframe = element.hasHTMLTagName("iframe");
 
-    if (accessibility_mode_ & ACCESSIBILITY_MODE_FLAG_HTML) {
+    if (accessibility_mode_.has_mode(AccessibilityMode::kHTML)) {
       // TODO(ctguil): The tagName in WebKit is lower cased but
       // HTMLElement::nodeName calls localNameUpper. Consider adding
       // a WebElement method that returns the original lower cased tagName.
@@ -763,6 +776,15 @@ void BlinkAXTreeSource::SerializeNode(blink::WebAXObject src,
         std::string value = element.attributeValue(i).utf8();
         dst->html_attributes.push_back(std::make_pair(name, value));
       }
+
+// TODO(nektar): Turn off kHTMLAccessibilityMode for automation and Mac
+// and remove ifdef.
+#if defined(OS_WIN)
+      if (dst->role == ui::AX_ROLE_MATH && element.innerHTML().length()) {
+        dst->AddStringAttribute(ui::AX_ATTR_INNER_HTML,
+                                element.innerHTML().utf8());
+      }
+#endif
     }
 
     if (src.isEditable()) {

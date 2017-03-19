@@ -39,8 +39,6 @@ namespace base {
 class DictionaryValue;
 class ListValue;
 class Value;
-using FundamentalValue = Value;
-using StringValue = Value;
 using BinaryValue = Value;
 
 // The Value class is the base class for Values. A Value can be instantiated
@@ -144,7 +142,7 @@ class BASE_EXPORT Value {
   bool GetAsDouble(double* out_value) const;
   bool GetAsString(std::string* out_value) const;
   bool GetAsString(string16* out_value) const;
-  bool GetAsString(const StringValue** out_value) const;
+  bool GetAsString(const Value** out_value) const;
   bool GetAsString(StringPiece* out_value) const;
   bool GetAsBinary(const BinaryValue** out_value) const;
   // ListValue::From is the equivalent for std::unique_ptr conversions.
@@ -175,6 +173,9 @@ class BASE_EXPORT Value {
   // ListValue are properly inlined.
   Type type_;
 
+  // TODO(crbug.com/697817): Remove after diagnosing the bug.
+  bool alive_ = true;
+
   union {
     bool bool_value_;
     int int_value_;
@@ -192,8 +193,8 @@ class BASE_EXPORT Value {
   void InternalCopyFundamentalValue(const Value& that);
   void InternalCopyConstructFrom(const Value& that);
   void InternalMoveConstructFrom(Value&& that);
-  void InternalCopyAssignFrom(const Value& that);
-  void InternalMoveAssignFrom(Value&& that);
+  void InternalCopyAssignFromSameType(const Value& that);
+  void InternalMoveAssignFromSameType(Value&& that);
   void InternalCleanup();
 };
 

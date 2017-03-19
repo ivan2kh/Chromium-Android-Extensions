@@ -9,11 +9,11 @@
 #include <algorithm>
 
 #include "base/memory/ptr_util.h"
+#include "cc/base/filter_operations.h"
 #include "cc/base/math_util.h"
 #include "cc/layers/heads_up_display_layer_impl.h"
 #include "cc/layers/layer_impl.h"
 #include "cc/layers/render_surface_impl.h"
-#include "cc/output/filter_operations.h"
 #include "cc/trees/layer_tree_host_common.h"
 #include "cc/trees/layer_tree_impl.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -192,8 +192,9 @@ DamageTracker::DamageAccumulator DamageTracker::TrackDamageFromActiveLayers(
     if (layer == layer->layer_tree_impl()->hud_layer())
       continue;
 
-    if (layer->render_surface() && layer->render_surface() != target_surface)
-      ExtendDamageForRenderSurface(layer->render_surface(), &damage);
+    RenderSurfaceImpl* render_surface = layer->GetRenderSurface();
+    if (render_surface && render_surface != target_surface)
+      ExtendDamageForRenderSurface(render_surface, &damage);
     else
       ExtendDamageForLayer(layer, &damage);
   }

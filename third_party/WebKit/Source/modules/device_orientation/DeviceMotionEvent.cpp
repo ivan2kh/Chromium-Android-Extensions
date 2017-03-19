@@ -27,6 +27,7 @@
 
 #include "modules/device_orientation/DeviceAcceleration.h"
 #include "modules/device_orientation/DeviceMotionData.h"
+#include "modules/device_orientation/DeviceMotionEventInit.h"
 #include "modules/device_orientation/DeviceRotationRate.h"
 
 namespace blink {
@@ -37,25 +38,14 @@ DeviceMotionEvent::DeviceMotionEvent()
     : m_deviceMotionData(DeviceMotionData::create()) {}
 
 DeviceMotionEvent::DeviceMotionEvent(const AtomicString& eventType,
+                                     const DeviceMotionEventInit& initializer)
+    : Event(eventType, initializer),
+      m_deviceMotionData(DeviceMotionData::create(initializer)) {}
+
+DeviceMotionEvent::DeviceMotionEvent(const AtomicString& eventType,
                                      DeviceMotionData* deviceMotionData)
     : Event(eventType, false, false),  // Can't bubble, not cancelable
       m_deviceMotionData(deviceMotionData) {}
-
-void DeviceMotionEvent::initDeviceMotionEvent(
-    const AtomicString& type,
-    bool bubbles,
-    bool cancelable,
-    DeviceMotionData* deviceMotionData) {
-  if (isBeingDispatched())
-    return;
-
-  initEvent(type, bubbles, cancelable);
-  m_deviceMotionData = deviceMotionData;
-
-  m_acceleration.clear();
-  m_accelerationIncludingGravity.clear();
-  m_rotationRate.clear();
-}
 
 DeviceAcceleration* DeviceMotionEvent::acceleration() {
   if (!m_deviceMotionData->getAcceleration())

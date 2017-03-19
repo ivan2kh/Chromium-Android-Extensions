@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <memory>
+
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "extensions/common/permissions/api_permission.h"
@@ -49,7 +51,6 @@ ChromeAPIPermissions::GetAllPermissions() const {
       {APIPermission::kGeolocation, "geolocation",
        APIPermissionInfo::kFlagCannotBeOptional},
       {APIPermission::kNotifications, "notifications"},
-      {APIPermission::kGcdPrivate, "gcdPrivate"},
       {APIPermission::kGcm, "gcm"},
 
       // Register extension permissions.
@@ -138,6 +139,7 @@ ChromeAPIPermissions::GetAllPermissions() const {
        APIPermissionInfo::kFlagCannotBeOptional},
       {APIPermission::kMusicManagerPrivate, "musicManagerPrivate",
        APIPermissionInfo::kFlagCannotBeOptional},
+      {APIPermission::kNetworkingCastPrivate, "networking.castPrivate"},
       {APIPermission::kPreferencesPrivate, "preferencesPrivate",
        APIPermissionInfo::kFlagCannotBeOptional},
       {APIPermission::kSystemPrivate, "systemPrivate",

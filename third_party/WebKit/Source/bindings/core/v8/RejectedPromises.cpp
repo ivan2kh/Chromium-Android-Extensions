@@ -194,9 +194,9 @@ void RejectedPromises::rejectedWithNoHandler(
     const String& errorMessage,
     std::unique_ptr<SourceLocation> location,
     AccessControlStatus corsStatus) {
-  m_queue.append(Message::create(scriptState, data.GetPromise(),
-                                 data.GetValue(), errorMessage,
-                                 std::move(location), corsStatus));
+  m_queue.push_back(Message::create(scriptState, data.GetPromise(),
+                                    data.GetValue(), errorMessage,
+                                    std::move(location), corsStatus));
 }
 
 void RejectedPromises::handlerAdded(v8::PromiseRejectMessage data) {
@@ -204,7 +204,7 @@ void RejectedPromises::handlerAdded(v8::PromiseRejectMessage data) {
   // by processQueue().
   for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
     if (!(*it)->isCollected() && (*it)->hasPromise(data.GetPromise())) {
-      m_queue.remove(it);
+      m_queue.erase(it);
       return;
     }
   }

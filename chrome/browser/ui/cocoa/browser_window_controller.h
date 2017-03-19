@@ -65,6 +65,9 @@ namespace extensions {
 class Command;
 }
 
+constexpr const gfx::Size kMinCocoaTabbedWindowSize(400, 272);
+constexpr const gfx::Size kMinCocoaPopupWindowSize(100, 122);
+
 @interface BrowserWindowController
     : TabWindowController<BookmarkBarControllerDelegate,
                           ViewResizer,
@@ -389,6 +392,9 @@ class Command;
 
 // Returns the BrowserWindowTouchBar object associated with the window.
 - (BrowserWindowTouchBar*)browserWindowTouchBar;
+
+// Invalidates the browser's touch bar.
+- (void)invalidateTouchBar;
 
 @end  // @interface BrowserWindowController
 

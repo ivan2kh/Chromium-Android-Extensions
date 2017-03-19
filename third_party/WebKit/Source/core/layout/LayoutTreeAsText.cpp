@@ -526,9 +526,9 @@ void write(TextStream& ts,
   }
 
   if (o.isLayoutPart()) {
-    Widget* widget = toLayoutPart(o).widget();
-    if (widget && widget->isFrameView()) {
-      FrameView* view = toFrameView(widget);
+    FrameViewBase* frameViewBase = toLayoutPart(o).frameViewBase();
+    if (frameViewBase && frameViewBase->isFrameView()) {
+      FrameView* view = toFrameView(frameViewBase);
       LayoutViewItem rootItem = view->layoutViewItem();
       if (!rootItem.isNull()) {
         rootItem.updateStyleAndLayout();
@@ -786,7 +786,8 @@ static void writeSelection(TextStream& ts, const LayoutObject* o) {
   if (!frame)
     return;
 
-  VisibleSelection selection = frame->selection().selection();
+  VisibleSelection selection =
+      frame->selection().computeVisibleSelectionInDOMTreeDeprecated();
   if (selection.isCaret()) {
     ts << "caret: position " << selection.start().computeEditingOffset()
        << " of " << nodePosition(selection.start().anchorNode());

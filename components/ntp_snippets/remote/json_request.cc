@@ -24,12 +24,13 @@
 #include "components/signin/core/browser/profile_oauth2_token_service.h"
 #include "components/signin/core/browser/signin_manager.h"
 #include "components/signin/core/browser/signin_manager_base.h"
+#include "components/strings/grit/components_strings.h"
 #include "components/variations/net/variations_http_headers.h"
 #include "components/variations/variations_associated_data.h"
-#include "grit/components_strings.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/url_request/url_fetcher.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "third_party/icu/source/common/unicode/uloc.h"
@@ -130,32 +131,6 @@ std::string GetUserClassString(UserClassifier::UserClass user_class) {
 }
 
 }  // namespace
-
-CategoryInfo BuildArticleCategoryInfo(
-    const base::Optional<base::string16>& title) {
-  return CategoryInfo(
-      title.has_value() ? title.value()
-                        : l10n_util::GetStringUTF16(
-                              IDS_NTP_ARTICLE_SUGGESTIONS_SECTION_HEADER),
-      ContentSuggestionsCardLayout::FULL_CARD,
-      /*has_fetch_action=*/true,
-      /*has_view_all_action=*/false,
-      /*show_if_empty=*/true,
-      l10n_util::GetStringUTF16(IDS_NTP_ARTICLE_SUGGESTIONS_SECTION_EMPTY));
-}
-
-CategoryInfo BuildRemoteCategoryInfo(const base::string16& title,
-                                     bool allow_fetching_more_results) {
-  return CategoryInfo(
-      title, ContentSuggestionsCardLayout::FULL_CARD,
-      /*has_fetch_action=*/allow_fetching_more_results,
-      /*has_view_all_action=*/false,
-      /*show_if_empty=*/false,
-      // TODO(tschumann): The message for no-articles is likely wrong
-      // and needs to be added to the stubby protocol if we want to
-      // support it.
-      l10n_util::GetStringUTF16(IDS_NTP_ARTICLE_SUGGESTIONS_SECTION_EMPTY));
-}
 
 JsonRequest::JsonRequest(
     base::Optional<Category> exclusive_category,
@@ -431,8 +406,37 @@ std::unique_ptr<net::URLFetcher> JsonRequest::Builder::BuildURLFetcher(
     net::URLFetcherDelegate* delegate,
     const std::string& headers,
     const std::string& body) const {
-  std::unique_ptr<net::URLFetcher> url_fetcher =
-      net::URLFetcher::Create(url_, net::URLFetcher::POST, delegate);
+  net::NetworkTrafficAnnotationTag traffic_annotation =
+      net::DefineNetworkTrafficAnnotation("ntp_snippets_fetch", R"(
+        semantics {
+          sender: "New Tab Page Content Suggestions Fetch"
+          description:
+            "Chromium can show content suggestions (e.g. news articles) on the "
+            "New Tab page. For signed-in users, these may be personalized "
+            "based on the user's synced browsing history."
+          trigger:
+            "Triggered periodically in the background, or upon explicit user "
+            "request."
+          data:
+            "The Chromium UI language, as well as a second language the user "
+            "understands, based on translate::LanguageModel. For signed-in "
+            "users, the requests is authenticated."
+          destination: GOOGLE_OWNED_SERVICE
+        }
+        policy {
+          cookies_allowed: false
+          setting:
+            "This feature cannot be disabled by settings now (but is requested "
+            "to be implemented in crbug.com/695129)."
+          policy {
+            NTPContentSuggestionsEnabled {
+              policy_options {mode: MANDATORY}
+              value: false
+            }
+          }
+        })");
+  std::unique_ptr<net::URLFetcher> url_fetcher = net::URLFetcher::Create(
+      url_, net::URLFetcher::POST, delegate, traffic_annotation);
   url_fetcher->SetRequestContext(url_request_context_getter_.get());
   url_fetcher->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
                             net::LOAD_DO_NOT_SAVE_COOKIES);

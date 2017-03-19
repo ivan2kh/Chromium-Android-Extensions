@@ -10,6 +10,9 @@
 namespace ash {
 namespace switches {
 
+// Enables adjustable large cursor.
+const char kAshAdjustableLargeCursor[] = "ash-adjustable-large-cursor";
+
 // Enables an animated transition from the boot splash screen (Chrome logo on a
 // white background) to the login screen.  Implies
 // |kAshCopyHostBackgroundAtBoot| and doesn't make much sense if used in
@@ -44,9 +47,6 @@ const char kAshDisableScreenOrientationLock[] =
 const char kAshDisableTouchExplorationMode[] =
     "ash-disable-touch-exploration-mode";
 
-// Enables fullscreen app list if Ash is in maximize mode.
-const char kAshEnableFullscreenAppList[] = "ash-enable-fullscreen-app-list";
-
 // Enables key bindings to scroll magnified screen.
 const char kAshEnableMagnifierKeyScroller[] =
     "ash-enable-magnifier-key-scroller";
@@ -65,6 +65,11 @@ const char kAshEnableTouchView[] = "enable-touchview";
 // Enables mirrored screen.
 const char kAshEnableMirroredScreen[] = "ash-enable-mirrored-screen";
 
+// Specifies the estimated time (in milliseconds) from VSYNC event until when
+// visible light can be noticed by the user.
+const char kAshEstimatedPresentationDelay[] =
+    "ash-estimated-presentation-delay";
+
 // Enables the palette next to the status area.
 const char kAshForceEnablePalette[] = "ash-force-enable-palette";
 
@@ -72,6 +77,15 @@ const char kAshForceEnablePalette[] = "ash-force-enable-palette";
 // such as battery level updates.
 const char kAshHideNotificationsForFactory[] =
     "ash-hide-notifications-for-factory";
+
+// Enables the shelf color to be derived from the wallpaper.
+const char kAshShelfColor[] = "ash-shelf-color";
+const char kAshShelfColorLightMuted[] = "light_muted";
+const char kAshShelfColorLightVibrant[] = "light_vibrant";
+const char kAshShelfColorNormalMuted[] = "normal_muted";
+const char kAshShelfColorNormalVibrant[] = "normal_vibrant";
+const char kAshShelfColorDarkMuted[] = "dark_muted";
+const char kAshShelfColorDarkVibrant[] = "dark_vibrant";
 
 // Enables the heads-up display for tracking touch points.
 const char kAshTouchHud[] = "ash-touch-hud";

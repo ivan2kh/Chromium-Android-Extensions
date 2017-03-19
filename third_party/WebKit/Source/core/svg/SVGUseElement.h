@@ -54,6 +54,7 @@ class SVGUseElement final : public SVGGraphicsElement,
   SVGAnimatedLength* height() const { return m_height.get(); }
 
   void buildPendingResource() override;
+  String title() const override;
 
   void dispatchPendingEvent();
   void toClipPath(Path&) const;
@@ -88,16 +89,22 @@ class SVGUseElement final : public SVGGraphicsElement,
 
   bool selfHasRelativeLengths() const override;
 
+  ShadowRoot& useShadowRoot() const {
+    CHECK(closedShadowRoot());
+    return *closedShadowRoot();
+  }
+
   // Instance tree handling
   Element* resolveTargetElement();
   void buildShadowAndInstanceTree(SVGElement& target);
   void clearInstanceRoot();
   Element* createInstanceTree(SVGElement& targetRoot) const;
-  void clearShadowTree();
+  void clearResourceReference();
   bool hasCycleUseReferencing(const SVGUseElement&,
                               const ContainerNode& targetInstance,
                               SVGElement*& newTarget) const;
   bool expandUseElementsInShadowTree();
+  void cloneNonMarkupEventListeners();
   void addReferencesToFirstDegreeNestedUseElements(SVGElement& target);
 
   void invalidateDependentShadowTrees();
@@ -120,6 +127,7 @@ class SVGUseElement final : public SVGGraphicsElement,
   bool m_haveFiredLoadEvent;
   bool m_needsShadowTreeRecreation;
   Member<SVGElement> m_targetElementInstance;
+  Member<IdTargetObserver> m_targetIdObserver;
   Member<DocumentResource> m_resource;
 };
 

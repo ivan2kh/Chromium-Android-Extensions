@@ -15,6 +15,7 @@
 #include "core/page/Page.h"
 #include "platform/UserGestureIndicator.h"
 #include "platform/heap/Handle.h"
+#include "platform/instrumentation/tracing/TraceEvent.h"
 #include "public/web/WebElement.h"
 #include "public/web/WebFrameOwnerProperties.h"
 #include "public/web/WebSandboxFlags.h"
@@ -73,7 +74,7 @@ bool WebFrame::swap(WebFrame* frame) {
   FrameOwner* owner = oldFrame->owner();
 
   v8::HandleScope handleScope(v8::Isolate::GetCurrent());
-  HashMap<DOMWrapperWorld*, v8::Local<v8::Object>> globals;
+  WindowProxyManager::GlobalsVector globals;
   oldFrame->getWindowProxyManager()->clearForNavigation();
   oldFrame->getWindowProxyManager()->releaseGlobals(globals);
 
@@ -99,13 +100,17 @@ bool WebFrame::swap(WebFrame* frame) {
         toHTMLFrameOwnerElement(owner)->setWidget(localFrame.view());
     } else {
       localFrame.page()->setMainFrame(&localFrame);
+      // This trace event is needed to detect the main frame of the
+      // renderer in telemetry metrics. See crbug.com/692112#c11.
+      TRACE_EVENT_INSTANT1("loading", "markAsMainFrame",
+                           TRACE_EVENT_SCOPE_THREAD, "frame", &localFrame);
     }
   } else {
     toWebRemoteFrameImpl(frame)->initializeCoreFrame(host, owner, name,
                                                      uniqueName);
   }
 
-  if (oldFrame->hasReceivedUserGesture())
+  if (m_parent && oldFrame->hasReceivedUserGesture())
     frame->toImplBase()->frame()->setDocumentHasReceivedUserGesture();
 
   frame->toImplBase()->frame()->getWindowProxyManager()->setGlobals(globals);
@@ -159,7 +164,7 @@ void WebFrame::setFrameOwnerProperties(
   owner->setAllowFullscreen(properties.allowFullscreen);
   owner->setAllowPaymentRequest(properties.allowPaymentRequest);
   owner->setCsp(properties.requiredCsp);
-  owner->setDelegatedpermissions(properties.delegatedPermissions);
+  owner->setAllowedFeatures(properties.allowedFeatures);
 }
 
 WebFrame* WebFrame::opener() const {
@@ -197,7 +202,7 @@ void WebFrame::insertAfter(WebFrame* newChild, WebFrame* previousSibling) {
   }
 
   toImplBase()->frame()->tree().invalidateScopedChildCount();
-  toImplBase()->frame()->host()->incrementSubframeCount();
+  toImplBase()->frame()->page()->incrementSubframeCount();
 }
 
 void WebFrame::appendChild(WebFrame* child) {
@@ -222,7 +227,7 @@ void WebFrame::removeChild(WebFrame* child) {
   child->m_previousSibling = child->m_nextSibling = 0;
 
   toImplBase()->frame()->tree().invalidateScopedChildCount();
-  toImplBase()->frame()->host()->decrementSubframeCount();
+  toImplBase()->frame()->page()->decrementSubframeCount();
 }
 
 void WebFrame::setParent(WebFrame* parent) {
@@ -291,16 +296,6 @@ WebFrame::~WebFrame() {
   m_openedFrameTracker.reset(0);
 }
 
-ALWAYS_INLINE bool WebFrame::isFrameAlive(const WebFrame* frame) {
-  if (!frame)
-    return true;
-
-  if (frame->isWebLocalFrame())
-    return ThreadHeap::isHeapObjectAlive(toWebLocalFrameImpl(frame));
-
-  return ThreadHeap::isHeapObjectAlive(toWebRemoteFrameImpl(frame));
-}
-
 void WebFrame::traceFrame(Visitor* visitor, WebFrame* frame) {
   if (!frame)
     return;
@@ -317,13 +312,10 @@ void WebFrame::traceFrames(Visitor* visitor, WebFrame* frame) {
   for (WebFrame* child = frame->firstChild(); child;
        child = child->nextSibling())
     traceFrame(visitor, child);
-  // m_opener is a weak reference.
-  frame->m_openedFrameTracker->traceFrames(visitor);
 }
 
-void WebFrame::clearWeakFrames(Visitor* visitor) {
-  if (!isFrameAlive(m_opener))
-    m_opener = nullptr;
+void WebFrame::close() {
+  m_openedFrameTracker->dispose();
 }
 
 }  // namespace blink

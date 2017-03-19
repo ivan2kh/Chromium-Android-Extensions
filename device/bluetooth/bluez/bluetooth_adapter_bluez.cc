@@ -669,14 +669,6 @@ void BluetoothAdapterBlueZ::DevicePropertyChanged(
 
   // UMA connection counting
   if (property_name == properties->connected.name()) {
-    // PlayStation joystick tries to reconnect after disconnection from USB.
-    // If it is still not trusted, set it, so it becomes available on the
-    // list of known devices.
-    if (properties->connected.value()) {
-      if (device_bluez->IsTrustable() && !properties->trusted.value())
-        device_bluez->SetTrusted();
-    }
-
     int count = 0;
 
     for (auto iter = devices_.begin(); iter != devices_.end(); ++iter) {
@@ -1459,7 +1451,7 @@ void BluetoothAdapterBlueZ::SetDiscoveryFilter(
     return;
   }
 
-  current_filter_.reset(discovery_filter.release());
+  current_filter_ = std::move(discovery_filter);
 
   bluez::BluetoothAdapterClient::DiscoveryFilter dbus_discovery_filter;
 

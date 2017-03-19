@@ -21,6 +21,7 @@ uint32_t LockFlags(gfx::BufferUsage usage) {
       return kIOSurfaceLockAvoidSync;
     case gfx::BufferUsage::GPU_READ:
     case gfx::BufferUsage::SCANOUT:
+    case gfx::BufferUsage::SCANOUT_CPU_READ_WRITE:
     case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE_PERSISTENT:
       return 0;
   }
@@ -119,7 +120,7 @@ void GpuMemoryBufferImplIOSurface::SetColorSpaceForScanout(
 
   // Retrieve the ICC profile data.
   gfx::ICCProfile icc_profile;
-  if (!color_space_.GetICCProfile(&icc_profile)) {
+  if (!color_space_.GetAsFullRangeRGB().GetICCProfile(&icc_profile)) {
     DLOG(ERROR) << "Failed to set color space for scanout: no ICC profile.";
     return;
   }

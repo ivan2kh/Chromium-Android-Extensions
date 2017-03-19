@@ -144,29 +144,61 @@ TEST_F(StyleEngineTest, RuleSetInvalidationTypeSelectors) {
       "<div>"
       "  <span></span>"
       "  <div></div>"
-      "</div>");
+      "</div>"
+      "<b></b><b></b><b></b><b></b>"
+      "<i id=i>"
+      "  <i>"
+      "    <b></b>"
+      "  </i>"
+      "</i>");
 
   document().view()->updateAllLifecyclePhases();
 
   unsigned beforeCount = styleEngine().styleForElementCount();
   EXPECT_EQ(
-      scheduleInvalidationsForRules(document(), "span { background: green}"),
-      RuleSetInvalidationsScheduled);
+      RuleSetInvalidationsScheduled,
+      scheduleInvalidationsForRules(document(), "span { background: green}"));
   document().view()->updateAllLifecyclePhases();
   unsigned afterCount = styleEngine().styleForElementCount();
   EXPECT_EQ(1u, afterCount - beforeCount);
 
   beforeCount = afterCount;
-  EXPECT_EQ(scheduleInvalidationsForRules(document(),
-                                          "body div { background: green}"),
-            RuleSetInvalidationsScheduled);
+  EXPECT_EQ(RuleSetInvalidationsScheduled,
+            scheduleInvalidationsForRules(document(),
+                                          "body div { background: green}"));
   document().view()->updateAllLifecyclePhases();
   afterCount = styleEngine().styleForElementCount();
   EXPECT_EQ(2u, afterCount - beforeCount);
 
   EXPECT_EQ(
-      scheduleInvalidationsForRules(document(), "div * { background: green}"),
-      RuleSetInvalidationFullRecalc);
+      RuleSetInvalidationFullRecalc,
+      scheduleInvalidationsForRules(document(), "div * { background: green}"));
+  document().view()->updateAllLifecyclePhases();
+
+  beforeCount = styleEngine().styleForElementCount();
+  EXPECT_EQ(
+      RuleSetInvalidationsScheduled,
+      scheduleInvalidationsForRules(document(), "#i b { background: green}"));
+  document().view()->updateAllLifecyclePhases();
+  afterCount = styleEngine().styleForElementCount();
+  EXPECT_EQ(1u, afterCount - beforeCount);
+}
+
+TEST_F(StyleEngineTest, RuleSetInvalidationCustomPseudo) {
+  document().body()->setInnerHTML(
+      "<style>progress { -webkit-appearance:none }</style>"
+      "<progress></progress>"
+      "<div></div><div></div><div></div><div></div><div></div><div></div>");
+
+  document().view()->updateAllLifecyclePhases();
+
+  unsigned beforeCount = styleEngine().styleForElementCount();
+  EXPECT_EQ(scheduleInvalidationsForRules(
+                document(), "::-webkit-progress-bar { background: green }"),
+            RuleSetInvalidationsScheduled);
+  document().view()->updateAllLifecyclePhases();
+  unsigned afterCount = styleEngine().styleForElementCount();
+  EXPECT_EQ(3u, afterCount - beforeCount);
 }
 
 TEST_F(StyleEngineTest, RuleSetInvalidationHost) {
@@ -416,6 +448,103 @@ TEST_F(StyleEngineTest, ModifyStyleRuleMatchedPropertiesCache) {
   ASSERT_TRUE(t1->computedStyle());
   EXPECT_EQ(makeRGB(0, 128, 0),
             t1->computedStyle()->visitedDependentColor(CSSPropertyColor));
+}
+
+TEST_F(StyleEngineTest, ScheduleInvalidationAfterSubtreeRecalc) {
+  document().body()->setInnerHTML(
+      "<style id='s1'>"
+      "  .t1 span { color: green }"
+      "  .t2 span { color: green }"
+      "</style>"
+      "<style id='s2'>div { background: lime }</style>"
+      "<div id='t1'></div>"
+      "<div id='t2'></div>");
+  document().view()->updateAllLifecyclePhases();
+
+  Element* t1 = document().getElementById("t1");
+  Element* t2 = document().getElementById("t2");
+  ASSERT_TRUE(t1);
+  ASSERT_TRUE(t2);
+
+  // Sanity test.
+  t1->setAttribute(blink::HTMLNames::classAttr, "t1");
+  EXPECT_FALSE(document().needsStyleInvalidation());
+  EXPECT_TRUE(document().childNeedsStyleInvalidation());
+  EXPECT_TRUE(t1->needsStyleInvalidation());
+
+  document().view()->updateAllLifecyclePhases();
+
+  // platformColorsChanged() triggers SubtreeStyleChange on document(). If that
+  // for some reason should change, this test will start failing and the
+  // SubtreeStyleChange must be set another way.
+  // Calling setNeedsStyleRecalc() explicitly with an arbitrary reason instead
+  // requires us to CORE_EXPORT the reason strings.
+  styleEngine().platformColorsChanged();
+
+  // Check that no invalidations sets are scheduled when the document node is
+  // already SubtreeStyleChange.
+  t2->setAttribute(blink::HTMLNames::classAttr, "t2");
+  EXPECT_FALSE(document().needsStyleInvalidation());
+  EXPECT_FALSE(document().childNeedsStyleInvalidation());
+
+  document().view()->updateAllLifecyclePhases();
+  HTMLStyleElement* s2 = toHTMLStyleElement(document().getElementById("s2"));
+  ASSERT_TRUE(s2);
+  s2->setDisabled(true);
+  styleEngine().updateActiveStyle();
+  EXPECT_FALSE(document().childNeedsStyleInvalidation());
+  EXPECT_TRUE(document().needsStyleInvalidation());
+
+  document().view()->updateAllLifecyclePhases();
+  styleEngine().platformColorsChanged();
+  s2->setDisabled(false);
+  styleEngine().updateActiveStyle();
+  EXPECT_FALSE(document().childNeedsStyleInvalidation());
+  EXPECT_FALSE(document().needsStyleInvalidation());
+
+  document().view()->updateAllLifecyclePhases();
+  HTMLStyleElement* s1 = toHTMLStyleElement(document().getElementById("s1"));
+  ASSERT_TRUE(s1);
+  s1->setDisabled(true);
+  styleEngine().updateActiveStyle();
+  EXPECT_TRUE(document().childNeedsStyleInvalidation());
+  EXPECT_FALSE(document().needsStyleInvalidation());
+  EXPECT_TRUE(t1->needsStyleInvalidation());
+  EXPECT_TRUE(t2->needsStyleInvalidation());
+
+  document().view()->updateAllLifecyclePhases();
+  styleEngine().platformColorsChanged();
+  s1->setDisabled(false);
+  styleEngine().updateActiveStyle();
+  EXPECT_FALSE(document().childNeedsStyleInvalidation());
+  EXPECT_FALSE(document().needsStyleInvalidation());
+  EXPECT_FALSE(t1->needsStyleInvalidation());
+  EXPECT_FALSE(t2->needsStyleInvalidation());
+}
+
+TEST_F(StyleEngineTest, NoScheduledRuleSetInvalidationsOnNewShadow) {
+  document().body()->setInnerHTML("<div id='host'></div>");
+  Element* host = document().getElementById("host");
+  ASSERT_TRUE(host);
+
+  document().view()->updateAllLifecyclePhases();
+  ShadowRootInit init;
+  init.setMode("open");
+  ShadowRoot* shadowRoot = host->attachShadow(
+      ScriptState::forMainWorld(document().frame()), init, ASSERT_NO_EXCEPTION);
+  ASSERT_TRUE(shadowRoot);
+
+  shadowRoot->setInnerHTML(
+      "<style>"
+      "  span { color: green }"
+      "  t1 { color: green }"
+      "</style>"
+      "<div id='t1'></div>"
+      "<span></span>");
+
+  styleEngine().updateActiveStyle();
+  EXPECT_FALSE(document().childNeedsStyleInvalidation());
+  EXPECT_FALSE(document().needsStyleInvalidation());
 }
 
 }  // namespace blink

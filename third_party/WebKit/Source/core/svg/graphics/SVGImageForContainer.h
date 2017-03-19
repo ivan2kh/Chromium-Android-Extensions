@@ -75,20 +75,21 @@ class SVGImageForContainer final : public Image {
   }
   bool hasRelativeSize() const override { return m_image->hasRelativeSize(); }
 
+  bool applyShader(PaintFlags&, const SkMatrix& localMatrix) override;
+
   void draw(PaintCanvas*,
             const PaintFlags&,
             const FloatRect&,
             const FloatRect&,
             RespectImageOrientationEnum,
-            ImageClampingMode,
-            const ColorBehavior&) override;
+            ImageClampingMode) override;
 
   // FIXME: Implement this to be less conservative.
   bool currentFrameKnownToBeOpaque(MetadataMode = UseCurrentMetadata) override {
     return false;
   }
 
-  sk_sp<SkImage> imageForCurrentFrame(const ColorBehavior&) override;
+  sk_sp<SkImage> imageForCurrentFrame() override;
 
  protected:
   void drawPattern(GraphicsContext&,

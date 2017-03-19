@@ -9,6 +9,7 @@
 #include "core/dom/DOMException.h"
 #include "core/dom/Document.h"
 #include "core/dom/ExceptionCode.h"
+#include "core/frame/LocalDOMWindow.h"
 #include "core/frame/LocalFrame.h"
 #include "core/frame/UseCounter.h"
 #include "modules/presentation/PresentationConnection.h"
@@ -49,16 +50,38 @@ WebPresentationConnection* PresentationReceiver::onReceiverConnectionAvailable(
 
   // receiver.connectionList property not accessed
   if (!m_connectionListProperty)
-    return nullptr;
+    return connection;
 
   if (m_connectionListProperty->getState() ==
-      ScriptPromisePropertyBase::Pending)
+      ScriptPromisePropertyBase::Pending) {
     m_connectionListProperty->resolve(m_connectionList);
-  else if (m_connectionListProperty->getState() ==
-           ScriptPromisePropertyBase::Resolved)
+  } else if (m_connectionListProperty->getState() ==
+             ScriptPromisePropertyBase::Resolved) {
     m_connectionList->dispatchConnectionAvailableEvent(connection);
+  }
 
   return connection;
+}
+
+void PresentationReceiver::didChangeSessionState(
+    WebPresentationConnectionState state) {
+  // TODO(zhaobin): remove or modify DCHECK when receiver supports more
+  // connection state change.
+  DCHECK(state == WebPresentationConnectionState::Terminated);
+
+  for (auto connection : m_connectionList->connections())
+    connection->didChangeState(state, false /* shouldDispatchEvent */);
+}
+
+void PresentationReceiver::terminateConnection() {
+  if (!frame())
+    return;
+
+  auto* window = frame()->domWindow();
+  if (!window || window->closed())
+    return;
+
+  window->close(frame()->document());
 }
 
 void PresentationReceiver::registerConnection(

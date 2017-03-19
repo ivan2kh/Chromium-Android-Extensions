@@ -59,7 +59,7 @@
 #include "core/page/ContextMenuController.h"
 #include "core/page/Page.h"
 #include "platform/ContextMenu.h"
-#include "platform/Widget.h"
+#include "platform/FrameViewBase.h"
 #include "platform/exported/WrappedResourceResponse.h"
 #include "platform/text/TextBreakIterator.h"
 #include "platform/weborigin/KURL.h"
@@ -107,9 +107,9 @@ static bool IsWhiteSpaceOrPunctuation(UChar c) {
 }
 
 static String selectMisspellingAsync(LocalFrame* selectedFrame,
-                                     String& description,
-                                     uint32_t& hash) {
-  VisibleSelection selection = selectedFrame->selection().selection();
+                                     String& description) {
+  VisibleSelection selection =
+      selectedFrame->selection().computeVisibleSelectionInDOMTreeDeprecated();
   if (selection.isNone())
     return String();
 
@@ -121,7 +121,6 @@ static String selectMisspellingAsync(LocalFrame* selectedFrame,
   if (markers.size() != 1)
     return String();
   description = markers[0]->description();
-  hash = markers[0]->hash();
 
   // Cloning a range fails only for invalid ranges.
   Range* markerRange = selectionRange->cloneRange();
@@ -157,7 +156,7 @@ bool ContextMenuClientImpl::showContextMenu(const ContextMenu* defaultMenu,
 
   HitTestResult r = m_webView->page()->contextMenuController().hitTestResult();
 
-  r.setToShadowHostIfInUserAgentShadowRoot();
+  r.setToShadowHostIfInRestrictedShadowRoot();
 
   LocalFrame* selectedFrame = r.innerNodeFrame();
 
@@ -167,21 +166,25 @@ bool ContextMenuClientImpl::showContextMenu(const ContextMenu* defaultMenu,
 
   // Compute edit flags.
   data.editFlags = WebContextMenuData::CanDoNone;
-  if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canUndo())
-    data.editFlags |= WebContextMenuData::CanUndo;
-  if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canRedo())
-    data.editFlags |= WebContextMenuData::CanRedo;
-  if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canCut())
-    data.editFlags |= WebContextMenuData::CanCut;
-  if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canCopy())
-    data.editFlags |= WebContextMenuData::CanCopy;
-  if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canPaste())
-    data.editFlags |= WebContextMenuData::CanPaste;
-  if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canDelete())
-    data.editFlags |= WebContextMenuData::CanDelete;
-  // We can always select all...
-  data.editFlags |= WebContextMenuData::CanSelectAll;
-  data.editFlags |= WebContextMenuData::CanTranslate;
+  if (selectedFrame->document()->isHTMLDocument() ||
+      selectedFrame->document()->isXHTMLDocument()) {
+    if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canUndo())
+      data.editFlags |= WebContextMenuData::CanUndo;
+    if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canRedo())
+      data.editFlags |= WebContextMenuData::CanRedo;
+    if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canCut())
+      data.editFlags |= WebContextMenuData::CanCut;
+    if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canCopy())
+      data.editFlags |= WebContextMenuData::CanCopy;
+    if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canPaste())
+      data.editFlags |= WebContextMenuData::CanPaste;
+    if (toLocalFrame(m_webView->focusedCoreFrame())->editor().canDelete())
+      data.editFlags |= WebContextMenuData::CanDelete;
+    if (selectedFrame->document()->queryCommandEnabled("selectAll",
+                                                       ASSERT_NO_EXCEPTION))
+      data.editFlags |= WebContextMenuData::CanSelectAll;
+    data.editFlags |= WebContextMenuData::CanTranslate;
+  }
 
   // Links, Images, Media tags, and Image/Media-Links take preference over
   // all else.
@@ -251,10 +254,11 @@ bool ContextMenuClientImpl::showContextMenu(const ContextMenu* defaultMenu,
              isHTMLEmbedElement(*r.innerNode())) {
     LayoutObject* object = r.innerNode()->layoutObject();
     if (object && object->isLayoutPart()) {
-      Widget* widget = toLayoutPart(object)->widget();
-      if (widget && widget->isPluginContainer()) {
+      FrameViewBase* frameViewBase = toLayoutPart(object)->frameViewBase();
+      if (frameViewBase && frameViewBase->isPluginContainer()) {
         data.mediaType = WebContextMenuData::MediaTypePlugin;
-        WebPluginContainerImpl* plugin = toWebPluginContainerImpl(widget);
+        WebPluginContainerImpl* plugin =
+            toWebPluginContainerImpl(frameViewBase);
         WebString text = plugin->plugin()->selectionAsText();
         if (!text.isEmpty()) {
           data.selectedText = text;
@@ -319,10 +323,7 @@ bool ContextMenuClientImpl::showContextMenu(const ContextMenu* defaultMenu,
     // user right-clicks a mouse on a word, Chrome just needs to find a
     // spelling marker on the word instead of spellchecking it.
     String description;
-    uint32_t hash = 0;
-    data.misspelledWord =
-        selectMisspellingAsync(selectedFrame, description, hash);
-    data.misspellingHash = hash;
+    data.misspelledWord = selectMisspellingAsync(selectedFrame, description);
     if (description.length()) {
       Vector<String> suggestions;
       description.split('\n', suggestions);

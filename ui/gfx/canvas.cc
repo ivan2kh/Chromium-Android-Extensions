@@ -289,14 +289,6 @@ void Canvas::DrawRect(const RectF& rect, const cc::PaintFlags& flags) {
   canvas_->drawRect(RectFToSkRect(rect), flags);
 }
 
-void Canvas::DrawPoint(const Point& p1, const cc::PaintFlags& flags) {
-  DrawPoint(PointF(p1), flags);
-}
-
-void Canvas::DrawPoint(const PointF& p1, const cc::PaintFlags& flags) {
-  canvas_->drawPoint(SkFloatToScalar(p1.x()), SkFloatToScalar(p1.y()), flags);
-}
-
 void Canvas::DrawLine(const Point& p1, const Point& p2, SkColor color) {
   DrawLine(PointF(p1), PointF(p2), color);
 }
@@ -332,6 +324,15 @@ void Canvas::DrawSharpLine(PointF p1, PointF p2, SkColor color) {
   flags.setStrokeWidth(SkFloatToScalar(std::floor(dsf)));
 
   DrawLine(p1, p2, flags);
+}
+
+void Canvas::Draw1pxLine(PointF p1, PointF p2, SkColor color) {
+  ScopedCanvas scoped(this);
+  float dsf = UndoDeviceScaleFactor();
+  p1.Scale(dsf);
+  p2.Scale(dsf);
+
+  DrawLine(p1, p2, color);
 }
 
 void Canvas::DrawCircle(const Point& center_point,
@@ -373,12 +374,14 @@ void Canvas::DrawFocusRect(const RectF& rect) {
   DrawDashedRect(rect, SK_ColorGRAY);
 }
 
-void Canvas::DrawSolidFocusRect(RectF rect, SkColor color, float thickness) {
+void Canvas::DrawSolidFocusRect(RectF rect, SkColor color, int thickness) {
   cc::PaintFlags flags;
   flags.setColor(color);
-  flags.setStrokeWidth(SkFloatToScalar(thickness));
+  const float adjusted_thickness =
+      std::floor(thickness * image_scale_) / image_scale_;
+  flags.setStrokeWidth(SkFloatToScalar(adjusted_thickness));
   flags.setStyle(cc::PaintFlags::kStroke_Style);
-  rect.Inset(gfx::InsetsF(thickness / 2));
+  rect.Inset(gfx::InsetsF(adjusted_thickness / 2));
   DrawRect(rect, flags);
 }
 

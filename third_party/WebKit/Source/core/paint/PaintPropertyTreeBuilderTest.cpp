@@ -75,52 +75,47 @@ void PaintPropertyTreeBuilderTest::TearDown() {
   Settings::setMockScrollbarsEnabled(false);
 }
 
-#define CHECK_VISUAL_RECT(expected, sourceLayoutObject, ancestorLayoutObject,  \
-                          slopFactor)                                          \
-  do {                                                                         \
-    std::unique_ptr<GeometryMapper> geometryMapper = GeometryMapper::create(); \
-    LayoutRect source((sourceLayoutObject)->localVisualRect());                \
-    source.moveBy((sourceLayoutObject)->paintOffset());                        \
-    const auto& contentsProperties =                                           \
-        *(ancestorLayoutObject)->paintProperties()->contentsProperties();      \
-    LayoutRect actual = LayoutRect(                                            \
-        geometryMapper                                                         \
-            ->sourceToDestinationVisualRect(FloatRect(source),                 \
-                                            *(sourceLayoutObject)              \
-                                                 ->paintProperties()           \
-                                                 ->localBorderBoxProperties(), \
-                                            contentsProperties)                \
-            .rect());                                                          \
-    actual.moveBy(-(ancestorLayoutObject)->paintOffset());                     \
-    EXPECT_EQ(expected, actual)                                                \
-        << "GeometryMapper: expected: " << expected.toString()                 \
-        << ", actual: " << actual.toString();                                  \
-                                                                               \
-    if (slopFactor == LayoutUnit::max())                                       \
-      break;                                                                   \
-    LayoutRect slowPathRect = (sourceLayoutObject)->localVisualRect();         \
-    (sourceLayoutObject)                                                       \
-        ->mapToVisualRectInAncestorSpace(ancestorLayoutObject, slowPathRect);  \
-    if (slopFactor) {                                                          \
-      LayoutRect inflatedActual = LayoutRect(actual);                          \
-      inflatedActual.inflate(slopFactor);                                      \
-      SCOPED_TRACE(                                                            \
-          String::format("Old path rect: %s, Actual: %s, Inflated actual: %s", \
-                         slowPathRect.toString().ascii().data(),               \
-                         actual.toString().ascii().data(),                     \
-                         inflatedActual.toString().ascii().data()));           \
-      EXPECT_TRUE(slowPathRect.contains(LayoutRect(actual)));                  \
-      EXPECT_TRUE(inflatedActual.contains(slowPathRect));                      \
-    } else {                                                                   \
-      EXPECT_EQ(expected, slowPathRect)                                        \
-          << "Slow path: expected: " << slowPathRect.toString()                \
-          << ", actual: " << actual.toString().ascii().data();                 \
-    }                                                                          \
+#define CHECK_VISUAL_RECT(expected, sourceObject, ancestorObject, slopFactor) \
+  do {                                                                        \
+    if ((sourceObject)->hasLayer() && (ancestorObject)->hasLayer()) {         \
+      auto geometryMapper = GeometryMapper::create();                         \
+      LayoutRect source((sourceObject)->localVisualRect());                   \
+      source.moveBy((sourceObject)->paintOffset());                           \
+      const auto& contentsProperties =                                        \
+          *(ancestorObject)->paintProperties()->contentsProperties();         \
+      FloatRect actualFloatRect(source);                                      \
+      geometryMapper->sourceToDestinationVisualRect(                          \
+          *(sourceObject)->paintProperties()->localBorderBoxProperties(),     \
+          contentsProperties, actualFloatRect);                               \
+      LayoutRect actual(actualFloatRect);                                     \
+      actual.moveBy(-(ancestorObject)->paintOffset());                        \
+      SCOPED_TRACE("GeometryMapper: ");                                       \
+      EXPECT_EQ(expected, actual);                                            \
+    }                                                                         \
+                                                                              \
+    if (slopFactor == LayoutUnit::max())                                      \
+      break;                                                                  \
+    LayoutRect slowPathRect = (sourceObject)->localVisualRect();              \
+    (sourceObject)                                                            \
+        ->mapToVisualRectInAncestorSpace(ancestorObject, slowPathRect);       \
+    if (slopFactor) {                                                         \
+      LayoutRect inflatedExpected = LayoutRect(expected);                     \
+      inflatedExpected.inflate(slopFactor);                                   \
+      SCOPED_TRACE(String::format(                                            \
+          "Old path rect: %s, Expected: %s, Inflated expected: %s",           \
+          slowPathRect.toString().ascii().data(),                             \
+          expected.toString().ascii().data(),                                 \
+          inflatedExpected.toString().ascii().data()));                       \
+      EXPECT_TRUE(slowPathRect.contains(LayoutRect(expected)));               \
+      EXPECT_TRUE(inflatedExpected.contains(slowPathRect));                   \
+    } else {                                                                  \
+      SCOPED_TRACE("Slow path: ");                                            \
+      EXPECT_EQ(expected, slowPathRect);                                      \
+    }                                                                         \
   } while (0)
 
-#define CHECK_EXACT_VISUAL_RECT(expected, sourceLayoutObject, \
-                                ancestorLayoutObject)         \
-  CHECK_VISUAL_RECT(expected, sourceLayoutObject, ancestorLayoutObject, 0)
+#define CHECK_EXACT_VISUAL_RECT(expected, sourceObject, ancestorObject) \
+  CHECK_VISUAL_RECT(expected, sourceObject, ancestorObject, 0)
 
 INSTANTIATE_TEST_CASE_P(All, PaintPropertyTreeBuilderTest, ::testing::Bool());
 
@@ -537,7 +532,7 @@ TEST_P(PaintPropertyTreeBuilderTest, NestedOpacityEffect) {
       document().getElementById("nodeWithoutOpacity")->layoutObject();
   const ObjectPaintProperties* nodeWithoutOpacityProperties =
       nodeWithoutOpacity->paintProperties();
-  EXPECT_NE(nullptr, nodeWithoutOpacityProperties);
+  EXPECT_EQ(nullptr, nodeWithoutOpacityProperties);
   CHECK_EXACT_VISUAL_RECT(LayoutRect(8, 8, 100, 200), nodeWithoutOpacity,
                           document().view()->layoutView());
 
@@ -553,7 +548,7 @@ TEST_P(PaintPropertyTreeBuilderTest, NestedOpacityEffect) {
 
   LayoutObject* grandChildWithoutOpacity =
       document().getElementById("grandChildWithoutOpacity")->layoutObject();
-  EXPECT_NE(nullptr, grandChildWithoutOpacity->paintProperties());
+  EXPECT_EQ(nullptr, grandChildWithoutOpacity->paintProperties());
   CHECK_EXACT_VISUAL_RECT(LayoutRect(8, 8, 20, 30), grandChildWithoutOpacity,
                           document().view()->layoutView());
 
@@ -1452,7 +1447,7 @@ TEST_P(PaintPropertyTreeBuilderTest, CSSClipAbsPositionDescendant) {
       "    width: 100px;"
       "    height: 100px;"
       "  }"
-      "  #abs {"
+      "  #absolute {"
       "    position: absolute;"
       "    left: 654px;"
       "    top: 321px;"
@@ -1487,7 +1482,7 @@ TEST_P(PaintPropertyTreeBuilderTest, CSSClipAbsPositionDescendant) {
             absPosProperties->localBorderBoxProperties()->clip());
   EXPECT_EQ(framePreTranslation(),
             absPosProperties->localBorderBoxProperties()->transform());
-  EXPECT_EQ(LayoutPoint(123, 456), absolute->paintOffset());
+  EXPECT_EQ(LayoutPoint(777, 777), absolute->paintOffset());
   CHECK_VISUAL_RECT(LayoutRect(), absolute, document().view()->layoutView(),
                     // TODO(crbug.com/599939): CSS clip of fixed-position
                     // descendants is broken in
@@ -3145,9 +3140,10 @@ TEST_P(PaintPropertyTreeBuilderTest, FloatUnderInline) {
       "<div style='position: absolute; top: 55px; left: 66px'>"
       "  <span id='span'"
       "      style='position: relative; top: 100px; left: 200px; opacity: 0.5'>"
-      "    <div id='target' style='float: left; width: 33px; height: 44px'>"
+      "    <div id='target'"
+      "         style='overflow: hidden; float: left; width: 3px; height: 4px'>"
       "    </div>"
-      "  </span"
+      "  </span>"
       "</div>");
 
   LayoutObject* span = getLayoutObjectByElementId("span");
@@ -3304,6 +3300,33 @@ TEST_P(PaintPropertyTreeBuilderTest, MaskInline) {
   EXPECT_EQ(outputClip, properties2->localBorderBoxProperties()->clip());
   EXPECT_EQ(properties->effect(),
             properties2->localBorderBoxProperties()->effect());
+}
+
+TEST_P(PaintPropertyTreeBuilderTest, MaskClipNodeInvalidation) {
+  // This test verifies the clip node generated for mask's implicit clip
+  // is correctly invalidated when a box resizes.
+  setBodyInnerHTML(
+      "<style>"
+      "#mask {"
+      "  width: 100px;"
+      "  height:100px;"
+      "  -webkit-mask:linear-gradient(red,red);"
+      "}"
+      "</style>"
+      "<div id='mask'>"
+      "  <div style='width:500px; height:500px; background:green;'></div>"
+      "</div>");
+  const ObjectPaintProperties* properties = paintPropertiesForElement("mask");
+  const ClipPaintPropertyNode* maskClip = properties->maskClip();
+  EXPECT_EQ(FloatRoundedRect(8, 8, 100, 100), maskClip->clipRect());
+
+  Element* mask = document().getElementById("mask");
+  mask->setAttribute(HTMLNames::styleAttr, "height: 200px");
+  document().view()->updateAllLifecyclePhases();
+
+  ASSERT_EQ(properties, paintPropertiesForElement("mask"));
+  ASSERT_EQ(maskClip, properties->maskClip());
+  EXPECT_EQ(FloatRoundedRect(8, 8, 100, 200), maskClip->clipRect());
 }
 
 }  // namespace blink

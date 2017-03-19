@@ -94,7 +94,7 @@ class SessionStateDelegateStub : public SessionStateDelegate {
     return gfx::ImageSkia();
   }
   void SwitchActiveUser(const AccountId& account_id) override {}
-  void CycleActiveUser(CycleUser cycle_user) override {}
+  void CycleActiveUser(CycleUserDirection direction) override {}
   bool IsMultiProfileAllowedByPrimaryUserPolicy() const override {
     return true;
   }
@@ -115,36 +115,22 @@ class SessionStateDelegateStub : public SessionStateDelegate {
 
 WmShellMus::WmShellMus(
     WmWindow* primary_root_window,
-    std::unique_ptr<ShellDelegate> shell_delegate,
     WindowManager* window_manager,
-    views::PointerWatcherEventRouter* pointer_watcher_event_router)
-    : WmShell(std::move(shell_delegate)),
-      window_manager_(window_manager),
+    views::PointerWatcherEventRouter* pointer_watcher_event_router,
+    bool create_session_state_delegate_stub)
+    : window_manager_(window_manager),
       primary_root_window_(primary_root_window),
-      pointer_watcher_event_router_(pointer_watcher_event_router),
-      session_state_delegate_(new SessionStateDelegateStub) {
+      pointer_watcher_event_router_(pointer_watcher_event_router) {
+  if (create_session_state_delegate_stub)
+    session_state_delegate_ = base::MakeUnique<SessionStateDelegateStub>();
   DCHECK(primary_root_window_);
-  WmShell::Set(this);
 
-  uint16_t accelerator_namespace_id = 0u;
-  const bool add_result =
-      window_manager->GetNextAcceleratorNamespaceId(&accelerator_namespace_id);
-  // WmShellMus is created early on, so that this should always succeed.
-  DCHECK(add_result);
-  accelerator_controller_delegate_.reset(
-      new AcceleratorControllerDelegateMus(window_manager_));
-  accelerator_controller_registrar_.reset(new AcceleratorControllerRegistrar(
-      window_manager_, accelerator_namespace_id));
-  SetAcceleratorController(base::MakeUnique<AcceleratorController>(
-      accelerator_controller_delegate_.get(),
-      accelerator_controller_registrar_.get()));
   immersive_handler_factory_.reset(new ImmersiveHandlerFactoryMus);
 
   SetKeyboardUI(KeyboardUIMus::Create(window_manager_->connector()));
 }
 
 WmShellMus::~WmShellMus() {
-  WmShell::Set(nullptr);
 }
 
 // static
@@ -162,17 +148,11 @@ RootWindowController* WmShellMus::GetRootWindowControllerWithDisplayId(
     if (settings->display_id == id)
       return root_window_controller;
   }
-  NOTREACHED();
   return nullptr;
 }
 
 aura::WindowTreeClient* WmShellMus::window_tree_client() {
   return window_manager_->window_tree_client();
-}
-
-void WmShellMus::Initialize(
-    const scoped_refptr<base::SequencedWorkerPool>& pool) {
-  WmShell::Initialize(pool);
 }
 
 void WmShellMus::Shutdown() {
@@ -183,14 +163,6 @@ void WmShellMus::Shutdown() {
 
 bool WmShellMus::IsRunningInMash() const {
   return true;
-}
-
-WmWindow* WmShellMus::NewWindow(ui::wm::WindowType window_type,
-                                ui::LayerType layer_type) {
-  aura::Window* window = new aura::Window(nullptr);
-  window->SetType(window_type);
-  window->Init(layer_type);
-  return WmWindow::Get(window);
 }
 
 WmWindow* WmShellMus::GetFocusedWindow() {
@@ -219,8 +191,9 @@ WmWindow* WmShellMus::GetPrimaryRootWindow() {
 WmWindow* WmShellMus::GetRootWindowForDisplayId(int64_t display_id) {
   RootWindowController* root_window_controller =
       GetRootWindowControllerWithDisplayId(display_id);
-  DCHECK(root_window_controller);
-  return WmWindow::Get(root_window_controller->GetRootWindow());
+  return root_window_controller
+             ? WmWindow::Get(root_window_controller->GetRootWindow())
+             : nullptr;
 }
 
 const display::ManagedDisplayInfo& WmShellMus::GetDisplayInfo(
@@ -255,22 +228,19 @@ bool WmShellMus::IsInUnifiedModeIgnoreMirroring() const {
   return false;
 }
 
-bool WmShellMus::IsForceMaximizeOnFirstRun() {
-  NOTIMPLEMENTED();
-  return false;
-}
-
 void WmShellMus::SetDisplayWorkAreaInsets(WmWindow* window,
                                           const gfx::Insets& insets) {
   window_manager_->screen()->SetWorkAreaInsets(window->aura_window(), insets);
 }
 
 bool WmShellMus::IsPinned() {
+  // TODO: http://crbug.com/622486.
   NOTIMPLEMENTED();
   return false;
 }
 
 void WmShellMus::SetPinnedWindow(WmWindow* window) {
+  // TODO: http://crbug.com/622486.
   NOTIMPLEMENTED();
 }
 
@@ -359,18 +329,10 @@ std::unique_ptr<KeyEventWatcher> WmShellMus::CreateKeyEventWatcher() {
   return std::unique_ptr<KeyEventWatcher>();
 }
 
-void WmShellMus::OnOverviewModeStarting() {
-  for (auto& observer : *shell_observers())
-    observer.OnOverviewModeStarting();
-}
-
-void WmShellMus::OnOverviewModeEnded() {
-  for (auto& observer : *shell_observers())
-    observer.OnOverviewModeEnded();
-}
-
 SessionStateDelegate* WmShellMus::GetSessionStateDelegate() {
-  return session_state_delegate_.get();
+  return session_state_delegate_
+             ? session_state_delegate_.get()
+             : Shell::GetInstance()->session_state_delegate();
 }
 
 void WmShellMus::AddDisplayObserver(WmDisplayObserver* observer) {
@@ -421,5 +383,26 @@ void WmShellMus::InitHosts(const ShellInitParams& init_params) {
   window_manager_->CreatePrimaryRootWindowController(
       base::WrapUnique(init_params.primary_window_tree_host));
 }
+
+std::unique_ptr<AcceleratorController>
+WmShellMus::CreateAcceleratorController() {
+  DCHECK(!accelerator_controller_delegate_);
+  uint16_t accelerator_namespace_id = 0u;
+  const bool add_result =
+      window_manager_->GetNextAcceleratorNamespaceId(&accelerator_namespace_id);
+  // WmShellMus is created early on, so that GetNextAcceleratorNamespaceId()
+  // should always succeed.
+  DCHECK(add_result);
+
+  accelerator_controller_delegate_ =
+      base::MakeUnique<AcceleratorControllerDelegateMus>(window_manager_);
+  accelerator_controller_registrar_ =
+      base ::MakeUnique<AcceleratorControllerRegistrar>(
+          window_manager_, accelerator_namespace_id);
+  return base::MakeUnique<AcceleratorController>(
+      accelerator_controller_delegate_.get(),
+      accelerator_controller_registrar_.get());
+}
+
 }  // namespace mus
 }  // namespace ash

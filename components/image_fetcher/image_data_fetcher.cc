@@ -8,7 +8,6 @@
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
 #include "net/url_request/url_fetcher.h"
-#include "net/url_request/url_request.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "net/url_request/url_request_status.h"
 #include "url/gurl.h"
@@ -70,6 +69,9 @@ void ImageDataFetcher::FetchImageData(
   request->url_fetcher->SetRequestContext(url_request_context_getter_.get());
   request->url_fetcher->SetReferrer(referrer);
   request->url_fetcher->SetReferrerPolicy(referrer_policy);
+  request->url_fetcher->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
+                                     net::LOAD_DO_NOT_SAVE_COOKIES |
+                                     net::LOAD_DO_NOT_SEND_AUTH_DATA);
   request->url_fetcher->Start();
 
   pending_requests_[request->url_fetcher.get()] = std::move(request);
@@ -82,12 +84,12 @@ void ImageDataFetcher::OnURLFetchComplete(const net::URLFetcher* source) {
   bool success = source->GetStatus().status() == net::URLRequestStatus::SUCCESS;
 
   RequestMetadata metadata;
-  metadata.response_code = RESPONSE_CODE_INVALID;
   if (success && source->GetResponseHeaders()) {
     source->GetResponseHeaders()->GetMimeType(&metadata.mime_type);
-    metadata.response_code = source->GetResponseHeaders()->response_code();
-    success &= (metadata.response_code == net::HTTP_OK);
+    metadata.http_response_code = source->GetResponseHeaders()->response_code();
+    success &= (metadata.http_response_code == net::HTTP_OK);
   }
+  metadata.from_http_cache = source->WasCached();
 
   std::string image_data;
   if (success) {

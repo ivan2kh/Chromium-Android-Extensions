@@ -30,9 +30,11 @@
 
 #include "core/layout/LayoutBlockFlow.h"
 
+#include <memory>
 #include "core/editing/Editor.h"
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalFrame.h"
+#include "core/frame/UseCounter.h"
 #include "core/html/HTMLDialogElement.h"
 #include "core/layout/HitTestLocation.h"
 #include "core/layout/LayoutAnalyzer.h"
@@ -52,7 +54,6 @@
 #include "core/paint/PaintLayer.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "wtf/PtrUtil.h"
-#include <memory>
 
 namespace blink {
 
@@ -1039,8 +1040,10 @@ LayoutUnit LayoutBlockFlow::adjustFloatLogicalTopForPagination(
       if (pageLogicalHeightForOffset(logicalTopMarginEdge)) {
         LayoutUnit remainingSpace = pageRemainingLogicalHeightForOffset(
             logicalTopMarginEdge, AssociateWithLatterPage);
-        if (remainingSpace <= marginBefore)
-          strut += remainingSpace;
+        if (remainingSpace <= marginBefore) {
+          strut += calculatePaginationStrutToFitContent(
+              logicalTopMarginEdge, remainingSpace, marginBefore);
+        }
       }
     }
   }
@@ -1346,7 +1349,7 @@ void LayoutBlockFlow::rebuildFloatsFromIntruding() {
            ++it) {
         const FloatingObject& floatingObject = *it->get();
         FloatingObject* oldFloatingObject =
-            floatMap.get(floatingObject.layoutObject());
+            floatMap.at(floatingObject.layoutObject());
         LayoutUnit logicalBottom = logicalBottomForFloat(floatingObject);
         if (oldFloatingObject) {
           LayoutUnit oldLogicalBottom =
@@ -3473,8 +3476,6 @@ LayoutPoint LayoutBlockFlow::computeLogicalLocationForFloat(
 
   LayoutUnit floatLogicalLeft;
 
-  bool insideFlowThread = flowThreadContainingBlock();
-
   if (childBox->style()->floating() == EFloat::kLeft) {
     LayoutUnit heightRemainingLeft = LayoutUnit(1);
     LayoutUnit heightRemainingRight = LayoutUnit(1);
@@ -3488,15 +3489,6 @@ LayoutPoint LayoutBlockFlow::computeLogicalLocationForFloat(
           std::min<LayoutUnit>(heightRemainingLeft, heightRemainingRight);
       floatLogicalLeft = logicalLeftOffsetForPositioningFloat(
           logicalTopOffset, logicalLeftOffset, &heightRemainingLeft);
-      if (insideFlowThread) {
-        // Have to re-evaluate all of our offsets, since they may have changed.
-        logicalRightOffset =
-            logicalRightOffsetForContent();  // Constant part of right offset.
-        logicalLeftOffset =
-            logicalLeftOffsetForContent();  // Constant part of left offset.
-        floatLogicalWidth = std::min(logicalWidthForFloat(floatingObject),
-                                     logicalRightOffset - logicalLeftOffset);
-      }
     }
     floatLogicalLeft = std::max(
         logicalLeftOffset - borderAndPaddingLogicalLeft(), floatLogicalLeft);
@@ -3512,15 +3504,6 @@ LayoutPoint LayoutBlockFlow::computeLogicalLocationForFloat(
       logicalTopOffset += std::min(heightRemainingLeft, heightRemainingRight);
       floatLogicalLeft = logicalRightOffsetForPositioningFloat(
           logicalTopOffset, logicalRightOffset, &heightRemainingRight);
-      if (insideFlowThread) {
-        // Have to re-evaluate all of our offsets, since they may have changed.
-        logicalRightOffset =
-            logicalRightOffsetForContent();  // Constant part of right offset.
-        logicalLeftOffset =
-            logicalLeftOffsetForContent();  // Constant part of left offset.
-        floatLogicalWidth = std::min(logicalWidthForFloat(floatingObject),
-                                     logicalRightOffset - logicalLeftOffset);
-      }
     }
     // Use the original width of the float here, since the local variable
     // |floatLogicalWidth| was capped to the available line width. See
@@ -3597,13 +3580,13 @@ void LayoutBlockFlow::removeFloatingObjectsBelow(FloatingObject* lastFloat,
     return;
 
   const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
-  FloatingObject* curr = floatingObjectSet.last().get();
+  FloatingObject* curr = floatingObjectSet.back().get();
   while (curr != lastFloat &&
          (!curr->isPlaced() || logicalTopForFloat(*curr) >= logicalOffset)) {
     m_floatingObjects->remove(curr);
     if (floatingObjectSet.isEmpty())
       break;
-    curr = floatingObjectSet.last().get();
+    curr = floatingObjectSet.back().get();
   }
 }
 
@@ -3617,7 +3600,7 @@ bool LayoutBlockFlow::placeNewFloats(LayoutUnit logicalTopMarginEdge,
     return false;
 
   // If all floats have already been positioned, then we have no work to do.
-  if (floatingObjectSet.last()->isPlaced())
+  if (floatingObjectSet.back()->isPlaced())
     return false;
 
   // Move backwards through our floating object list until we find a float that
@@ -3737,6 +3720,8 @@ LayoutUnit LayoutBlockFlow::positionAndLayoutFloat(
   child.layoutIfNeeded();
 
   if (isPaginated) {
+    paginatedContentWasLaidOut(child.logicalBottom());
+
     // We may have to insert a break before the float.
     LayoutUnit newLogicalTopMarginEdge =
         adjustFloatLogicalTopForPagination(child, logicalTopMarginEdge);
@@ -3757,6 +3742,7 @@ LayoutUnit LayoutBlockFlow::positionAndLayoutFloat(
       if (child.isLayoutBlock())
         child.setChildNeedsLayout(MarkOnlyThis);
       child.layoutIfNeeded();
+      paginatedContentWasLaidOut(child.logicalBottom());
     }
   }
 
@@ -4124,10 +4110,20 @@ bool LayoutBlockFlow::allowsPaginationStrut() const {
   // If children are inline, allow the strut. We are probably a float.
   if (containingBlockFlow->childrenInline())
     return true;
-  // If this isn't the first in-flow object, there's a break opportunity before
-  // us, which means that we can allow the strut.
-  if (previousInFlowSiblingBox())
-    return true;
+  for (LayoutBox* sibling = previousSiblingBox(); sibling;
+       sibling = sibling->previousSiblingBox()) {
+    // What happens on the other side of a spanner is none of our concern, so
+    // stop here. Since there's no in-flow box between the previous spanner and
+    // us, there's no class A break point in front of us. We cannot even
+    // re-propagate pagination struts to our containing block, since the
+    // containing block starts in a different column row.
+    if (sibling->isColumnSpanAll())
+      return false;
+    // If this isn't the first in-flow object, there's a break opportunity
+    // before us, which means that we can allow the strut.
+    if (!sibling->isFloatingOrOutOfFlowPositioned())
+      return true;
+  }
   // This is a first in-flow child. We'll still allow the strut if it can be
   // re-propagated to our containing block.
   return containingBlockFlow->allowsPaginationStrut();
@@ -4238,6 +4234,7 @@ LayoutMultiColumnFlowThread* LayoutBlockFlow::createMultiColumnFlowThread(
                                                           styleRef());
     case PagedFlowThread:
       // Paged overflow is currently done using the multicol implementation.
+      UseCounter::count(document(), UseCounter::CSSOverflowPaged);
       return LayoutPagedFlowThread::createAnonymous(document(), styleRef());
     default:
       ASSERT_NOT_REACHED();
@@ -4355,7 +4352,7 @@ void LayoutBlockFlow::simplifiedNormalFlowInlineLayout() {
       o->layoutIfNeeded();
       if (toLayoutBox(o)->inlineBoxWrapper()) {
         RootInlineBox& box = toLayoutBox(o)->inlineBoxWrapper()->root();
-        lineBoxes.add(&box);
+        lineBoxes.insert(&box);
       }
     } else if (o->isText() ||
                (o->isLayoutInline() && !walker.atEndOfInline())) {
@@ -4384,7 +4381,7 @@ bool LayoutBlockFlow::recalcInlineChildrenOverflowAfterStyleChange() {
       childrenOverflowChanged = true;
       if (InlineBox* inlineBoxWrapper =
               toLayoutBlock(layoutObject)->inlineBoxWrapper())
-        lineBoxes.add(&inlineBoxWrapper->root());
+        lineBoxes.insert(&inlineBoxWrapper->root());
     }
   }
 

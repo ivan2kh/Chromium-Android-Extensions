@@ -31,9 +31,10 @@
 #include "public/web/WebFrame.h"
 
 #include <stdarg.h>
-#include <v8.h>
+
 #include <map>
 #include <memory>
+
 #include "SkBitmap.h"
 #include "SkCanvas.h"
 #include "bindings/core/v8/SerializedScriptValueFactory.h"
@@ -53,6 +54,7 @@
 #include "core/editing/FrameSelection.h"
 #include "core/editing/VisiblePosition.h"
 #include "core/editing/markers/DocumentMarkerController.h"
+#include "core/editing/spellcheck/IdleSpellCheckCallback.h"
 #include "core/editing/spellcheck/SpellChecker.h"
 #include "core/events/MouseEvent.h"
 #include "core/frame/FrameHost.h"
@@ -90,8 +92,8 @@
 #include "platform/geometry/FloatRect.h"
 #include "platform/loader/fetch/FetchRequest.h"
 #include "platform/loader/fetch/MemoryCache.h"
+#include "platform/loader/fetch/ResourceError.h"
 #include "platform/loader/fetch/ResourceFetcher.h"
-#include "platform/network/ResourceError.h"
 #include "platform/scroll/Scrollbar.h"
 #include "platform/scroll/ScrollbarTestSuite.h"
 #include "platform/scroll/ScrollbarTheme.h"
@@ -116,6 +118,7 @@
 #include "public/platform/WebURLLoaderMockFactory.h"
 #include "public/platform/WebURLResponse.h"
 #include "public/web/WebConsoleMessage.h"
+#include "public/web/WebContextMenuData.h"
 #include "public/web/WebDataSource.h"
 #include "public/web/WebDeviceEmulationParams.h"
 #include "public/web/WebDocument.h"
@@ -140,6 +143,7 @@
 #include "public/web/WebViewClient.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "v8/include/v8.h"
 #include "web/TextFinder.h"
 #include "web/WebLocalFrameImpl.h"
 #include "web/WebRemoteFrameImpl.h"
@@ -1164,7 +1168,7 @@ TEST_P(ParameterizedWebFrameTest,
     }
   }
 
-  frameView->page()->frameHost().visualViewport().setSize(IntSize(200, 200));
+  frameView->page()->visualViewport().setSize(IntSize(200, 200));
 
   for (Frame* frame = mainFrame; frame; frame = frame->tree().traverseNext()) {
     if (!frame->isLocalFrame())
@@ -1218,7 +1222,7 @@ TEST_P(ParameterizedWebFrameTest,
 
   webViewHelper.resize(WebSize(viewportWidth, viewportHeight));
 
-  EXPECT_EQ(2, webViewHelper.webView()->page()->deviceScaleFactor());
+  EXPECT_EQ(2, webViewHelper.webView()->page()->deviceScaleFactorDeprecated());
 
   // Device scale factor should be independent of page scale.
   webViewHelper.webView()->setDefaultPageScaleLimits(1, 2);
@@ -1753,7 +1757,13 @@ TEST_P(ParameterizedWebFrameTest,
   webViewHelper.initializeAndLoad(m_baseURL + "0-by-0.html", true, nullptr,
                                   &client, nullptr, configureAndroid);
   webViewHelper.webView()->settings()->setForceZeroLayoutHeight(true);
+  webViewHelper.webView()->updateAllLifecyclePhases();
+
   PaintLayerCompositor* compositor = webViewHelper.webView()->compositor();
+  GraphicsLayer* scrollContainer = compositor->containerLayer();
+  if (!scrollContainer)
+    scrollContainer = compositor->rootGraphicsLayer();
+
   EXPECT_EQ(0, webViewHelper.webView()
                    ->mainFrameImpl()
                    ->frameView()
@@ -1764,8 +1774,8 @@ TEST_P(ParameterizedWebFrameTest,
                    ->frameView()
                    ->layoutSize()
                    .height());
-  EXPECT_EQ(0.0, compositor->containerLayer()->size().width());
-  EXPECT_EQ(0.0, compositor->containerLayer()->size().height());
+  EXPECT_EQ(0.0, scrollContainer->size().width());
+  EXPECT_EQ(0.0, scrollContainer->size().height());
 
   webViewHelper.resize(WebSize(viewportWidth, 0));
   EXPECT_EQ(viewportWidth, webViewHelper.webView()
@@ -1778,8 +1788,8 @@ TEST_P(ParameterizedWebFrameTest,
                    ->frameView()
                    ->layoutSize()
                    .height());
-  EXPECT_EQ(viewportWidth, compositor->containerLayer()->size().width());
-  EXPECT_EQ(0.0, compositor->containerLayer()->size().height());
+  EXPECT_EQ(viewportWidth, scrollContainer->size().width());
+  EXPECT_EQ(0.0, scrollContainer->size().height());
 
   // The flag ForceZeroLayoutHeight will cause the following resize of viewport
   // height to be ignored by the outer viewport (the container layer of
@@ -1798,15 +1808,15 @@ TEST_P(ParameterizedWebFrameTest,
                    ->frameView()
                    ->layoutSize()
                    .height());
-  EXPECT_EQ(viewportWidth, compositor->containerLayer()->size().width());
-  EXPECT_EQ(viewportHeight, compositor->containerLayer()->size().height());
+  EXPECT_EQ(viewportWidth, scrollContainer->size().width());
+  EXPECT_EQ(viewportHeight, scrollContainer->size().height());
 
   LocalFrame* frame = webViewHelper.webView()->mainFrameImpl()->frame();
-  VisualViewport& visualViewport = frame->page()->frameHost().visualViewport();
+  VisualViewport& visualViewport = frame->page()->visualViewport();
   EXPECT_EQ(viewportHeight, visualViewport.containerLayer()->size().height());
   EXPECT_TRUE(
       visualViewport.containerLayer()->platformLayer()->masksToBounds());
-  EXPECT_FALSE(compositor->containerLayer()->platformLayer()->masksToBounds());
+  EXPECT_FALSE(scrollContainer->platformLayer()->masksToBounds());
 }
 
 TEST_P(ParameterizedWebFrameTest, SetForceZeroLayoutHeight) {
@@ -5452,9 +5462,18 @@ TEST_P(ParameterizedWebFrameTest, MoveRangeSelectionExtentScollsInputField) {
   EXPECT_EQ("Length", selectionAsString(frame));
   webViewHelper.webView()->selectionBounds(startWebRect, endWebRect);
 
-  EXPECT_EQ(0, frame->frame()->selection().rootEditableElement()->scrollLeft());
+  EXPECT_EQ(0, frame->frame()
+                   ->selection()
+                   .computeVisibleSelectionInDOMTreeDeprecated()
+                   .rootEditableElement()
+                   ->scrollLeft());
   frame->moveRangeSelectionExtent(WebPoint(endWebRect.x + 500, endWebRect.y));
-  EXPECT_GE(frame->frame()->selection().rootEditableElement()->scrollLeft(), 1);
+  EXPECT_GE(frame->frame()
+                ->selection()
+                .computeVisibleSelectionInDOMTreeDeprecated()
+                .rootEditableElement()
+                ->scrollLeft(),
+            1);
   EXPECT_EQ("Lengthy text goes here.", selectionAsString(frame));
 }
 
@@ -5473,8 +5492,11 @@ TEST_P(ParameterizedWebFrameTest, DISABLED_PositionForPointTest) {
   initializeTextSelectionWebView(m_baseURL + "select_range_span_editable.html",
                                  &webViewHelper);
   WebLocalFrameImpl* mainFrame = webViewHelper.webView()->mainFrameImpl();
-  LayoutObject* layoutObject =
-      mainFrame->frame()->selection().rootEditableElement()->layoutObject();
+  LayoutObject* layoutObject = mainFrame->frame()
+                                   ->selection()
+                                   .computeVisibleSelectionInDOMTreeDeprecated()
+                                   .rootEditableElement()
+                                   ->layoutObject();
   EXPECT_EQ(0, computeOffset(layoutObject, -1, -1));
   EXPECT_EQ(64, computeOffset(layoutObject, 1000, 1000));
 
@@ -5482,8 +5504,11 @@ TEST_P(ParameterizedWebFrameTest, DISABLED_PositionForPointTest) {
   initializeTextSelectionWebView(m_baseURL + "select_range_div_editable.html",
                                  &webViewHelper);
   mainFrame = webViewHelper.webView()->mainFrameImpl();
-  layoutObject =
-      mainFrame->frame()->selection().rootEditableElement()->layoutObject();
+  layoutObject = mainFrame->frame()
+                     ->selection()
+                     .computeVisibleSelectionInDOMTreeDeprecated()
+                     .rootEditableElement()
+                     ->layoutObject();
   EXPECT_EQ(0, computeOffset(layoutObject, -1, -1));
   EXPECT_EQ(64, computeOffset(layoutObject, 1000, 1000));
 }
@@ -6022,7 +6047,7 @@ TEST_F(WebFrameTest, DisambiguationPopupVisualViewport) {
   webViewImpl->setPageScaleFactor(2.0);
 
   // Scroll visual viewport to the top of the main frame.
-  VisualViewport& visualViewport = frame->page()->frameHost().visualViewport();
+  VisualViewport& visualViewport = frame->page()->visualViewport();
   visualViewport.setLocation(FloatPoint(0, 0));
   EXPECT_SIZE_EQ(ScrollOffset(0, 0), visualViewport.getScrollOffset());
 
@@ -6237,33 +6262,29 @@ TEST_P(ParameterizedWebFrameTest,
 
 class SpellCheckClient : public WebSpellCheckClient {
  public:
-  explicit SpellCheckClient(uint32_t hash = 0)
-      : m_numberOfTimesChecked(0), m_hash(hash) {}
+  SpellCheckClient() : m_numberOfTimesChecked(0) {}
   virtual ~SpellCheckClient() {}
   void requestCheckingOfText(const WebString&,
-                             const WebVector<uint32_t>&,
-                             const WebVector<unsigned>&,
                              WebTextCheckingCompletion* completion) override {
     ++m_numberOfTimesChecked;
     Vector<WebTextCheckingResult> results;
     const int misspellingStartOffset = 1;
     const int misspellingLength = 8;
-    results.push_back(WebTextCheckingResult(
-        WebTextDecorationTypeSpelling, misspellingStartOffset,
-        misspellingLength, WebString(), m_hash));
+    results.push_back(WebTextCheckingResult(WebTextDecorationTypeSpelling,
+                                            misspellingStartOffset,
+                                            misspellingLength, WebString()));
     completion->didFinishCheckingText(results);
   }
   int numberOfTimesChecked() const { return m_numberOfTimesChecked; }
 
  private:
   int m_numberOfTimesChecked;
-  uint32_t m_hash;
 };
 
 TEST_P(ParameterizedWebFrameTest, ReplaceMisspelledRange) {
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
+  initializeTextSelectionWebView(m_baseURL + "spell.html", &webViewHelper);
   SpellCheckClient spellcheck;
   webViewHelper.webView()->setSpellCheckClient(&spellcheck);
 
@@ -6279,11 +6300,21 @@ TEST_P(ParameterizedWebFrameTest, ReplaceMisspelledRange) {
   document->execCommand("InsertText", false, "_wellcome_.", exceptionState);
   EXPECT_FALSE(exceptionState.hadException());
 
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled()) {
+    document->frame()
+        ->spellChecker()
+        .idleSpellCheckCallback()
+        .forceInvocationForTesting();
+  }
+
   const int allTextBeginOffset = 0;
   const int allTextLength = 11;
   frame->selectRange(WebRange(allTextBeginOffset, allTextLength));
   EphemeralRange selectionRange =
-      frame->frame()->selection().selection().toNormalizedEphemeralRange();
+      frame->frame()
+          ->selection()
+          .computeVisibleSelectionInDOMTreeDeprecated()
+          .toNormalizedEphemeralRange();
 
   EXPECT_EQ(1, spellcheck.numberOfTimesChecked());
   EXPECT_EQ(1U, document->markers()
@@ -6300,7 +6331,7 @@ TEST_P(ParameterizedWebFrameTest, ReplaceMisspelledRange) {
 TEST_P(ParameterizedWebFrameTest, RemoveSpellingMarkers) {
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
+  initializeTextSelectionWebView(m_baseURL + "spell.html", &webViewHelper);
   SpellCheckClient spellcheck;
   webViewHelper.webView()->setSpellCheckClient(&spellcheck);
 
@@ -6316,13 +6347,23 @@ TEST_P(ParameterizedWebFrameTest, RemoveSpellingMarkers) {
   document->execCommand("InsertText", false, "_wellcome_.", exceptionState);
   EXPECT_FALSE(exceptionState.hadException());
 
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled()) {
+    document->frame()
+        ->spellChecker()
+        .idleSpellCheckCallback()
+        .forceInvocationForTesting();
+  }
+
   frame->removeSpellingMarkers();
 
   const int allTextBeginOffset = 0;
   const int allTextLength = 11;
   frame->selectRange(WebRange(allTextBeginOffset, allTextLength));
   EphemeralRange selectionRange =
-      frame->frame()->selection().selection().toNormalizedEphemeralRange();
+      frame->frame()
+          ->selection()
+          .computeVisibleSelectionInDOMTreeDeprecated()
+          .toNormalizedEphemeralRange();
 
   EXPECT_EQ(0U, document->markers()
                     .markersInRange(selectionRange, DocumentMarker::Spelling)
@@ -6332,7 +6373,7 @@ TEST_P(ParameterizedWebFrameTest, RemoveSpellingMarkers) {
 TEST_P(ParameterizedWebFrameTest, RemoveSpellingMarkersUnderWords) {
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
+  initializeTextSelectionWebView(m_baseURL + "spell.html", &webViewHelper);
   SpellCheckClient spellcheck;
   webViewHelper.webView()->setSpellCheckClient(&spellcheck);
 
@@ -6348,44 +6389,20 @@ TEST_P(ParameterizedWebFrameTest, RemoveSpellingMarkersUnderWords) {
   document->execCommand("InsertText", false, " wellcome ", exceptionState);
   EXPECT_FALSE(exceptionState.hadException());
 
-  WebVector<uint32_t> documentMarkers1;
-  webViewHelper.webView()->spellingMarkers(&documentMarkers1);
-  EXPECT_EQ(1U, documentMarkers1.size());
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled())
+    frame->spellChecker().idleSpellCheckCallback().forceInvocationForTesting();
+
+  WebVector<unsigned> offsets1;
+  webViewHelper.webView()->spellingMarkerOffsetsForTest(&offsets1);
+  EXPECT_EQ(1U, offsets1.size());
 
   Vector<String> words;
   words.push_back("wellcome");
   frame->removeSpellingMarkersUnderWords(words);
 
-  WebVector<uint32_t> documentMarkers2;
-  webViewHelper.webView()->spellingMarkers(&documentMarkers2);
-  EXPECT_EQ(0U, documentMarkers2.size());
-}
-
-TEST_P(ParameterizedWebFrameTest, MarkerHashIdentifiers) {
-  registerMockedHttpURLLoad("spell.html");
-  FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
-
-  static const uint32_t kHash = 42;
-  SpellCheckClient spellcheck(kHash);
-  webViewHelper.webView()->setSpellCheckClient(&spellcheck);
-
-  WebLocalFrameImpl* frame = webViewHelper.webView()->mainFrameImpl();
-  Document* document = frame->frame()->document();
-  Element* element = document->getElementById("data");
-
-  webViewHelper.webView()->settings()->setEditingBehavior(
-      WebSettings::EditingBehaviorWin);
-
-  element->focus();
-  NonThrowableExceptionState exceptionState;
-  document->execCommand("InsertText", false, "wellcome.", exceptionState);
-  EXPECT_FALSE(exceptionState.hadException());
-
-  WebVector<uint32_t> documentMarkers;
-  webViewHelper.webView()->spellingMarkers(&documentMarkers);
-  EXPECT_EQ(1U, documentMarkers.size());
-  EXPECT_EQ(kHash, documentMarkers[0]);
+  WebVector<unsigned> offsets2;
+  webViewHelper.webView()->spellingMarkerOffsetsForTest(&offsets2);
+  EXPECT_EQ(0U, offsets2.size());
 }
 
 class StubbornSpellCheckClient : public WebSpellCheckClient {
@@ -6395,8 +6412,6 @@ class StubbornSpellCheckClient : public WebSpellCheckClient {
 
   virtual void requestCheckingOfText(
       const WebString&,
-      const WebVector<uint32_t>&,
-      const WebVector<unsigned>&,
       WebTextCheckingCompletion* completion) override {
     m_completion = completion;
   }
@@ -6413,10 +6428,6 @@ class StubbornSpellCheckClient : public WebSpellCheckClient {
   void kick() { kick(1, 8, WebTextDecorationTypeSpelling); }
 
   void kickGrammar() { kick(1, 8, WebTextDecorationTypeGrammar); }
-
-  void kickInvisibleSpellcheck() {
-    kick(1, 8, WebTextDecorationTypeInvisibleSpellcheck);
-  }
 
  private:
   void kick(int misspellingStartOffset,
@@ -6438,7 +6449,7 @@ class StubbornSpellCheckClient : public WebSpellCheckClient {
 TEST_P(ParameterizedWebFrameTest, SlowSpellcheckMarkerPosition) {
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
+  initializeTextSelectionWebView(m_baseURL + "spell.html", &webViewHelper);
 
   StubbornSpellCheckClient spellcheck;
   webViewHelper.webView()->setSpellCheckClient(&spellcheck);
@@ -6457,16 +6468,27 @@ TEST_P(ParameterizedWebFrameTest, SlowSpellcheckMarkerPosition) {
   document->execCommand("InsertText", false, "he", exceptionState);
   EXPECT_FALSE(exceptionState.hadException());
 
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled()) {
+    document->frame()
+        ->spellChecker()
+        .idleSpellCheckCallback()
+        .forceInvocationForTesting();
+  }
+
   spellcheck.kick();
 
-  WebVector<uint32_t> documentMarkers;
-  webViewHelper.webView()->spellingMarkers(&documentMarkers);
-  EXPECT_EQ(0U, documentMarkers.size());
+  WebVector<unsigned> offsets;
+  webViewHelper.webView()->spellingMarkerOffsetsForTest(&offsets);
+  EXPECT_EQ(0U, offsets.size());
 }
 
 // This test verifies that cancelling spelling request does not cause a
 // write-after-free when there's no spellcheck client set.
 TEST_P(ParameterizedWebFrameTest, CancelSpellingRequestCrash) {
+  // The relevant code paths are obsolete with idle time spell checker.
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled())
+    return;
+
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
   webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
@@ -6488,7 +6510,7 @@ TEST_P(ParameterizedWebFrameTest, CancelSpellingRequestCrash) {
 TEST_P(ParameterizedWebFrameTest, SpellcheckResultErasesMarkers) {
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
+  initializeTextSelectionWebView(m_baseURL + "spell.html", &webViewHelper);
 
   StubbornSpellCheckClient spellcheck;
   webViewHelper.webView()->setSpellCheckClient(&spellcheck);
@@ -6504,6 +6526,13 @@ TEST_P(ParameterizedWebFrameTest, SpellcheckResultErasesMarkers) {
   NonThrowableExceptionState exceptionState;
   document->execCommand("InsertText", false, "welcome ", exceptionState);
 
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled()) {
+    document->frame()
+        ->spellChecker()
+        .idleSpellCheckCallback()
+        .forceInvocationForTesting();
+  }
+
   document->updateStyleAndLayout();
 
   EXPECT_FALSE(exceptionState.hadException());
@@ -6512,9 +6541,7 @@ TEST_P(ParameterizedWebFrameTest, SpellcheckResultErasesMarkers) {
                                 DocumentMarker::Spelling);
   document->markers().addMarker(range.startPosition(), range.endPosition(),
                                 DocumentMarker::Grammar);
-  document->markers().addMarker(range.startPosition(), range.endPosition(),
-                                DocumentMarker::InvisibleSpellcheck);
-  EXPECT_EQ(3U, document->markers().markers().size());
+  EXPECT_EQ(2U, document->markers().markers().size());
 
   spellcheck.kickNoResults();
   EXPECT_EQ(0U, document->markers().markers().size());
@@ -6523,7 +6550,7 @@ TEST_P(ParameterizedWebFrameTest, SpellcheckResultErasesMarkers) {
 TEST_P(ParameterizedWebFrameTest, SpellcheckResultsSavedInDocument) {
   registerMockedHttpURLLoad("spell.html");
   FrameTestHelpers::WebViewHelper webViewHelper;
-  webViewHelper.initializeAndLoad(m_baseURL + "spell.html");
+  initializeTextSelectionWebView(m_baseURL + "spell.html", &webViewHelper);
 
   StubbornSpellCheckClient spellcheck;
   webViewHelper.webView()->setSpellCheckClient(&spellcheck);
@@ -6540,6 +6567,13 @@ TEST_P(ParameterizedWebFrameTest, SpellcheckResultsSavedInDocument) {
   document->execCommand("InsertText", false, "wellcome ", exceptionState);
   EXPECT_FALSE(exceptionState.hadException());
 
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled()) {
+    document->frame()
+        ->spellChecker()
+        .idleSpellCheckCallback()
+        .forceInvocationForTesting();
+  }
+
   spellcheck.kick();
   ASSERT_EQ(1U, document->markers().markers().size());
   ASSERT_NE(static_cast<DocumentMarker*>(0), document->markers().markers()[0]);
@@ -6548,19 +6582,17 @@ TEST_P(ParameterizedWebFrameTest, SpellcheckResultsSavedInDocument) {
   document->execCommand("InsertText", false, "wellcome ", exceptionState);
   EXPECT_FALSE(exceptionState.hadException());
 
+  if (RuntimeEnabledFeatures::idleTimeSpellCheckingEnabled()) {
+    document->frame()
+        ->spellChecker()
+        .idleSpellCheckCallback()
+        .forceInvocationForTesting();
+  }
+
   spellcheck.kickGrammar();
   ASSERT_EQ(1U, document->markers().markers().size());
   ASSERT_NE(static_cast<DocumentMarker*>(0), document->markers().markers()[0]);
   EXPECT_EQ(DocumentMarker::Grammar, document->markers().markers()[0]->type());
-
-  document->execCommand("InsertText", false, "wellcome ", exceptionState);
-  EXPECT_FALSE(exceptionState.hadException());
-
-  spellcheck.kickInvisibleSpellcheck();
-  ASSERT_EQ(1U, document->markers().markers().size());
-  ASSERT_NE(static_cast<DocumentMarker*>(0), document->markers().markers()[0]);
-  EXPECT_EQ(DocumentMarker::InvisibleSpellcheck,
-            document->markers().markers()[0]->type());
 }
 
 class TestAccessInitialDocumentWebFrameClient
@@ -6644,13 +6676,7 @@ TEST_P(ParameterizedWebFrameTest, DidAccessInitialDocumentViaJavascriptUrl) {
   EXPECT_TRUE(webFrameClient.m_didAccessInitialDocument);
 }
 
-// Fails on the WebKit XP (deps) bot. http://crbug.com/312192
-#if OS(WIN)
-TEST_P(ParameterizedWebFrameTest,
-       DISABLED_DidAccessInitialDocumentBodyBeforeModalDialog)
-#else
 TEST_P(ParameterizedWebFrameTest, DidAccessInitialDocumentBodyBeforeModalDialog)
-#endif
 {
   // FIXME: Why is this local webViewClient needed instead of the default
   // WebViewHelper one? With out it there's some mysterious crash in the
@@ -6685,13 +6711,7 @@ TEST_P(ParameterizedWebFrameTest, DidAccessInitialDocumentBodyBeforeModalDialog)
   EXPECT_TRUE(webFrameClient.m_didAccessInitialDocument);
 }
 
-// Fails on the WebKit XP (deps) bot. http://crbug.com/312192
-#if OS(WIN)
-TEST_P(ParameterizedWebFrameTest,
-       DISABLED_DidWriteToInitialDocumentBeforeModalDialog)
-#else
 TEST_P(ParameterizedWebFrameTest, DidWriteToInitialDocumentBeforeModalDialog)
-#endif
 {
   // FIXME: Why is this local webViewClient needed instead of the default
   // WebViewHelper one? With out it there's some mysterious crash in the
@@ -7252,11 +7272,9 @@ TEST_P(ParameterizedWebFrameTest, WebNodeImageContents) {
   ASSERT_FALSE(image.isNull());
   EXPECT_EQ(image.size().width, 10);
   EXPECT_EQ(image.size().height, 10);
-  // FIXME: The rest of this test is disabled since the ImageDecodeCache state
-  // may be inconsistent when this test runs, crbug.com/266088
-  // SkBitmap bitmap = image.getSkBitmap();
-  // SkAutoLockPixels locker(bitmap);
-  // EXPECT_EQ(bitmap.getColor(0, 0), SK_ColorBLUE);
+  SkBitmap bitmap = image.getSkBitmap();
+  SkAutoLockPixels locker(bitmap);
+  EXPECT_EQ(bitmap.getColor(0, 0), SK_ColorBLUE);
 }
 
 class TestStartStopCallbackWebFrameClient
@@ -7347,7 +7365,8 @@ class TestHistoryWebFrameClient : public FrameTestHelpers::TestWebFrameClient {
     m_replacesCurrentHistoryItem = false;
   }
 
-  void didStartProvisionalLoad(WebDataSource* dataSource) {
+  void didStartProvisionalLoad(WebDataSource* dataSource,
+                               WebURLRequest& request) {
     m_replacesCurrentHistoryItem = dataSource->replacesCurrentHistoryItem();
   }
 
@@ -7711,11 +7730,8 @@ TEST_F(WebFrameTest, FullscreenLayerNonScrollable) {
   FrameView* frameView = webViewHelper.webView()->mainFrameImpl()->frameView();
   WebLayer* layoutViewportScrollLayer =
       webViewImpl->compositor()->scrollLayer()->platformLayer();
-  WebLayer* visualViewportScrollLayer = frameView->page()
-                                            ->frameHost()
-                                            .visualViewport()
-                                            .scrollLayer()
-                                            ->platformLayer();
+  WebLayer* visualViewportScrollLayer =
+      frameView->page()->visualViewport().scrollLayer()->platformLayer();
   ASSERT_FALSE(layoutViewportScrollLayer->userScrollableHorizontal());
   ASSERT_FALSE(layoutViewportScrollLayer->userScrollableVertical());
   ASSERT_FALSE(visualViewportScrollLayer->userScrollableHorizontal());
@@ -8229,8 +8245,7 @@ TEST_P(ParameterizedWebFrameTest, NotifyManifestChange) {
 static Resource* fetchManifest(Document* document, const KURL& url) {
   FetchRequest fetchRequest =
       FetchRequest(ResourceRequest(url), FetchInitiatorInfo());
-  fetchRequest.mutableResourceRequest().setRequestContext(
-      WebURLRequest::RequestContextManifest);
+  fetchRequest.setRequestContext(WebURLRequest::RequestContextManifest);
 
   return RawResource::fetchSynchronously(fetchRequest, document->fetcher());
 }
@@ -8521,10 +8536,9 @@ TEST_F(WebFrameSwapTest, ValidateSizeOnRemoteToLocalMainFrameSwap) {
 
   // Verify that the size that was set with a remote main frame is correct
   // after swapping to a local frame.
-  FrameHost* host =
-      toWebViewImpl(localFrame->view())->page()->mainFrame()->host();
-  EXPECT_EQ(size.width, host->visualViewport().size().width());
-  EXPECT_EQ(size.height, host->visualViewport().size().height());
+  Page* page = toWebViewImpl(localFrame->view())->page()->mainFrame()->page();
+  EXPECT_EQ(size.width, page->visualViewport().size().width());
+  EXPECT_EQ(size.height, page->visualViewport().size().height());
 
   // Manually reset to break WebViewHelper's dependency on the stack allocated
   // TestWebFrameClient.
@@ -8840,9 +8854,8 @@ TEST_F(WebFrameSwapTest, SetTimeoutAfterSwap) {
                         "} catch (e) { e; }"));
     ASSERT_TRUE(!exception.IsEmpty());
     EXPECT_EQ(
-        "SecurityError: Failed to execute 'setTimeout' on 'Window': Blocked a "
-        "frame with origin \"http://internal.test\" from accessing a "
-        "cross-origin frame.",
+        "SecurityError: Blocked a frame with origin \"http://internal.test\" "
+        "from accessing a cross-origin frame.",
         toCoreString(exception
                          ->ToString(ScriptState::forMainWorld(
                                         webView()->mainFrameImpl()->frame())
@@ -10112,7 +10125,7 @@ class CallbackOrderingWebFrameClient
     EXPECT_EQ(0, m_callbackCount++);
     FrameTestHelpers::TestWebFrameClient::didStartLoading(toDifferentDocument);
   }
-  void didStartProvisionalLoad(WebDataSource*) override {
+  void didStartProvisionalLoad(WebDataSource*, WebURLRequest&) override {
     EXPECT_EQ(1, m_callbackCount++);
   }
   void didCommitProvisionalLoad(WebLocalFrame*,
@@ -10503,7 +10516,7 @@ class TestResourcePriorityWebFrameClient
   TestResourcePriorityWebFrameClient() {}
 
   void willSendRequest(WebLocalFrame*, WebURLRequest& request) override {
-    ExpectedRequest* expectedRequest = m_expectedRequests.get(request.url());
+    ExpectedRequest* expectedRequest = m_expectedRequests.at(request.url());
     DCHECK(expectedRequest);
     EXPECT_EQ(expectedRequest->priority, request.getPriority());
     expectedRequest->seen = true;
@@ -10550,7 +10563,7 @@ TEST_F(WebFrameTest, ChangeResourcePriority) {
                         ->document()
                         ->fetcher()
                         ->allResources()
-                        .get(toKURL("http://internal.test/image_slow.pl"));
+                        .at(toKURL("http://internal.test/image_slow.pl"));
   DCHECK(image);
   EXPECT_EQ(ResourceLoadPriorityHigh, image->resourceRequest().priority());
 
@@ -11179,6 +11192,21 @@ TEST_F(WebFrameTest, MouseReleaseUpdatesScrollbarHoveredPart) {
   EXPECT_EQ(scrollbar->hoveredPart(), ScrollbarPart::NoPart);
 }
 
+TEST_F(WebFrameTest,
+       CustomScrollbarInOverlayScrollbarThemeWillNotCauseDCHECKFails) {
+  registerMockedHttpURLLoad(
+      "custom-scrollbar-dcheck-failed-when-paint-scroll-corner.html");
+  FrameTestHelpers::WebViewHelper webViewHelper;
+  WebViewImpl* webView = webViewHelper.initializeAndLoad(
+      m_baseURL +
+      "custom-scrollbar-dcheck-failed-when-paint-scroll-corner.html");
+
+  webViewHelper.resize(WebSize(200, 200));
+
+  // No DCHECK Fails. Issue 676678.
+  webView->updateAllLifecyclePhases();
+}
+
 static void disableCompositing(WebSettings* settings) {
   settings->setAcceleratedCompositingEnabled(false);
   settings->setPreferCompositingToLCDTextEnabled(false);
@@ -11378,6 +11406,113 @@ TEST_F(WebFrameTest, NoLoadingCompletionCallbacksInDetach) {
   EXPECT_TRUE(mainFrameClient.childClient().didCallDidHandleOnloadEvents());
 
   webViewHelper.reset();
+}
+
+TEST_F(WebFrameTest, ClearClosedOpener) {
+  FrameTestHelpers::TestWebViewClient openerWebViewClient;
+  FrameTestHelpers::WebViewHelper openerHelper;
+  openerHelper.initialize(false, nullptr, &openerWebViewClient);
+  FrameTestHelpers::WebViewHelper helper;
+  helper.initializeWithOpener(openerHelper.webView()->mainFrame());
+
+  openerHelper.reset();
+  EXPECT_EQ(nullptr, helper.webView()->mainFrameImpl()->opener());
+}
+
+class ShowVirtualKeyboardObserverWidgetClient
+    : public FrameTestHelpers::TestWebWidgetClient {
+ public:
+  ShowVirtualKeyboardObserverWidgetClient() : m_didShowVirtualKeyboard(false) {}
+
+  void showVirtualKeyboardOnElementFocus() override {
+    m_didShowVirtualKeyboard = true;
+  }
+
+  bool didShowVirtualKeyboard() const { return m_didShowVirtualKeyboard; }
+
+ private:
+  bool m_didShowVirtualKeyboard;
+};
+
+TEST_F(WebFrameTest, ShowVirtualKeyboardOnElementFocus) {
+  FrameTestHelpers::WebViewHelper webViewHelper;
+  WebViewImpl* webView = webViewHelper.initialize(true);
+  WebRemoteFrameImpl* remoteFrame = static_cast<WebRemoteFrameImpl*>(
+      WebRemoteFrame::create(WebTreeScopeType::Document, nullptr));
+  webView->setMainFrame(remoteFrame);
+  RefPtr<SecurityOrigin> uniqueOrigin = SecurityOrigin::createUnique();
+  remoteFrame->frame()->securityContext()->setSecurityOrigin(uniqueOrigin);
+
+  ShowVirtualKeyboardObserverWidgetClient webWidgetClient;
+  WebLocalFrameImpl* localFrame = FrameTestHelpers::createLocalChild(
+      remoteFrame, "child", nullptr, &webWidgetClient);
+
+  registerMockedHttpURLLoad("input_field_default.html");
+  FrameTestHelpers::loadFrame(localFrame,
+                              m_baseURL + "input_field_default.html");
+
+  // Simulate an input element focus leading to Element::focus() call with a
+  // user gesture.
+  localFrame->setHasReceivedUserGesture();
+  localFrame->executeScript(
+      WebScriptSource("window.focus();"
+                      "document.querySelector('input').focus();"));
+
+  // Verify that the right WebWidgetClient has been notified.
+  EXPECT_TRUE(webWidgetClient.didShowVirtualKeyboard());
+
+  remoteFrame->close();
+  webViewHelper.reset();
+}
+
+class ContextMenuWebFrameClient : public FrameTestHelpers::TestWebFrameClient {
+ public:
+  ContextMenuWebFrameClient(){};
+  // WebFrameClient methods
+  void showContextMenu(const WebContextMenuData& data) override {
+    m_menuData = data;
+  }
+
+  WebContextMenuData getMenuData() { return m_menuData; }
+
+ private:
+  WebContextMenuData m_menuData;
+  DISALLOW_COPY_AND_ASSIGN(ContextMenuWebFrameClient);
+};
+
+bool testSelectAll(const std::string& html) {
+  ContextMenuWebFrameClient frame;
+  FrameTestHelpers::WebViewHelper webViewHelper;
+  WebViewImpl* webView = webViewHelper.initialize(true, &frame);
+  FrameTestHelpers::loadHTMLString(webView->mainFrame(), html,
+                                   toKURL("about:blank"));
+  webView->resize(WebSize(500, 300));
+  webView->updateAllLifecyclePhases();
+  runPendingTasks();
+  webView->setInitialFocus(false);
+  runPendingTasks();
+
+  WebMouseEvent mouseEvent(WebInputEvent::MouseDown, WebInputEvent::NoModifiers,
+                           WebInputEvent::TimeStampForTesting);
+
+  mouseEvent.button = WebMouseEvent::Button::Right;
+  mouseEvent.x = 10;
+  mouseEvent.y = 10;
+  mouseEvent.clickCount = 1;
+  webView->handleInputEvent(WebCoalescedInputEvent(mouseEvent));
+  runPendingTasks();
+  webViewHelper.reset();
+  return frame.getMenuData().editFlags & WebContextMenuData::CanSelectAll;
+}
+
+TEST_F(WebFrameTest, ContextMenuData) {
+  EXPECT_FALSE(testSelectAll("<textarea></textarea>"));
+  EXPECT_TRUE(testSelectAll("<textarea>nonempty</textarea>"));
+  EXPECT_FALSE(testSelectAll("<input>"));
+  EXPECT_TRUE(testSelectAll("<input value='nonempty'>"));
+  // TODO(amaralp): Empty contenteditable should not have select all enabled.
+  EXPECT_TRUE(testSelectAll("<div contenteditable></div>"));
+  EXPECT_TRUE(testSelectAll("<div contenteditable>nonempty</div>"));
 }
 
 }  // namespace blink

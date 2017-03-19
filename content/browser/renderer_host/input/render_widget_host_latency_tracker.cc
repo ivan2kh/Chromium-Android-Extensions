@@ -82,20 +82,6 @@ void UpdateLatencyCoordinates(const WebInputEvent& event,
   DCHECK(!end.last_event_time.is_null());    \
   DCHECK_GE(end.last_event_time, start.first_event_time);
 
-// Long scroll latency component that is mostly under 200ms.
-#define UMA_HISTOGRAM_SCROLL_LATENCY_LONG(name, start, end)             \
-  CONFIRM_VALID_TIMING(start, end);                                     \
-  UMA_HISTOGRAM_CUSTOM_COUNTS(                                          \
-      name, (end.event_time - start.event_time).InMicroseconds(), 1000, \
-      200000, 50)
-
-// Short scroll latency component that is mostly under 50ms.
-#define UMA_HISTOGRAM_SCROLL_LATENCY_SHORT(name, start, end)                \
-  CONFIRM_VALID_TIMING(start, end);                                         \
-  UMA_HISTOGRAM_CUSTOM_COUNTS(                                              \
-      name, (end.event_time - start.event_time).InMicroseconds(), 1, 50000, \
-      50)
-
 // Event latency that is mostly under 1 second. We should only use 100 buckets
 // when needed.
 #define UMA_HISTOGRAM_INPUT_LATENCY_HIGH_RESOLUTION_MICROSECONDS(name, start, \
@@ -225,63 +211,6 @@ void ComputeScrollLatencyHistograms(
           original_component, gpu_swap_begin_component);
     }
   }
-
-  // TODO(miletus): Add validation for making sure the following components
-  // are present and their event times are legit.
-  LatencyInfo::LatencyComponent rendering_scheduled_component;
-  bool rendering_scheduled_on_main = latency.FindLatency(
-      ui::INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_MAIN_COMPONENT,
-      0, &rendering_scheduled_component);
-
-  if (!rendering_scheduled_on_main) {
-    if (!latency.FindLatency(
-            ui::INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_IMPL_COMPONENT,
-            0, &rendering_scheduled_component))
-      return;
-  }
-
-  if (rendering_scheduled_on_main) {
-    UMA_HISTOGRAM_SCROLL_LATENCY_LONG(
-        "Event.Latency.ScrollUpdate.TouchToHandled_Main",
-        original_component, rendering_scheduled_component);
-  } else {
-    UMA_HISTOGRAM_SCROLL_LATENCY_LONG(
-        "Event.Latency.ScrollUpdate.TouchToHandled_Impl",
-        original_component, rendering_scheduled_component);
-  }
-
-  LatencyInfo::LatencyComponent renderer_swap_component;
-  if (!latency.FindLatency(ui::INPUT_EVENT_LATENCY_RENDERER_SWAP_COMPONENT,
-                           0, &renderer_swap_component))
-    return;
-
-  if (rendering_scheduled_on_main) {
-    UMA_HISTOGRAM_SCROLL_LATENCY_LONG(
-        "Event.Latency.ScrollUpdate.HandledToRendererSwap_Main",
-        rendering_scheduled_component, renderer_swap_component);
-  } else {
-    UMA_HISTOGRAM_SCROLL_LATENCY_LONG(
-        "Event.Latency.ScrollUpdate.HandledToRendererSwap_Impl",
-        rendering_scheduled_component, renderer_swap_component);
-  }
-
-  LatencyInfo::LatencyComponent browser_received_swap_component;
-  if (!latency.FindLatency(
-          ui::INPUT_EVENT_BROWSER_RECEIVED_RENDERER_SWAP_COMPONENT,
-          0, &browser_received_swap_component))
-    return;
-
-  UMA_HISTOGRAM_SCROLL_LATENCY_SHORT(
-      "Event.Latency.ScrollUpdate.RendererSwapToBrowserNotified",
-      renderer_swap_component, browser_received_swap_component);
-
-  UMA_HISTOGRAM_SCROLL_LATENCY_LONG(
-      "Event.Latency.ScrollUpdate.BrowserNotifiedToBeforeGpuSwap",
-      browser_received_swap_component, gpu_swap_begin_component);
-
-  UMA_HISTOGRAM_SCROLL_LATENCY_SHORT("Event.Latency.ScrollUpdate.GpuSwap",
-                                     gpu_swap_begin_component,
-                                     gpu_swap_end_component);
 }
 
 void ComputeTouchAndWheelScrollLatencyHistograms(

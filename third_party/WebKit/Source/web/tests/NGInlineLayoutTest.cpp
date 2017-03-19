@@ -20,7 +20,8 @@ namespace blink {
 
 class NGInlineLayoutTest : public SimTest {
  public:
-  NGConstraintSpace* constraintSpaceForElement(LayoutNGBlockFlow* blockFlow) {
+  RefPtr<NGConstraintSpace> constraintSpaceForElement(
+      LayoutNGBlockFlow* blockFlow) {
     return NGConstraintSpaceBuilder(
                FromPlatformWritingMode(blockFlow->style()->getWritingMode()))
         .SetAvailableSize(NGLogicalSize(LayoutUnit(), LayoutUnit()))
@@ -45,12 +46,13 @@ TEST_F(NGInlineLayoutTest, BlockWithSingleTextNode) {
 
   Element* target = document().getElementById("target");
   LayoutNGBlockFlow* blockFlow = toLayoutNGBlockFlow(target->layoutObject());
-  NGConstraintSpace* constraintSpace = constraintSpaceForElement(blockFlow);
+  RefPtr<NGConstraintSpace> constraintSpace =
+      constraintSpaceForElement(blockFlow);
   NGBlockNode* node = new NGBlockNode(blockFlow);
 
-  RefPtr<NGPhysicalFragment> fragment =
-      NGBlockLayoutAlgorithm(node, constraintSpace).Layout();
-  EXPECT_TRUE(fragment);
+  RefPtr<NGLayoutResult> result =
+      NGBlockLayoutAlgorithm(node, constraintSpace.get()).Layout();
+  EXPECT_TRUE(result);
 
   String expectedText("Hello World!");
   EXPECT_EQ(expectedText, toNGInlineNode(node->FirstChild())->Text(0, 12));
@@ -69,12 +71,13 @@ TEST_F(NGInlineLayoutTest, BlockWithTextAndAtomicInline) {
 
   Element* target = document().getElementById("target");
   LayoutNGBlockFlow* blockFlow = toLayoutNGBlockFlow(target->layoutObject());
-  NGConstraintSpace* constraintSpace = constraintSpaceForElement(blockFlow);
+  RefPtr<NGConstraintSpace> constraintSpace =
+      constraintSpaceForElement(blockFlow);
   NGBlockNode* node = new NGBlockNode(blockFlow);
 
-  RefPtr<NGPhysicalFragment> fragment =
-      NGBlockLayoutAlgorithm(node, constraintSpace).Layout();
-  EXPECT_TRUE(fragment);
+  RefPtr<NGLayoutResult> result =
+      NGBlockLayoutAlgorithm(node, constraintSpace.get()).Layout();
+  EXPECT_TRUE(result);
 
   String expectedText("Hello ");
   expectedText.append(objectReplacementCharacter);

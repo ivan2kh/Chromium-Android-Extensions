@@ -201,6 +201,8 @@ void PictureLayerImpl::AppendQuads(RenderPass* render_pass,
     return;
   }
 
+  float device_scale_factor =
+      layer_tree_impl() ? layer_tree_impl()->device_scale_factor() : 1;
   float max_contents_scale = MaximumTilingContentsScale();
   PopulateScaledSharedQuadState(shared_quad_state, max_contents_scale,
                                 max_contents_scale);
@@ -213,7 +215,7 @@ void PictureLayerImpl::AppendQuads(RenderPass* render_pass,
     AppendDebugBorderQuad(
         render_pass, shared_quad_state->quad_layer_bounds, shared_quad_state,
         append_quads_data, DebugColors::DirectPictureBorderColor(),
-        DebugColors::DirectPictureBorderWidth(layer_tree_impl()));
+        DebugColors::DirectPictureBorderWidth(device_scale_factor));
 
     gfx::Rect geometry_rect = shared_quad_state->visible_quad_layer_rect;
     gfx::Rect opaque_rect = contents_opaque() ? geometry_rect : gfx::Rect();
@@ -260,29 +262,29 @@ void PictureLayerImpl::AppendQuads(RenderPass* render_pass,
         TileDrawInfo::Mode mode = iter->draw_info().mode();
         if (mode == TileDrawInfo::SOLID_COLOR_MODE) {
           color = DebugColors::SolidColorTileBorderColor();
-          width = DebugColors::SolidColorTileBorderWidth(layer_tree_impl());
+          width = DebugColors::SolidColorTileBorderWidth(device_scale_factor);
         } else if (mode == TileDrawInfo::OOM_MODE) {
           color = DebugColors::OOMTileBorderColor();
-          width = DebugColors::OOMTileBorderWidth(layer_tree_impl());
+          width = DebugColors::OOMTileBorderWidth(device_scale_factor);
         } else if (iter->draw_info().has_compressed_resource()) {
           color = DebugColors::CompressedTileBorderColor();
-          width = DebugColors::CompressedTileBorderWidth(layer_tree_impl());
+          width = DebugColors::CompressedTileBorderWidth(device_scale_factor);
         } else if (iter.resolution() == HIGH_RESOLUTION) {
           color = DebugColors::HighResTileBorderColor();
-          width = DebugColors::HighResTileBorderWidth(layer_tree_impl());
+          width = DebugColors::HighResTileBorderWidth(device_scale_factor);
         } else if (iter.resolution() == LOW_RESOLUTION) {
           color = DebugColors::LowResTileBorderColor();
-          width = DebugColors::LowResTileBorderWidth(layer_tree_impl());
+          width = DebugColors::LowResTileBorderWidth(device_scale_factor);
         } else if (iter->contents_scale() > max_contents_scale) {
           color = DebugColors::ExtraHighResTileBorderColor();
-          width = DebugColors::ExtraHighResTileBorderWidth(layer_tree_impl());
+          width = DebugColors::ExtraHighResTileBorderWidth(device_scale_factor);
         } else {
           color = DebugColors::ExtraLowResTileBorderColor();
-          width = DebugColors::ExtraLowResTileBorderWidth(layer_tree_impl());
+          width = DebugColors::ExtraLowResTileBorderWidth(device_scale_factor);
         }
       } else {
         color = DebugColors::MissingTileBorderColor();
-        width = DebugColors::MissingTileBorderWidth(layer_tree_impl());
+        width = DebugColors::MissingTileBorderWidth(device_scale_factor);
       }
 
       DebugBorderDrawQuad* debug_border_quad =
@@ -692,13 +694,11 @@ std::unique_ptr<Tile> PictureLayerImpl::CreateTile(
     const Tile::CreateInfo& info) {
   int flags = 0;
 
-  // We don't handle solid color masks, so we shouldn't bother analyzing those.
+  // We don't handle solid color masks if mask tiling is disabled, we also don't
+  // handle solid color single texture masks if the flag is enabled, so we
+  // shouldn't bother analyzing those.
   // Otherwise, always analyze to maximize memory savings.
-  // TODO(sunxd): the condition should be (mask_type_ ==
-  // Layer::LayerMaskType::NOT_MASK
-  // || (layer_tree_impl()->settings().enable_mask_tiling && mask_type ==
-  // Layer::LayerMaskType::MULTI_TEXTURE_MASK)).
-  if (mask_type_ == Layer::LayerMaskType::NOT_MASK)
+  if (mask_type_ != Layer::LayerMaskType::SINGLE_TEXTURE_MASK)
     flags = Tile::USE_PICTURE_ANALYSIS;
 
   if (contents_opaque())
@@ -740,11 +740,7 @@ gfx::Size PictureLayerImpl::CalculateTileSize(
   int max_texture_size =
       layer_tree_impl()->resource_provider()->max_texture_size();
 
-  // TODO(sunxd): the condition should be mask_type_ == Layer::LayerMaskType::
-  // SINGLE_TEXTURE_MASK || (mask_type_ ==
-  // Layer::LayerMaskType::MULTI_TEXTURE_MASK &&
-  // !layer_tree_impl()->settings().enable_mask_tiling)
-  if (mask_type_ != Layer::LayerMaskType::NOT_MASK) {
+  if (mask_type_ == Layer::LayerMaskType::SINGLE_TEXTURE_MASK) {
     // Masks are not tiled, so if we can't cover the whole mask with one tile,
     // we shouldn't have such a tiling at all.
     DCHECK_LE(content_bounds.width(), max_texture_size);
@@ -1178,16 +1174,12 @@ float PictureLayerImpl::MinimumContentsScale() const {
 }
 
 float PictureLayerImpl::MaximumContentsScale() const {
-  // Masks can not have tilings that would become larger than the
-  // max_texture_size since they use a single tile for the entire
-  // tiling. Other layers can have tilings such that dimension * scale
-  // does not overflow.
-  // TODO(sunxd): the condition should be:
-  // mask_type_ == Layer::LayerMaskType::SINGLE_TEXTURE_MASK || (mask_type_ ==
-  // Layer::LayerMaskType::MULTI_TEXTURE_MASK && !layer_tree_impl()->settings().
-  // enable_mask_tiling)
+  // When mask tiling is disabled or the mask is single textured, masks can not
+  // have tilings that would become larger than the max_texture_size since they
+  // use a single tile for the entire tiling. Other layers can have tilings such
+  // that dimension * scale does not overflow.
   float max_dimension = static_cast<float>(
-      mask_type_ != Layer::LayerMaskType::NOT_MASK
+      mask_type_ == Layer::LayerMaskType::SINGLE_TEXTURE_MASK
           ? layer_tree_impl()->resource_provider()->max_texture_size()
           : std::numeric_limits<int>::max());
   float max_scale_width = max_dimension / bounds().width();
@@ -1278,12 +1270,15 @@ void PictureLayerImpl::UpdateIdealScales() {
 void PictureLayerImpl::GetDebugBorderProperties(
     SkColor* color,
     float* width) const {
+  float device_scale_factor =
+      layer_tree_impl() ? layer_tree_impl()->device_scale_factor() : 1;
+
   if (is_directly_composited_image_) {
     *color = DebugColors::ImageLayerBorderColor();
-    *width = DebugColors::ImageLayerBorderWidth(layer_tree_impl());
+    *width = DebugColors::ImageLayerBorderWidth(device_scale_factor);
   } else {
     *color = DebugColors::TiledContentLayerBorderColor();
-    *width = DebugColors::TiledContentLayerBorderWidth(layer_tree_impl());
+    *width = DebugColors::TiledContentLayerBorderWidth(device_scale_factor);
   }
 }
 
@@ -1378,6 +1373,29 @@ bool PictureLayerImpl::IsOnActiveOrPendingTree() const {
 bool PictureLayerImpl::HasValidTilePriorities() const {
   return IsOnActiveOrPendingTree() &&
          is_drawn_render_surface_layer_list_member();
+}
+
+void PictureLayerImpl::InvalidateRegionForImages(
+    const ImageIdFlatSet& images_to_invalidate) {
+  TRACE_EVENT_BEGIN0("cc", "PictureLayerImpl::InvalidateRegionForImages");
+
+  InvalidationRegion image_invalidation;
+  for (auto image_id : images_to_invalidate)
+    image_invalidation.Union(raster_source_->GetRectForImage(image_id));
+  Region invalidation;
+  image_invalidation.Swap(&invalidation);
+
+  if (invalidation.IsEmpty()) {
+    TRACE_EVENT_END1("cc", "PictureLayerImpl::InvalidateRegionForImages",
+                     "Invalidation", invalidation.ToString());
+    return;
+  }
+
+  invalidation_.Union(invalidation);
+  tilings_->UpdateTilingsForImplSideInvalidation(invalidation);
+  SetNeedsPushProperties();
+  TRACE_EVENT_END1("cc", "PictureLayerImpl::InvalidateRegionForImages",
+                   "Invalidation", invalidation.ToString());
 }
 
 }  // namespace cc

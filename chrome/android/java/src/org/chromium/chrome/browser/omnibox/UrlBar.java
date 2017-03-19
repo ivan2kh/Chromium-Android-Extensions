@@ -11,6 +11,7 @@ import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.text.Editable;
@@ -20,6 +21,7 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.style.ReplacementSpan;
 import android.util.AttributeSet;
+import android.util.Pair;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -137,6 +139,9 @@ public class UrlBar extends VerticallyFixedEditText {
     private boolean mIgnoreAutocomplete = true;
     private boolean mLastUrlEditWasDelete;
 
+    /** This tracks whether or not the last ACTION_DOWN event was when the url bar had focus. */
+    boolean mDownEventHadFocus;
+
     /**
      * Implement this to get updates when the direction of the text in the URL bar changes.
      * E.g. If the user is typing a URL, then erases it and starts typing a query in Arabic,
@@ -248,6 +253,8 @@ public class UrlBar extends VerticallyFixedEditText {
         boolean hasNonEmptyText = false;
         Editable text = getText();
         if (!TextUtils.isEmpty(text)) {
+            // Make sure the setText in this block does not affect the suggestions.
+            setIgnoreTextChangesForAutocomplete(true);
             setText("");
             hasNonEmptyText = true;
         }
@@ -256,7 +263,10 @@ public class UrlBar extends VerticallyFixedEditText {
         } else {
             setHintTextColor(mLightHintColor);
         }
-        if (hasNonEmptyText) setText(text);
+        if (hasNonEmptyText) {
+            setText(text);
+            setIgnoreTextChangesForAutocomplete(false);
+        }
 
         if (!hasFocus()) {
             deEmphasizeUrl();
@@ -548,6 +558,8 @@ public class UrlBar extends VerticallyFixedEditText {
             return true;
         }
 
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) mDownEventHadFocus = mFocused;
+
         Tab currentTab = mUrlBarDelegate.getCurrentTab();
         if (event.getAction() == MotionEvent.ACTION_DOWN && currentTab != null) {
             // Make sure to hide the current ContentView ActionBar.
@@ -556,6 +568,15 @@ public class UrlBar extends VerticallyFixedEditText {
         }
 
         return super.onTouchEvent(event);
+    }
+
+    @Override
+    public boolean performLongClick(float x, float y) {
+        // If the touch event that triggered this was when the url bar was in a different focus
+        // state, ignore the event.
+        if (mDownEventHadFocus != mFocused) return true;
+
+        return super.performLongClick(x, y);
     }
 
     @Override
@@ -853,9 +874,22 @@ public class UrlBar extends VerticallyFixedEditText {
         Editable url = getText();
         if (url == null || url.length() < 1) return false;
         String urlString = url.toString();
-        String prePath = LocationBarLayout.splitPathFromUrlDisplayText(urlString).first;
-        if (prePath == null || prePath.isEmpty()) return false;
-        setSelection(prePath.length());
+        Pair<String, String> urlComponents =
+                LocationBarLayout.splitPathFromUrlDisplayText(urlString);
+
+        if (TextUtils.isEmpty(urlComponents.first)) return false;
+
+        // Do not scroll to the end of the host for URLs such as data:, javascript:, etc...
+        if (urlComponents.second == null) {
+            Uri uri = Uri.parse(urlString);
+            String scheme = uri.getScheme();
+            if (!TextUtils.isEmpty(scheme)
+                    && LocationBarLayout.UNSUPPORTED_SCHEMES_TO_SPLIT.contains(scheme)) {
+                return false;
+            }
+        }
+
+        setSelection(urlComponents.first.length());
         return true;
     }
 
@@ -1114,7 +1148,7 @@ public class UrlBar extends VerticallyFixedEditText {
     }
 
     /**
-     * Emphasize the TLD and second domain of the URL.
+     * Emphasize components of the URL for readability.
      */
     public void emphasizeUrl() {
         Editable url = getText();
@@ -1126,8 +1160,6 @@ public class UrlBar extends VerticallyFixedEditText {
             return;
         }
 
-        // We retrieve the domain and registry from the full URL (the url bar shows a simplified
-        // version of the URL).
         Tab currentTab = mUrlBarDelegate.getCurrentTab();
         if (currentTab == null || currentTab.getProfile() == null) return;
 
@@ -1145,7 +1177,7 @@ public class UrlBar extends VerticallyFixedEditText {
     }
 
     /**
-     * Reset the modifications done to emphasize the TLD and second domain of the URL.
+     * Reset the modifications done to emphasize components of the URL.
      */
     public void deEmphasizeUrl() {
         OmniboxUrlEmphasizer.deEmphasizeUrl(getText());

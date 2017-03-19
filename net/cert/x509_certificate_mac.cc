@@ -113,20 +113,6 @@ std::string GetCertSerialNumber(
       serial_number.field()->Length);
 }
 
-// Returns true if |purpose| is listed as allowed in |usage|. This
-// function also considers the "Any" purpose. If the attribute is
-// present and empty, we return false.
-bool ExtendedKeyUsageAllows(const CE_ExtendedKeyUsage* usage,
-                            const CSSM_OID* purpose) {
-  for (unsigned p = 0; p < usage->numPurposes; ++p) {
-    if (CSSMOIDEqual(&usage->purposes[p], purpose))
-      return true;
-    if (CSSMOIDEqual(&usage->purposes[p], &CSSMOID_ExtendedKeyUsageAny))
-      return true;
-  }
-  return false;
-}
-
 // Test that a given |cert_handle| is actually a valid X.509 certificate, and
 // return true if it is.
 //
@@ -286,15 +272,7 @@ bool X509Certificate::GetDEREncoded(X509Certificate::OSCertHandle cert_handle,
 bool X509Certificate::IsSameOSCert(X509Certificate::OSCertHandle a,
                                    X509Certificate::OSCertHandle b) {
   DCHECK(a && b);
-  if (a == b)
-    return true;
-  if (CFEqual(a, b))
-    return true;
-  CSSM_DATA a_data, b_data;
-  return SecCertificateGetData(a, &a_data) == noErr &&
-      SecCertificateGetData(b, &b_data) == noErr &&
-      a_data.Length == b_data.Length &&
-      memcmp(a_data.Data, b_data.Data, a_data.Length) == 0;
+  return CFEqual(a, b);
 }
 
 // static
@@ -398,42 +376,6 @@ SHA256HashValue X509Certificate::CalculateCAFingerprint256(
   return sha256;
 }
 
-bool X509Certificate::SupportsSSLClientAuth() const {
-  x509_util::CSSMCachedCertificate cached_cert;
-  OSStatus status = cached_cert.Init(cert_handle_);
-  if (status)
-    return false;
-
-  // RFC5280 says to take the intersection of the two extensions.
-  //
-  // Our underlying crypto libraries don't expose
-  // ClientCertificateType, so for now we will not support fixed
-  // Diffie-Hellman mechanisms. For rsa_sign, we need the
-  // digitalSignature bit.
-  //
-  // In particular, if a key has the nonRepudiation bit and not the
-  // digitalSignature one, we will not offer it to the user.
-  x509_util::CSSMFieldValue key_usage;
-  status = cached_cert.GetField(&CSSMOID_KeyUsage, &key_usage);
-  if (status == CSSM_OK && key_usage.field()) {
-    const CSSM_X509_EXTENSION* ext = key_usage.GetAs<CSSM_X509_EXTENSION>();
-    const CE_KeyUsage* key_usage_value =
-        reinterpret_cast<const CE_KeyUsage*>(ext->value.parsedValue);
-    if (!((*key_usage_value) & CE_KU_DigitalSignature))
-      return false;
-  }
-
-  status = cached_cert.GetField(&CSSMOID_ExtendedKeyUsage, &key_usage);
-  if (status == CSSM_OK && key_usage.field()) {
-    const CSSM_X509_EXTENSION* ext = key_usage.GetAs<CSSM_X509_EXTENSION>();
-    const CE_ExtendedKeyUsage* ext_key_usage =
-        reinterpret_cast<const CE_ExtendedKeyUsage*>(ext->value.parsedValue);
-    if (!ExtendedKeyUsageAllows(ext_key_usage, &CSSMOID_ClientAuth))
-      return false;
-  }
-  return true;
-}
-
 CFMutableArrayRef X509Certificate::CreateOSCertChainForCert() const {
   CFMutableArrayRef cert_list =
       CFArrayCreateMutable(kCFAllocatorDefault, 0,
@@ -516,43 +458,6 @@ void X509Certificate::GetPublicKeyInfo(OSCertHandle cert_handle,
       *size_bits = 0;
       break;
   }
-}
-
-X509Certificate::SignatureHashAlgorithm
-X509Certificate::GetSignatureHashAlgorithm(OSCertHandle cert_handle) {
-  x509_util::CSSMCachedCertificate cached_cert;
-  OSStatus status = cached_cert.Init(cert_handle);
-  if (status)
-    return kSignatureHashAlgorithmOther;
-
-  x509_util::CSSMFieldValue signature_field;
-  status =
-      cached_cert.GetField(&CSSMOID_X509V1SignatureAlgorithm, &signature_field);
-  if (status || !signature_field.field())
-    return kSignatureHashAlgorithmOther;
-
-  const CSSM_X509_ALGORITHM_IDENTIFIER* sig_algorithm =
-      signature_field.GetAs<CSSM_X509_ALGORITHM_IDENTIFIER>();
-  if (!sig_algorithm)
-    return kSignatureHashAlgorithmOther;
-
-  const CSSM_OID* alg_oid = &sig_algorithm->algorithm;
-  if (CSSMOIDEqual(alg_oid, &CSSMOID_MD2WithRSA))
-    return kSignatureHashAlgorithmMd2;
-  if (CSSMOIDEqual(alg_oid, &CSSMOID_MD4WithRSA))
-    return kSignatureHashAlgorithmMd4;
-  if (CSSMOIDEqual(alg_oid, &CSSMOID_MD5WithRSA))
-    return kSignatureHashAlgorithmMd5;
-  if (CSSMOIDEqual(alg_oid, &CSSMOID_SHA1WithRSA) ||
-      CSSMOIDEqual(alg_oid, &CSSMOID_SHA1WithRSA_OIW) ||
-      CSSMOIDEqual(alg_oid, &CSSMOID_SHA1WithDSA) ||
-      CSSMOIDEqual(alg_oid, &CSSMOID_SHA1WithDSA_CMS) ||
-      CSSMOIDEqual(alg_oid, &CSSMOID_SHA1WithDSA_JDK) ||
-      CSSMOIDEqual(alg_oid, &CSSMOID_ECDSA_WithSHA1)) {
-    return kSignatureHashAlgorithmSha1;
-  }
-
-  return kSignatureHashAlgorithmOther;
 }
 
 // static

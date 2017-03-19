@@ -37,6 +37,7 @@
 #include "chrome/browser/browsing_data/browsing_data_helper.h"
 #include "chrome/browser/browsing_data/browsing_data_remover.h"
 #include "chrome/browser/browsing_data/browsing_data_remover_factory.h"
+#include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/budget_service/budget_service_impl.h"
 #include "chrome/browser/chrome_content_browser_client_parts.h"
 #include "chrome/browser/chrome_quota_permission_context.h"
@@ -45,7 +46,6 @@
 #include "chrome/browser/content_settings/tab_specific_content_settings.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/download/download_prefs.h"
-#include "chrome/browser/field_trial_recorder.h"
 #include "chrome/browser/font_family_cache.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/memory/chrome_memory_coordinator_delegate.h"
@@ -85,7 +85,6 @@
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/tracing/chrome_tracing_delegate.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
-#include "chrome/browser/ui/ash/ash_util.h"
 #include "chrome/browser/ui/blocked_content/blocked_window_params.h"
 #include "chrome/browser/ui/blocked_content/popup_blocker_tab_helper.h"
 #include "chrome/browser/ui/browser_navigator.h"
@@ -178,6 +177,7 @@
 #include "content/public/common/sandbox_type.h"
 #include "content/public/common/service_manager_connection.h"
 #include "content/public/common/service_names.mojom.h"
+#include "content/public/common/url_constants.h"
 #include "content/public/common/url_utils.h"
 #include "content/public/common/web_preferences.h"
 #include "device/bluetooth/adapter_factory.h"
@@ -186,6 +186,7 @@
 #include "device/usb/public/interfaces/device_manager.mojom.h"
 #include "extensions/features/features.h"
 #include "gpu/config/gpu_switches.h"
+#include "media/audio/audio_manager.h"
 #include "media/media_features.h"
 #include "net/base/mime_util.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
@@ -217,7 +218,8 @@
 #elif defined(OS_MACOSX)
 #include "chrome/browser/chrome_browser_main_mac.h"
 #elif defined(OS_CHROMEOS)
-#include "chrome/browser/chromeos/arc/arc_session_manager.h"
+#include "ash/public/interfaces/constants.mojom.h"
+#include "chrome/browser/chromeos/arc/arc_util.h"
 #include "chrome/browser/chromeos/arc/fileapi/arc_content_file_system_backend_delegate.h"
 #include "chrome/browser/chromeos/arc/fileapi/arc_documents_provider_backend_delegate.h"
 #include "chrome/browser/chromeos/arc/intent_helper/arc_navigation_throttle.h"
@@ -246,6 +248,7 @@
 #elif defined(OS_LINUX)
 #include "chrome/browser/chrome_browser_main_linux.h"
 #elif defined(OS_ANDROID)
+#include "chrome/browser/android/app_hooks.h"
 #include "chrome/browser/chrome_browser_main_android.h"
 #include "chrome/common/descriptors_android.h"
 #include "components/crash/content/browser/crash_dump_manager_android.h"
@@ -276,7 +279,7 @@
 #include "chrome/browser/android/service_tab_launcher.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/android/webapps/single_tab_mode_tab_helper.h"
-#include "components/payments/payment_request.mojom.h"
+#include "components/payments/content/payment_request.mojom.h"
 #include "content/public/browser/android/java_interfaces.h"
 #include "ui/base/ui_base_paths.h"
 #else
@@ -321,7 +324,6 @@
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/accessibility/animation_policy_prefs.h"
 #include "chrome/browser/extensions/chrome_content_browser_client_extensions_part.h"
-#include "chrome/browser/media/cast_transport_host_filter.h"
 #include "chrome/browser/speech/extension_api/tts_engine_extension_api.h"
 #include "components/guest_view/browser/guest_view_base.h"
 #include "components/guest_view/browser/guest_view_manager.h"
@@ -340,6 +342,10 @@
 #include "extensions/common/permissions/socket_permission.h"
 #include "extensions/common/switches.h"
 #endif
+
+#if BUILDFLAG(ENABLE_EXTENSIONS) && defined(ENABLE_MEDIA_ROUTER)
+#include "chrome/browser/media/cast_transport_host_filter.h"
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS) && defined(ENABLE_MEDIA_ROUTER)
 
 #if BUILDFLAG(ENABLE_PLUGINS)
 #include "chrome/browser/plugins/chrome_content_browser_client_plugins_part.h"
@@ -369,8 +375,7 @@
 #include "chrome/browser/media/cast_remoting_connector.h"
 #endif
 
-
-#if defined(ENABLE_WAYLAND_SERVER)
+#if BUILDFLAG(ENABLE_WAYLAND_SERVER)
 #include "chrome/browser/chrome_browser_main_extra_parts_exo.h"
 #endif
 
@@ -421,7 +426,8 @@ namespace {
 
 // Cached version of the locale so we can return the locale on the I/O
 // thread.
-base::LazyInstance<std::string> g_io_thread_application_locale;
+base::LazyInstance<std::string>::DestructorAtExit
+    g_io_thread_application_locale = LAZY_INSTANCE_INITIALIZER;
 
 const storage::QuotaSettings* g_default_quota_settings;
 
@@ -647,7 +653,7 @@ bool HandleWebUI(GURL* url, content::BrowserContext* browser_context) {
   if (user_manager::UserManager::Get()->IsLoggedInAsGuest()) {
     if (url->SchemeIs(content::kChromeUIScheme) &&
         (url->DomainIs(chrome::kChromeUIBookmarksHost) ||
-         url->DomainIs(chrome::kChromeUIHistoryHost))) {
+         url->DomainIs(content::kChromeUIHistoryHost))) {
       // Rewrite with new tab URL
       *url = GURL(chrome::kChromeUINewTabURL);
     }
@@ -1044,7 +1050,7 @@ content::BrowserMainParts* ChromeContentBrowserClient::CreateBrowserMainParts(
   main_parts->AddParts(new ChromeBrowserMainExtraPartsX11());
 #endif
 
-#if defined(ENABLE_WAYLAND_SERVER)
+#if BUILDFLAG(ENABLE_WAYLAND_SERVER)
   main_parts->AddParts(new ChromeBrowserMainExtraPartsExo());
 #endif
 
@@ -1157,7 +1163,7 @@ void ChromeContentBrowserClient::RenderProcessWillLaunch(
   Profile* profile = Profile::FromBrowserContext(host->GetBrowserContext());
   host->AddFilter(new ChromeRenderMessageFilter(
       id, profile, host->GetStoragePartition()->GetServiceWorkerContext()));
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS) && defined(ENABLE_MEDIA_ROUTER)
   host->AddFilter(new cast::CastTransportHostFilter);
 #endif
 #if BUILDFLAG(ENABLE_PRINTING)
@@ -1180,8 +1186,10 @@ void ChromeContentBrowserClient::RenderProcessWillLaunch(
                     new base::UserDataAdapter<WebRtcLoggingHandlerHost>(
                         webrtc_logging_handler_host));
 
+  // The audio manager outlives the host, so it's safe to hand a raw pointer to
+  // it to the AudioDebugRecordingsHandler, which is owned by the host.
   AudioDebugRecordingsHandler* audio_debug_recordings_handler =
-      new AudioDebugRecordingsHandler(profile);
+      new AudioDebugRecordingsHandler(profile, media::AudioManager::Get());
   host->SetUserData(
       AudioDebugRecordingsHandler::kAudioDebugRecordingsHandlerKey,
       new base::UserDataAdapter<AudioDebugRecordingsHandler>(
@@ -1306,6 +1314,15 @@ void ChromeContentBrowserClient::GetAdditionalWebUISchemes(
     std::vector<std::string>* additional_schemes) {
   additional_schemes->push_back(chrome::kChromeSearchScheme);
   additional_schemes->push_back(dom_distiller::kDomDistillerScheme);
+}
+
+void ChromeContentBrowserClient::GetAdditionalViewSourceSchemes(
+    std::vector<std::string>* additional_schemes) {
+  GetAdditionalWebUISchemes(additional_schemes);
+
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+  additional_schemes->push_back(extensions::kExtensionScheme);
+#endif
 }
 
 bool ChromeContentBrowserClient::LogWebUIUrl(const GURL& web_ui_url) const {
@@ -1837,6 +1854,7 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
       autofill::switches::kEnableSuggestionsWithSubstringMatch,
       autofill::switches::kIgnoreAutocompleteOffForAutofill,
       autofill::switches::kLocalHeuristicsOnlyForPasswordGeneration,
+      autofill::switches::kShowAutofillSignatures,
 #if BUILDFLAG(ENABLE_EXTENSIONS)
       extensions::switches::kAllowHTTPBackgroundPage,
       extensions::switches::kAllowLegacyExtensionManifests,
@@ -1846,6 +1864,7 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
       extensions::switches::kIsolateExtensions,
       extensions::switches::kNativeCrxBindings,
       extensions::switches::kWhitelistedExtensionID,
+      extensions::switches::kYieldBetweenContentScriptRuns,
 #endif
       switches::kAllowInsecureLocalhost,
       switches::kAppsGalleryURL,
@@ -1869,6 +1888,7 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
 #endif
       switches::kJavaScriptHarmony,
       switches::kOriginTrialDisabledFeatures,
+      switches::kOriginTrialDisabledTokens,
       switches::kOriginTrialPublicKey,
       switches::kPpapiFlashArgs,
       switches::kPpapiFlashPath,
@@ -2536,8 +2556,8 @@ void ChromeContentBrowserClient::OverrideWebkitPrefs(
       rvh->GetProcess()->GetBrowserContext());
   PrefService* prefs = profile->GetPrefs();
 
-  // Fill per-script font preferences. These are not registered on Android
-  // - http://crbug.com/308033.
+// Fill font preferences. These are not registered on Android
+// - http://crbug.com/308033, http://crbug.com/696364.
 #if !defined(OS_ANDROID)
   FontFamilyCache::FillFontFamilyMap(profile,
                                      prefs::kWebKitStandardFontFamilyMap,
@@ -2560,7 +2580,6 @@ void ChromeContentBrowserClient::OverrideWebkitPrefs(
   FontFamilyCache::FillFontFamilyMap(profile,
                                      prefs::kWebKitPictographFontFamilyMap,
                                      &web_prefs->pictograph_font_family_map);
-#endif
 
   web_prefs->default_font_size =
       prefs->GetInteger(prefs::kWebKitDefaultFontSize);
@@ -2570,6 +2589,7 @@ void ChromeContentBrowserClient::OverrideWebkitPrefs(
       prefs->GetInteger(prefs::kWebKitMinimumFontSize);
   web_prefs->minimum_logical_font_size =
       prefs->GetInteger(prefs::kWebKitMinimumLogicalFontSize);
+#endif
 
   web_prefs->default_encoding = prefs->GetString(prefs::kDefaultCharset);
 
@@ -2659,18 +2679,24 @@ void ChromeContentBrowserClient::OverrideWebkitPrefs(
   web_prefs->data_saver_enabled = GetDataSaverEnabledPref(prefs);
 
 #if defined(OS_ANDROID)
-  if (base::FeatureList::IsEnabled(
-          features::kAllowAutoplayUnmutedInWebappManifestScope)) {
-    content::WebContents* contents =
-        content::WebContents::FromRenderViewHost(rvh);
-    if (contents) {
-      TabAndroid* tab_android = TabAndroid::FromWebContents(contents);
-      if (tab_android) {
+  content::WebContents* contents =
+      content::WebContents::FromRenderViewHost(rvh);
+  if (contents) {
+    TabAndroid* tab_android = TabAndroid::FromWebContents(contents);
+    if (tab_android) {
+      web_prefs->embedded_media_experience_enabled =
+          tab_android->ShouldEnableEmbeddedMediaExperience();
+
+      if (base::FeatureList::IsEnabled(
+              features::kAllowAutoplayUnmutedInWebappManifestScope)) {
         web_prefs->media_playback_gesture_whitelist_scope =
             tab_android->GetWebappManifestScope();
       }
     }
   }
+
+  web_prefs->video_fullscreen_detection_enabled =
+      chrome::android::AppHooks::ShouldDetectVideoFullscreen();
 #endif  // defined(OS_ANDROID)
 
   for (size_t i = 0; i < extra_parts_.size(); ++i)
@@ -2714,8 +2740,8 @@ void ChromeContentBrowserClient::ClearCache(RenderFrameHost* rfh) {
   BrowsingDataRemover* remover =
       BrowsingDataRemoverFactory::GetForBrowserContext(profile);
   remover->Remove(base::Time(), base::Time::Max(),
-                  BrowsingDataRemover::REMOVE_CACHE,
-                  BrowsingDataHelper::UNPROTECTED_WEB);
+                  BrowsingDataRemover::DATA_TYPE_CACHE,
+                  BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB);
 }
 
 void ChromeContentBrowserClient::ClearCookies(RenderFrameHost* rfh) {
@@ -2723,9 +2749,9 @@ void ChromeContentBrowserClient::ClearCookies(RenderFrameHost* rfh) {
       rfh->GetSiteInstance()->GetProcess()->GetBrowserContext());
   BrowsingDataRemover* remover =
       BrowsingDataRemoverFactory::GetForBrowserContext(profile);
-  int remove_mask = BrowsingDataRemover::REMOVE_SITE_DATA;
+  int remove_mask = ChromeBrowsingDataRemoverDelegate::DATA_TYPE_SITE_DATA;
   remover->Remove(base::Time(), base::Time::Max(), remove_mask,
-                  BrowsingDataHelper::UNPROTECTED_WEB);
+                  BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB);
 }
 
 void ChromeContentBrowserClient::ClearSiteData(
@@ -2763,10 +2789,11 @@ void ChromeContentBrowserClient::ClearSiteData(
 
     remover->RemoveWithFilterAndReply(
         base::Time(), base::Time::Max(),
-        BrowsingDataRemover::REMOVE_COOKIES |
-            BrowsingDataRemover::REMOVE_CHANNEL_IDS |
-            BrowsingDataRemover::REMOVE_PLUGIN_DATA,
-        BrowsingDataHelper::ALL, std::move(domain_filter_builder), observer);
+        BrowsingDataRemover::DATA_TYPE_COOKIES |
+            BrowsingDataRemover::DATA_TYPE_CHANNEL_IDS |
+            ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PLUGIN_DATA,
+        ChromeBrowsingDataRemoverDelegate::ALL_ORIGIN_TYPES,
+        std::move(domain_filter_builder), observer);
   } else {
     // The first removal task is a no-op.
     observer->OnBrowsingDataRemoverDone();
@@ -2774,14 +2801,10 @@ void ChromeContentBrowserClient::ClearSiteData(
 
   // Delete origin-scoped data.
   int remove_mask = 0;
-  if (remove_storage) {
-    remove_mask |= BrowsingDataRemover::REMOVE_SITE_DATA &
-                   ~BrowsingDataRemover::REMOVE_COOKIES &
-                   ~BrowsingDataRemover::REMOVE_CHANNEL_IDS &
-                   ~BrowsingDataRemover::REMOVE_PLUGIN_DATA;
-  }
+  if (remove_storage)
+    remove_mask |= BrowsingDataRemover::DATA_TYPE_DOM_STORAGE;
   if (remove_cache)
-    remove_mask |= BrowsingDataRemover::REMOVE_CACHE;
+    remove_mask |= BrowsingDataRemover::DATA_TYPE_CACHE;
 
   if (remove_mask) {
     std::unique_ptr<BrowsingDataFilterBuilder> origin_filter_builder(
@@ -2790,9 +2813,9 @@ void ChromeContentBrowserClient::ClearSiteData(
     origin_filter_builder->AddOrigin(origin);
 
     remover->RemoveWithFilterAndReply(
-        base::Time(), base::Time::Max(),
-        remove_mask, BrowsingDataHelper::ALL, std::move(origin_filter_builder),
-        observer);
+        base::Time(), base::Time::Max(), remove_mask,
+        ChromeBrowsingDataRemoverDelegate::ALL_ORIGIN_TYPES,
+        std::move(origin_filter_builder), observer);
   } else {
     // The second removal task is a no-op.
     observer->OnBrowsingDataRemoverDone();
@@ -3052,9 +3075,6 @@ void ChromeContentBrowserClient::ExposeInterfacesToRenderer(
       base::Bind(&BudgetServiceImpl::Create, render_process_host->GetID()),
       ui_task_runner);
   registry->AddInterface(
-      base::Bind(&FieldTrialRecorder::Create),
-      ui_task_runner);
-  registry->AddInterface(
       base::Bind(&rappor::RapporRecorderImpl::Create,
                  g_browser_process->rappor_service()),
       ui_task_runner);
@@ -3155,18 +3175,19 @@ void ChromeContentBrowserClient::RegisterRenderFrameMojoInterfaces(
                  render_frame_host));
 
 #if defined(OS_ANDROID)
+  registry->AddInterface(
+      render_frame_host->GetJavaInterfaces()
+          ->CreateInterfaceFactory<payments::mojom::PaymentRequest>());
   content::WebContents* web_contents =
       content::WebContents::FromRenderFrameHost(render_frame_host);
   if (web_contents) {
-    registry->AddInterface(
-        web_contents->GetJavaInterfaces()
-            ->CreateInterfaceFactory<payments::mojom::PaymentRequest>());
     registry->AddInterface(
         base::Bind(&ForwardShareServiceRequest,
                    web_contents->GetJavaInterfaces()->GetWeakPtr()));
   }
 #else
-  if (AreExperimentalWebPlatformFeaturesEnabled()) {
+  if (AreExperimentalWebPlatformFeaturesEnabled() &&
+      base::FeatureList::IsEnabled(features::kWebPayments)) {
     content::WebContents* web_contents =
         content::WebContents::FromRenderFrameHost(render_frame_host);
     if (web_contents) {
@@ -3216,11 +3237,12 @@ void ChromeContentBrowserClient::RegisterInProcessServices(
     services->insert(std::make_pair(prefs::mojom::kServiceName, info));
   }
 
-  if (!chrome::IsRunningInMash()) {
+  if (!ash_util::IsRunningInMash()) {
     content::ServiceInfo info;
     info.factory = base::Bind(&ash_util::CreateEmbeddedAshService,
                               base::ThreadTaskRunnerHandle::Get());
-    services->insert(std::make_pair("ash", info));
+    info.task_runner = base::ThreadTaskRunnerHandle::Get();
+    services->insert(std::make_pair(ash::mojom::kServiceName, info));
   }
 #endif  // OS_CHROMEOS
 }
@@ -3382,9 +3404,8 @@ ChromeContentBrowserClient::CreateThrottlesForNavigation(
       throttles.push_back(MergeSessionNavigationThrottle::Create(handle));
     }
 
-    const arc::ArcSessionManager* arc_session_manager =
-        arc::ArcSessionManager::Get();
-    if (arc_session_manager && arc_session_manager->IsArcPlayStoreEnabled() &&
+    if (arc::IsArcPlayStoreEnabledForProfile(Profile::FromBrowserContext(
+            handle->GetWebContents()->GetBrowserContext())) &&
         !handle->GetWebContents()->GetBrowserContext()->IsOffTheRecord()) {
       prerender::PrerenderContents* prerender_contents =
           prerender::PrerenderContents::FromWebContents(

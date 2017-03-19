@@ -35,25 +35,28 @@ namespace blink {
 MediaStreamSource* MediaStreamSource::create(const String& id,
                                              StreamType type,
                                              const String& name,
-                                             bool remote,
                                              ReadyState readyState,
                                              bool requiresConsumer) {
-  return new MediaStreamSource(id, type, name, remote, readyState,
-                               requiresConsumer);
+  return new MediaStreamSource(id, type, name, readyState, requiresConsumer);
 }
 
 MediaStreamSource::MediaStreamSource(const String& id,
                                      StreamType type,
                                      const String& name,
-                                     bool remote,
                                      ReadyState readyState,
                                      bool requiresConsumer)
     : m_id(id),
       m_type(type),
       m_name(name),
-      m_remote(remote),
       m_readyState(readyState),
       m_requiresConsumer(requiresConsumer) {}
+
+MediaStreamSource::~MediaStreamSource() {
+  // Verify that the audio thread isn't consuming audio.
+  // TODO(sof): remove once crbug.com/682945 has been diagnosed.
+  MutexTryLocker tryLocker(m_audioConsumersLock);
+  CHECK(tryLocker.locked());
+}
 
 void MediaStreamSource::setReadyState(ReadyState readyState) {
   if (m_readyState != ReadyStateEnded && m_readyState != readyState) {
@@ -86,7 +89,7 @@ bool MediaStreamSource::removeAudioConsumer(
       m_audioConsumers.find(consumer);
   if (it == m_audioConsumers.end())
     return false;
-  m_audioConsumers.remove(it);
+  m_audioConsumers.erase(it);
   return true;
 }
 
@@ -107,6 +110,9 @@ void MediaStreamSource::setAudioFormat(size_t numberOfChannels,
 void MediaStreamSource::consumeAudio(AudioBus* bus, size_t numberOfFrames) {
   ASSERT(m_requiresConsumer);
   MutexLocker locker(m_audioConsumersLock);
+  // Prevent GCs from going ahead while this iteration runs, attempting to
+  // pinpoint crbug.com/682945 failures.
+  ThreadState::MainThreadGCForbiddenScope scope;
   for (HeapHashSet<Member<AudioDestinationConsumer>>::iterator it =
            m_audioConsumers.begin();
        it != m_audioConsumers.end(); ++it)

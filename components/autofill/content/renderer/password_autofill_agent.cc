@@ -17,6 +17,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_loop.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -562,6 +563,39 @@ bool FillFormOnPasswordReceived(
       field_value_and_properties_map, registration_callback, logger);
 }
 
+// Annotate |forms| with form and field signatures as HTML attributes.
+void AnnotateFormsWithSignatures(
+    blink::WebVector<blink::WebFormElement> forms) {
+  for (blink::WebFormElement form : forms) {
+    std::unique_ptr<PasswordForm> password_form(
+        CreatePasswordFormFromWebForm(form, nullptr, nullptr));
+    if (password_form) {
+      form.setAttribute(
+          blink::WebString::fromASCII(kDebugAttributeForFormSignature),
+          blink::WebString::fromUTF8(base::Uint64ToString(
+              CalculateFormSignature(password_form->form_data))));
+
+      std::vector<blink::WebFormControlElement> control_elements =
+          form_util::ExtractAutofillableElementsInForm(form);
+
+      if (control_elements.size() != password_form->form_data.fields.size())
+        return;
+
+      for (size_t i = 0; i < control_elements.size(); ++i) {
+        blink::WebFormControlElement control_element = control_elements[i];
+
+        const FormFieldData& field = password_form->form_data.fields[i];
+        if (field.name != control_element.nameForAutofill().utf16())
+          continue;
+        control_element.setAttribute(
+            blink::WebString::fromASCII(kDebugAttributeForFieldSignature),
+            blink::WebString::fromUTF8(
+                base::Uint64ToString(CalculateFieldSignatureForField(field))));
+      }
+    }
+  }
+}
+
 }  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1016,6 +1050,9 @@ void PasswordAutofillAgent::SendPasswordForms(bool only_visible) {
 
   blink::WebVector<blink::WebFormElement> forms;
   frame->document().forms(forms);
+
+  if (IsShowAutofillSignaturesEnabled())
+    AnnotateFormsWithSignatures(forms);
   if (logger)
     logger->LogNumber(Logger::STRING_NUMBER_OF_ALL_FORMS, forms.size());
 
@@ -1394,6 +1431,19 @@ void PasswordAutofillAgent::GetFillableElementFromFormData(
       password_to_username_[password_element] = username_element;
     if (elements)
       elements->push_back(main_element);
+  }
+
+  // This is a fallback, if for some reasons elements for filling were not found
+  // (for example because they were renamed by JavaScript) then add fill data
+  // for |web_input_to_password_info_|. When the user clicks on a password
+  // field which is not a key in |web_input_to_password_info_|, the first
+  // element from |web_input_to_password_info_| will be used in
+  // PasswordAutofillAgent::FindPasswordInfoForElement to propose to fill.
+  if (web_input_to_password_info_.empty()) {
+    PasswordInfo password_info;
+    password_info.fill_data = form_data;
+    password_info.key = key;
+    web_input_to_password_info_[blink::WebInputElement()] = password_info;
   }
 }
 

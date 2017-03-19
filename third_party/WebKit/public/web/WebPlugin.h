@@ -32,14 +32,14 @@
 #ifndef WebPlugin_h
 #define WebPlugin_h
 
-#include "../platform/WebCanvas.h"
-#include "../platform/WebDragOperation.h"
-#include "../platform/WebFocusType.h"
-#include "../platform/WebString.h"
-#include "../platform/WebURL.h"
 #include "WebDragStatus.h"
 #include "WebInputMethodController.h"
-#include <v8.h>
+#include "public/platform/WebCanvas.h"
+#include "public/platform/WebDragOperation.h"
+#include "public/platform/WebFocusType.h"
+#include "public/platform/WebString.h"
+#include "public/platform/WebURL.h"
+#include "v8/include/v8.h"
 
 namespace blink {
 
@@ -167,19 +167,23 @@ class WebPlugin {
   }
 
   // Sets composition text from input method, and returns true if the
-  // composition is set successfully.
+  // composition is set successfully. If |replacementRange| is not null, the
+  // text inside |replacementRange| will be replaced by |text|
   virtual bool setComposition(
       const WebString& text,
       const WebVector<WebCompositionUnderline>& underlines,
+      const WebRange& replacementRange,
       int selectionStart,
       int selectionEnd) {
     return false;
   }
 
   // Deletes the ongoing composition if any, inserts the specified text, and
-  // moves the caret according to relativeCaretPosition.
+  // moves the caret according to relativeCaretPosition. If |replacementRange|
+  // is not null, the text inside |replacementRange| will be replaced by |text|.
   virtual bool commitText(const WebString& text,
                           const WebVector<WebCompositionUnderline>& underlines,
+                          const WebRange& replacementRange,
                           int relativeCaretPosition) {
     return false;
   }
@@ -195,8 +199,14 @@ class WebPlugin {
   // before and after the selection or caret.
   virtual void extendSelectionAndDelete(int before, int after) {}
   // Deletes text before and after the current cursor position, excluding the
-  // selection.
+  // selection. The lengths are supplied in UTF-16 Code Unit, not in code points
+  // or in glyphs.
   virtual void deleteSurroundingText(int before, int after) {}
+  // Deletes text before and after the current cursor position, excluding the
+  // selection. The lengths are supplied in code points, not in UTF-16 Code Unit
+  // or in glyphs. Do nothing if there are one or more invalid surrogate pairs
+  // in the requested range.
+  virtual void deleteSurroundingTextInCodePoints(int before, int after) {}
   // If the given position is over a link, returns the absolute url.
   // Otherwise an empty url is returned.
   virtual WebURL linkAtPosition(const WebPoint& position) const {

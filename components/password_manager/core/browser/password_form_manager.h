@@ -21,7 +21,6 @@
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/common/password_form.h"
 #include "components/password_manager/core/browser/form_fetcher.h"
-#include "components/password_manager/core/browser/form_fetcher_impl.h"
 #include "components/password_manager/core/browser/password_manager_driver.h"
 #include "components/password_manager/core/browser/password_store.h"
 
@@ -69,9 +68,9 @@ class PasswordFormManager : public FormFetcher::Consumer {
     RESULT_NO_MATCH = 0,
     RESULT_ACTION_MATCH = 1 << 0,
     RESULT_HTML_ATTRIBUTES_MATCH = 1 << 1,
-    RESULT_ORIGINS_MATCH = 1 << 2,
+    RESULT_ORIGINS_OR_FRAMES_MATCH = 1 << 2,
     RESULT_COMPLETE_MATCH = RESULT_ACTION_MATCH | RESULT_HTML_ATTRIBUTES_MATCH |
-                            RESULT_ORIGINS_MATCH
+                            RESULT_ORIGINS_OR_FRAMES_MATCH
   };
   // Use MatchResultMask to contain combinations of MatchResultFlags values.
   // It's a signed int rather than unsigned to avoid signed/unsigned mismatch
@@ -89,7 +88,11 @@ class PasswordFormManager : public FormFetcher::Consumer {
 
   // Compares basic data of |observed_form_| with |form| and returns how much
   // they match. The return value is a MatchResultMask bitmask.
-  MatchResultMask DoesManage(const autofill::PasswordForm& form) const;
+  // |driver| is optional and if it's given it should be a driver that
+  // corresponds to a frame from which |form| comes from.
+  MatchResultMask DoesManage(
+      const autofill::PasswordForm& form,
+      const password_manager::PasswordManagerDriver* driver) const;
 
   // Update |this| with the |form| that was actually submitted. Used to
   // determine what type the submitted form is for
@@ -237,6 +240,11 @@ class PasswordFormManager : public FormFetcher::Consumer {
       const base::string16& generation_field);
 
   FormSaver* form_saver() { return form_saver_.get(); }
+
+  // Clears references to matches derived from the associated FormFetcher data.
+  // After calling this, the PasswordFormManager holds no references to objects
+  // owned by the associated FormFetcher.
+  void ResetStoredMatches();
 
  protected:
   // FormFetcher::Consumer:
@@ -553,10 +561,8 @@ class PasswordFormManager : public FormFetcher::Consumer {
   // credentials.
   std::unique_ptr<FormSaver> form_saver_;
 
-  // TODO(crbug.com/621355) Remove this, ultimately the form fetcher will not be
-  // owned by PasswordFormManager. Temporarily, this is the object which
-  // |form_fetcher_| points to, unless set otherwise in the constructor.
-  std::unique_ptr<FormFetcherImpl> form_fetcher_impl_;
+  // When not null, then this is the object which |form_fetcher_| points to.
+  std::unique_ptr<FormFetcher> owned_form_fetcher_;
 
   // FormFetcher instance which owns the login data from PasswordStore.
   FormFetcher* const form_fetcher_;

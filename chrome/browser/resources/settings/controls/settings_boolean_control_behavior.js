@@ -63,7 +63,6 @@ var SettingsBooleanControlBehaviorImpl = {
      */
     numericUncheckedValue: {
       type: Number,
-      readOnly: true,
       value: 0,
     }
   },
@@ -90,10 +89,11 @@ var SettingsBooleanControlBehaviorImpl = {
     // Ensure that newValue is the correct type for the pref type, either
     // a boolean or a number.
     if (this.pref.type == chrome.settingsPrivate.PrefType.NUMBER) {
+      assert(!this.inverted);
       this.set('pref.value', this.checked ? 1 : this.numericUncheckedValue);
       return;
     }
-    this.set('pref.value', this.checked);
+    this.set('pref.value', this.inverted ? !this.checked : this.checked);
   },
 
   /**
@@ -113,18 +113,19 @@ var SettingsBooleanControlBehaviorImpl = {
   getNewValue_: function(value) {
     // For numeric prefs, the control is only false if the value is exactly
     // equal to the unchecked-equivalent value.
-    if (this.pref.type == chrome.settingsPrivate.PrefType.NUMBER)
-      value = value != this.numericUncheckedValue;
-
+    if (this.pref.type == chrome.settingsPrivate.PrefType.NUMBER) {
+      assert(!this.inverted);
+      return value != this.numericUncheckedValue;
+    }
     return this.inverted ? !value : !!value;
   },
 
   /**
-   * @return {boolean} Whether the checkbox should be disabled.
+   * @return {boolean} Whether the control should be disabled.
    * @private
    */
   controlDisabled_: function() {
-    return this.disabled || this.isPrefPolicyControlled(assert(this.pref));
+    return this.disabled || this.isPrefEnforced();
   },
 };
 

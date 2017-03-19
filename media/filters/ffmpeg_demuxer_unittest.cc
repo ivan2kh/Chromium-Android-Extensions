@@ -18,6 +18,7 @@
 #include "base/run_loop.h"
 #include "base/single_thread_task_runner.h"
 #include "base/test/mock_callback.h"
+#include "base/test/scoped_task_scheduler.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "media/base/decrypt_config.h"
@@ -82,9 +83,14 @@ class FFmpegDemuxerTest : public testing::Test {
  protected:
   FFmpegDemuxerTest() {}
 
-  virtual ~FFmpegDemuxerTest() {
+  virtual ~FFmpegDemuxerTest() { Shutdown(); }
+
+  void Shutdown() {
     if (demuxer_)
       demuxer_->Stop();
+    demuxer_.reset();
+    base::RunLoop().RunUntilIdle();
+    data_source_.reset();
   }
 
   void CreateDemuxer(const std::string& name) {
@@ -101,13 +107,13 @@ class FFmpegDemuxerTest : public testing::Test {
         &FFmpegDemuxerTest::OnMediaTracksUpdated, base::Unretained(this));
 
     demuxer_.reset(new FFmpegDemuxer(
-        message_loop_.task_runner(), data_source_.get(),
+        base::ThreadTaskRunnerHandle::Get(), data_source_.get(),
         encrypted_media_init_data_cb, tracks_updated_cb, new MediaLog()));
   }
 
   DemuxerStream* GetStream(DemuxerStream::Type type) {
     std::vector<DemuxerStream*> streams = demuxer_->GetAllStreams();
-    for (const auto& stream : streams) {
+    for (auto* stream : streams) {
       if (stream->type() == type)
         return stream;
     }
@@ -188,9 +194,8 @@ class FFmpegDemuxerTest : public testing::Test {
                 buffer->discard_padding().first);
       EXPECT_EQ(read_expectation.is_key_frame, buffer->is_key_frame());
     }
-    DCHECK_EQ(&message_loop_, base::MessageLoop::current());
     OnReadDoneCalled(read_expectation.size, read_expectation.timestamp_us);
-    message_loop_.task_runner()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::MessageLoop::QuitWhenIdleClosure());
   }
 
@@ -239,11 +244,12 @@ class FFmpegDemuxerTest : public testing::Test {
   }
 
   // Fixture members.
+
+  base::test::ScopedTaskScheduler task_scheduler_;
   std::unique_ptr<FileDataSource> data_source_;
   std::unique_ptr<FFmpegDemuxer> demuxer_;
   StrictMock<MockDemuxerHost> host_;
   std::unique_ptr<MediaTracks> media_tracks_;
-  base::MessageLoop message_loop_;
 
   AVFormatContext* format_context() {
     return demuxer_->glue_->format_context();
@@ -262,6 +268,12 @@ class FFmpegDemuxerTest : public testing::Test {
     }
 
     EXPECT_TRUE(got_eos_buffer);
+  }
+
+  void Seek(base::TimeDelta seek_target) {
+    WaitableMessageLoopEvent event;
+    demuxer_->Seek(seek_target, event.GetPipelineStatusCB());
+    event.RunAndWaitForStatus(PIPELINE_OK);
   }
 
  private:
@@ -795,6 +807,71 @@ TEST_F(FFmpegDemuxerTest, Read_AudioNegativeStartTimeAndOpusSfxDiscard_Sync) {
     demuxer_->Seek(base::TimeDelta(), event.GetPipelineStatusCB());
     event.RunAndWaitForStatus(PIPELINE_OK);
   }
+}
+
+TEST_F(FFmpegDemuxerTest, Read_DiscardDisabledVideoStream) {
+  // Verify that disabling the video stream properly marks it as AVDISCARD_ALL
+  // in FFmpegDemuxer. The AVDISCARD_ALL flag allows FFmpeg to ignore key frame
+  // requirements for the disabled stream and thus allows to select the seek
+  // position closer to the |seek_target|, resulting in less data being read
+  // from the data source.
+  // The input file bear-vp8-webvtt.webm has key video frames at 1.602s and at
+  // 2.002s. If we want to seek to 2.0s position while the video stream is
+  // enabled, then FFmpeg is forced to start reading from 1.602s, which is the
+  // earliest position guaranteed to give us key frames for all enabled streams.
+  // But when the video stream is disabled, FFmpeg can start reading from 1.987s
+  // which is earliest audio key frame before the 2.0s |seek_target|.
+  const base::TimeDelta seek_target = base::TimeDelta::FromMilliseconds(2000);
+
+  CreateDemuxer("bear-vp8-webvtt.webm");
+  InitializeDemuxer();
+  Seek(seek_target);
+  GetStream(DemuxerStream::AUDIO)
+      ->Read(NewReadCB(FROM_HERE, 163, 1612000, true));
+  base::RunLoop().Run();
+  auto bytes_read_with_video_enabled = data_source_->bytes_read_for_testing();
+
+  static_cast<FFmpegDemuxerStream*>(GetStream(DemuxerStream::VIDEO))
+      ->set_enabled(false, base::TimeDelta());
+  data_source_->reset_bytes_read_for_testing();
+  Seek(seek_target);
+  GetStream(DemuxerStream::AUDIO)
+      ->Read(NewReadCB(FROM_HERE, 156, 1987000, true));
+  base::RunLoop().Run();
+  auto bytes_read_with_video_disabled = data_source_->bytes_read_for_testing();
+  EXPECT_LT(bytes_read_with_video_disabled, bytes_read_with_video_enabled);
+}
+
+TEST_F(FFmpegDemuxerTest, Read_DiscardDisabledTextStream) {
+  // This test case reads the same video frame twice, first with the text track
+  // enabled, then with the text track disabled. When the text track is
+  // disabled, FFmpegDemuxer sets the AVDISCARD_ALL flag on the corresponding
+  // stream, which allows FFmpeg to choose the initial reading position closer
+  // to the requested video frame (i.e. closer to seek_target), since it doesn't
+  // need to consider key frames for the text stream. This results in less data
+  // being read compared to the case with enabled text track.
+  const base::TimeDelta seek_target = base::TimeDelta::FromMilliseconds(805);
+
+  CreateDemuxer("bear-vp8-webvtt.webm");
+  EXPECT_CALL(host_, AddTextStream(_, _));
+  InitializeDemuxerWithText();
+  Seek(seek_target);
+  GetStream(DemuxerStream::VIDEO)
+      ->Read(NewReadCB(FROM_HERE, 5425, 801000, true));
+  base::RunLoop().Run();
+  auto bytes_read_with_text_enabled = data_source_->bytes_read_for_testing();
+
+  Shutdown();
+
+  CreateDemuxer("bear-vp8-webvtt.webm");
+  InitializeDemuxer();
+  Seek(seek_target);
+  GetStream(DemuxerStream::VIDEO)
+      ->Read(NewReadCB(FROM_HERE, 5425, 801000, true));
+  base::RunLoop().Run();
+  auto bytes_read_with_text_disabled = data_source_->bytes_read_for_testing();
+
+  EXPECT_LT(bytes_read_with_text_disabled, bytes_read_with_text_enabled);
 }
 
 TEST_F(FFmpegDemuxerTest, Read_EndOfStream) {

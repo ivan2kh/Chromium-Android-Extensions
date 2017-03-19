@@ -10,12 +10,12 @@
 #include <set>
 #include <vector>
 
-#include "base/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string16.h"
+#include "content/browser/service_worker/service_worker_lifetime_tracker.h"
 #include "content/common/content_export.h"
 #include "content/common/service_worker/service_worker_status_code.h"
 
@@ -23,7 +23,6 @@ class GURL;
 
 namespace IPC {
 class Message;
-class Sender;
 }
 
 namespace content {
@@ -39,8 +38,6 @@ class ServiceWorkerContextCore;
 class CONTENT_EXPORT EmbeddedWorkerRegistry
     : public NON_EXPORTED_BASE(base::RefCounted<EmbeddedWorkerRegistry>) {
  public:
-  typedef base::Callback<void(ServiceWorkerStatusCode)> StatusCallback;
-
   static scoped_refptr<EmbeddedWorkerRegistry> Create(
       const base::WeakPtr<ServiceWorkerContextCore>& contxet);
 
@@ -87,10 +84,17 @@ class CONTENT_EXPORT EmbeddedWorkerRegistry
                               const base::string16& message,
                               int line_number,
                               const GURL& source_url);
+  // Called by EmbeddedWorkerInstance when it learns DevTools has attached to
+  // it.
+  void OnDevToolsAttached(int embedded_worker_id);
 
-  // Keeps a map from process_id to sender information.
-  void AddChildProcessSender(int process_id, IPC::Sender* sender);
-  void RemoveChildProcessSender(int process_id);
+  // Removes information about the service workers running on the process and
+  // calls ServiceWorkerVersion::OnDetached() on each. Called when the process
+  // is terminated. Under normal operation, the workers should already have
+  // been stopped before the process is terminated, in which case this function
+  // does nothing. But in some cases the process can be terminated unexpectedly
+  // or the workers can fail to stop cleanly.
+  void RemoveProcess(int process_id);
 
   // Returns an embedded worker instance for given |embedded_worker_id|.
   EmbeddedWorkerInstance* GetWorker(int embedded_worker_id);
@@ -107,7 +111,6 @@ class CONTENT_EXPORT EmbeddedWorkerRegistry
                            RemoveWorkerInSharedProcess);
 
   using WorkerInstanceMap = std::map<int, EmbeddedWorkerInstance*>;
-  using ProcessToSenderMap = std::map<int, IPC::Sender*>;
 
   EmbeddedWorkerRegistry(
       const base::WeakPtr<ServiceWorkerContextCore>& context,
@@ -136,7 +139,6 @@ class CONTENT_EXPORT EmbeddedWorkerRegistry
   base::WeakPtr<ServiceWorkerContextCore> context_;
 
   WorkerInstanceMap worker_map_;
-  ProcessToSenderMap process_sender_map_;
 
   // Map from process_id to embedded_worker_id.
   // This map only contains starting and running workers.
@@ -144,6 +146,7 @@ class CONTENT_EXPORT EmbeddedWorkerRegistry
 
   int next_embedded_worker_id_;
   const int initial_embedded_worker_id_;
+  ServiceWorkerLifetimeTracker lifetime_tracker_;
 
   DISALLOW_COPY_AND_ASSIGN(EmbeddedWorkerRegistry);
 };

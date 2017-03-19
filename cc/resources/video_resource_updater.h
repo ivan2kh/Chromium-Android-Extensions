@@ -16,7 +16,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/resources/release_callback_impl.h"
 #include "cc/resources/resource_format.h"
 #include "cc/resources/texture_mailbox.h"
@@ -177,6 +177,7 @@ class CC_EXPORT VideoResourceUpdater
                                           bool immutable_hint);
   void DeleteResource(ResourceList::iterator resource_it);
   void CopyPlaneTexture(media::VideoFrame* video_frame,
+                        const gfx::ColorSpace& resource_color_space,
                         const gpu::MailboxHolder& mailbox_holder,
                         VideoFrameExternalResources* external_resources);
   VideoFrameExternalResources CreateForHardwarePlanes(

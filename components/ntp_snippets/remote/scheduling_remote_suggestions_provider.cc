@@ -95,6 +95,8 @@ const char* kTriggerTypeNames[] = {"persistent_scheduler_wake_up", "ntp_opened",
 const char* kTriggerTypesParamName = "scheduler_trigger_types";
 const char* kTriggerTypesParamValueForEmptyList = "-";
 
+const int kBlockBackgroundFetchesMinutesAfterClearingHistory = 30;
+
 // Returns the time interval to use for scheduling remote suggestion fetches for
 // the given interval and user_class.
 base::TimeDelta GetDesiredFetchingInterval(
@@ -184,6 +186,18 @@ SchedulingRemoteSuggestionsProvider::SchedulingRemoteSuggestionsProvider(
       persistent_scheduler_(persistent_scheduler),
       background_fetch_in_progress_(false),
       user_classifier_(user_classifier),
+      request_throttler_rare_ntp_user_(
+          pref_service,
+          RequestThrottler::RequestType::
+              CONTENT_SUGGESTION_FETCHER_RARE_NTP_USER),
+      request_throttler_active_ntp_user_(
+          pref_service,
+          RequestThrottler::RequestType::
+              CONTENT_SUGGESTION_FETCHER_ACTIVE_NTP_USER),
+      request_throttler_active_suggestions_consumer_(
+          pref_service,
+          RequestThrottler::RequestType::
+              CONTENT_SUGGESTION_FETCHER_ACTIVE_SUGGESTIONS_CONSUMER),
       pref_service_(pref_service),
       clock_(std::move(clock)),
       enabled_triggers_(GetEnabledTriggerTypes()) {
@@ -191,12 +205,6 @@ SchedulingRemoteSuggestionsProvider::SchedulingRemoteSuggestionsProvider(
   DCHECK(pref_service);
 
   LoadLastFetchingSchedule();
-
-  provider_->SetProviderStatusCallback(
-      base::MakeUnique<RemoteSuggestionsProvider::ProviderStatusCallback>(
-          base::BindRepeating(
-              &SchedulingRemoteSuggestionsProvider::OnProviderStatusChanged,
-              base::Unretained(this))));
 }
 
 SchedulingRemoteSuggestionsProvider::~SchedulingRemoteSuggestionsProvider() =
@@ -213,6 +221,31 @@ void SchedulingRemoteSuggestionsProvider::RegisterProfilePrefs(
   registry->RegisterInt64Pref(prefs::kSnippetLastFetchAttempt, 0);
   registry->RegisterInt64Pref(prefs::kSnippetSoftFetchingIntervalOnNtpOpened,
                               0);
+}
+
+void SchedulingRemoteSuggestionsProvider::OnProviderActivated() {
+  StartScheduling();
+}
+
+void SchedulingRemoteSuggestionsProvider::OnProviderDeactivated() {
+  StopScheduling();
+}
+
+void SchedulingRemoteSuggestionsProvider::OnSuggestionsCleared() {
+  // Some user action causes suggestions to be cleared, fetch now (as an
+  // interactive request).
+  ReloadSuggestions();
+}
+
+void SchedulingRemoteSuggestionsProvider::OnHistoryCleared() {
+  // Due to privacy, we should not fetch for a while (unless the user explicitly
+  // asks for new suggestions) to give sync the time to propagate the changes in
+  // history to the server.
+  background_fetches_allowed_after_ =
+      clock_->Now() + base::TimeDelta::FromMinutes(
+                          kBlockBackgroundFetchesMinutesAfterClearingHistory);
+  // After that time elapses, we should fetch as soon as possible.
+  ClearLastFetchAttemptTime();
 }
 
 void SchedulingRemoteSuggestionsProvider::RescheduleFetching() {
@@ -253,17 +286,20 @@ void SchedulingRemoteSuggestionsProvider::OnNTPOpened() {
   RefetchInTheBackgroundIfEnabled(TriggerType::NTP_OPENED);
 }
 
-void SchedulingRemoteSuggestionsProvider::SetProviderStatusCallback(
-    std::unique_ptr<ProviderStatusCallback> callback) {
-  provider_->SetProviderStatusCallback(std::move(callback));
-}
-
 void SchedulingRemoteSuggestionsProvider::RefetchInTheBackground(
     std::unique_ptr<FetchStatusCallback> callback) {
   if (background_fetch_in_progress_) {
     if (callback) {
       callback->Run(
           Status(StatusCode::TEMPORARY_ERROR, "Background fetch in progress"));
+    }
+    return;
+  }
+
+  if (!AcquireQuota(/*interactive_request=*/false)) {
+    if (callback) {
+      callback->Run(Status(StatusCode::TEMPORARY_ERROR,
+                           "Non-interactive quota exceeded"));
     }
     return;
   }
@@ -307,6 +343,15 @@ void SchedulingRemoteSuggestionsProvider::Fetch(
     const Category& category,
     const std::set<std::string>& known_suggestion_ids,
     const FetchDoneCallback& callback) {
+  if (!AcquireQuota(/*interactive_request=*/true)) {
+    if (callback) {
+      callback.Run(
+          Status(StatusCode::TEMPORARY_ERROR, "Interactive quota exceeded"),
+          std::vector<ContentSuggestion>());
+    }
+    return;
+  }
+
   provider_->Fetch(
       category, known_suggestion_ids,
       base::Bind(&SchedulingRemoteSuggestionsProvider::FetchFinished,
@@ -314,6 +359,10 @@ void SchedulingRemoteSuggestionsProvider::Fetch(
 }
 
 void SchedulingRemoteSuggestionsProvider::ReloadSuggestions() {
+  if (!AcquireQuota(/*interactive_request=*/true)) {
+    return;
+  }
+
   provider_->ReloadSuggestions();
 }
 
@@ -342,19 +391,6 @@ void SchedulingRemoteSuggestionsProvider::GetDismissedSuggestionsForDebugging(
 void SchedulingRemoteSuggestionsProvider::ClearDismissedSuggestionsForDebugging(
     Category category) {
   provider_->ClearDismissedSuggestionsForDebugging(category);
-}
-
-void SchedulingRemoteSuggestionsProvider::OnProviderStatusChanged(
-    RemoteSuggestionsProvider::ProviderStatus status) {
-  switch (status) {
-    case RemoteSuggestionsProvider::ProviderStatus::ACTIVE:
-      StartScheduling();
-      return;
-    case RemoteSuggestionsProvider::ProviderStatus::INACTIVE:
-      StopScheduling();
-      return;
-  }
-  NOTREACHED();
 }
 
 void SchedulingRemoteSuggestionsProvider::StartScheduling() {
@@ -469,7 +505,10 @@ bool SchedulingRemoteSuggestionsProvider::ShouldRefetchInTheBackgroundNow(
       NOTREACHED();
       break;
   }
-  return first_allowed_fetch_time <= clock_->Now();
+  base::Time now = clock_->Now();
+
+  return background_fetches_allowed_after_ <= now &&
+         first_allowed_fetch_time <= now;
 }
 
 bool SchedulingRemoteSuggestionsProvider::BackgroundFetchesDisabled(
@@ -481,6 +520,23 @@ bool SchedulingRemoteSuggestionsProvider::BackgroundFetchesDisabled(
   if (enabled_triggers_.count(trigger) == 0) {
     return true;  // Background fetches for |trigger| are not enabled.
   }
+  return false;
+}
+
+bool SchedulingRemoteSuggestionsProvider::AcquireQuota(
+    bool interactive_request) {
+  switch (user_classifier_->GetUserClass()) {
+    case UserClassifier::UserClass::RARE_NTP_USER:
+      return request_throttler_rare_ntp_user_.DemandQuotaForRequest(
+          interactive_request);
+    case UserClassifier::UserClass::ACTIVE_NTP_USER:
+      return request_throttler_active_ntp_user_.DemandQuotaForRequest(
+          interactive_request);
+    case UserClassifier::UserClass::ACTIVE_SUGGESTIONS_CONSUMER:
+      return request_throttler_active_suggestions_consumer_
+          .DemandQuotaForRequest(interactive_request);
+  }
+  NOTREACHED();
   return false;
 }
 
@@ -519,6 +575,10 @@ void SchedulingRemoteSuggestionsProvider::OnFetchCompleted(
   ApplyPersistentFetchingSchedule();
 }
 
+void SchedulingRemoteSuggestionsProvider::ClearLastFetchAttemptTime() {
+  pref_service_->ClearPref(prefs::kSnippetLastFetchAttempt);
+}
+
 std::set<SchedulingRemoteSuggestionsProvider::TriggerType>
 SchedulingRemoteSuggestionsProvider::GetEnabledTriggerTypes() {
   static_assert(static_cast<unsigned int>(TriggerType::COUNT) ==
@@ -539,8 +599,8 @@ SchedulingRemoteSuggestionsProvider::GetEnabledTriggerTypes() {
 
   std::set<TriggerType> enabled_types;
   for (const auto& token : tokens) {
-    auto it = std::find(std::begin(kTriggerTypeNames),
-                        std::end(kTriggerTypeNames), token);
+    auto** it = std::find(std::begin(kTriggerTypeNames),
+                          std::end(kTriggerTypeNames), token);
     if (it == std::end(kTriggerTypeNames)) {
       DLOG(WARNING) << "Failed to parse variation param "
                     << kTriggerTypesParamName << " with string value "

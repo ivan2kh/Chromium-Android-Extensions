@@ -54,11 +54,6 @@ const base::Feature kDocumentWriteEvaluator{"DocumentWriteEvaluator",
 const base::Feature kExpensiveBackgroundTimerThrottling{
     "ExpensiveBackgroundTimerThrottling", base::FEATURE_DISABLED_BY_DEFAULT};
 
-// Enables faster location.reload() to use a reload mode that revalidates only
-// main resource forcibly. https://crbug.com/670237.
-const base::Feature kFasterLocationReload{"FasterLocationReload",
-                                          base::FEATURE_DISABLED_BY_DEFAULT};
-
 // Enables the Feature Policy framework for granting and removing access to
 // other features through HTTP headers.
 const base::Feature kFeaturePolicy{"FeaturePolicy",
@@ -78,7 +73,7 @@ const base::Feature kFontCacheScaling{"FontCacheScaling",
 // same-origin to the top frame, or if a user gesture is being processed.
 const base::Feature kFramebustingNeedsSameOriginOrUserGesture{
     "FramebustingNeedsSameOriginOrUserGesture",
-    base::FEATURE_ENABLED_BY_DEFAULT};
+    base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Enables extended Gamepad API features like motion tracking and haptics.
 const base::Feature kGamepadExtensions{"GamepadExtensions",
@@ -101,6 +96,10 @@ const base::Feature kHeapCompaction{"HeapCompaction",
 // Enables lazily parsing css properties for performance.
 const base::Feature kLazyParseCSS{"LazyParseCSS",
                                   base::FEATURE_DISABLED_BY_DEFAULT};
+
+// Use Mojo IPC for resource loading.
+const base::Feature kLoadingWithMojo{"LoadingWithMojo",
+                                     base::FEATURE_DISABLED_BY_DEFAULT};
 
 // FeatureList definition for trials to enable the download button on
 // MediaDocument.
@@ -162,7 +161,7 @@ const base::Feature kRafAlignedMouseInputEvents{
 
 // RAF aligned touch input events support.
 const base::Feature kRafAlignedTouchInputEvents{
-    "RafAlignedTouchInput", base::FEATURE_DISABLED_BY_DEFAULT};
+    "RafAlignedTouchInput", base::FEATURE_ENABLED_BY_DEFAULT};
 
 // If Pepper 3D Image Chromium is allowed, this feature controls whether it is
 // enabled.
@@ -259,6 +258,10 @@ const base::Feature kWebRtcUseEchoCanceller3{"WebRtcUseEchoCanceller3",
 // https://wicg.github.io/webusb
 const base::Feature kWebUsb{"WebUSB", base::FEATURE_ENABLED_BY_DEFAULT};
 
+// Enables WebVR experimental rendering optimizations.
+const base::Feature kWebVRExperimentalRendering{
+    "WebVRExperimentalRendering", base::FEATURE_DISABLED_BY_DEFAULT};
+
 // Make sendBeacon throw for a Blob with a non simple type.
 const base::Feature kSendBeaconThrowForBlobWithNonSimpleType{
     "SendBeaconThrowForBlobWithNonSimpleType",
@@ -271,7 +274,7 @@ const base::Feature kNativeAndroidHistoryManager{
 
 // FeatureList definition for the Seccomp field trial.
 const base::Feature kSeccompSandboxAndroid{"SeccompSandboxAndroid",
-                                           base::FEATURE_DISABLED_BY_DEFAULT};
+                                           base::FEATURE_ENABLED_BY_DEFAULT};
 
 // Service worker based payment apps as defined by w3c here:
 // https://w3c.github.io/webpayments-payment-apps-api/
@@ -282,7 +285,10 @@ const base::Feature kServiceWorkerPaymentApps{
 // The JavaScript API for payments on the web.
 const base::Feature kWebPayments{"WebPayments",
                                  base::FEATURE_ENABLED_BY_DEFAULT};
-
+#else
+// The JavaScript API for payments on the web.
+const base::Feature kWebPayments{"WebPayments",
+                                 base::FEATURE_DISABLED_BY_DEFAULT};
 #endif
 
 #if !defined(OS_ANDROID)

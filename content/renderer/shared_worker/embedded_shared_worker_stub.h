@@ -13,8 +13,8 @@
 #include "content/child/scoped_child_process_reference.h"
 #include "ipc/ipc_listener.h"
 #include "third_party/WebKit/public/platform/WebAddressSpace.h"
+#include "third_party/WebKit/public/platform/WebContentSecurityPolicy.h"
 #include "third_party/WebKit/public/platform/WebString.h"
-#include "third_party/WebKit/public/web/WebContentSecurityPolicy.h"
 #include "third_party/WebKit/public/web/WebSharedWorkerClient.h"
 #include "url/gurl.h"
 
@@ -73,8 +73,8 @@ class EmbeddedSharedWorkerStub : public IPC::Listener,
   blink::WebWorkerContentSettingsClientProxy*
   createWorkerContentSettingsClientProxy(
       const blink::WebSecurityOrigin& origin) override;
-  blink::WebServiceWorkerNetworkProvider* createServiceWorkerNetworkProvider(
-      blink::WebDataSource*) override;
+  blink::WebServiceWorkerNetworkProvider* createServiceWorkerNetworkProvider()
+      override;
   void sendDevToolsMessage(int session_id,
                            int call_id,
                            const blink::WebString& message,

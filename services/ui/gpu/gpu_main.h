@@ -29,7 +29,8 @@ class GpuMain : public gpu::GpuSandboxHelper, public mojom::GpuMain {
   // mojom::GpuMain implementation:
   void CreateGpuService(mojom::GpuServiceRequest request,
                         mojom::GpuHostPtr gpu_host,
-                        const gpu::GpuPreferences& preferences) override;
+                        const gpu::GpuPreferences& preferences,
+                        mojo::ScopedSharedBufferHandle activity_flags) override;
   void CreateDisplayCompositor(
       cc::mojom::DisplayCompositorRequest request,
       cc::mojom::DisplayCompositorClientPtr client) override;
@@ -53,7 +54,8 @@ class GpuMain : public gpu::GpuSandboxHelper, public mojom::GpuMain {
       cc::mojom::DisplayCompositorClientPtrInfo client_info);
   void CreateGpuServiceOnGpuThread(mojom::GpuServiceRequest request,
                                    mojom::GpuHostPtrInfo gpu_host_info,
-                                   const gpu::GpuPreferences& preferences);
+                                   const gpu::GpuPreferences& preferences,
+                                   gpu::GpuProcessActivityFlags activity_flags);
   void BindGpuInternalOnGpuThread(mojom::GpuServiceRequest request);
 
   void TearDownOnCompositorThread();
@@ -86,6 +88,7 @@ class GpuMain : public gpu::GpuSandboxHelper, public mojom::GpuMain {
 
   // The main thread for Gpu.
   base::Thread gpu_thread_;
+  scoped_refptr<base::SingleThreadTaskRunner> gpu_thread_task_runner_;
 
   // The thread that handles IO events for Gpu.
   base::Thread io_thread_;
@@ -96,6 +99,7 @@ class GpuMain : public gpu::GpuSandboxHelper, public mojom::GpuMain {
   // and GLRenderer block on sync tokens from other command buffers. Thus,
   // the gpu service must live on a separate thread.
   base::Thread compositor_thread_;
+  scoped_refptr<base::SingleThreadTaskRunner> compositor_thread_task_runner_;
 
   mojo::Binding<mojom::GpuMain> binding_;
 

@@ -12,6 +12,7 @@
 #include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "base/task_scheduler/task_scheduler.h"
+#include "ios/web/public/user_agent.h"
 #include "ui/base/layout.h"
 #include "url/url_util.h"
 
@@ -79,9 +80,8 @@ class WebClient {
   // form "productname/version".  Used as part of the user agent string.
   virtual std::string GetProduct() const;
 
-  // Returns the user agent. |desktop_user_agent| is true if desktop user agent
-  // is requested.
-  virtual std::string GetUserAgent(bool desktop_user_agent) const;
+  // Returns the user agent string for the specified type.
+  virtual std::string GetUserAgent(UserAgentType type) const;
 
   // Returns a string resource given its id.
   virtual base::string16 GetLocalizedString(int message_id) const;
@@ -108,7 +108,7 @@ class WebClient {
 
   // Gives the embedder a chance to provide the JavaScript to be injected into
   // the web view as early as possible. Result must not be nil.
-  virtual NSString* GetEarlyPageScript() const;
+  virtual NSString* GetEarlyPageScript(BrowserState* browser_state) const;
 
   // Informs the embedder that a certificate error has occurred. If
   // |overridable| is true, the user can ignore the error and continue. The

@@ -10,9 +10,11 @@
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/page_load_metrics/page_load_metrics_embedder_interface.h"
+#include "chrome/browser/page_load_metrics/page_load_metrics_util.h"
 #include "chrome/common/page_load_metrics/page_load_metrics_messages.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "content/public/test/web_contents_tester.h"
 #include "third_party/WebKit/public/platform/WebInputEvent.h"
 
@@ -40,18 +42,6 @@ class TestPageLoadMetricsEmbedderInterface
 
   DISALLOW_COPY_AND_ASSIGN(TestPageLoadMetricsEmbedderInterface);
 };
-
-base::Optional<base::TimeDelta> OptionalMin(
-    const base::Optional<base::TimeDelta>& a,
-    const base::Optional<base::TimeDelta>& b) {
-  if (a && !b)
-    return a;
-  if (b && !a)
-    return b;
-  if (!a && !b)
-    return a;  // doesn't matter which
-  return base::Optional<base::TimeDelta>(std::min(a.value(), b.value()));
-}
 
 }  // namespace
 
@@ -157,6 +147,18 @@ void PageLoadMetricsObserverTestHarness::SimulateLoadedResource(
 void PageLoadMetricsObserverTestHarness::SimulateInputEvent(
     const blink::WebInputEvent& event) {
   observer_->OnInputEvent(event);
+}
+
+void PageLoadMetricsObserverTestHarness::SimulateAppEnterBackground() {
+  observer_->FlushMetricsOnAppEnterBackground();
+}
+
+void PageLoadMetricsObserverTestHarness::SimulateMediaPlayed() {
+  content::WebContentsObserver::MediaPlayerInfo video_type(
+      true /* in_has_video*/);
+  content::RenderFrameHost* render_frame_host = web_contents()->GetMainFrame();
+  observer_->MediaStartedPlaying(video_type,
+                                 std::make_pair(render_frame_host, 0));
 }
 
 const base::HistogramTester&

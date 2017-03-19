@@ -230,7 +230,7 @@ WebInputEventResult GestureManager::handleGestureTap(
   if (currentHitTest.innerNode()) {
     DCHECK(gestureEvent.type() == WebInputEvent::GestureTap);
     HitTestResult result = currentHitTest;
-    result.setToShadowHostIfInUserAgentShadowRoot();
+    result.setToShadowHostIfInRestrictedShadowRoot();
     m_frame->chromeClient().onMouseDown(result.innerNode());
   }
 
@@ -294,7 +294,7 @@ WebInputEventResult GestureManager::handleGestureTap(
         preDispatchStyleVersion != m_frame->document()->styleVersion();
 
     IntPoint tappedPositionInViewport =
-        frameHost()->visualViewport().rootFrameToViewport(tappedPosition);
+        m_frame->page()->visualViewport().rootFrameToViewport(tappedPosition);
     m_frame->chromeClient().showUnhandledTapUIIfNeeded(
         tappedPositionInViewport, tappedNode, domTreeChanged || styleChanged);
   }

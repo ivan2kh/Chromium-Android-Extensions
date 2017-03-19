@@ -6,6 +6,7 @@
 
 #include "base/command_line.h"
 #include "base/debug/leak_annotations.h"
+#include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "content/child/web_url_loader_impl.h"
 #include "content/common/frame_messages.h"
@@ -203,7 +204,7 @@ TEST_F(RenderFrameImplTest, LoFiNotUpdatedOnSubframeCommits) {
   DocumentState* document_state =
       DocumentState::FromDataSource(frame()->GetWebFrame()->dataSource());
   static_cast<NavigationStateImpl*>(document_state->navigation_state())
-      ->set_was_within_same_page(false);
+      ->set_was_within_same_document(false);
 
   frame()->didCommitProvisionalLoad(frame()->GetWebFrame(), item,
                                     blink::WebStandardCommit);
@@ -213,7 +214,7 @@ TEST_F(RenderFrameImplTest, LoFiNotUpdatedOnSubframeCommits) {
   document_state = DocumentState::FromDataSource(
       GetMainRenderFrame()->GetWebFrame()->dataSource());
   static_cast<NavigationStateImpl*>(document_state->navigation_state())
-      ->set_was_within_same_page(false);
+      ->set_was_within_same_document(false);
 
   // Calling didCommitProvisionalLoad is not representative of a full navigation
   // but serves the purpose of testing the LoFi state logic.
@@ -264,7 +265,7 @@ TEST_F(RenderFrameImplTest, EffectiveConnectionType) {
     DocumentState* document_state =
         DocumentState::FromDataSource(frame()->GetWebFrame()->dataSource());
     static_cast<NavigationStateImpl*>(document_state->navigation_state())
-        ->set_was_within_same_page(false);
+        ->set_was_within_same_document(false);
 
     frame()->didCommitProvisionalLoad(frame()->GetWebFrame(), item,
                                       blink::WebStandardCommit);
@@ -274,7 +275,7 @@ TEST_F(RenderFrameImplTest, EffectiveConnectionType) {
     document_state = DocumentState::FromDataSource(
         GetMainRenderFrame()->GetWebFrame()->dataSource());
     static_cast<NavigationStateImpl*>(document_state->navigation_state())
-        ->set_was_within_same_page(false);
+        ->set_was_within_same_document(false);
 
     GetMainRenderFrame()->didCommitProvisionalLoad(
         GetMainRenderFrame()->GetWebFrame(), item, blink::WebStandardCommit);
@@ -360,6 +361,19 @@ TEST_F(RenderFrameImplTest, ZoomLimit) {
       std::unique_ptr<StreamOverrideParameters>());
   ProcessPendingMessages();
   EXPECT_DOUBLE_EQ(kMaxZoomLevel, view_->GetWebView()->zoomLevel());
+}
+
+// Regression test for crbug.com/692557. It shouldn't crash if we inititate a
+// text finding, and then delete the frame immediately before the text finding
+// returns any text match.
+TEST_F(RenderFrameImplTest, NoCrashWhenDeletingFrameDuringFind) {
+  blink::WebFindOptions options;
+  options.force = true;
+  FrameMsg_Find find_message(0, 1, base::ASCIIToUTF16("foo"), options);
+  frame()->OnMessageReceived(find_message);
+
+  FrameMsg_Delete delete_message(0);
+  frame()->OnMessageReceived(delete_message);
 }
 
 }  // namespace

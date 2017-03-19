@@ -28,6 +28,7 @@ class OilpanGCTimesBlinkPerfStress(perf_benchmark.PerfBenchmark):
 
 
 @benchmark.Disabled('android')  # crbug.com/589567
+@benchmark.Owner(emails=['peria@chromium.org'])
 class OilpanGCTimesSmoothnessAnimation(perf_benchmark.PerfBenchmark):
   test = oilpan_gc_times.OilpanGCTimesForSmoothness
   page_set = page_sets.ToughAnimationCasesPageSet
@@ -47,7 +48,8 @@ class OilpanGCTimesKeySilkCases(perf_benchmark.PerfBenchmark):
     return 'oilpan_gc_times.key_silk_cases'
 
 
-@benchmark.Enabled('android')
+@benchmark.Disabled('all')  # crbug.com/702194
+#@benchmark.Enabled('android')
 class OilpanGCTimesSyncScrollKeyMobileSites(perf_benchmark.PerfBenchmark):
   tag = 'sync_scroll'
   test = oilpan_gc_times.OilpanGCTimesForSmoothness

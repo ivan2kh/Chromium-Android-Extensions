@@ -74,6 +74,9 @@ CORE_EXPORT bool needsLayoutTreeUpdate(const PositionInFlatTree&);
 // Node
 // -------------------------------------------------------------------------
 
+// Returns true if |node| has "user-select:contain".
+bool isUserSelectContain(const Node& /* node */);
+
 CORE_EXPORT bool hasEditableStyle(const Node&);
 CORE_EXPORT bool hasRichlyEditableStyle(const Node&);
 CORE_EXPORT bool isRootEditableElement(const Node&);
@@ -81,6 +84,7 @@ CORE_EXPORT Element* rootEditableElement(const Node&);
 Element* rootEditableElementOf(const Position&);
 Element* rootEditableElementOf(const PositionInFlatTree&);
 Element* rootEditableElementOf(const VisiblePosition&);
+ContainerNode* rootEditableElementOrTreeScopeRootNodeOf(const Position&);
 // highestEditableRoot returns the highest editable node. If the
 // rootEditableElement of the speicified Position is <body>, this returns the
 // <body>. Otherwise, this searches ancestors for the highest editable node in
@@ -170,6 +174,8 @@ CORE_EXPORT bool isEnclosingBlock(const Node*);
 bool isTabHTMLSpanElement(const Node*);
 bool isTabHTMLSpanElementTextNode(const Node*);
 bool isMailHTMLBlockquoteElement(const Node*);
+// Returns true if the specified node is visible <table>. We don't want to add
+// invalid nodes to <table> elements.
 bool isDisplayInsideTable(const Node*);
 bool isInline(const Node*);
 bool isTableCell(const Node*);
@@ -187,6 +193,7 @@ CORE_EXPORT bool areIdenticalElements(const Node&, const Node&);
 bool isNonTableCellHTMLBlockElement(const Node*);
 bool isBlockFlowElement(const Node&);
 EUserSelect usedValueOfUserSelect(const Node&);
+bool isInPasswordField(const Position&);
 bool isTextSecurityNode(const Node*);
 CORE_EXPORT TextDirection directionOfEnclosingBlock(const Position&);
 CORE_EXPORT TextDirection directionOfEnclosingBlock(const PositionInFlatTree&);
@@ -303,7 +310,7 @@ PositionWithAffinity positionRespectingEditingBoundary(
     const Position&,
     const LayoutPoint& localPoint,
     Node* targetNode);
-void updatePositionForNodeRemoval(Position&, Node&);
+Position computePositionForNodeRemoval(const Position&, Node&);
 
 // -------------------------------------------------------------------------
 // VisiblePosition
@@ -379,7 +386,9 @@ bool canMergeLists(Element* firstList, Element* secondList);
 // Functions returning VisibleSelection
 VisibleSelection selectionForParagraphIteration(const VisibleSelection&);
 
-Position adjustedSelectionStartForStyleComputation(const VisibleSelection&);
+// TODO(editing-dev): We should move "adjustedSelectionStartForStyleComputation"
+// to "EditingStyleUtilitie.cpp" as local function since it used only there.
+Position adjustedSelectionStartForStyleComputation(const Position&);
 
 // Miscellaneous functions on Text
 inline bool isWhitespace(UChar c) {
@@ -413,11 +422,14 @@ const String& nonBreakingSpaceString();
 // -------------------------------------------------------------------------
 
 // Functions dispatch InputEvent
-const RangeVector* targetRangesForInputEvent(const Node&);
-DispatchEventResult dispatchBeforeInputInsertText(Node*, const String& data);
+const StaticRangeVector* targetRangesForInputEvent(const Node&);
+DispatchEventResult dispatchBeforeInputInsertText(
+    Node*,
+    const String& data,
+    InputEvent::InputType = InputEvent::InputType::InsertText);
 DispatchEventResult dispatchBeforeInputEditorCommand(Node*,
                                                      InputEvent::InputType,
-                                                     const RangeVector*);
+                                                     const StaticRangeVector*);
 DispatchEventResult dispatchBeforeInputDataTransfer(Node*,
                                                     InputEvent::InputType,
                                                     DataTransfer*);

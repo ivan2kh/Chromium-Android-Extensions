@@ -15,7 +15,9 @@
 #include "build/build_config.h"
 #include "chrome/common/features.h"
 #include "content/public/common/url_constants.h"
+#include "device/vr/features.h"
 #include "media/media_features.h"
+#include "ppapi/features/features.h"
 #include "printing/features/features.h"
 
 namespace chrome {
@@ -191,7 +193,6 @@ extern const char kChromeUIHelpFrameHost[];
 extern const char kChromeUIHelpHost[];
 extern const char kChromeUIHangHost[];
 extern const char kChromeUIHangUIHost[];
-extern const char kChromeUIHistoryHost[];
 extern const char kChromeUIHistoryFrameHost[];
 extern const char kChromeUIIdentityInternalsHost[];
 extern const char kChromeUIInspectHost[];
@@ -269,7 +270,7 @@ extern const char kChromeUISnippetsInternalsHost[];
 extern const char kChromeUIWebApksHost[];
 #endif
 
-#if defined(ENABLE_WEBVR)
+#if BUILDFLAG(ENABLE_WEBVR)
 extern const char kChromeUIVrShellUIHost[];
 #endif
 
@@ -460,7 +461,7 @@ extern const char kChromiumProjectURL[];
 // first run dialog.
 extern const char kLearnMoreReportingURL[];
 
-#if BUILDFLAG(ENABLE_PLUGIN_INSTALLATION)
+#if BUILDFLAG(ENABLE_PLUGINS)
 // The URL for the "Learn more" page for the outdated plugin infobar.
 extern const char kOutdatedPluginLearnMoreURL[];
 #endif

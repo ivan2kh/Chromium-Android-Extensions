@@ -25,8 +25,8 @@
 
 #include "bindings/core/v8/V8PerIsolateData.h"
 
-#include <v8-debug.h>
 #include <memory>
+
 #include "bindings/core/v8/DOMDataStore.h"
 #include "bindings/core/v8/ScriptSourceCode.h"
 #include "bindings/core/v8/V8HiddenValue.h"
@@ -36,6 +36,7 @@
 #include "bindings/core/v8/V8ValueCache.h"
 #include "platform/ScriptForbiddenScope.h"
 #include "public/platform/Platform.h"
+#include "v8/include/v8-debug.h"
 #include "wtf/LeakAnnotations.h"
 #include "wtf/PtrUtil.h"
 
@@ -192,8 +193,9 @@ v8::Local<v8::Context> V8PerIsolateData::ensureScriptRegexpContext() {
   if (!m_scriptRegexpScriptState) {
     LEAK_SANITIZER_DISABLED_SCOPE;
     v8::Local<v8::Context> context(v8::Context::New(isolate()));
-    m_scriptRegexpScriptState =
-        ScriptState::create(context, DOMWrapperWorld::create(isolate()));
+    m_scriptRegexpScriptState = ScriptState::create(
+        context,
+        DOMWrapperWorld::create(isolate(), DOMWrapperWorld::WorldType::RegExp));
   }
   return m_scriptRegexpScriptState->context();
 }

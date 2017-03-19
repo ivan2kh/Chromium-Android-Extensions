@@ -28,6 +28,7 @@ namespace infobars {
 class InfoBarManager;
 }
 
+enum class WebApkInstallResult;
 struct ShortcutInfo;
 
 namespace banners {
@@ -125,8 +126,13 @@ class AppBannerInfoBarDelegateAndroid : public ConfirmInfoBarDelegate {
   // A2HS menu item. Otherwise returns true.
   bool TriggeredFromBanner() const;
   void SendBannerAccepted();
-  void OnWebApkInstallFinished(bool success,
+  void OnWebApkInstallFinished(WebApkInstallResult result,
+                               bool relax_updates,
                                const std::string& webapk_package_name);
+
+  // Called when a WebAPK install fails.
+  void OnWebApkInstallFailed(WebApkInstallResult result);
+
   void TrackWebApkInstallationDismissEvents(InstallState install_state);
 
   // ConfirmInfoBarDelegate:

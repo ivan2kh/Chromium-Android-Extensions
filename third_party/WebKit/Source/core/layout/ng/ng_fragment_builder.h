@@ -9,14 +9,16 @@
 #include "core/layout/ng/ng_constraint_space.h"
 #include "core/layout/ng/ng_floating_object.h"
 #include "core/layout/ng/ng_physical_fragment.h"
-#include "core/layout/ng/ng_units.h"
+#include "core/layout/ng/ng_physical_text_fragment.h"
+#include "wtf/Allocator.h"
 
 namespace blink {
 
-class NGPhysicalBoxFragment;
-class NGPhysicalTextFragment;
+class NGLayoutResult;
 
 class CORE_EXPORT NGFragmentBuilder final {
+  DISALLOW_NEW();
+
  public:
   NGFragmentBuilder(NGPhysicalFragment::NGFragmentType, NGLayoutInputNode*);
 
@@ -32,14 +34,17 @@ class CORE_EXPORT NGFragmentBuilder final {
   NGFragmentBuilder& SetInlineOverflow(LayoutUnit);
   NGFragmentBuilder& SetBlockOverflow(LayoutUnit);
 
+  NGFragmentBuilder& AddChild(RefPtr<NGLayoutResult>, const NGLogicalOffset&);
   NGFragmentBuilder& AddChild(RefPtr<NGPhysicalFragment>,
                               const NGLogicalOffset&);
-  NGFragmentBuilder& AddFloatingObject(NGFloatingObject*,
+
+  NGFragmentBuilder& AddFloatingObject(RefPtr<NGFloatingObject>,
                                        const NGLogicalOffset&);
 
   NGFragmentBuilder& SetBfcOffset(const NGLogicalOffset& offset);
 
-  NGFragmentBuilder& AddUnpositionedFloat(NGFloatingObject* floating_object);
+  NGFragmentBuilder& AddUnpositionedFloat(
+      RefPtr<NGFloatingObject> floating_object);
 
   // Builder has non-trivial out-of-flow descendant methods.
   // These methods are building blocks for implementation of
@@ -74,11 +79,15 @@ class CORE_EXPORT NGFragmentBuilder final {
   NGFragmentBuilder& AddOutOfFlowDescendant(NGBlockNode*,
                                             const NGStaticPosition&);
 
-  void SetBreakToken(NGBreakToken* token) {
-    DCHECK(!break_token_);
-    break_token_ = token;
+  // Sets how much of the block size we've used so far for this box.
+  //
+  // This will result in a fragment which has an unfinished break token, which
+  // contains this information.
+  NGFragmentBuilder& SetUsedBlockSize(LayoutUnit used_block_size) {
+    used_block_size_ = used_block_size;
+    did_break_ = true;
+    return *this;
   }
-  bool HasBreakToken() const { return break_token_; }
 
   NGFragmentBuilder& SetEndMarginStrut(const NGMarginStrut& from) {
     end_margin_strut_ = from;
@@ -89,24 +98,34 @@ class CORE_EXPORT NGFragmentBuilder final {
   // do not provide a setter here.
 
   // Creates the fragment. Can only be called once.
-  RefPtr<NGPhysicalBoxFragment> ToBoxFragment();
+  RefPtr<NGLayoutResult> ToBoxFragment();
   RefPtr<NGPhysicalTextFragment> ToTextFragment(unsigned index,
                                                 unsigned start_offset,
                                                 unsigned end_offset);
 
+  Vector<RefPtr<NGPhysicalFragment>>& MutableChildren() { return children_; }
+
+  Vector<NGLogicalOffset>& MutableOffsets() { return offsets_; }
+
   // Mutable list of floats that need to be positioned.
-  Vector<Persistent<NGFloatingObject>>& MutableUnpositionedFloats() {
+  Vector<RefPtr<NGFloatingObject>>& MutableUnpositionedFloats() {
     return unpositioned_floats_;
   }
 
   // List of floats that need to be positioned.
-  const Vector<Persistent<NGFloatingObject>>& UnpositionedFloats() const {
+  const Vector<RefPtr<NGFloatingObject>>& UnpositionedFloats() const {
     return unpositioned_floats_;
   }
 
   const WTF::Optional<NGLogicalOffset>& BfcOffset() const {
     return bfc_offset_;
   }
+
+  const Vector<RefPtr<NGPhysicalFragment>>& Children() const {
+    return children_;
+  }
+
+  bool DidBreak() const { return did_break_; }
 
  private:
   // Out-of-flow descendant placement information.
@@ -139,6 +158,11 @@ class CORE_EXPORT NGFragmentBuilder final {
   Vector<RefPtr<NGPhysicalFragment>> children_;
   Vector<NGLogicalOffset> offsets_;
 
+  bool did_break_;
+  LayoutUnit used_block_size_;
+
+  Vector<RefPtr<NGBreakToken>> child_break_tokens_;
+
   WeakBoxList out_of_flow_descendant_candidates_;
   Vector<OutOfFlowPlacement> out_of_flow_candidate_placements_;
 
@@ -147,12 +171,10 @@ class CORE_EXPORT NGFragmentBuilder final {
 
   // Floats that need to be positioned by the next in-flow fragment that can
   // determine its block position in space.
-  Vector<Persistent<NGFloatingObject>> unpositioned_floats_;
+  Vector<RefPtr<NGFloatingObject>> unpositioned_floats_;
 
   Vector<NGLogicalOffset> floating_object_offsets_;
-  Vector<Persistent<NGFloatingObject>> positioned_floats_;
-
-  Persistent<NGBreakToken> break_token_;
+  Vector<RefPtr<NGFloatingObject>> positioned_floats_;
 
   WTF::Optional<NGLogicalOffset> bfc_offset_;
   NGMarginStrut end_margin_strut_;

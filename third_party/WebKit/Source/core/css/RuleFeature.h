@@ -68,7 +68,8 @@ class CORE_EXPORT RuleFeatureSet {
   WTF_MAKE_NONCOPYABLE(RuleFeatureSet);
 
  public:
-  RuleFeatureSet() {}
+  RuleFeatureSet();
+  ~RuleFeatureSet();
 
   void add(const RuleFeatureSet&);
   void clear();
@@ -159,6 +160,8 @@ class CORE_EXPORT RuleFeatureSet {
 
   DECLARE_TRACE();
 
+  bool isAlive() const { return m_isAlive; }
+
  protected:
   InvalidationSet* invalidationSetForSimpleSelector(const CSSSelector&,
                                                     InvalidationType);
@@ -212,7 +215,7 @@ class CORE_EXPORT RuleFeatureSet {
 
     void add(const InvalidationSetFeatures& other);
     bool hasFeatures() const;
-    bool hasTagIdClassOrAttribute() const;
+    bool hasIdClassOrAttribute() const;
 
     Vector<AtomicString> classes;
     Vector<AtomicString> attributes;
@@ -280,6 +283,8 @@ class CORE_EXPORT RuleFeatureSet {
       const InvalidationSetFeatures& siblingFeatures,
       const InvalidationSetFeatures& descendantFeatures);
 
+  void updateRuleSetInvalidation(const InvalidationSetFeatures&);
+
   FeatureMetadata m_metadata;
   InvalidationSetMap m_classInvalidationSets;
   InvalidationSetMap m_attributeInvalidationSets;
@@ -292,6 +297,9 @@ class CORE_EXPORT RuleFeatureSet {
   HeapVector<RuleFeature> m_uncommonAttributeRules;
   MediaQueryResultList m_viewportDependentMediaQueryResults;
   MediaQueryResultList m_deviceDependentMediaQueryResults;
+
+  // If true, the RuleFeatureSet is alive and can be used.
+  unsigned m_isAlive : 1;
 
   friend class RuleFeatureSetTest;
 };

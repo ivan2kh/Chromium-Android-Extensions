@@ -10,6 +10,7 @@
 #import "ios/web/navigation/navigation_manager_impl.h"
 #import "ios/web/public/interstitials/web_interstitial_delegate.h"
 #import "ios/web/public/navigation_manager.h"
+#include "ios/web/public/reload_type.h"
 #import "ios/web/web_state/web_state_impl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -83,18 +84,11 @@ void WebInterstitialImpl::DontProceed() {
 
   // Clear the pending entry, since that's the page that's not being
   // proceeded to.
-  NavigationManager* nav_manager = GetWebStateImpl()->GetNavigationManager();
-  nav_manager->DiscardNonCommittedItems();
+  GetWebStateImpl()->GetNavigationManager()->DiscardNonCommittedItems();
 
   Hide();
 
   GetDelegate()->OnDontProceed();
-
-  NSUserDefaults* user_defaults = [NSUserDefaults standardUserDefaults];
-  if (![user_defaults boolForKey:@"PendingIndexNavigationDisabled"]) {
-    // Reload last committed entry.
-    nav_manager->Reload(true /* check_for_repost */);
-  }
 
   delete this;
 }

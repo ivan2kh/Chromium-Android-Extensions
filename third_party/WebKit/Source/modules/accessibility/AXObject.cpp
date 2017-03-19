@@ -731,7 +731,7 @@ bool AXObject::isHiddenForTextAlternativeCalculation() const {
     if (node->isConnected() && node->isElementNode()) {
       RefPtr<ComputedStyle> style =
           document->ensureStyleResolver().styleForElement(toElement(node));
-      return style->display() == EDisplay::None ||
+      return style->display() == EDisplay::kNone ||
              style->visibility() != EVisibility::kVisible;
     }
   }
@@ -1656,7 +1656,7 @@ AccessibilityRole AXObject::ariaRoleToWebCoreRole(const String& value) {
   value.split(' ', roleVector);
   AccessibilityRole role = UnknownRole;
   for (const auto& child : roleVector) {
-    role = roleMap->get(child);
+    role = roleMap->at(child);
     if (role)
       return role;
   }

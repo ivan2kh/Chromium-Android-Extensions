@@ -55,6 +55,7 @@
 #include "components/tracing/common/tracing_switches.h"
 #include "content/browser/appcache/appcache_dispatcher_host.h"
 #include "content/browser/appcache/chrome_appcache_service.h"
+#include "content/browser/background_fetch/background_fetch_service_impl.h"
 #include "content/browser/background_sync/background_sync_service_impl.h"
 #include "content/browser/bad_message.h"
 #include "content/browser/blob_storage/blob_dispatcher_host.h"
@@ -69,6 +70,7 @@
 #include "content/browser/child_process_security_policy_impl.h"
 #include "content/browser/dom_storage/dom_storage_context_wrapper.h"
 #include "content/browser/dom_storage/dom_storage_message_filter.h"
+#include "content/browser/field_trial_recorder.h"
 #include "content/browser/fileapi/fileapi_message_filter.h"
 #include "content/browser/frame_host/render_frame_message_filter.h"
 #include "content/browser/gpu/browser_gpu_memory_buffer_manager.h"
@@ -78,13 +80,13 @@
 #include "content/browser/gpu/gpu_process_host.h"
 #include "content/browser/gpu/shader_cache_factory.h"
 #include "content/browser/histogram_message_filter.h"
+#include "content/browser/image_capture/image_capture_impl.h"
 #include "content/browser/indexed_db/indexed_db_context_impl.h"
 #include "content/browser/indexed_db/indexed_db_dispatcher_host.h"
 #include "content/browser/loader/resource_message_filter.h"
 #include "content/browser/loader/resource_scheduler_filter.h"
 #include "content/browser/loader/url_loader_factory_impl.h"
 #include "content/browser/media/capture/audio_mirroring_manager.h"
-#include "content/browser/media/capture/image_capture_impl.h"
 #include "content/browser/media/media_internals.h"
 #include "content/browser/media/midi_host.h"
 #include "content/browser/memory/memory_coordinator_impl.h"
@@ -96,7 +98,7 @@
 #include "content/browser/permissions/permission_service_context.h"
 #include "content/browser/permissions/permission_service_impl.h"
 #include "content/browser/profiler_message_filter.h"
-#include "content/browser/push_messaging/push_messaging_message_filter.h"
+#include "content/browser/push_messaging/push_messaging_manager.h"
 #include "content/browser/quota_dispatcher_host.h"
 #include "content/browser/renderer_host/clipboard_message_filter.h"
 #include "content/browser/renderer_host/database_message_filter.h"
@@ -182,6 +184,7 @@
 #include "mojo/public/cpp/bindings/associated_interface_ptr.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "ppapi/features/features.h"
+#include "services/resource_coordinator/memory/coordinator/coordinator_impl.h"
 #include "services/service_manager/public/cpp/connection.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
@@ -203,7 +206,6 @@
 #include "ui/native_theme/native_theme_switches.h"
 
 #if defined(OS_ANDROID)
-#include "content/browser/screen_orientation/screen_orientation_listener_android.h"
 #include "content/public/browser/android/java_interfaces.h"
 #include "ipc/ipc_sync_channel.h"
 #include "media/audio/android/audio_manager_android.h"
@@ -333,7 +335,13 @@ class SiteProcessMap : public base::SupportsUserData::Data {
   SiteProcessMap() {}
 
   void RegisterProcess(const std::string& site, RenderProcessHost* process) {
-    map_[site] = process;
+    // There could already exist a site to process mapping due to races between
+    // two WebContents with blank SiteInstances. If that occurs, keeping the
+    // exising entry and not overwriting it is a predictable behavior that is
+    // safe.
+    SiteToProcessMap::iterator i = map_.find(site);
+    if (i == map_.end())
+      map_[site] = process;
   }
 
   RenderProcessHost* FindProcess(const std::string& site) {
@@ -728,6 +736,9 @@ RenderProcessHostImpl::RenderProcessHostImpl(
                                        storage_partition_impl_->GetPath()));
   }
 
+  push_messaging_manager_.reset(new PushMessagingManager(
+      GetID(), storage_partition_impl_->GetServiceWorkerContext()));
+
 #if defined(OS_MACOSX)
   if (BootstrapSandboxManager::ShouldEnable())
     AddObserver(BootstrapSandboxManager::GetInstance());
@@ -1088,8 +1099,8 @@ void RenderProcessHostImpl::CreateMessageFilters() {
       BrowserMainLoop::GetInstance()->user_input_monitor());
   AddFilter(audio_input_renderer_host_.get());
   audio_renderer_host_ = new AudioRendererHost(
-      GetID(), audio_manager, AudioMirroringManager::GetInstance(),
-      media_stream_manager,
+      GetID(), audio_manager, BrowserMainLoop::GetInstance()->audio_system(),
+      AudioMirroringManager::GetInstance(), media_stream_manager,
       browser_context->GetResourceContext()->GetMediaDeviceIDSalt());
   AddFilter(audio_renderer_host_.get());
   AddFilter(
@@ -1184,10 +1195,7 @@ void RenderProcessHostImpl::CreateMessageFilters() {
   AddFilter(new ProfilerMessageFilter(PROCESS_TYPE_RENDERER));
   AddFilter(new HistogramMessageFilter());
   AddFilter(new MemoryMessageFilter(this));
-  AddFilter(new PushMessagingMessageFilter(
-      GetID(), storage_partition_impl_->GetServiceWorkerContext()));
 #if defined(OS_ANDROID)
-  AddFilter(new ScreenOrientationListenerAndroid());
   synchronous_compositor_filter_ =
       new SynchronousCompositorBrowserFilter(GetID());
   AddFilter(synchronous_compositor_filter_.get());
@@ -1228,6 +1236,10 @@ void RenderProcessHostImpl::RegisterMojoInterfaces() {
       registry.get(),
       base::Bind(&ForwardShapeDetectionRequest<
                  shape_detection::mojom::FaceDetectionProviderRequest>));
+  AddUIThreadInterface(
+      registry.get(),
+      base::Bind(&ForwardShapeDetectionRequest<
+                 shape_detection::mojom::TextDetectionRequest>));
 #endif
   AddUIThreadInterface(
       registry.get(),
@@ -1308,6 +1320,15 @@ void RenderProcessHostImpl::RegisterMojoInterfaces() {
 
   registry->AddInterface(base::Bind(&device::GamepadMonitor::Create));
 
+  registry->AddInterface(
+      base::Bind(&PushMessagingManager::BindRequest,
+                 base::Unretained(push_messaging_manager_.get())));
+
+  registry->AddInterface(base::Bind(
+      &BackgroundFetchServiceImpl::Create,
+      make_scoped_refptr(storage_partition_impl_->GetBackgroundFetchContext()),
+      make_scoped_refptr(storage_partition_impl_->GetServiceWorkerContext())));
+
   registry->AddInterface(base::Bind(&RenderProcessHostImpl::CreateMusGpuRequest,
                                     base::Unretained(this)));
 
@@ -1330,6 +1351,15 @@ void RenderProcessHostImpl::RegisterMojoInterfaces() {
         base::Bind(&discardable_memory::DiscardableSharedMemoryManager::Bind,
                    base::Unretained(manager)));
   }
+
+  AddUIThreadInterface(registry.get(), base::Bind(&FieldTrialRecorder::Create));
+
+  AddUIThreadInterface(
+      registry.get(),
+      base::Bind(
+          &memory_instrumentation::CoordinatorImpl::BindCoordinatorRequest,
+          base::Unretained(
+              memory_instrumentation::CoordinatorImpl::GetInstance())));
 
   GetContentClient()->browser()->ExposeInterfacesToRenderer(registry.get(),
                                                             this);
@@ -1742,6 +1772,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableDistanceFieldText,
     switches::kEnableExperimentalCanvasFeatures,
     switches::kEnableExperimentalWebPlatformFeatures,
+    switches::kEnableHDR,
     switches::kEnableHeapProfiling,
     switches::kEnableGPUClientLogging,
     switches::kEnableGpuClientTracing,
@@ -1754,6 +1785,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableLogging,
     switches::kEnableNetworkInformation,
     switches::kEnableOverlayScrollbar,
+    switches::kEnableNewVp9CodecString,
     switches::kEnablePinch,
     switches::kEnablePluginPlaceholderTesting,
     switches::kEnablePreciseMemoryInfo,
@@ -1830,14 +1862,14 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kVModule,
     // Please keep these in alphabetical order. Compositor switches here should
     // also be added to chrome/browser/chromeos/login/chrome_restart_request.cc.
-    cc::switches::kCheckTilePriorityInversion,
     cc::switches::kDisableCompositedAntialiasing,
     cc::switches::kDisableThreadedAnimation,
+    cc::switches::kEnableCheckerImaging,
     cc::switches::kEnableColorCorrectRendering,
     cc::switches::kEnableGpuBenchmarking,
     cc::switches::kEnableLayerLists,
+    cc::switches::kEnableSurfaceSynchronization,
     cc::switches::kEnableTileCompression,
-    cc::switches::kEnableTrueColorRendering,
     cc::switches::kShowCompositedLayerBorders,
     cc::switches::kShowFPSCounter,
     cc::switches::kShowLayerAnimationBounds,

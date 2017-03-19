@@ -88,9 +88,9 @@ sk_sp<const PaintRecord> LayoutSVGResourceMasker::createPaintRecord(
   for (const SVGElement& childElement :
        Traversal<SVGElement>::childrenOf(*element())) {
     const LayoutObject* layoutObject = childElement.layoutObject();
-    if (!layoutObject || layoutObject->styleRef().display() == EDisplay::None)
+    if (!layoutObject || layoutObject->styleRef().display() == EDisplay::kNone)
       continue;
-    SVGPaintContext::paintSubtree(builder.context(), layoutObject);
+    SVGPaintContext::paintResourceSubtree(builder.context(), layoutObject);
   }
 
   m_cachedPaintRecord = builder.endRecording();
@@ -101,7 +101,7 @@ void LayoutSVGResourceMasker::calculateMaskContentVisualRect() {
   for (const SVGElement& childElement :
        Traversal<SVGElement>::childrenOf(*element())) {
     const LayoutObject* layoutObject = childElement.layoutObject();
-    if (!layoutObject || layoutObject->styleRef().display() == EDisplay::None)
+    if (!layoutObject || layoutObject->styleRef().display() == EDisplay::kNone)
       continue;
     m_maskContentBoundaries.unite(
         layoutObject->localToSVGParentTransform().mapRect(

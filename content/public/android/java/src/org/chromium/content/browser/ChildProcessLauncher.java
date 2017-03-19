@@ -86,7 +86,7 @@ public class ChildProcessLauncher {
         // Allocate or enqueue. If there are no free slots, return null and enqueue the spawn data.
         public ChildProcessConnection allocate(SpawnData spawnData,
                 ChildProcessConnection.DeathCallback deathCallback,
-                ChromiumLinkerParams chromiumLinkerParams, boolean alwaysInForeground) {
+                Bundle childProcessCommonParameters, boolean alwaysInForeground) {
             assert spawnData.inSandbox() == mInSandbox;
             synchronized (mConnectionLock) {
                 if (mFreeConnectionIndices.isEmpty()) {
@@ -98,9 +98,10 @@ public class ChildProcessLauncher {
                 }
                 int slot = mFreeConnectionIndices.remove(0);
                 assert mChildProcessConnections[slot] == null;
-                mChildProcessConnections[slot] = new ChildProcessConnectionImpl(spawnData.context(),
-                        slot, mInSandbox, deathCallback, mChildClassName, chromiumLinkerParams,
-                        alwaysInForeground, spawnData.getCreationParams());
+                mChildProcessConnections[slot] =
+                        new ChildProcessConnectionImpl(spawnData.context(), slot, mInSandbox,
+                                deathCallback, mChildClassName, childProcessCommonParameters,
+                                alwaysInForeground, spawnData.getCreationParams());
                 Log.d(TAG, "Allocator allocated a connection, sandbox: %b, slot: %d", mInSandbox,
                         slot);
                 return mChildProcessConnections[slot];
@@ -351,8 +352,8 @@ public class ChildProcessLauncher {
         return getConnectionAllocator(packageName, inSandbox);
     }
 
-    private static ChildProcessConnection allocateConnection(SpawnData spawnData,
-            ChromiumLinkerParams chromiumLinkerParams, boolean alwaysInForeground) {
+    private static ChildProcessConnection allocateConnection(
+            SpawnData spawnData, Bundle childProcessCommonParams, boolean alwaysInForeground) {
         ChildProcessConnection.DeathCallback deathCallback =
                 new ChildProcessConnection.DeathCallback() {
                     @Override
@@ -371,7 +372,7 @@ public class ChildProcessLauncher {
                 creationParams != null ? creationParams.getPackageName() : context.getPackageName();
         initConnectionAllocatorsIfNecessary(context, inSandbox, packageName);
         return getConnectionAllocator(packageName, inSandbox)
-                .allocate(spawnData, deathCallback, chromiumLinkerParams, alwaysInForeground);
+                .allocate(spawnData, deathCallback, childProcessCommonParams, alwaysInForeground);
     }
 
     private static boolean sLinkerInitialized;
@@ -409,9 +410,11 @@ public class ChildProcessLauncher {
         final Context context = spawnData.context();
         final boolean inSandbox = spawnData.inSandbox();
         final ChildProcessCreationParams creationParams = spawnData.getCreationParams();
-        ChromiumLinkerParams chromiumLinkerParams = getLinkerParamsForNewConnection();
+        Bundle commonParams = new Bundle();
+        commonParams.putParcelable(
+                ChildProcessConstants.EXTRA_LINKER_PARAMS, getLinkerParamsForNewConnection());
         ChildProcessConnection connection =
-                allocateConnection(spawnData, chromiumLinkerParams, alwaysInForeground);
+                allocateConnection(spawnData, commonParams, alwaysInForeground);
         if (connection != null) {
             connection.start(startCallback);
 
@@ -570,11 +573,7 @@ public class ChildProcessLauncher {
         synchronized (sSpareConnectionLock) {
             assert !ThreadUtils.runningOnUiThread();
             if (sSpareSandboxedConnection == null) {
-                ChildProcessCreationParams params = ChildProcessCreationParams.get();
-                if (params != null) {
-                    params = params.copy();
-                }
-
+                ChildProcessCreationParams params = ChildProcessCreationParams.getDefault();
                 sSpareConnectionStarting = true;
 
                 ChildProcessConnection.StartCallback startCallback =
@@ -632,22 +631,23 @@ public class ChildProcessLauncher {
      * always comes from the main thread).
      *
      * @param context Context used to obtain the application context.
+     * @param paramId Key used to retrieve ChildProcessCreationParams.
      * @param commandLine The child process command line argv.
      * @param filesToBeMapped File IDs, FDs, offsets, and lengths to pass through.
      * @param clientContext Arbitrary parameter used by the client to distinguish this connection.
      */
+    // TODO(boliu): All tests should use this over startForTesting.
+    @VisibleForTesting
     @CalledByNative
-    private static void start(Context context, final String[] commandLine, int childProcessId,
+    static void start(Context context, int paramId, final String[] commandLine, int childProcessId,
             FileDescriptorInfo[] filesToBeMapped, long clientContext) {
-        assert clientContext != 0;
-
         int callbackType = CALLBACK_FOR_UNKNOWN_PROCESS;
         boolean inSandbox = true;
         String processType =
                 ContentSwitches.getSwitchValue(commandLine, ContentSwitches.SWITCH_PROCESS_TYPE);
-        ChildProcessCreationParams params = ChildProcessCreationParams.get();
-        if (params != null) {
-            params = params.copy();
+        ChildProcessCreationParams params = ChildProcessCreationParams.get(paramId);
+        if (paramId != ChildProcessCreationParams.DEFAULT_ID && params == null) {
+            throw new RuntimeException("CreationParams id " + paramId + " not found");
         }
         if (ContentSwitches.SWITCH_RENDERER_PROCESS.equals(processType)) {
             callbackType = CALLBACK_FOR_RENDERER_PROCESS;
@@ -662,6 +662,7 @@ public class ChildProcessLauncher {
                 // name. In WebAPK, ChildProcessCreationParams are initialized with WebAPK's
                 // package name. Make a copy of the WebAPK's params, but replace the package with
                 // Chrome's package to use when initializing a non-renderer processes.
+                // TODO(boliu): Should fold into |paramId|. Investigate why this is needed.
                 params = new ChildProcessCreationParams(context.getPackageName(),
                         params.getIsExternalService(), params.getLibraryProcessType());
             }
@@ -697,7 +698,10 @@ public class ChildProcessLauncher {
                     : context.getPackageName();
             synchronized (sSpareConnectionLock) {
                 if (inSandbox && sSpareSandboxedConnection != null
-                        && sSpareSandboxedConnection.getPackageName().equals(packageName)) {
+                        && sSpareSandboxedConnection.getPackageName().equals(packageName)
+                        // Object identity check for getDefault should be enough. The default is
+                        // not supposed to change once set.
+                        && creationParams == ChildProcessCreationParams.getDefault()) {
                     while (sSpareConnectionStarting) {
                         try {
                             sSpareConnectionLock.wait();
@@ -887,11 +891,14 @@ public class ChildProcessLauncher {
     @VisibleForTesting
     static ChildProcessConnection allocateConnectionForTesting(Context context,
             ChildProcessCreationParams creationParams) {
+        Bundle commonParams = new Bundle();
+        commonParams.putParcelable(
+                ChildProcessConstants.EXTRA_LINKER_PARAMS, getLinkerParamsForNewConnection());
         return allocateConnection(
                 new SpawnData(false /* forWarmUp */, context, null /* commandLine */,
                         0 /* childProcessId */, null /* filesToBeMapped */, 0 /* clientContext */,
                         CALLBACK_FOR_RENDERER_PROCESS, true /* inSandbox */, creationParams),
-                getLinkerParamsForNewConnection(), false);
+                commonParams, false);
     }
 
     /**

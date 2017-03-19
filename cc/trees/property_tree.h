@@ -11,10 +11,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "cc/base/cc_export.h"
+#include "cc/base/filter_operations.h"
 #include "cc/base/synced_property.h"
+#include "cc/cc_export.h"
 #include "cc/layers/layer_sticky_position_constraint.h"
-#include "cc/output/filter_operations.h"
 #include "cc/trees/element_id.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/scroll_offset.h"
@@ -53,7 +53,7 @@ class CC_EXPORT PropertyTree {
   // they are exported by CC_EXPORT. They will be instantiated in every
   // compilation units that included this header, and compilation can fail
   // because T may be incomplete.
-  ~PropertyTree();
+  virtual ~PropertyTree();
   PropertyTree<T>& operator=(const PropertyTree<T>&);
 
   // Property tree node starts from index 0.
@@ -97,10 +97,33 @@ class CC_EXPORT PropertyTree {
 
   void AsValueInto(base::trace_event::TracedValue* value) const;
 
+  T* FindNodeFromOwningLayerId(int id) {
+    return Node(FindNodeIndexFromOwningLayerId(id));
+  }
+  int FindNodeIndexFromOwningLayerId(int id) const {
+    auto iter = owning_layer_id_to_node_index.find(id);
+    if (iter == owning_layer_id_to_node_index.end())
+      return kInvalidNodeId;
+    else
+      return iter->second;
+  }
+
+  void SetOwningLayerIdForNode(const T* node, int id) {
+    if (!node) {
+      owning_layer_id_to_node_index[id] = kInvalidNodeId;
+      return;
+    }
+
+    DCHECK(node == Node(node->id));
+    owning_layer_id_to_node_index[id] = node->id;
+  }
+
  private:
   std::vector<T> nodes_;
 
-  friend class TransformTree;
+  // These maps map from layer id to the property tree node index.
+  std::unordered_map<int, int> owning_layer_id_to_node_index;
+
   bool needs_update_;
   PropertyTrees* property_trees_;
 };
@@ -126,7 +149,7 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
   // compilation units that included this header, and compilation can fail
   // because TransformCachedNodeData may be incomplete.
   TransformTree(const TransformTree&) = delete;
-  ~TransformTree();
+  ~TransformTree() final;
   TransformTree& operator=(const TransformTree&);
 
   bool operator==(const TransformTree& other) const;
@@ -291,12 +314,14 @@ class CC_EXPORT ClipTree final : public PropertyTree<ClipNode> {
 class CC_EXPORT EffectTree final : public PropertyTree<EffectNode> {
  public:
   EffectTree();
-  ~EffectTree();
+  ~EffectTree() final;
 
   EffectTree& operator=(const EffectTree& from);
   bool operator==(const EffectTree& other) const;
 
   static const int kContentsRootNodeId = 1;
+
+  int Insert(const EffectNode& tree_node, int parent_id);
 
   void clear();
 
@@ -326,16 +351,28 @@ class CC_EXPORT EffectTree final : public PropertyTree<EffectNode> {
   void AddMaskLayerId(int id);
   const std::vector<int>& mask_layer_ids() const { return mask_layer_ids_; }
 
+  RenderSurfaceImpl* GetRenderSurface(int id) {
+    return render_surfaces_[id].get();
+  }
+
+  const RenderSurfaceImpl* GetRenderSurface(int id) const {
+    return render_surfaces_[id].get();
+  }
+
+  void UpdateRenderSurfaces(LayerTreeImpl* layer_tree_impl,
+                            bool non_root_surfaces_enabled);
+
   bool ContributesToDrawnSurface(int id);
 
   void ResetChangeTracking();
 
-  // A list of pairs of stable id and render surface, sorted by stable id.
-  using StableIdRenderSurfaceList =
-      std::vector<std::pair<int, RenderSurfaceImpl*>>;
-  StableIdRenderSurfaceList CreateStableIdRenderSurfaceList() const;
-  void UpdateRenderSurfaceEffectIds(
-      const StableIdRenderSurfaceList& stable_id_render_surface_list,
+  void TakeRenderSurfaces(
+      std::vector<std::unique_ptr<RenderSurfaceImpl>>* render_surfaces);
+
+  // Returns true if render surfaces changed (that is, if any render surfaces
+  // were created or destroyed).
+  bool CreateOrReuseRenderSurfaces(
+      std::vector<std::unique_ptr<RenderSurfaceImpl>>* old_render_surfaces,
       LayerTreeImpl* layer_tree_impl);
 
  private:
@@ -349,19 +386,20 @@ class CC_EXPORT EffectTree final : public PropertyTree<EffectNode> {
 
   // Unsorted list of all mask layer ids that effect nodes refer to.
   std::vector<int> mask_layer_ids_;
+
+  // Indexed by node id.
+  std::vector<std::unique_ptr<RenderSurfaceImpl>> render_surfaces_;
 };
 
 class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
  public:
   ScrollTree();
-  ~ScrollTree();
+  ~ScrollTree() final;
 
   ScrollTree& operator=(const ScrollTree& from);
   bool operator==(const ScrollTree& other) const;
 
   void clear();
-
-  typedef std::unordered_map<int, bool> ScrollbarsEnabledMap;
 
   gfx::ScrollOffset MaxScrollOffset(int scroll_node_id) const;
   void OnScrollOffsetAnimated(int layer_id,
@@ -435,7 +473,6 @@ class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
       std::unordered_map<int, scoped_refptr<SyncedScrollOffset>>;
 
   int currently_scrolling_node_id_;
-  ScrollbarsEnabledMap layer_id_to_scrollbars_enabled_map_;
 
   // On the main thread we store the scroll offsets directly since the main
   // thread only needs to keep track of the current main thread state. The impl
@@ -552,14 +589,6 @@ class CC_EXPORT PropertyTrees final {
   bool operator==(const PropertyTrees& other) const;
   PropertyTrees& operator=(const PropertyTrees& from);
 
-  // These maps map from layer id to the index for each of the respective
-  // property node types.
-  std::unordered_map<int, int> layer_id_to_transform_node_index;
-  std::unordered_map<int, int> layer_id_to_effect_node_index;
-  std::unordered_map<int, int> layer_id_to_clip_node_index;
-  std::unordered_map<int, int> layer_id_to_scroll_node_index;
-  enum TreeType { TRANSFORM, EFFECT, CLIP, SCROLL };
-
   // These maps allow mapping directly from a compositor element id to the
   // respective property node. This will eventually allow simplifying logic in
   // various places that today has to map from element id to layer id, and then
@@ -602,7 +631,6 @@ class CC_EXPORT PropertyTrees final {
   void SetInnerViewportScrollBoundsDelta(gfx::Vector2dF bounds_delta);
   void PushOpacityIfNeeded(PropertyTrees* target_tree);
   void RemoveIdFromIdToIndexMaps(int id);
-  bool IsInIdToIndexMap(TreeType tree_type, int id);
   void UpdateChangeTracking();
   void PushChangeTrackingTo(PropertyTrees* tree);
   void ResetAllChangeTracking();
@@ -639,10 +667,6 @@ class CC_EXPORT PropertyTrees final {
   gfx::Transform ToScreenSpaceTransformWithoutSurfaceContentsScale(
       int transform_id,
       int effect_id) const;
-
-  bool ComputeTransformFromTarget(int transform_id,
-                                  int effect_id,
-                                  gfx::Transform* transform) const;
 
  private:
   gfx::Vector2dF inner_viewport_container_bounds_delta_;

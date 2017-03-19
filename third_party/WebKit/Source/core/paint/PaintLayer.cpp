@@ -68,7 +68,6 @@
 #include "core/layout/svg/LayoutSVGResourceClipper.h"
 #include "core/layout/svg/LayoutSVGRoot.h"
 #include "core/page/Page.h"
-#include "core/page/scrolling/RootScrollerController.h"
 #include "core/page/scrolling/ScrollingCoordinator.h"
 #include "core/paint/BoxReflectionUtils.h"
 #include "core/paint/FilterEffectBuilder.h"
@@ -156,7 +155,6 @@ PaintLayer::PaintLayer(LayoutBoxModelObject& layoutObject)
       m_hasDescendantWithClipPath(false),
       m_hasNonIsolatedDescendantWithBlendMode(false),
       m_hasAncestorWithClipPath(false),
-      m_hasRootScrollerAsDescendant(false),
       m_selfPaintingStatusChanged(false),
       m_layoutObject(layoutObject),
       m_parent(0),
@@ -420,7 +418,7 @@ void PaintLayer::updateTransform(const ComputedStyle* oldStyle,
     markAncestorChainForDescendantDependentFlagsUpdate();
 
   if (FrameView* frameView = layoutObject().document().view())
-    frameView->setNeedsUpdateWidgetGeometries();
+    frameView->setNeedsUpdateGeometries();
 }
 
 static PaintLayer* enclosingLayerForContainingBlock(PaintLayer* layer) {
@@ -674,7 +672,6 @@ void PaintLayer::updateDescendantDependentFlags() {
     m_hasVisibleDescendant = false;
     m_hasNonIsolatedDescendantWithBlendMode = false;
     m_hasDescendantWithClipPath = false;
-    m_hasRootScrollerAsDescendant = false;
 
     for (PaintLayer* child = firstChild(); child;
          child = child->nextSibling()) {
@@ -690,13 +687,6 @@ void PaintLayer::updateDescendantDependentFlags() {
 
       m_hasDescendantWithClipPath |= child->hasDescendantWithClipPath() ||
                                      child->layoutObject().hasClipPath();
-
-      m_hasRootScrollerAsDescendant |= child->hasRootScrollerAsDescendant() ||
-                                       (child ==
-                                        child->layoutObject()
-                                            .document()
-                                            .rootScrollerController()
-                                            .rootScrollerPaintLayer());
     }
 
     if (RuntimeEnabledFeatures::slimmingPaintInvalidationEnabled() &&
@@ -1469,8 +1459,8 @@ void PaintLayer::convertToLayerCoords(const PaintLayer* ancestorLayer,
 }
 
 LayoutPoint PaintLayer::visualOffsetFromAncestor(
-    const PaintLayer* ancestorLayer) const {
-  LayoutPoint offset;
+    const PaintLayer* ancestorLayer,
+    LayoutPoint offset) const {
   if (ancestorLayer == this)
     return offset;
   PaintLayer* paginationLayer = enclosingPaginationLayer();
@@ -1646,9 +1636,10 @@ void PaintLayer::collectFragments(
                                       overlayScrollbarClipBehavior);
     if (respectOverflowClip == IgnoreOverflowClip)
       clipRectsContext.setIgnoreOverflowClip();
-    ancestorClipRect = enclosingPaginationLayer()
-                           ->clipper(geometryMapperOption)
-                           .backgroundClipRect(clipRectsContext);
+
+    enclosingPaginationLayer()
+        ->clipper(geometryMapperOption)
+        .calculateBackgroundClipRect(clipRectsContext, ancestorClipRect);
     if (rootLayerIsInsidePaginationLayer)
       ancestorClipRect.moveBy(
           -rootLayer->visualOffsetFromAncestor(ancestorLayer));
@@ -1899,10 +1890,12 @@ PaintLayer* PaintLayer::hitTestLayer(
 
     // Make sure the parent's clip rects have been calculated.
     if (parent()) {
-      ClipRect clipRect = clipper(PaintLayer::DoNotUseGeometryMapper)
-                              .backgroundClipRect(ClipRectsContext(
-                                  rootLayer, clipRectsCacheSlot,
-                                  ExcludeOverlayScrollbarSizeForHitTesting));
+      ClipRect clipRect;
+      clipper(PaintLayer::DoNotUseGeometryMapper)
+          .calculateBackgroundClipRect(
+              ClipRectsContext(rootLayer, clipRectsCacheSlot,
+                               ExcludeOverlayScrollbarSizeForHitTesting),
+              clipRect);
       // Go ahead and test the enclosing clip now.
       if (!clipRect.intersects(hitTestLocation))
         return nullptr;
@@ -2141,15 +2134,17 @@ PaintLayer* PaintLayer::hitTestTransformedLayerInFragments(
     if (parent() != enclosingPaginationLayer()) {
       enclosingPaginationLayer()->convertToLayerCoords(
           rootLayer, offsetOfPaginationLayerFromRoot);
-      LayoutRect parentClipRect =
-          clipper(PaintLayer::DoNotUseGeometryMapper)
-              .backgroundClipRect(ClipRectsContext(
-                  enclosingPaginationLayer(), clipRectsCacheSlot,
-                  ExcludeOverlayScrollbarSizeForHitTesting))
-              .rect();
+
+      ClipRect parentClipRect;
+      clipper(PaintLayer::DoNotUseGeometryMapper)
+          .calculateBackgroundClipRect(
+              ClipRectsContext(enclosingPaginationLayer(), clipRectsCacheSlot,
+                               ExcludeOverlayScrollbarSizeForHitTesting),
+              parentClipRect);
+
       parentClipRect.moveBy(fragment.paginationOffset +
                             offsetOfPaginationLayerFromRoot);
-      clipRect.intersect(parentClipRect);
+      clipRect.intersect(parentClipRect.rect());
     }
 
     if (!hitTestLocation.intersects(clipRect))
@@ -2503,16 +2498,16 @@ LayoutRect PaintLayer::boundingBoxForCompositingInternal(
       !hasVisibleDescendant())
     return LayoutRect();
 
-  // The root layer is the size of the document, plus any additional area due
-  // to layout viewport being different than initial containing block.
   if (isRootLayer()) {
-    IntRect documentRect = layoutObject().view()->documentRect();
-
-    if (FrameView* frameView = layoutObject().document().view()) {
-      documentRect.unite(IntRect(IntPoint(), frameView->visibleContentSize()));
-    }
-
-    return LayoutRect(documentRect);
+    // In root layer scrolling mode, the main GraphicsLayer is the size of the
+    // layout viewport. In non-RLS mode, it is the union of the layout viewport
+    // and the document's layout overflow rect.
+    IntRect result = IntRect();
+    if (FrameView* frameView = layoutObject().frameView())
+      result = IntRect(IntPoint(), frameView->visibleContentSize());
+    if (!RuntimeEnabledFeatures::rootLayerScrollingEnabled())
+      result.unite(layoutObject().view()->documentRect());
+    return LayoutRect(result);
   }
 
   // The layer created for the LayoutFlowThread is just a helper for painting

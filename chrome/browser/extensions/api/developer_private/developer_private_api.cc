@@ -188,8 +188,8 @@ namespace GetItemsInfo = api::developer_private::GetItemsInfo;
 namespace PackDirectory = api::developer_private::PackDirectory;
 namespace Reload = api::developer_private::Reload;
 
-static base::LazyInstance<BrowserContextKeyedAPIFactory<DeveloperPrivateAPI> >
-    g_factory = LAZY_INSTANCE_INITIALIZER;
+static base::LazyInstance<BrowserContextKeyedAPIFactory<DeveloperPrivateAPI>>::
+    DestructorAtExit g_factory = LAZY_INSTANCE_INITIALIZER;
 
 // static
 BrowserContextKeyedAPIFactory<DeveloperPrivateAPI>*
@@ -985,7 +985,7 @@ void DeveloperPrivateLoadDirectoryFunction::Load() {
 
   // TODO(grv) : The unpacked installer should fire an event when complete
   // and return the extension_id.
-  SetResult(base::MakeUnique<base::StringValue>("-1"));
+  SetResult(base::MakeUnique<base::Value>("-1"));
   SendResponse(true);
 }
 
@@ -1159,8 +1159,7 @@ ExtensionFunction::ResponseAction DeveloperPrivateChoosePathFunction::Run() {
 
 void DeveloperPrivateChoosePathFunction::FileSelected(
     const base::FilePath& path) {
-  Respond(OneArgument(
-      base::MakeUnique<base::StringValue>(path.LossyDisplayName())));
+  Respond(OneArgument(base::MakeUnique<base::Value>(path.LossyDisplayName())));
   Release();
 }
 
@@ -1175,7 +1174,7 @@ DeveloperPrivateChoosePathFunction::~DeveloperPrivateChoosePathFunction() {}
 
 ExtensionFunction::ResponseAction
 DeveloperPrivateIsProfileManagedFunction::Run() {
-  return RespondNow(OneArgument(base::MakeUnique<base::FundamentalValue>(
+  return RespondNow(OneArgument(base::MakeUnique<base::Value>(
       Profile::FromBrowserContext(browser_context())->IsSupervised())));
 }
 

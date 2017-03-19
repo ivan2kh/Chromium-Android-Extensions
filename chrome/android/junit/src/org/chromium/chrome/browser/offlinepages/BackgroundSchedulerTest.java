@@ -23,12 +23,13 @@ import org.robolectric.internal.ShadowExtractor;
 
 import org.chromium.base.BaseChromiumApplication;
 import org.chromium.base.test.util.Feature;
+import org.chromium.testing.local.LocalRobolectricTestRunner;
 
 /**
  * Unit tests for BackgroundScheduler.
  */
-@RunWith(OfflinePageTestRunner.class)
-@Config(manifest = Config.NONE, application = BaseChromiumApplication.class,
+@RunWith(LocalRobolectricTestRunner.class)
+@Config(manifest = Config.NONE, application = BaseChromiumApplication.class, sdk = 21,
         shadows = {ShadowGcmNetworkManager.class, ShadowGoogleApiAvailability.class})
 public class BackgroundSchedulerTest {
     private Context mContext;
@@ -38,7 +39,7 @@ public class BackgroundSchedulerTest {
 
     @Before
     public void setUp() throws Exception {
-        mContext =  RuntimeEnvironment.application;
+        mContext = RuntimeEnvironment.application;
         mGcmNetworkManager = (ShadowGcmNetworkManager) ShadowExtractor.extract(
                 GcmNetworkManager.getInstance(mContext));
         mGcmNetworkManager.clear();
@@ -48,7 +49,7 @@ public class BackgroundSchedulerTest {
     @Feature({"OfflinePages"})
     public void testSchedule() {
         assertNull(mGcmNetworkManager.getScheduledTask());
-        BackgroundScheduler.schedule(mContext, mConditions1);
+        BackgroundScheduler.getInstance(mContext).schedule(mConditions1);
         // Check with gcmNetworkManagerShadow that schedule got called.
         assertNotNull(mGcmNetworkManager.getScheduledTask());
 
@@ -63,13 +64,13 @@ public class BackgroundSchedulerTest {
 
     @Test
     @Feature({"OfflinePages"})
-    public void testUnschedule() {
+    public void testCancel() {
         assertNull(mGcmNetworkManager.getScheduledTask());
-        BackgroundScheduler.schedule(mContext, mConditions1);
+        BackgroundScheduler.getInstance(mContext).schedule(mConditions1);
         assertNotNull(mGcmNetworkManager.getScheduledTask());
 
         assertNull(mGcmNetworkManager.getCanceledTask());
-        BackgroundScheduler.unschedule(mContext);
+        BackgroundScheduler.getInstance(mContext).cancel();
         assertNotNull(mGcmNetworkManager.getCanceledTask());
     }
 }

@@ -110,8 +110,20 @@ void UiInterface::SetURL(const GURL& url) {
   FlushUpdates();
 }
 
+void UiInterface::HandleAppButtonGesturePerformed(Direction direction) {
+  updates_.SetInteger("appButtonGesturePerformed", direction);
+  FlushUpdates();
+}
+
 void UiInterface::HandleAppButtonClicked() {
   updates_.SetBoolean("appButtonClicked", true);
+  FlushUpdates();
+}
+
+void UiInterface::SetHistoryButtonsEnabled(bool can_go_back,
+                                           bool can_go_forward) {
+  updates_.SetBoolean("canGoBack", can_go_back);
+  updates_.SetBoolean("canGoForward", can_go_forward);
   FlushUpdates();
 }
 

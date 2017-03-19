@@ -22,6 +22,8 @@ blink_modules_sources("payments") {
     "PaymentRequest.h",
     "PaymentRequestEvent.cpp",
     "PaymentRequestEvent.h",
+    "PaymentRequestRespondWithObserver.cpp",
+    "PaymentRequestRespondWithObserver.h",
     "PaymentRequestUpdateEvent.cpp",
     "PaymentRequestUpdateEvent.h",
     "PaymentResponse.cpp",
@@ -31,7 +33,7 @@ blink_modules_sources("payments") {
     "PaymentsValidators.h",
   ]
   deps = [
-    "//components/payments:payment_app_blink",
-    "//components/payments:payment_request_blink",
+    "//components/payments/content:payment_app_blink",
+    "//components/payments/content:payment_request_blink",
   ]
 }

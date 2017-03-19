@@ -5,6 +5,7 @@
 #include "chrome/browser/chromeos/accessibility/select_to_speak_event_handler.h"
 
 #include "ash/shell.h"
+#include "base/logging.h"
 #include "chrome/browser/speech/tts_controller.h"
 #include "chrome/browser/ui/aura/accessibility/automation_manager_aura.h"
 #include "content/public/browser/browser_thread.h"
@@ -18,16 +19,22 @@
 namespace chromeos {
 
 SelectToSpeakEventHandler::SelectToSpeakEventHandler() {
-  if (ash::Shell::HasInstance())
-    ash::Shell::GetInstance()->AddPreTargetHandler(this);
+  if (ash::Shell::HasInstance()) {
+    ash::Shell::GetInstance()->GetPrimaryRootWindow()->AddPreTargetHandler(
+        this);
+  }
 }
 
 SelectToSpeakEventHandler::~SelectToSpeakEventHandler() {
-  if (ash::Shell::HasInstance())
-    ash::Shell::GetInstance()->RemovePreTargetHandler(this);
+  if (ash::Shell::HasInstance()) {
+    ash::Shell::GetInstance()->GetPrimaryRootWindow()->RemovePreTargetHandler(
+        this);
+  }
 }
 
 void SelectToSpeakEventHandler::OnKeyEvent(ui::KeyEvent* event) {
+  DCHECK(event);
+
   // We can only call TtsController on the UI thread, make sure we
   // don't ever try to run this code on some other thread.
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
@@ -73,6 +80,7 @@ void SelectToSpeakEventHandler::OnKeyEvent(ui::KeyEvent* event) {
 }
 
 void SelectToSpeakEventHandler::OnMouseEvent(ui::MouseEvent* event) {
+  DCHECK(event);
   if (state_ == INACTIVE)
     return;
 
@@ -157,6 +165,7 @@ void SelectToSpeakEventHandler::OnMouseEvent(ui::MouseEvent* event) {
 }
 
 void SelectToSpeakEventHandler::CancelEvent(ui::Event* event) {
+  DCHECK(event);
   if (event->cancelable()) {
     event->SetHandled();
     event->StopPropagation();

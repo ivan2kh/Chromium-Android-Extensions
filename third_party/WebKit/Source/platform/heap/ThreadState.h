@@ -379,6 +379,8 @@ class PLATFORM_EXPORT ThreadState {
     m_shouldFlushHeapDoesNotContainCache = true;
   }
 
+  bool isAddressInHeapDoesNotContainCache(Address);
+
   void registerTraceDOMWrappers(
       v8::Isolate* isolate,
       void (*traceDOMWrappers)(v8::Isolate*, Visitor*),
@@ -510,7 +512,7 @@ class PLATFORM_EXPORT ThreadState {
       DCHECK(!state->sweepForbidden());
       DCHECK(!state->m_orderedPreFinalizers.contains(
           PreFinalizer(self, T::invokePreFinalizer)));
-      state->m_orderedPreFinalizers.add(
+      state->m_orderedPreFinalizers.insert(
           PreFinalizer(self, T::invokePreFinalizer));
     }
   };

@@ -31,8 +31,9 @@ namespace {
 
 // Keeps track of pending scripted print preview closures.
 // No locking, only access on the UI thread.
-base::LazyInstance<std::map<content::RenderProcessHost*, base::Closure>>
-    g_scripted_print_preview_closure_map = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<std::map<content::RenderProcessHost*, base::Closure>>::
+    DestructorAtExit g_scripted_print_preview_closure_map =
+        LAZY_INSTANCE_INITIALIZER;
 
 void EnableInternalPDFPluginForContents(int render_process_id,
                                         int render_frame_id) {
@@ -135,7 +136,8 @@ void PrintViewManager::PrintPreviewForWebNode(content::RenderFrameHost* rfh) {
 
 void PrintViewManager::PrintPreviewDone() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK_NE(NOT_PREVIEWING, print_preview_state_);
+  if (print_preview_state_ == NOT_PREVIEWING)
+    return;
 
   if (print_preview_state_ == SCRIPTED_PREVIEW) {
     auto& map = g_scripted_print_preview_closure_map.Get();
@@ -160,7 +162,7 @@ void PrintViewManager::RenderFrameCreated(
 void PrintViewManager::RenderFrameDeleted(
     content::RenderFrameHost* render_frame_host) {
   if (render_frame_host == print_preview_rfh_)
-    print_preview_state_ = NOT_PREVIEWING;
+    PrintPreviewDone();
   PrintViewManagerBase::RenderFrameDeleted(render_frame_host);
 }
 

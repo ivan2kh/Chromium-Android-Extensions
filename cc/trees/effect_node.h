@@ -5,8 +5,8 @@
 #ifndef CC_TREES_EFFECT_NODE_H_
 #define CC_TREES_EFFECT_NODE_H_
 
-#include "cc/base/cc_export.h"
-#include "cc/output/filter_operations.h"
+#include "cc/base/filter_operations.h"
+#include "cc/cc_export.h"
 #include "third_party/skia/include/core/SkBlendMode.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/size_f.h"
@@ -18,8 +18,6 @@ class TracedValue;
 }  // namespace base
 
 namespace cc {
-
-class RenderSurfaceImpl;
 
 struct CC_EXPORT EffectNode {
   EffectNode();
@@ -46,7 +44,6 @@ struct CC_EXPORT EffectNode {
   gfx::Size unscaled_mask_target_size;
 
   bool has_render_surface;
-  RenderSurfaceImpl* render_surface;
   // Only applicable if has render surface. A true value means a clip needs to
   // be applied to the output of the surface when it is drawn onto its parent
   // surface.

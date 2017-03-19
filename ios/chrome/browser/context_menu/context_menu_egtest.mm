@@ -16,9 +16,9 @@
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_assertions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
+#import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#include "ios/chrome/test/earl_grey/chrome_util.h"
 #import "ios/testing/wait_util.h"
 #import "ios/web/public/test/earl_grey/web_view_matchers.h"
 #import "ios/web/public/test/http_server.h"
@@ -30,6 +30,7 @@
 #endif
 
 using chrome_test_util::ButtonWithAccessibilityLabelId;
+using chrome_test_util::OpenLinkInNewTabButton;
 
 namespace {
 const char kUrlChromiumLogoPage[] =
@@ -54,12 +55,6 @@ id<GREYMatcher> OpenImageButton() {
 id<GREYMatcher> OpenImageInNewTabButton() {
   return ButtonWithAccessibilityLabelId(
       IDS_IOS_CONTENT_CONTEXT_OPENIMAGENEWTAB);
-}
-
-// Matcher for the open link in new tab button in the context menu.
-// TODO(crbug.com/638674): Clean up code duplication.
-id<GREYMatcher> OpenLinkInNewTabButton() {
-  return ButtonWithAccessibilityLabelId(IDS_IOS_CONTENT_CONTEXT_OPENLINKNEWTAB);
 }
 
 // Waits for the context menu item to disappear. TODO(crbug.com/682871): Remove
@@ -214,10 +209,20 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   chrome_test_util::AssertMainTabCount(1U);
 
   // Scroll down on the web view to make the link visible.
+  // grey_swipeFastInDirecton will quickly scroll towards the bottom, and then
+  // grey_scrollToContentEdge guarantees the content edge is reached. Two
+  // methods are used because the first one is much faster, but doesn't
+  // guarantee the link becomes visible.
+  // TODO(crbug.com/702272): Try to replace this with one EarlGrey method call.
   [[EarlGrey
       selectElementWithMatcher:WebViewScrollView(
                                    chrome_test_util::GetCurrentWebState())]
       performAction:grey_swipeFastInDirection(kGREYDirectionUp)];
+  [[EarlGrey
+      selectElementWithMatcher:WebViewScrollView(
+                                   chrome_test_util::GetCurrentWebState())]
+      performAction:grey_scrollToContentEdge(kGREYContentEdgeBottom)];
+
   [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewContainingText(
                                           kDestinationLinkID)]
       assertWithMatcher:grey_notNil()];
@@ -246,7 +251,7 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
       selectElementWithMatcher:WebViewScrollView(
                                    chrome_test_util::GetCurrentWebState())]
       performAction:grey_swipeFastInDirection(kGREYDirectionDown)];
-  chrome_test_util::AssertToolbarVisible();
+  [ChromeEarlGreyUI waitForToolbarVisible:YES];
 
   SelectTabAtIndexInCurrentMode(1U);
 

@@ -29,6 +29,7 @@
 
 #include "core/CoreExport.h"
 #include "platform/graphics/Image.h"
+#include "platform/graphics/paint/PaintRecord.h"
 #include "platform/heap/Handle.h"
 #include "platform/weborigin/KURL.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
@@ -77,7 +78,7 @@ class CORE_EXPORT SVGImage final : public Image {
   void advanceAnimationForTesting() override;
   SVGImageChromeClient& chromeClientForTesting();
 
-  sk_sp<SkImage> imageForCurrentFrame(const ColorBehavior&) override;
+  sk_sp<SkImage> imageForCurrentFrame() override;
 
   // Does the SVG image/document contain any animations?
   bool hasAnimations() const;
@@ -120,15 +121,14 @@ class CORE_EXPORT SVGImage final : public Image {
   }
 
   void draw(PaintCanvas*,
-            const SkPaint&,
+            const PaintFlags&,
             const FloatRect& fromRect,
             const FloatRect& toRect,
             RespectImageOrientationEnum,
-            ImageClampingMode,
-            const ColorBehavior&) override;
+            ImageClampingMode) override;
   void drawForContainer(PaintCanvas*,
-                        const SkPaint&,
-                        const FloatSize,
+                        const PaintFlags&,
+                        const FloatSize&,
                         float,
                         const FloatRect&,
                         const FloatRect&,
@@ -145,6 +145,10 @@ class CORE_EXPORT SVGImage final : public Image {
                                const KURL&);
   sk_sp<SkImage> imageForCurrentFrameForContainer(const KURL&,
                                                   const IntSize& containerSize);
+  sk_sp<PaintRecord> paintRecordForCurrentFrame(const FloatRect& srcRect,
+                                                const FloatRect& dstRect,
+                                                const KURL&);
+
   void drawInternal(PaintCanvas*,
                     const PaintFlags&,
                     const FloatRect& fromRect,
@@ -152,6 +156,19 @@ class CORE_EXPORT SVGImage final : public Image {
                     RespectImageOrientationEnum,
                     ImageClampingMode,
                     const KURL&);
+
+  template <typename Func>
+  void forContainer(const FloatSize&, Func&&);
+
+  bool applyShader(PaintFlags&, const SkMatrix& localMatrix) override;
+  bool applyShaderForContainer(const FloatSize&,
+                               float zoom,
+                               const KURL&,
+                               PaintFlags&,
+                               const SkMatrix& localMatrix);
+  bool applyShaderInternal(PaintFlags&,
+                           const SkMatrix& localMatrix,
+                           const KURL&);
 
   void stopAnimation();
   void scheduleTimelineRewind();

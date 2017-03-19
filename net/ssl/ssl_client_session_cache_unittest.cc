@@ -354,8 +354,19 @@ TEST_F(SSLClientSessionCacheTest, TestFlushOnMemoryNotifications) {
   EXPECT_EQ(0u, cache.size());
 }
 
+class SSLClientSessionCacheMemoryDumpTest
+    : public SSLClientSessionCacheTest,
+      public testing::WithParamInterface<
+          base::trace_event::MemoryDumpLevelOfDetail> {};
+
+INSTANTIATE_TEST_CASE_P(
+    /* no prefix */,
+    SSLClientSessionCacheMemoryDumpTest,
+    ::testing::Values(base::trace_event::MemoryDumpLevelOfDetail::DETAILED,
+                      base::trace_event::MemoryDumpLevelOfDetail::BACKGROUND));
+
 // Basic test for dumping memory stats.
-TEST_F(SSLClientSessionCacheTest, TestDumpMemoryStats) {
+TEST_P(SSLClientSessionCacheMemoryDumpTest, TestDumpMemoryStats) {
   SSLClientSessionCache::Config config;
   SSLClientSessionCache cache(config);
 
@@ -372,8 +383,7 @@ TEST_F(SSLClientSessionCacheTest, TestDumpMemoryStats) {
   EXPECT_EQ(session3.get(), cache.Lookup("key3", nullptr).get());
   EXPECT_EQ(3u, cache.size());
 
-  base::trace_event::MemoryDumpArgs dump_args = {
-      base::trace_event::MemoryDumpLevelOfDetail::DETAILED};
+  base::trace_event::MemoryDumpArgs dump_args = {GetParam()};
   std::unique_ptr<base::trace_event::ProcessMemoryDump> process_memory_dump(
       new base::trace_event::ProcessMemoryDump(nullptr, dump_args));
   cache.DumpMemoryStats(process_memory_dump.get());
@@ -386,7 +396,9 @@ TEST_F(SSLClientSessionCacheTest, TestDumpMemoryStats) {
   base::DictionaryValue* attrs;
   ASSERT_TRUE(raw_attrs->GetAsDictionary(&attrs));
   ASSERT_TRUE(attrs->HasKey("cert_count"));
-  ASSERT_TRUE(attrs->HasKey("serialized_cert_size"));
+  ASSERT_TRUE(attrs->HasKey("cert_size"));
+  ASSERT_TRUE(attrs->HasKey("undeduped_cert_size"));
+  ASSERT_TRUE(attrs->HasKey("undeduped_cert_count"));
   ASSERT_TRUE(attrs->HasKey(base::trace_event::MemoryAllocatorDump::kNameSize));
 }
 

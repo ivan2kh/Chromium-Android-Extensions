@@ -8,7 +8,7 @@ import android.graphics.Rect;
 import android.view.View;
 
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
-import org.chromium.chrome.browser.widget.BottomSheet;
+import org.chromium.chrome.browser.widget.bottomsheet.BottomSheet;
 
 /**
  * An interface for outside packages to interact with ToolbarLayout. Other than for testing purposes
@@ -34,6 +34,12 @@ public interface Toolbar {
      * @param position The position array to be used for returning the calculated position.
      */
     void getPositionRelativeToContainer(View containerView, int[] position);
+
+    /**
+     * Get the height of the toolbar in px.
+     * @return The height of the toolbar.
+     */
+    int getHeight();
 
     /**
      * Sets whether or not the toolbar should draw as if it's being captured for a snapshot

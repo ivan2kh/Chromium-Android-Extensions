@@ -9,15 +9,16 @@
 
 #include "ash/common/ash_constants.h"
 #include "ash/common/ash_view_ids.h"
-#include "ash/common/material_design/material_design_controller.h"
 #include "ash/common/session/session_state_delegate.h"
 #include "ash/common/system/tray/fixed_sized_image_view.h"
 #include "ash/common/system/tray/size_range_layout.h"
 #include "ash/common/system/tray/tray_constants.h"
 #include "ash/common/system/tray/tray_popup_item_style.h"
 #include "ash/common/wm_shell.h"
+#include "ash/resources/vector_icons/vector_icons.h"
 #include "base/memory/ptr_util.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/animation/flood_fill_ink_drop_ripple.h"
 #include "ui/views/animation/ink_drop_highlight.h"
 #include "ui/views/animation/ink_drop_impl.h"
@@ -87,22 +88,22 @@ void ConfigureDefaultSizeAndFlex(TriView* tri_view,
   int min_width = 0;
   switch (container) {
     case TriView::Container::START:
-      min_width = GetTrayConstant(TRAY_POPUP_ITEM_MIN_START_WIDTH);
+      min_width = kTrayPopupItemMinStartWidth;
       break;
     case TriView::Container::CENTER:
       tri_view->SetFlexForContainer(TriView::Container::CENTER, 1.f);
       break;
     case TriView::Container::END:
-      min_width = GetTrayConstant(TRAY_POPUP_ITEM_MIN_END_WIDTH);
+      min_width = kTrayPopupItemMinEndWidth;
       break;
   }
 
-  tri_view->SetMinSize(
+  tri_view->SetMinSize(container,
+                       gfx::Size(min_width, kTrayPopupItemMinHeight));
+  constexpr int kTrayPopupItemMaxHeight = 144;
+  tri_view->SetMaxSize(
       container,
-      gfx::Size(min_width, GetTrayConstant(TRAY_POPUP_ITEM_MIN_HEIGHT)));
-  tri_view->SetMaxSize(container,
-                       gfx::Size(SizeRangeLayout::kAbsoluteMaxSize,
-                                 GetTrayConstant(TRAY_POPUP_ITEM_MAX_HEIGHT)));
+      gfx::Size(SizeRangeLayout::kAbsoluteMaxSize, kTrayPopupItemMaxHeight));
 }
 
 class BorderlessLabelButton : public views::LabelButton {
@@ -173,9 +174,7 @@ TriView* TrayPopupUtils::CreateDefaultRowView() {
 
 TriView* TrayPopupUtils::CreateSubHeaderRowView() {
   TriView* tri_view = CreateMultiTargetRowView();
-  tri_view->SetInsets(
-      gfx::Insets(0, kTrayPopupPaddingHorizontal, 0,
-                  GetTrayConstant(TRAY_POPUP_ITEM_RIGHT_INSET)));
+  tri_view->SetInsets(gfx::Insets(0, kTrayPopupPaddingHorizontal, 0, 0));
   tri_view->SetContainerVisible(TriView::Container::START, false);
   tri_view->SetContainerLayout(
       TriView::Container::END,
@@ -186,9 +185,7 @@ TriView* TrayPopupUtils::CreateSubHeaderRowView() {
 TriView* TrayPopupUtils::CreateMultiTargetRowView() {
   TriView* tri_view = new TriView(0 /* padding_between_items */);
 
-  tri_view->SetInsets(
-      gfx::Insets(0, GetTrayConstant(TRAY_POPUP_ITEM_LEFT_INSET), 0,
-                  GetTrayConstant(TRAY_POPUP_ITEM_RIGHT_INSET)));
+  tri_view->SetInsets(gfx::Insets(0, kMenuExtraMarginFromLeftEdge, 0, 0));
 
   ConfigureDefaultSizeAndFlex(tri_view, TriView::Container::START);
   ConfigureDefaultSizeAndFlex(tri_view, TriView::Container::CENTER);
@@ -219,29 +216,22 @@ views::Label* TrayPopupUtils::CreateDefaultLabel() {
 }
 
 views::ImageView* TrayPopupUtils::CreateMainImageView() {
-  return new FixedSizedImageView(
-      GetTrayConstant(TRAY_POPUP_ITEM_MAIN_IMAGE_CONTAINER_WIDTH),
-      GetTrayConstant(TRAY_POPUP_ITEM_MIN_HEIGHT));
+  return new FixedSizedImageView(kTrayPopupItemMinStartWidth,
+                                 kTrayPopupItemMinHeight);
 }
 
 views::ImageView* TrayPopupUtils::CreateMoreImageView() {
   views::ImageView* image =
-      new FixedSizedImageView(GetTrayConstant(TRAY_POPUP_ITEM_MORE_IMAGE_SIZE),
-                              GetTrayConstant(TRAY_POPUP_ITEM_MORE_IMAGE_SIZE));
+      new FixedSizedImageView(kMenuIconSize, kMenuIconSize);
   image->EnableCanvasFlippingForRTLUI(true);
+  image->SetImage(
+      gfx::CreateVectorIcon(kSystemMenuArrowRightIcon, kMenuIconColor));
   return image;
 }
 
 views::Slider* TrayPopupUtils::CreateSlider(views::SliderListener* listener) {
-  const bool is_material = MaterialDesignController::IsSystemTrayMenuMaterial();
-  views::Slider* slider = views::Slider::CreateSlider(is_material, listener);
-  if (is_material) {
-    slider->SetBorder(
-        views::CreateEmptyBorder(gfx::Insets(0, kTrayPopupSliderPaddingMD)));
-  } else {
-    slider->SetBorder(
-        views::CreateEmptyBorder(0, 0, 0, kTrayPopupPaddingBetweenItems));
-  }
+  views::Slider* slider = new views::Slider(listener);
+  slider->SetBorder(views::CreateEmptyBorder(gfx::Insets(0, 16)));
   return slider;
 }
 

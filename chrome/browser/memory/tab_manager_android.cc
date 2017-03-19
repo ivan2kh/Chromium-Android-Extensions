@@ -223,16 +223,6 @@ void TabManager::AddTabStats(const TabStripModel* model,
 void TabManager::UpdateTimerCallback() {
 }
 
-TabManager::PurgeAndSuspendState TabManager::GetNextPurgeAndSuspendState(
-        content::WebContents* content,
-        base::TimeTicks current_time,
-        const base::TimeDelta& time_to_first_suspension) const {
-  return TabManager::PurgeAndSuspendState();
-}
-
-void TabManager::PurgeAndSuspendBackgroundedTabs() {
-}
-
 WebContents* TabManager::DiscardWebContentsAt(int index, TabStripModel* model) {
     return nullptr;
 

@@ -435,11 +435,11 @@ const MenuItemView::MenuItemDimensions& MenuItemView::GetDimensions() const {
 }
 
 MenuController* MenuItemView::GetMenuController() {
-  return GetRootMenuItem()->controller_;
+  return GetRootMenuItem()->controller_.get();
 }
 
 const MenuController* MenuItemView::GetMenuController() const {
-  return GetRootMenuItem()->controller_;
+  return GetRootMenuItem()->controller_.get();
 }
 
 MenuDelegate* MenuItemView::GetDelegate() {
@@ -524,7 +524,7 @@ void MenuItemView::ChildrenChanged() {
     }
   }
 
-  for (auto item : removed_items_)
+  for (auto* item : removed_items_)
     delete item;
   removed_items_.clear();
 }
@@ -599,7 +599,7 @@ MenuItemView::MenuItemView(MenuItemView* parent,
 
 MenuItemView::~MenuItemView() {
   delete submenu_;
-  for (auto item : removed_items_)
+  for (auto* item : removed_items_)
     delete item;
 }
 

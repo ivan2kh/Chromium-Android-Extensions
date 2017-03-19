@@ -212,11 +212,9 @@ void InternalExtensionProvider::SetContentSettingForExtensionAndResource(
                              CONTENT_SETTINGS_TYPE_PLUGINS,
                              resource);
     } else {
-      value_map_.SetValue(primary_pattern,
-                          secondary_pattern,
-                          CONTENT_SETTINGS_TYPE_PLUGINS,
-                          resource,
-                          new base::FundamentalValue(setting));
+      value_map_.SetValue(primary_pattern, secondary_pattern,
+                          CONTENT_SETTINGS_TYPE_PLUGINS, resource,
+                          new base::Value(setting));
     }
   }
   NotifyObservers(primary_pattern,

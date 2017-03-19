@@ -11,7 +11,7 @@ import tarfile
 import zipfile
 from abc import ABCMeta, abstractmethod
 from cStringIO import StringIO as CStringIO
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from ConfigParser import RawConfigParser
 from io import BytesIO, StringIO
 
@@ -137,8 +137,8 @@ def replace_streams(capacity, warning_msg):
         count[0] += length
 
         if count[0] > capacity:
-            sys.stdout.disable()
-            sys.stderr.disable()
+            wrapped_stdout.disable()
+            wrapped_stderr.disable()
             handle.write(msg[0:capacity - count[0]])
             handle.flush()
             stderr.write("\n%s\n" % warning_msg)
@@ -146,8 +146,10 @@ def replace_streams(capacity, warning_msg):
 
         return True
 
-    sys.stdout = FilteredIO(sys.stdout, on_write)
-    sys.stderr = FilteredIO(sys.stderr, on_write)
+    # Store local references to the replaced streams to guard against the case
+    # where other code replace the global references.
+    sys.stdout = wrapped_stdout = FilteredIO(sys.stdout, on_write)
+    sys.stderr = wrapped_stderr = FilteredIO(sys.stderr, on_write)
 
 
 class Browser(object):
@@ -183,7 +185,11 @@ class Firefox(Browser):
     def install(self):
         """Install Firefox."""
         call("pip", "install", "-r", os.path.join(wptrunner_root, "requirements_firefox.txt"))
-        resp = get("https://archive.mozilla.org/pub/firefox/nightly/latest-mozilla-central/firefox-53.0a1.en-US.linux-x86_64.tar.bz2")
+        index = get("https://archive.mozilla.org/pub/firefox/nightly/latest-mozilla-central/")
+        latest = re.compile("<a[^>]*>(firefox-\d+\.\d(?:\w\d)?.en-US.linux-x86_64\.tar\.bz2)</a>")
+        filename = latest.search(index.text).group(1)
+        resp = get("https://archive.mozilla.org/pub/firefox/nightly/latest-mozilla-central/%s" %
+                   filename)
         untar(resp.raw)
 
         if not os.path.exists("profiles"):
@@ -305,7 +311,8 @@ def get_git_cmd(repo_path):
     def git(cmd, *args):
         full_cmd = ["git", cmd] + list(args)
         try:
-            return subprocess.check_output(full_cmd, cwd=repo_path, stderr=subprocess.STDOUT)
+            logger.debug(" ".join(full_cmd))
+            return subprocess.check_output(full_cmd, cwd=repo_path, stderr=subprocess.STDOUT).strip()
         except subprocess.CalledProcessError as e:
             logger.error("Git command exited with status %i" % e.returncode)
             logger.error(e.output)
@@ -357,10 +364,9 @@ class pwd(object):
         self.old_dir = None
 
 
-def fetch_wpt_master(user):
-    """Fetch the master branch via git."""
+def fetch_wpt(user, *args):
     git = get_git_cmd(wpt_root)
-    git("fetch", "https://github.com/%s/web-platform-tests.git" % user, "master:master")
+    git("fetch", "https://github.com/%s/web-platform-tests.git" % user, *args)
 
 
 def get_sha1():
@@ -384,12 +390,32 @@ def install_wptrunner():
     call("pip", "install", wptrunner_root)
 
 
-def get_files_changed():
+def get_branch_point(user):
+    git = get_git_cmd(wpt_root)
+    if os.environ.get("TRAVIS_PULL_REQUEST", "false") != "false":
+        # This is a PR, so the base branch is in TRAVIS_BRANCH
+        branch_point = os.environ.get("TRAVIS_COMMIT_RANGE").split(".", 1)[0]
+        branch_point = git("rev-parse", branch_point)
+    else:
+        # Otherwise we aren't on a PR, so we try to find commits that are only in the
+        # current branch c.f.
+        # http://stackoverflow.com/questions/13460152/find-first-ancestor-commit-in-another-branch
+        head = git("rev-parse", "HEAD")
+        # To do this we need all the commits in the local copy
+        fetch_wpt(user, "--unshallow", "+refs/heads/*:refs/remotes/origin/*")
+        not_heads = [item for item in git("rev-parse", "--not", "--all").split("\n")
+                     if not head in item]
+        commits = git("rev-list", "HEAD", *not_heads).split("\n")
+        first_commit = commits[-1]
+        branch_point = git("rev-parse", first_commit + "^")
+    logger.debug("Branch point from master: %s" % branch_point)
+    return branch_point
+
+
+def get_files_changed(branch_point):
     """Get and return files changed since current branch diverged from master."""
     root = os.path.abspath(os.curdir)
     git = get_git_cmd(wpt_root)
-    branch_point = git("merge-base", "HEAD", "master").strip()
-    logger.debug("Branch point from master: %s" % branch_point)
     files = git("diff", "--name-only", "-z", "%s.." % branch_point)
     if not files:
         return []
@@ -483,13 +509,44 @@ def setup_log_handler():
         Subclasses reader.LogHandler.
         """
         def __init__(self):
-            self.results = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+            self.results = OrderedDict()
+
+        def find_or_create_test(self, data):
+            test_name = data["test"]
+            if self.results.get(test_name):
+                return self.results[test_name]
+
+            test = {
+                "subtests": OrderedDict(),
+                "status": defaultdict(int)
+            }
+            self.results[test_name] = test
+            return test
+
+        def find_or_create_subtest(self, data):
+            test = self.find_or_create_test(data)
+            subtest_name = data["subtest"]
+
+            if test["subtests"].get(subtest_name):
+                return test["subtests"][subtest_name]
+
+            subtest = {
+                "status": defaultdict(int),
+                "messages": set()
+            }
+            test["subtests"][subtest_name] = subtest
+
+            return subtest
 
         def test_status(self, data):
-            self.results[data["test"]][data.get("subtest")][data["status"]] += 1
+            subtest = self.find_or_create_subtest(data)
+            subtest["status"][data["status"]] += 1
+            if data.get("message"):
+                subtest["messages"].add(data["message"])
 
         def test_end(self, data):
-            self.results[data["test"]][None][data["status"]] += 1
+            test = self.find_or_create_test(data)
+            test["status"][data["status"]] += 1
 
 
 def is_inconsistent(results_dict, iterations):
@@ -504,10 +561,10 @@ def err_string(results_dict, iterations):
     for key, value in sorted(results_dict.items()):
         rv.append("%s%s" %
                   (key, ": %s/%s" % (value, iterations) if value != iterations else ""))
-    rv = ", ".join(rv)
     if total_results < iterations:
         rv.append("MISSING: %s/%s" % (iterations - total_results, iterations))
-    if len(results_dict) > 1 or total_results != iterations:
+    rv = ", ".join(rv)
+    if is_inconsistent(results_dict, iterations):
         rv = "**%s**" % rv
     return rv
 
@@ -518,10 +575,12 @@ def process_results(log, iterations):
     handler = LogHandler()
     reader.handle_log(reader.read(log), handler)
     results = handler.results
-    for test, test_results in results.iteritems():
-        for subtest, result in test_results.iteritems():
-            if is_inconsistent(result, iterations):
-                inconsistent.append((test, subtest, result))
+    for test_name, test in results.iteritems():
+        if is_inconsistent(test["status"], iterations):
+            inconsistent.append((test_name, None, test["status"], None))
+        for subtest_name, subtest in test["subtests"].iteritems():
+            if is_inconsistent(subtest["status"], iterations):
+                inconsistent.append((test_name, subtest_name, subtest["status"], subtest["messages"]))
     return results, inconsistent
 
 
@@ -545,7 +604,7 @@ def markdown_adjust(s):
     s = s.replace('\t', u'\\t')
     s = s.replace('\n', u'\\n')
     s = s.replace('\r', u'\\r')
-    s = s.replace('`',  u'\\`')
+    s = s.replace('`',  u'')
     return s
 
 
@@ -568,38 +627,54 @@ def table(headings, data, log):
 def write_inconsistent(inconsistent, iterations):
     """Output inconsistent tests to logger.error."""
     logger.error("## Unstable results ##\n")
-    strings = [("`%s`" % markdown_adjust(test), ("`%s`" % markdown_adjust(subtest)) if subtest else "", err_string(results, iterations))
-               for test, subtest, results in inconsistent]
-    table(["Test", "Subtest", "Results"], strings, logger.error)
+    strings = [(
+        "`%s`" % markdown_adjust(test),
+        ("`%s`" % markdown_adjust(subtest)) if subtest else "",
+        err_string(results, iterations),
+        ("`%s`" % markdown_adjust(";".join(messages))) if len(messages) else ""
+    )
+               for test, subtest, results, messages in inconsistent]
+    table(["Test", "Subtest", "Results", "Messages"], strings, logger.error)
 
 
 def write_results(results, iterations, comment_pr):
     """Output all test results to logger.info."""
+    pr_number = None
+    if comment_pr:
+        try:
+            pr_number = int(comment_pr)
+        except ValueError:
+            pass
     logger.info("## All results ##\n")
-    for test, test_results in results.iteritems():
+    if pr_number:
+        logger.info("<details>\n")
+        logger.info("<summary>%i %s ran</summary>\n\n" % (len(results),
+                                                          "tests" if len(results) > 1
+                                                          else "test"))
+
+    for test_name, test in results.iteritems():
         baseurl = "http://w3c-test.org/submissions"
-        if "https" in os.path.splitext(test)[0].split(".")[1:]:
+        if "https" in os.path.splitext(test_name)[0].split(".")[1:]:
             baseurl = "https://w3c-test.org/submissions"
-        pr_number = None
-        if comment_pr:
-            try:
-                pr_number = int(comment_pr)
-            except ValueError:
-                pass
         if pr_number:
             logger.info("<details>\n")
             logger.info('<summary><a href="%s/%s%s">%s</a></summary>\n\n' %
-                        (baseurl, pr_number, test, test))
+                        (baseurl, pr_number, test_name, test_name))
         else:
-            logger.info("### %s ###" % test)
-        parent = test_results.pop(None)
-        strings = [("", err_string(parent, iterations))]
-        strings.extend(((("`%s`" % markdown_adjust(subtest)) if subtest
-                         else "", err_string(results, iterations))
-                        for subtest, results in test_results.iteritems()))
-        table(["Subtest", "Results"], strings, logger.info)
+            logger.info("### %s ###" % test_name)
+        strings = [("", err_string(test["status"], iterations), "")]
+
+        strings.extend(((
+            ("`%s`" % markdown_adjust(subtest_name)) if subtest else "",
+            err_string(subtest["status"], iterations),
+            ("`%s`" % markdown_adjust(';'.join(subtest["messages"]))) if len(subtest["messages"]) else ""
+        ) for subtest_name, subtest in test["subtests"].items()))
+        table(["Subtest", "Results", "Messages"], strings, logger.info)
         if pr_number:
             logger.info("</details>\n")
+
+    if pr_number:
+        logger.info("</details>\n")
 
 
 def get_parser():
@@ -671,14 +746,16 @@ def main():
             logger.critical("Unrecognised browser %s" % browser_name)
             return 1
 
-        fetch_wpt_master(args.user)
+        fetch_wpt(args.user, "master:master")
 
         head_sha1 = get_sha1()
         logger.info("Testing web-platform-tests at revision %s" % head_sha1)
 
+        branch_point = get_branch_point(args.user)
+
         # For now just pass the whole list of changed files to wptrunner and
         # assume that it will run everything that's actually a test
-        files_changed = get_files_changed()
+        files_changed = get_files_changed(branch_point)
 
         if not files_changed:
             logger.info("No files changed")

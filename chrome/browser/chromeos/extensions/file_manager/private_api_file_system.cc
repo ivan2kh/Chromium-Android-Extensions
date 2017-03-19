@@ -7,13 +7,10 @@
 #include <sys/statvfs.h>
 
 #include <algorithm>
-#include <set>
 #include <utility>
-#include <vector>
 
 #include "base/files/file_util.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/weak_ptr.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -307,10 +304,30 @@ ExtensionFunction::ResponseAction FileManagerPrivateGrantAccessFunction::Run() {
   return RespondNow(NoArguments());
 }
 
+namespace {
+
+void PostResponseCallbackTaskToUIThread(
+    const FileWatchFunctionBase::ResponseCallback& callback,
+    bool success) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  BrowserThread::PostTask(BrowserThread::UI, FROM_HERE,
+                          base::Bind(callback, success));
+}
+
+void PostNotificationCallbackTaskToUIThread(
+    const storage::WatcherManager::NotificationCallback& callback,
+    storage::WatcherManager::ChangeType type) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  BrowserThread::PostTask(BrowserThread::UI, FROM_HERE,
+                          base::Bind(callback, type));
+}
+
+}  // namespace
+
 void FileWatchFunctionBase::Respond(bool success) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  SetResult(base::MakeUnique<base::FundamentalValue>(success));
+  SetResult(base::MakeUnique<base::Value>(success));
   SendResponse(success);
 }
 
@@ -336,63 +353,95 @@ bool FileWatchFunctionBase::RunAsync() {
     return true;
   }
 
-  PerformFileWatchOperation(file_system_context, file_system_url,
-                            extension_id());
+  file_manager::EventRouter* const event_router =
+      file_manager::EventRouterFactory::GetForProfile(GetProfile());
+
+  BrowserThread::PostTask(BrowserThread::IO, FROM_HERE,
+                          base::Bind(&FileWatchFunctionBase::RunAsyncOnIOThread,
+                                     this, file_system_context, file_system_url,
+                                     event_router->GetWeakPtr()));
   return true;
 }
 
-void FileManagerPrivateInternalAddFileWatchFunction::PerformFileWatchOperation(
+void FileWatchFunctionBase::RunAsyncOnIOThread(
     scoped_refptr<storage::FileSystemContext> file_system_context,
     const storage::FileSystemURL& file_system_url,
-    const std::string& extension_id) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  file_manager::EventRouter* const event_router =
-      file_manager::EventRouterFactory::GetForProfile(GetProfile());
+    base::WeakPtr<file_manager::EventRouter> event_router) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   storage::WatcherManager* const watcher_manager =
       file_system_context->GetWatcherManager(file_system_url.type());
-  if (watcher_manager) {
-    watcher_manager->AddWatcher(
-        file_system_url, false /* recursive */,
+
+  if (!watcher_manager) {
+    BrowserThread::PostTask(
+        BrowserThread::UI, FROM_HERE,
         base::Bind(
-            &StatusCallbackToResponseCallback,
-            base::Bind(&FileManagerPrivateInternalAddFileWatchFunction::Respond,
-                       this)),
-        base::Bind(&file_manager::EventRouter::OnWatcherManagerNotification,
-                   event_router->GetWeakPtr(), file_system_url, extension_id));
+            &FileWatchFunctionBase::PerformFallbackFileWatchOperationOnUIThread,
+            this, file_system_url, event_router));
     return;
   }
 
+  PerformFileWatchOperationOnIOThread(file_system_context, watcher_manager,
+                                      file_system_url, event_router);
+}
+
+void FileManagerPrivateInternalAddFileWatchFunction::
+    PerformFileWatchOperationOnIOThread(
+        scoped_refptr<storage::FileSystemContext> file_system_context,
+        storage::WatcherManager* watcher_manager,
+        const storage::FileSystemURL& file_system_url,
+        base::WeakPtr<file_manager::EventRouter> event_router) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+
+  watcher_manager->AddWatcher(
+      file_system_url, false /* recursive */,
+      base::Bind(&StatusCallbackToResponseCallback,
+                 base::Bind(&PostResponseCallbackTaskToUIThread,
+                            base::Bind(&FileWatchFunctionBase::Respond, this))),
+      base::Bind(
+          &PostNotificationCallbackTaskToUIThread,
+          base::Bind(&file_manager::EventRouter::OnWatcherManagerNotification,
+                     event_router, file_system_url, extension_id())));
+}
+
+void FileManagerPrivateInternalAddFileWatchFunction::
+    PerformFallbackFileWatchOperationOnUIThread(
+        const storage::FileSystemURL& file_system_url,
+        base::WeakPtr<file_manager::EventRouter> event_router) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK(event_router);
+
   // Obsolete. Fallback code if storage::WatcherManager is not implemented.
-  event_router->AddFileWatch(
-      file_system_url.path(), file_system_url.virtual_path(), extension_id,
-      base::Bind(&FileManagerPrivateInternalAddFileWatchFunction::Respond,
-                 this));
+  event_router->AddFileWatch(file_system_url.path(),
+                             file_system_url.virtual_path(), extension_id(),
+                             base::Bind(&FileWatchFunctionBase::Respond, this));
 }
 
 void FileManagerPrivateInternalRemoveFileWatchFunction::
-    PerformFileWatchOperation(
+    PerformFileWatchOperationOnIOThread(
         scoped_refptr<storage::FileSystemContext> file_system_context,
+        storage::WatcherManager* watcher_manager,
         const storage::FileSystemURL& file_system_url,
-        const std::string& extension_id) {
+        base::WeakPtr<file_manager::EventRouter> event_router) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+
+  watcher_manager->RemoveWatcher(
+      file_system_url, false /* recursive */,
+      base::Bind(
+          &StatusCallbackToResponseCallback,
+          base::Bind(&PostResponseCallbackTaskToUIThread,
+                     base::Bind(&FileWatchFunctionBase::Respond, this))));
+}
+
+void FileManagerPrivateInternalRemoveFileWatchFunction::
+    PerformFallbackFileWatchOperationOnUIThread(
+        const storage::FileSystemURL& file_system_url,
+        base::WeakPtr<file_manager::EventRouter> event_router) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  file_manager::EventRouter* const event_router =
-      file_manager::EventRouterFactory::GetForProfile(GetProfile());
-
-  storage::WatcherManager* const watcher_manager =
-      file_system_context->GetWatcherManager(file_system_url.type());
-  if (watcher_manager) {
-    watcher_manager->RemoveWatcher(
-        file_system_url, false /* recursive */,
-        base::Bind(&StatusCallbackToResponseCallback,
-                   base::Bind(&FileWatchFunctionBase::Respond, this)));
-    return;
-  }
+  DCHECK(event_router);
 
   // Obsolete. Fallback code if storage::WatcherManager is not implemented.
-  event_router->RemoveFileWatch(file_system_url.path(), extension_id);
+  event_router->RemoveFileWatch(file_system_url.path(), extension_id());
   Respond(true);
 }
 
@@ -518,7 +567,7 @@ bool FileManagerPrivateInternalValidatePathNameLengthFunction::RunAsync() {
 
   // No explicit limit on the length of Drive file names.
   if (file_system_url.type() == storage::kFileSystemTypeDrive) {
-    SetResult(base::MakeUnique<base::FundamentalValue>(true));
+    SetResult(base::MakeUnique<base::Value>(true));
     SendResponse(true);
     return true;
   }
@@ -536,8 +585,7 @@ bool FileManagerPrivateInternalValidatePathNameLengthFunction::RunAsync() {
 
 void FileManagerPrivateInternalValidatePathNameLengthFunction::
     OnFilePathLimitRetrieved(size_t current_length, size_t max_length) {
-  SetResult(
-      base::MakeUnique<base::FundamentalValue>(current_length <= max_length));
+  SetResult(base::MakeUnique<base::Value>(current_length <= max_length));
   SendResponse(true);
 }
 
@@ -697,7 +745,7 @@ void FileManagerPrivateInternalStartCopyFunction::RunAfterStartCopy(
     int operation_id) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  SetResult(base::MakeUnique<base::FundamentalValue>(operation_id));
+  SetResult(base::MakeUnique<base::Value>(operation_id));
   SendResponse(true);
 }
 
@@ -838,7 +886,7 @@ bool FileManagerPrivateInternalComputeChecksumFunction::RunAsync() {
 void FileManagerPrivateInternalComputeChecksumFunction::Respond(
     const std::string& hash) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  SetResult(base::MakeUnique<base::StringValue>(hash));
+  SetResult(base::MakeUnique<base::Value>(hash));
   SendResponse(true);
 }
 
@@ -905,7 +953,7 @@ void FileManagerPrivateSearchFilesByHashesFunction::OnSearchByHashes(
 
 ExtensionFunction::ResponseAction
 FileManagerPrivateIsUMAEnabledFunction::Run() {
-  return RespondNow(OneArgument(base::MakeUnique<base::FundamentalValue>(
+  return RespondNow(OneArgument(base::MakeUnique<base::Value>(
       ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled())));
 }
 
@@ -1003,8 +1051,7 @@ bool FileManagerPrivateInternalGetDirectorySizeFunction::RunAsync() {
 
 void FileManagerPrivateInternalGetDirectorySizeFunction::
     OnDirectorySizeRetrieved(int64_t size) {
-  SetResult(
-      base::MakeUnique<base::FundamentalValue>(static_cast<double>(size)));
+  SetResult(base::MakeUnique<base::Value>(static_cast<double>(size)));
   SendResponse(true);
 }
 

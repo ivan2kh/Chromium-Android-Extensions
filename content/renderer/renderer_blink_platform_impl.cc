@@ -54,19 +54,18 @@
 #include "content/renderer/dom_storage/local_storage_namespace.h"
 #include "content/renderer/dom_storage/webstoragenamespace_impl.h"
 #include "content/renderer/gamepad_shared_memory_reader.h"
+#include "content/renderer/image_capture/image_capture_frame_grabber.h"
 #include "content/renderer/media/audio_decoder.h"
 #include "content/renderer/media/audio_device_factory.h"
-#include "content/renderer/media/capturefromelement/canvas_capture_handler.h"
-#include "content/renderer/media/capturefromelement/html_audio_element_capturer_source.h"
-#include "content/renderer/media/capturefromelement/html_video_element_capturer_source.h"
-#include "content/renderer/media/image_capture_frame_grabber.h"
-#include "content/renderer/media/recorder/media_recorder_handler.h"
 #include "content/renderer/media/renderer_webaudiodevice_impl.h"
 #include "content/renderer/media/renderer_webmidiaccessor_impl.h"
+#include "content/renderer/media_capture_from_element/canvas_capture_handler.h"
+#include "content/renderer/media_capture_from_element/html_audio_element_capturer_source.h"
+#include "content/renderer/media_capture_from_element/html_video_element_capturer_source.h"
+#include "content/renderer/media_recorder/media_recorder_handler.h"
 #include "content/renderer/mojo/blink_interface_provider_impl.h"
 #include "content/renderer/render_thread_impl.h"
 #include "content/renderer/renderer_clipboard_delegate.h"
-#include "content/renderer/screen_orientation/screen_orientation_observer.h"
 #include "content/renderer/webclipboard_impl.h"
 #include "content/renderer/webgraphicscontext3d_provider_impl.h"
 #include "content/renderer/webpublicsuffixlist_impl.h"
@@ -675,49 +674,18 @@ WebAudioDevice* RendererBlinkPlatformImpl::createAudioDevice(
   // The |channels| does not exactly identify the channel layout of the
   // device. The switch statement below assigns a best guess to the channel
   // layout based on number of channels.
-  media::ChannelLayout layout = media::CHANNEL_LAYOUT_UNSUPPORTED;
-  switch (channels) {
-    case 1:
-      layout = media::CHANNEL_LAYOUT_MONO;
-      break;
-    case 2:
-      layout = media::CHANNEL_LAYOUT_STEREO;
-      break;
-    case 3:
-      layout = media::CHANNEL_LAYOUT_2_1;
-      break;
-    case 4:
-      layout = media::CHANNEL_LAYOUT_4_0;
-      break;
-    case 5:
-      layout = media::CHANNEL_LAYOUT_5_0;
-      break;
-    case 6:
-      layout = media::CHANNEL_LAYOUT_5_1;
-      break;
-    case 7:
-      layout = media::CHANNEL_LAYOUT_7_0;
-      break;
-    case 8:
-      layout = media::CHANNEL_LAYOUT_7_1;
-      break;
-    default:
-      // TODO need to also pass 'channels' into RendererWebAudioDeviceImpl for
-      // CHANNEL_LAYOUT_DISCRETE
-      NOTREACHED();
-  }
+  media::ChannelLayout layout = media::GuessChannelLayout(channels);
+  if (layout == media::CHANNEL_LAYOUT_UNSUPPORTED)
+    layout = media::CHANNEL_LAYOUT_DISCRETE;
 
   int session_id = 0;
   if (input_device_id.isNull() ||
       !base::StringToInt(input_device_id.utf8(), &session_id)) {
-    if (input_channels > 0)
-      DLOG(WARNING) << "createAudioDevice(): request for audio input ignored";
-
-    input_channels = 0;
+    session_id = 0;
   }
 
   return RendererWebAudioDeviceImpl::Create(
-      layout, latency_hint, callback, session_id,
+      layout, channels, latency_hint, callback, session_id,
       static_cast<url::Origin>(security_origin));
 }
 
@@ -889,8 +857,6 @@ void RendererBlinkPlatformImpl::createHTMLVideoElementCapturer(
   AddVideoTrackToMediaStream(
       HtmlVideoElementCapturerSource::CreateFromWebMediaPlayerImpl(
           web_media_player, content::RenderThread::Get()->GetIOTaskRunner()),
-      false,  // is_remote
-      false,  // is_readonly
       web_media_stream);
 #endif
 }
@@ -906,10 +872,8 @@ void RendererBlinkPlatformImpl::createHTMLAudioElementCapturer(
   blink::WebMediaStreamTrack web_media_stream_track;
   const WebString track_id = WebString::fromUTF8(base::GenerateGUID());
 
-  web_media_stream_source.initialize(track_id,
-                                     blink::WebMediaStreamSource::TypeAudio,
-                                     track_id,
-                                     false /* is_remote */);
+  web_media_stream_source.initialize(
+      track_id, blink::WebMediaStreamSource::TypeAudio, track_id);
   web_media_stream_track.initialize(web_media_stream_source);
 
   MediaStreamAudioSource* const media_stream_source =
@@ -1013,13 +977,16 @@ RendererBlinkPlatformImpl::createOffscreenGraphicsContext3DProvider(
 
   bool is_software_rendering = gpu_channel_host->gpu_info().software_rendering;
 
-  // This is an offscreen context, which doesn't use the default frame buffer,
-  // so don't request any alpha, depth, stencil, antialiasing.
+  // This is an offscreen context. Generally it won't use the default
+  // frame buffer, in that case don't request any alpha, depth, stencil,
+  // antialiasing. But we do need those attributes for the "own
+  // offscreen surface" optimization which supports directly drawing
+  // to a custom surface backed frame buffer.
   gpu::gles2::ContextCreationAttribHelper attributes;
-  attributes.alpha_size = -1;
-  attributes.depth_size = 0;
-  attributes.stencil_size = 0;
-  attributes.samples = 0;
+  attributes.alpha_size = web_attributes.supportAlpha ? 8 : -1;
+  attributes.depth_size = web_attributes.supportDepth ? 24 : 0;
+  attributes.stencil_size = web_attributes.supportStencil ? 8 : 0;
+  attributes.samples = web_attributes.supportAntialias ? 4 : 0;
   attributes.sample_buffers = 0;
   attributes.bind_generates_resource = false;
   // Prefer discrete GPU for WebGL.
@@ -1164,8 +1131,6 @@ RendererBlinkPlatformImpl::CreatePlatformEventObserverFromType(
       return base::MakeUnique<DeviceLightEventPump>(thread);
     case blink::WebPlatformEventTypeGamepad:
       return base::MakeUnique<GamepadSharedMemoryReader>(thread);
-    case blink::WebPlatformEventTypeScreenOrientation:
-      return base::MakeUnique<ScreenOrientationObserver>();
     default:
       // A default statement is required to prevent compilation errors when
       // Blink adds a new type.

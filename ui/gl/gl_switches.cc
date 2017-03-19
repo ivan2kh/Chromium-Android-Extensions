@@ -71,8 +71,6 @@ const char kUseANGLE[]                      = "use-angle";
 //  swiftshader: The SwiftShader software renderer.
 const char kUseGL[]                         = "use-gl";
 
-const char kSwiftShaderPath[]               = "swiftshader-path";
-
 // Inform Chrome that a GPU context will not be lost in power saving mode,
 // screen saving mode, etc.  Note that this flag does not ensure that a GPU
 // context will never be lost in any situations, say, a GPU reset.
@@ -135,3 +133,13 @@ const int kGLSwitchesCopiedFromGpuProcessHostNumSwitches =
     arraysize(kGLSwitchesCopiedFromGpuProcessHost);
 
 }  // namespace switches
+
+namespace features {
+
+#if defined(OS_WIN)
+// Wait for D3D VSync signals in GPU process (as opposed to delay based VSync
+// generated in Browser process based on VSync parameters).
+const base::Feature kD3DVsync{"D3DVsync", base::FEATURE_DISABLED_BY_DEFAULT};
+#endif  // defined(OS_WIN)
+
+}  // namespace features

@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "ash/aura/wm_lookup_aura.h"
 #include "ash/common/wm_shell.h"
 #include "ash/display/window_tree_host_manager.h"
 #include "base/macros.h"
@@ -16,22 +15,24 @@
 
 namespace ash {
 
+class AcceleratorControllerDelegateAura;
 class PointerWatcherAdapter;
 
 class ASH_EXPORT WmShellAura : public WmShell,
                                public WindowTreeHostManager::Observer {
  public:
-  explicit WmShellAura(std::unique_ptr<ShellDelegate> shell_delegate);
+  WmShellAura();
   ~WmShellAura() override;
 
   static WmShellAura* Get();
 
+  AcceleratorControllerDelegateAura* accelerator_controller_delegate() {
+    return accelerator_controller_delegate_.get();
+  }
 
   // WmShell:
   void Shutdown() override;
   bool IsRunningInMash() const override;
-  WmWindow* NewWindow(ui::wm::WindowType window_type,
-                      ui::LayerType layer_type) override;
   WmWindow* GetFocusedWindow() override;
   WmWindow* GetActiveWindow() override;
   WmWindow* GetCaptureWindow() override;
@@ -43,7 +44,6 @@ class ASH_EXPORT WmShellAura : public WmShell,
   display::Display GetFirstDisplay() const override;
   bool IsInUnifiedMode() const override;
   bool IsInUnifiedModeIgnoreMirroring() const override;
-  bool IsForceMaximizeOnFirstRun() override;
   void SetDisplayWorkAreaInsets(WmWindow* window,
                                 const gfx::Insets& insets) override;
   bool IsPinned() override;
@@ -69,8 +69,6 @@ class ASH_EXPORT WmShellAura : public WmShell,
   std::unique_ptr<ImmersiveFullscreenController>
   CreateImmersiveFullscreenController() override;
   std::unique_ptr<KeyEventWatcher> CreateKeyEventWatcher() override;
-  void OnOverviewModeStarting() override;
-  void OnOverviewModeEnded() override;
   SessionStateDelegate* GetSessionStateDelegate() override;
   void AddDisplayObserver(WmDisplayObserver* observer) override;
   void RemoveDisplayObserver(WmDisplayObserver* observer) override;
@@ -84,6 +82,7 @@ class ASH_EXPORT WmShellAura : public WmShell,
   void CreatePointerWatcherAdapter() override;
   void CreatePrimaryHost() override;
   void InitHosts(const ShellInitParams& init_params) override;
+  std::unique_ptr<AcceleratorController> CreateAcceleratorController() override;
 
  private:
   // SessionStateObserver:
@@ -93,11 +92,13 @@ class ASH_EXPORT WmShellAura : public WmShell,
   void OnDisplayConfigurationChanging() override;
   void OnDisplayConfigurationChanged() override;
 
-  WmLookupAura wm_lookup_;
   std::unique_ptr<PointerWatcherAdapter> pointer_watcher_adapter_;
 
   bool added_display_observer_ = false;
   base::ObserverList<WmDisplayObserver> display_observers_;
+
+  std::unique_ptr<AcceleratorControllerDelegateAura>
+      accelerator_controller_delegate_;
 
   DISALLOW_COPY_AND_ASSIGN(WmShellAura);
 };

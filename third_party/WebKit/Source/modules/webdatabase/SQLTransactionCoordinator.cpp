@@ -53,16 +53,16 @@ void SQLTransactionCoordinator::processPendingTransactions(
     return;
 
   SQLTransactionBackend* firstPendingTransaction =
-      info.pendingTransactions.first();
+      info.pendingTransactions.front();
   if (firstPendingTransaction->isReadOnly()) {
     do {
       firstPendingTransaction = info.pendingTransactions.takeFirst();
       info.activeReadTransactions.insert(firstPendingTransaction);
       firstPendingTransaction->lockAcquired();
     } while (!info.pendingTransactions.isEmpty() &&
-             info.pendingTransactions.first()->isReadOnly());
+             info.pendingTransactions.front()->isReadOnly());
   } else if (info.activeReadTransactions.isEmpty()) {
-    info.pendingTransactions.removeFirst();
+    info.pendingTransactions.pop_front();
     info.activeWriteTransaction = firstPendingTransaction;
     firstPendingTransaction->lockAcquired();
   }
@@ -81,11 +81,11 @@ void SQLTransactionCoordinator::acquireLock(
     CoordinationInfo& info =
         m_coordinationInfoMap.insert(dbIdentifier, CoordinationInfo())
             .storedValue->value;
-    info.pendingTransactions.append(transaction);
+    info.pendingTransactions.push_back(transaction);
     processPendingTransactions(info);
   } else {
     CoordinationInfo& info = coordinationInfoIterator->value;
-    info.pendingTransactions.append(transaction);
+    info.pendingTransactions.push_back(transaction);
     processPendingTransactions(info);
   }
 }

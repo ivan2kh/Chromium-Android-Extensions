@@ -111,7 +111,7 @@ void LayoutBlock::removeFromGlobalMaps() {
         gPositionedDescendantsMap->take(this);
     ASSERT(!descendants->isEmpty());
     for (LayoutBox* descendant : *descendants) {
-      ASSERT(gPositionedContainerMap->get(descendant) == this);
+      ASSERT(gPositionedContainerMap->at(descendant) == this);
       gPositionedContainerMap->erase(descendant);
     }
   }
@@ -239,6 +239,18 @@ void LayoutBlock::styleDidChange(StyleDifference diff,
     textAutosizer->record(this);
 
   propagateStyleToAnonymousChildren();
+
+  // The LayoutView is always a container of fixed positioned descendants. In
+  // addition, SVG foreignObjects become such containers, so that descendants
+  // of a foreignObject cannot escape it. Similarly, text controls let authors
+  // select elements inside that are created by user agent shadow DOM, and we
+  // have (C++) code that assumes that the elements are indeed contained by the
+  // text control. So just make sure this is the case. Finally, computed style
+  // may turn us into a container of all things, e.g. if the element is
+  // transformed, or contain:paint is specified.
+  setCanContainFixedPositionObjects(isLayoutView() || isSVGForeignObject() ||
+                                    isTextControl() ||
+                                    newStyle.canContainFixedPositionObjects());
 
   // It's possible for our border/padding to change, but for the overall logical
   // width or height of the block to end up being the same. We keep track of
@@ -541,7 +553,7 @@ bool LayoutBlock::createsNewFormattingContext() const {
          isTableCaption() || isFieldset() || isWritingModeRoot() ||
          isDocumentElement() || isColumnSpanAll() || isGridItem() ||
          style()->containsPaint() || style()->containsLayout() ||
-         isSVGForeignObject() || style()->display() == EDisplay::FlowRoot;
+         isSVGForeignObject() || style()->display() == EDisplay::kFlowRoot;
 }
 
 static inline bool changeInAvailableLogicalHeightAffectsChild(
@@ -972,7 +984,7 @@ void LayoutBlock::setSelectionState(SelectionState state) {
 }
 
 TrackedLayoutBoxListHashSet* LayoutBlock::positionedObjectsInternal() const {
-  return gPositionedDescendantsMap ? gPositionedDescendantsMap->get(this)
+  return gPositionedDescendantsMap ? gPositionedDescendantsMap->at(this)
                                    : nullptr;
 }
 
@@ -997,12 +1009,12 @@ void LayoutBlock::insertPositionedObject(LayoutBox* o) {
   if (!gPositionedDescendantsMap)
     gPositionedDescendantsMap = new TrackedDescendantsMap;
   TrackedLayoutBoxListHashSet* descendantSet =
-      gPositionedDescendantsMap->get(this);
+      gPositionedDescendantsMap->at(this);
   if (!descendantSet) {
     descendantSet = new TrackedLayoutBoxListHashSet;
     gPositionedDescendantsMap->set(this, WTF::wrapUnique(descendantSet));
   }
-  descendantSet->add(o);
+  descendantSet->insert(o);
 
   m_hasPositionedObjects = true;
 }
@@ -1016,9 +1028,9 @@ void LayoutBlock::removePositionedObject(LayoutBox* o) {
     return;
 
   TrackedLayoutBoxListHashSet* positionedDescendants =
-      gPositionedDescendantsMap->get(container);
+      gPositionedDescendantsMap->at(container);
   ASSERT(positionedDescendants && positionedDescendants->contains(o));
-  positionedDescendants->remove(o);
+  positionedDescendants->erase(o);
   if (positionedDescendants->isEmpty()) {
     gPositionedDescendantsMap->erase(container);
     container->m_hasPositionedObjects = false;
@@ -1083,8 +1095,8 @@ void LayoutBlock::removePositionedObjects(
   }
 
   for (auto object : deadObjects) {
-    ASSERT(gPositionedContainerMap->get(object) == this);
-    positionedDescendants->remove(object);
+    ASSERT(gPositionedContainerMap->at(object) == this);
+    positionedDescendants->erase(object);
     gPositionedContainerMap->erase(object);
   }
   if (positionedDescendants->isEmpty()) {
@@ -1106,19 +1118,19 @@ void LayoutBlock::addPercentHeightDescendant(LayoutBox* descendant) {
   if (!gPercentHeightDescendantsMap)
     gPercentHeightDescendantsMap = new TrackedDescendantsMap;
   TrackedLayoutBoxListHashSet* descendantSet =
-      gPercentHeightDescendantsMap->get(this);
+      gPercentHeightDescendantsMap->at(this);
   if (!descendantSet) {
     descendantSet = new TrackedLayoutBoxListHashSet;
     gPercentHeightDescendantsMap->set(this, WTF::wrapUnique(descendantSet));
   }
-  descendantSet->add(descendant);
+  descendantSet->insert(descendant);
 
   m_hasPercentHeightDescendants = true;
 }
 
 void LayoutBlock::removePercentHeightDescendant(LayoutBox* descendant) {
   if (TrackedLayoutBoxListHashSet* descendants = percentHeightDescendants()) {
-    descendants->remove(descendant);
+    descendants->erase(descendant);
     descendant->setPercentHeightContainer(nullptr);
     if (descendants->isEmpty()) {
       gPercentHeightDescendantsMap->erase(this);
@@ -1129,7 +1141,7 @@ void LayoutBlock::removePercentHeightDescendant(LayoutBox* descendant) {
 
 TrackedLayoutBoxListHashSet* LayoutBlock::percentHeightDescendantsInternal()
     const {
-  return gPercentHeightDescendantsMap ? gPercentHeightDescendantsMap->get(this)
+  return gPercentHeightDescendantsMap ? gPercentHeightDescendantsMap->at(this)
                                       : nullptr;
 }
 
@@ -2001,12 +2013,12 @@ LayoutBlock* LayoutBlock::createAnonymousWithParentAndDisplay(
   // anonymous logic ?
   EDisplay newDisplay;
   LayoutBlock* newBox = nullptr;
-  if (display == EDisplay::Flex || display == EDisplay::InlineFlex) {
+  if (display == EDisplay::kFlex || display == EDisplay::kInlineFlex) {
     newBox = LayoutFlexibleBox::createAnonymous(&parent->document());
-    newDisplay = EDisplay::Flex;
+    newDisplay = EDisplay::kFlex;
   } else {
     newBox = LayoutBlockFlow::createAnonymous(&parent->document());
-    newDisplay = EDisplay::Block;
+    newDisplay = EDisplay::kBlock;
   }
 
   RefPtr<ComputedStyle> newStyle =

@@ -4,11 +4,16 @@
   "interface_provider_specs": {
     "service_manager:connector": {
       "provides": {
+        "gpu": [
+          "media::mojom::AndroidOverlayProvider",
+          "memory_instrumentation::mojom::Coordinator"
+        ],
         "plugin": [
           "discardable_memory::mojom::DiscardableSharedMemoryManager",
           "ui::mojom::Gpu"
         ],
         "renderer": [
+          "blink::mojom::BackgroundFetchService",
           "blink::mojom::BackgroundSyncService",
           "blink::mojom::BroadcastChannelProvider",
           "blink::mojom::BudgetService",
@@ -19,7 +24,9 @@
           "blink::mojom::OffscreenCanvasSurfaceFactory",
           "blink::mojom::PermissionService",
           "blink::mojom::WebSocket",
+          "content::mojom::FieldTrialRecorder",
           "content::mojom::MemoryCoordinatorHandle",
+          "content::mojom::PushMessaging",
           "content::mojom::ServiceWorkerDispatcherHost",
           "content::mojom::StoragePartitionService",
           "content::mojom::URLLoaderFactory",
@@ -33,6 +40,7 @@
           "discardable_memory::mojom::DiscardableSharedMemoryManager",
           "media::mojom::ImageCapture",
           "memory_coordinator::mojom::MemoryCoordinatorHandle",
+          "memory_instrumentation::mojom::Coordinator",
           "payments::mojom::PaymentAppManager",
           "shape_detection::mojom::BarcodeDetection",
           "shape_detection::mojom::FaceDetectionProvider",
@@ -61,7 +69,8 @@
         ],
         "shape_detection": [
           "barcode_detection",
-          "face_detection"
+          "face_detection",
+          "text_detection"
         ]
       }
     },

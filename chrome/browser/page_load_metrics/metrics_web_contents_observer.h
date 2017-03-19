@@ -65,6 +65,9 @@ class MetricsWebContentsObserver
   void RenderProcessGone(base::TerminationStatus status) override;
   void RenderViewHostChanged(content::RenderViewHost* old_host,
                              content::RenderViewHost* new_host) override;
+  void MediaStartedPlaying(
+      const content::WebContentsObserver::MediaPlayerInfo& video_type,
+      const content::WebContentsObserver::MediaPlayerId& id) override;
 
   // These methods are forwarded from the MetricsNavigationThrottle.
   void WillStartNavigationRequest(content::NavigationHandle* navigation_handle);
@@ -111,12 +114,12 @@ class MetricsWebContentsObserver
 
   // Notify all loads, provisional and committed, that we performed an action
   // that might abort them.
-  void NotifyAbortAllLoads(UserAbortType abort_type,
-                           UserInitiatedInfo user_initiated_info);
-  void NotifyAbortAllLoadsWithTimestamp(UserAbortType abort_type,
-                                        UserInitiatedInfo user_initiated_info,
-                                        base::TimeTicks timestamp,
-                                        bool is_certainly_browser_timestamp);
+  void NotifyPageEndAllLoads(PageEndReason page_end_reason,
+                             UserInitiatedInfo user_initiated_info);
+  void NotifyPageEndAllLoadsWithTimestamp(PageEndReason page_end_reason,
+                                          UserInitiatedInfo user_initiated_info,
+                                          base::TimeTicks timestamp,
+                                          bool is_certainly_browser_timestamp);
 
   // Register / Unregister input event callback to given RenderViewHost
   void RegisterInputEventObserver(content::RenderViewHost* host);

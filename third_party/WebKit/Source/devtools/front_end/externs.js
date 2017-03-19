@@ -357,30 +357,12 @@ diff_match_patch.prototype = {
    * @param {string} text2
    * @return {!Array.<!{0: number, 1: string}>}
    */
-  diff_main: function(text1, text2) {}
-};
+  diff_main: function(text1, text2) {},
 
-/** @constructor */
-function Path2D() {
-}
-Path2D.prototype = {
   /**
-   * @param {number} x
-   * @param {number} y
-   * @param {number} w
-   * @param {number} h
+   * @param {!Array.<!{0: number, 1: string}>} diff
    */
-  rect: function(x, y, w, h) {},
-  /**
-   * @param {number} x
-   * @param {number} y
-   */
-  moveTo: function(x, y) {},
-  /**
-   * @param {number} x
-   * @param {number} y
-   */
-  lineTo: function(x, y) {}
+  diff_cleanupSemantic(diff) {}
 };
 
 /** @constructor */

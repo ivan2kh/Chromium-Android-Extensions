@@ -458,9 +458,8 @@ void AddClipNodeIfNeeded(const DataForRecursion<LayerType>& data_from_ancestor,
 
     data_for_children->clip_tree_parent =
         data_for_children->property_trees->clip_tree.Insert(node, parent_id);
-    data_for_children->property_trees
-        ->layer_id_to_clip_node_index[layer->id()] =
-        data_for_children->clip_tree_parent;
+    data_for_children->property_trees->clip_tree.SetOwningLayerIdForNode(
+        data_for_children->property_trees->clip_tree.back(), layer->id());
   }
 
   layer->SetClipTreeIndex(data_for_children->clip_tree_parent);
@@ -630,8 +629,8 @@ bool AddTransformNodeIfNeeded(
   TransformNode* node =
       data_for_children->property_trees->transform_tree.back();
   layer->SetTransformTreeIndex(node->id);
-  data_for_children->property_trees
-      ->layer_id_to_transform_node_index[layer->id()] = node->id;
+  data_for_children->property_trees->transform_tree.SetOwningLayerIdForNode(
+      node, layer->id());
 
   // For animation subsystem purposes, if this layer has a compositor element
   // id, we build a map from that id to this transform node.
@@ -751,10 +750,10 @@ bool AddTransformNodeIfNeeded(
       // need to have their local transform updated when the inner / outer
       // viewport bounds change, but do not unconditionally move by that delta
       // like fixed position nodes.
-      if (scroll_ancestor->is_inner_viewport_scroll_layer) {
+      if (scroll_ancestor->scrolls_inner_viewport) {
         data_for_children->property_trees->transform_tree
             .AddNodeAffectedByInnerViewportBoundsDelta(node->id);
-      } else if (scroll_ancestor->is_outer_viewport_scroll_layer) {
+      } else if (scroll_ancestor->scrolls_outer_viewport) {
         data_for_children->property_trees->transform_tree
             .AddNodeAffectedByOuterViewportBoundsDelta(node->id);
       }
@@ -1102,8 +1101,8 @@ bool AddEffectNodeIfNeeded(
   int node_id = effect_tree.Insert(node, parent_id);
   data_for_children->effect_tree_parent = node_id;
   layer->SetEffectTreeIndex(node_id);
-  data_for_children->property_trees
-      ->layer_id_to_effect_node_index[layer->id()] = node_id;
+  data_for_children->property_trees->effect_tree.SetOwningLayerIdForNode(
+      effect_tree.back(), layer->id());
 
   // For animation subsystem purposes, if this layer has a compositor element
   // id, we build a map from that id to this effect node.
@@ -1163,8 +1162,7 @@ void AddScrollNodeIfNeeded(
     node.owning_layer_id = layer->id();
     node.scrollable = scrollable;
     node.main_thread_scrolling_reasons = main_thread_scrolling_reasons;
-    node.contains_non_fast_scrollable_region =
-        contains_non_fast_scrollable_region;
+    node.non_fast_scrollable_region = layer->non_fast_scrollable_region();
     gfx::Size clip_bounds;
     if (layer->scroll_clip_layer()) {
       clip_bounds = layer->scroll_clip_layer()->bounds();
@@ -1178,9 +1176,9 @@ void AddScrollNodeIfNeeded(
     }
 
     node.scroll_clip_layer_bounds = clip_bounds;
-    node.is_inner_viewport_scroll_layer =
+    node.scrolls_inner_viewport =
         layer == data_from_ancestor.inner_viewport_scroll_layer;
-    node.is_outer_viewport_scroll_layer =
+    node.scrolls_outer_viewport =
         layer == data_from_ancestor.outer_viewport_scroll_layer;
 
     node.bounds = layer->bounds();
@@ -1199,8 +1197,8 @@ void AddScrollNodeIfNeeded(
         node.main_thread_scrolling_reasons;
     data_for_children->scroll_tree_parent_created_by_uninheritable_criteria =
         scroll_node_uninheritable_criteria;
-    data_for_children->property_trees
-        ->layer_id_to_scroll_node_index[layer->id()] = node_id;
+    data_for_children->property_trees->scroll_tree.SetOwningLayerIdForNode(
+        data_for_children->property_trees->scroll_tree.back(), layer->id());
     // For animation subsystem purposes, if this layer has a compositor element
     // id, we build a map from that id to this scroll node.
     if (layer->element_id()) {
@@ -1536,6 +1534,9 @@ void PropertyTreeBuilder::BuildPropertyTrees(
     const gfx::Rect& viewport,
     const gfx::Transform& device_transform,
     PropertyTrees* property_trees) {
+  // Preserve render surfaces when rebuilding.
+  std::vector<std::unique_ptr<RenderSurfaceImpl>> render_surfaces;
+  property_trees->effect_tree.TakeRenderSurfaces(&render_surfaces);
   property_trees->is_main_thread = false;
   property_trees->is_active = root_layer->IsActive();
   SkColor color = root_layer->layer_tree_impl()->background_color();
@@ -1546,6 +1547,8 @@ void PropertyTreeBuilder::BuildPropertyTrees(
       outer_viewport_scroll_layer, overscroll_elasticity_layer,
       elastic_overscroll, page_scale_factor, device_scale_factor, viewport,
       device_transform, property_trees, color);
+  property_trees->effect_tree.CreateOrReuseRenderSurfaces(
+      &render_surfaces, root_layer->layer_tree_impl());
   property_trees->ResetCachedData();
 }
 

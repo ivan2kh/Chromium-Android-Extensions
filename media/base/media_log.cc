@@ -28,6 +28,8 @@ const char MediaLog::kWatchTimeAudioVideoSrc[] =
 const char MediaLog::kWatchTimeAudioVideoBattery[] =
     "Media.WatchTime.AudioVideo.Battery";
 const char MediaLog::kWatchTimeAudioVideoAc[] = "Media.WatchTime.AudioVideo.AC";
+const char MediaLog::kWatchTimeAudioVideoEmbeddedExperience[] =
+    "Media.WatchTime.AudioVideo.EmbeddedExperience";
 
 // Audio only "watch time" metrics.
 const char MediaLog::kWatchTimeAudioAll[] = "Media.WatchTime.Audio.All";
@@ -36,6 +38,8 @@ const char MediaLog::kWatchTimeAudioEme[] = "Media.WatchTime.Audio.EME";
 const char MediaLog::kWatchTimeAudioSrc[] = "Media.WatchTime.Audio.SRC";
 const char MediaLog::kWatchTimeAudioBattery[] = "Media.WatchTime.Audio.Battery";
 const char MediaLog::kWatchTimeAudioAc[] = "Media.WatchTime.Audio.AC";
+const char MediaLog::kWatchTimeAudioEmbeddedExperience[] =
+    "Media.WatchTime.Audio.EmbeddedExperience";
 
 const char MediaLog::kWatchTimeFinalize[] = "FinalizeWatchTime";
 const char MediaLog::kWatchTimeFinalizePower[] = "FinalizePowerWatchTime";
@@ -240,7 +244,7 @@ std::unique_ptr<MediaLogEvent> MediaLog::CreateLoadEvent(
   return event;
 }
 
-std::unique_ptr<MediaLogEvent> MediaLog::CreateSeekEvent(float seconds) {
+std::unique_ptr<MediaLogEvent> MediaLog::CreateSeekEvent(double seconds) {
   std::unique_ptr<MediaLogEvent> event(CreateEvent(MediaLogEvent::SEEK));
   event->params.SetDouble("seek_target", seconds);
   return event;

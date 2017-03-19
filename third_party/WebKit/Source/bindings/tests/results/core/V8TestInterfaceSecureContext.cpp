@@ -12,6 +12,8 @@
 #include "V8TestInterfaceSecureContext.h"
 
 #include "bindings/core/v8/ExceptionState.h"
+#include "bindings/core/v8/IDLTypes.h"
+#include "bindings/core/v8/NativeValueTraitsImpl.h"
 #include "bindings/core/v8/V8DOMConfiguration.h"
 #include "bindings/core/v8/V8ObjectConstructor.h"
 #include "core/dom/Document.h"
@@ -360,6 +362,10 @@ TestInterfaceSecureContext* V8TestInterfaceSecureContext::toImplWithTypeCheck(v8
   return hasInstance(value, isolate) ? toImpl(v8::Local<v8::Object>::Cast(value)) : nullptr;
 }
 
+TestInterfaceSecureContext* NativeValueTraits<TestInterfaceSecureContext>::nativeValue(v8::Isolate* isolate, v8::Local<v8::Value> value, ExceptionState& exceptionState) {
+  return V8TestInterfaceSecureContext::toImplWithTypeCheck(isolate, value);
+}
+
 void V8TestInterfaceSecureContext::preparePrototypeAndInterfaceObject(v8::Local<v8::Context> context, const DOMWrapperWorld& world, v8::Local<v8::Object> prototypeObject, v8::Local<v8::Function> interfaceObject, v8::Local<v8::FunctionTemplate> interfaceTemplate) {
   v8::Isolate* isolate = context->GetIsolate();
   v8::Local<v8::Signature> signature = v8::Signature::New(isolate, interfaceTemplate);
@@ -367,78 +373,114 @@ void V8TestInterfaceSecureContext::preparePrototypeAndInterfaceObject(v8::Local<
   DCHECK(executionContext);
 
   if (executionContext && (executionContext->isSecureContext())) {
-    const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextAttribute", V8TestInterfaceSecureContext::secureContextAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-    V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
+    static const V8DOMConfiguration::AccessorConfiguration accessorConfiguration[] = {
+      {"secureContextAttribute", V8TestInterfaceSecureContext::secureContextAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextAttributeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds}
+    };
+    for (const auto& accessorConfig : accessorConfiguration)
+      V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfig);
   }
   if (executionContext && (executionContext->isSecureContext())) {
     if (RuntimeEnabledFeatures::secureFeatureEnabled()) {
-      const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextRuntimeEnabledAttribute", V8TestInterfaceSecureContext::secureContextRuntimeEnabledAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextRuntimeEnabledAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-      V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
+      static const V8DOMConfiguration::AccessorConfiguration accessorConfiguration[] = {
+        {"secureContextRuntimeEnabledAttribute", V8TestInterfaceSecureContext::secureContextRuntimeEnabledAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextRuntimeEnabledAttributeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds}
+      };
+      for (const auto& accessorConfig : accessorConfiguration)
+        V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfig);
     }
   }
   if (executionContext && (executionContext->isDocument())) {
     if (executionContext && (executionContext->isSecureContext())) {
-      const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextWindowExposedAttribute", V8TestInterfaceSecureContext::secureContextWindowExposedAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWindowExposedAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-      V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
+      static const V8DOMConfiguration::AccessorConfiguration accessorConfiguration[] = {
+        {"secureContextWindowExposedAttribute", V8TestInterfaceSecureContext::secureContextWindowExposedAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWindowExposedAttributeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds}
+      };
+      for (const auto& accessorConfig : accessorConfiguration)
+        V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfig);
     }
   }
   if (executionContext && (executionContext->isWorkerGlobalScope())) {
     if (executionContext && (executionContext->isSecureContext())) {
-      const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextWorkerExposedAttribute", V8TestInterfaceSecureContext::secureContextWorkerExposedAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWorkerExposedAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-      V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
+      static const V8DOMConfiguration::AccessorConfiguration accessorConfiguration[] = {
+        {"secureContextWorkerExposedAttribute", V8TestInterfaceSecureContext::secureContextWorkerExposedAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWorkerExposedAttributeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds}
+      };
+      for (const auto& accessorConfig : accessorConfiguration)
+        V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfig);
     }
   }
   if (executionContext && (executionContext->isDocument())) {
     if (executionContext && (executionContext->isSecureContext())) {
       if (RuntimeEnabledFeatures::secureFeatureEnabled()) {
-        const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextWindowExposedRuntimeEnabledAttribute", V8TestInterfaceSecureContext::secureContextWindowExposedRuntimeEnabledAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWindowExposedRuntimeEnabledAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-        V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
+        static const V8DOMConfiguration::AccessorConfiguration accessorConfiguration[] = {
+          {"secureContextWindowExposedRuntimeEnabledAttribute", V8TestInterfaceSecureContext::secureContextWindowExposedRuntimeEnabledAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWindowExposedRuntimeEnabledAttributeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds}
+        };
+        for (const auto& accessorConfig : accessorConfiguration)
+          V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfig);
       }
     }
   }
   if (executionContext && (executionContext->isWorkerGlobalScope())) {
     if (executionContext && (executionContext->isSecureContext())) {
       if (RuntimeEnabledFeatures::secureFeatureEnabled()) {
-        const V8DOMConfiguration::AccessorConfiguration accessorConfiguration = {"secureContextWorkerExposedRuntimeEnabledAttribute", V8TestInterfaceSecureContext::secureContextWorkerExposedRuntimeEnabledAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWorkerExposedRuntimeEnabledAttributeAttributeSetterCallback, nullptr, nullptr, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-        V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfiguration);
+        static const V8DOMConfiguration::AccessorConfiguration accessorConfiguration[] = {
+          {"secureContextWorkerExposedRuntimeEnabledAttribute", V8TestInterfaceSecureContext::secureContextWorkerExposedRuntimeEnabledAttributeAttributeGetterCallback, V8TestInterfaceSecureContext::secureContextWorkerExposedRuntimeEnabledAttributeAttributeSetterCallback, nullptr, nullptr, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::AllWorlds}
+        };
+        for (const auto& accessorConfig : accessorConfiguration)
+          V8DOMConfiguration::installAccessor(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, accessorConfig);
       }
     }
   }
   if (executionContext && (executionContext->isSecureContext())) {
-    const V8DOMConfiguration::MethodConfiguration secureContextMethodMethodConfiguration = {"secureContextMethod", V8TestInterfaceSecureContext::secureContextMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-    V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextMethodMethodConfiguration);
+    const V8DOMConfiguration::MethodConfiguration secureContextMethodMethodConfiguration[] = {
+      {"secureContextMethod", V8TestInterfaceSecureContext::secureContextMethodMethodCallback, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess, V8DOMConfiguration::AllWorlds}
+    };
+    for (const auto& methodConfig : secureContextMethodMethodConfiguration)
+      V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, methodConfig);
   }
   if (executionContext && (executionContext->isSecureContext())) {
     if (RuntimeEnabledFeatures::secureFeatureEnabled()) {
-      const V8DOMConfiguration::MethodConfiguration secureContextRuntimeEnabledMethodMethodConfiguration = {"secureContextRuntimeEnabledMethod", V8TestInterfaceSecureContext::secureContextRuntimeEnabledMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-      V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextRuntimeEnabledMethodMethodConfiguration);
+      const V8DOMConfiguration::MethodConfiguration secureContextRuntimeEnabledMethodMethodConfiguration[] = {
+        {"secureContextRuntimeEnabledMethod", V8TestInterfaceSecureContext::secureContextRuntimeEnabledMethodMethodCallback, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess, V8DOMConfiguration::AllWorlds}
+      };
+      for (const auto& methodConfig : secureContextRuntimeEnabledMethodMethodConfiguration)
+        V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, methodConfig);
     }
   }
   if (executionContext && (executionContext->isSecureContext())) {
     if (executionContext && (executionContext->isDocument())) {
-      const V8DOMConfiguration::MethodConfiguration secureContextWindowExposedMethodMethodConfiguration = {"secureContextWindowExposedMethod", V8TestInterfaceSecureContext::secureContextWindowExposedMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-      V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextWindowExposedMethodMethodConfiguration);
+      const V8DOMConfiguration::MethodConfiguration secureContextWindowExposedMethodMethodConfiguration[] = {
+        {"secureContextWindowExposedMethod", V8TestInterfaceSecureContext::secureContextWindowExposedMethodMethodCallback, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess, V8DOMConfiguration::AllWorlds}
+      };
+      for (const auto& methodConfig : secureContextWindowExposedMethodMethodConfiguration)
+        V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, methodConfig);
     }
   }
   if (executionContext && (executionContext->isSecureContext())) {
     if (executionContext && (executionContext->isWorkerGlobalScope())) {
-      const V8DOMConfiguration::MethodConfiguration secureContextWorkerExposedMethodMethodConfiguration = {"secureContextWorkerExposedMethod", V8TestInterfaceSecureContext::secureContextWorkerExposedMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-      V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextWorkerExposedMethodMethodConfiguration);
+      const V8DOMConfiguration::MethodConfiguration secureContextWorkerExposedMethodMethodConfiguration[] = {
+        {"secureContextWorkerExposedMethod", V8TestInterfaceSecureContext::secureContextWorkerExposedMethodMethodCallback, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess, V8DOMConfiguration::AllWorlds}
+      };
+      for (const auto& methodConfig : secureContextWorkerExposedMethodMethodConfiguration)
+        V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, methodConfig);
     }
   }
   if (executionContext && (executionContext->isSecureContext())) {
     if (executionContext && (executionContext->isDocument())) {
       if (RuntimeEnabledFeatures::secureFeatureEnabled()) {
-        const V8DOMConfiguration::MethodConfiguration secureContextWindowExposedRuntimeEnabledMethodMethodConfiguration = {"secureContextWindowExposedRuntimeEnabledMethod", V8TestInterfaceSecureContext::secureContextWindowExposedRuntimeEnabledMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-        V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextWindowExposedRuntimeEnabledMethodMethodConfiguration);
+        const V8DOMConfiguration::MethodConfiguration secureContextWindowExposedRuntimeEnabledMethodMethodConfiguration[] = {
+          {"secureContextWindowExposedRuntimeEnabledMethod", V8TestInterfaceSecureContext::secureContextWindowExposedRuntimeEnabledMethodMethodCallback, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess, V8DOMConfiguration::AllWorlds}
+        };
+        for (const auto& methodConfig : secureContextWindowExposedRuntimeEnabledMethodMethodConfiguration)
+          V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, methodConfig);
       }
     }
   }
   if (executionContext && (executionContext->isSecureContext())) {
     if (executionContext && (executionContext->isWorkerGlobalScope())) {
       if (RuntimeEnabledFeatures::secureFeatureEnabled()) {
-        const V8DOMConfiguration::MethodConfiguration secureContextWorkerExposedRuntimeEnabledMethodMethodConfiguration = {"secureContextWorkerExposedRuntimeEnabledMethod", V8TestInterfaceSecureContext::secureContextWorkerExposedRuntimeEnabledMethodMethodCallback, nullptr, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder};
-        V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, secureContextWorkerExposedRuntimeEnabledMethodMethodConfiguration);
+        const V8DOMConfiguration::MethodConfiguration secureContextWorkerExposedRuntimeEnabledMethodMethodConfiguration[] = {
+          {"secureContextWorkerExposedRuntimeEnabledMethod", V8TestInterfaceSecureContext::secureContextWorkerExposedRuntimeEnabledMethodMethodCallback, 0, v8::None, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder, V8DOMConfiguration::DoNotCheckAccess, V8DOMConfiguration::AllWorlds}
+        };
+        for (const auto& methodConfig : secureContextWorkerExposedRuntimeEnabledMethodMethodConfiguration)
+          V8DOMConfiguration::installMethod(isolate, world, v8::Local<v8::Object>(), prototypeObject, interfaceObject, signature, methodConfig);
       }
     }
   }

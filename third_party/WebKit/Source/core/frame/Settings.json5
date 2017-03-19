@@ -216,10 +216,6 @@
     },
 
     {
-      name: "mediaControlsOverlayPlayButtonEnabled",
-      initial: false,
-    },
-    {
       name: "mediaPlaybackRequiresUserGesture",
       initial: false,
     },
@@ -237,6 +233,11 @@
     {
       name: "presentationRequiresUserGesture",
       initial: true,
+    },
+
+    {
+      name: "embeddedMediaExperienceEnabled",
+      initial: false,
     },
 
     {

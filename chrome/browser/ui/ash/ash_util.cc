@@ -6,7 +6,7 @@
 
 #include "ash/common/accelerators/accelerator_controller.h"
 #include "ash/common/mojo_interface_factory.h"
-#include "ash/common/wm_shell.h"
+#include "ash/shell.h"
 #include "base/macros.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/ash/ash_init.h"
@@ -49,19 +49,10 @@ class EmbeddedAshService : public service_manager::Service {
 
 }  // namespace
 
-// TODO(rockot): Remove this.
-const char* GetAshServiceName() {
-  return "ash";
-}
-
 std::unique_ptr<service_manager::Service> CreateEmbeddedAshService(
     const scoped_refptr<base::SingleThreadTaskRunner>& task_runner) {
   return base::MakeUnique<EmbeddedAshService>(task_runner);
 }
-
-}  // namespace ash_util
-
-namespace chrome {
 
 bool ShouldOpenAshOnStartup() {
   return !IsRunningInMash();
@@ -73,11 +64,10 @@ bool IsRunningInMash() {
 
 bool IsAcceleratorDeprecated(const ui::Accelerator& accelerator) {
   // When running in mash the browser doesn't handle ash accelerators.
-  if (chrome::IsRunningInMash())
+  if (IsRunningInMash())
     return false;
 
-  return ash::WmShell::Get()->accelerator_controller()->IsDeprecated(
-      accelerator);
+  return ash::Shell::Get()->accelerator_controller()->IsDeprecated(accelerator);
 }
 
-}  // namespace chrome
+}  // namespace ash_util

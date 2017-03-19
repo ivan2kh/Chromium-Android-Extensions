@@ -106,6 +106,8 @@ class FakeLog : public Log {
                            const std::string& source,
                            const std::string& message) override;
 
+  bool Emptied() const override;
+
   const ScopedVector<LogEntry>& GetEntries() {
     return entries_;
   }
@@ -119,6 +121,10 @@ void FakeLog::AddEntryTimestamped(const base::Time& timestamp,
                                   const std::string& source,
                                   const std::string& message) {
   entries_.push_back(new LogEntry(timestamp, level, source, message));
+}
+
+bool FakeLog::Emptied() const {
+  return true;
 }
 
 std::unique_ptr<base::DictionaryValue> ParseDictionary(
@@ -374,7 +380,7 @@ TEST(PerformanceLogger, WarnWhenTraceBufferFull) {
   client.AddListener(&logger);
   logger.OnConnected(&client);
   base::DictionaryValue params;
-  params.SetDouble("value", 1.0);
+  params.SetDouble("percentFull", 1.0);
   ASSERT_EQ(kOk, client.TriggerEvent("Tracing.bufferUsage", params).code());
 
   ASSERT_EQ(1u, log.GetEntries().size());

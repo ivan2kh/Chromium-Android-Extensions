@@ -6,9 +6,13 @@
 
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
+#include "headless/lib/browser/headless_clipboard.h"
+#include "headless/lib/browser/headless_focus_client.h"
 #include "headless/lib/browser/headless_screen.h"
+#include "ui/aura/client/focus_client.h"
 #include "ui/aura/env.h"
 #include "ui/aura/window.h"
+#include "ui/base/clipboard/clipboard.h"
 #include "ui/display/screen.h"
 #include "ui/events/devices/device_data_manager.h"
 #include "ui/gfx/geometry/size.h"
@@ -18,6 +22,9 @@ namespace headless {
 void HeadlessBrowserImpl::PlatformInitialize() {
   HeadlessScreen* screen = HeadlessScreen::Create(options()->window_size);
   display::Screen::SetScreenInstance(screen);
+
+  ui::Clipboard::SetClipboardForCurrentThread(
+      base::MakeUnique<HeadlessClipboard>());
 }
 
 void HeadlessBrowserImpl::PlatformCreateWindow() {
@@ -29,6 +36,10 @@ void HeadlessBrowserImpl::PlatformCreateWindow() {
   window_tree_host_->InitHost();
   window_tree_host_->window()->Show();
   window_tree_host_->SetParentWindow(window_tree_host_->window());
+
+  focus_client_.reset(new HeadlessFocusClient());
+  aura::client::SetFocusClient(window_tree_host_->window(),
+                               focus_client_.get());
 }
 
 void HeadlessBrowserImpl::PlatformInitializeWebContents(

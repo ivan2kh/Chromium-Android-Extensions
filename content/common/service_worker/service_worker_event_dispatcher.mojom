@@ -4,7 +4,7 @@
 
 module content.mojom;
 
-import "components/payments/payment_app.mojom";
+import "components/payments/content/payment_app.mojom";
 import "content/common/url_loader.mojom";
 import "mojo/common/string16.mojom";
 import "mojo/common/time.mojom";
@@ -24,6 +24,12 @@ struct ServiceWorkerFetchRequest;
 [Native]
 struct ExtendableMessageEventSource;
 
+enum BackgroundFetchState {
+  PENDING,
+  SUCCEEDED,
+  FAILED
+};
+
 struct FetchEventPreloadHandle {
   URLLoader url_loader;
   URLLoaderClient& url_loader_client_request;
@@ -39,6 +45,15 @@ struct ExtendableMessageEvent {
 // Renderer-side interface bound to ServiceWorkerContextClient for dispatching
 // events.
 interface ServiceWorkerEventDispatcher {
+  DispatchActivateEvent()
+      => (blink.mojom.ServiceWorkerEventStatus status,
+          mojo.common.mojom.Time dispatch_event_time);
+  DispatchBackgroundFetchAbortEvent(string tag)
+      => (blink.mojom.ServiceWorkerEventStatus status,
+          mojo.common.mojom.Time dispatch_event_time);
+  DispatchBackgroundFetchClickEvent(string tag, BackgroundFetchState state)
+      => (blink.mojom.ServiceWorkerEventStatus status,
+          mojo.common.mojom.Time dispatch_event_time);
   // |fetch_event_id| is used internally when sending the response back to the
   // browser process.
   DispatchFetchEvent(int32 fetch_event_id, ServiceWorkerFetchRequest request,

@@ -1086,6 +1086,15 @@ BasePage* ThreadState::findPageFromAddress(Address address) {
 }
 #endif
 
+bool ThreadState::isAddressInHeapDoesNotContainCache(Address address) {
+  // If the cache has been marked as invalidated, it's cleared prior
+  // to performing the next GC. Hence, consider the cache as being
+  // effectively empty.
+  if (m_shouldFlushHeapDoesNotContainCache)
+    return false;
+  return heap().m_heapDoesNotContainCache->lookup(address);
+}
+
 size_t ThreadState::objectPayloadSizeForTesting() {
   size_t objectPayloadSize = 0;
   for (int i = 0; i < BlinkGC::NumberOfArenas; ++i)
@@ -1281,7 +1290,7 @@ void ThreadState::invokePreFinalizers() {
       if (!done)
         --it;
       if ((entry->second)(entry->first))
-        m_orderedPreFinalizers.remove(entry);
+        m_orderedPreFinalizers.erase(entry);
     } while (!done);
   }
   if (isMainThread()) {
@@ -1492,7 +1501,7 @@ void ThreadState::collectGarbage(BlinkGC::StackState stackState,
         heap().processMarkingStack(visitor.get());
 
         heap().postMarkingProcessing(visitor.get());
-        heap().globalWeakProcessing(visitor.get());
+        heap().weakProcessing(visitor.get());
       }
 
       double markingTimeInMilliseconds = WTF::currentTimeMS() - startTime;

@@ -17,10 +17,10 @@
 #include "components/app_modal/javascript_dialog_extensions_client.h"
 #include "components/app_modal/javascript_native_dialog_factory.h"
 #include "components/app_modal/native_app_modal_dialog.h"
+#include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/elide_url.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/javascript_dialog_type.h"
-#include "grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/font_list.h"
 
@@ -248,8 +248,17 @@ bool JavaScriptDialogManager::HandleJavaScriptDialog(
       dialog_queue->active_dialog()->web_contents() != web_contents) {
     return false;
   }
+
   JavaScriptAppModalDialog* dialog = static_cast<JavaScriptAppModalDialog*>(
       dialog_queue->active_dialog());
+
+  if (dialog->javascript_dialog_type() ==
+      content::JavaScriptDialogType::JAVASCRIPT_DIALOG_TYPE_ALERT) {
+    // Alert dialogs only have one button: OK. Any "handling" of this dialog has
+    // to be a click on the OK button.
+    accept = true;
+  }
+
   if (accept) {
     if (prompt_override)
       dialog->SetOverridePromptText(*prompt_override);

@@ -19,6 +19,7 @@
 #include "chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/google_captcha_observer.h"
 #include "chrome/browser/page_load_metrics/observers/https_engagement_metrics/https_engagement_page_load_metrics_observer.h"
+#include "chrome/browser/page_load_metrics/observers/media_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/no_state_prefetch_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/prerender_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/previews_page_load_metrics_observer.h"
@@ -26,6 +27,7 @@
 #include "chrome/browser/page_load_metrics/observers/resource_prefetch_predictor_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/service_worker_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/subresource_filter_metrics_observer.h"
+#include "chrome/browser/page_load_metrics/observers/tab_restore_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/ukm_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/page_load_metrics_embedder_interface.h"
 #include "chrome/browser/page_load_metrics/page_load_tracker.h"
@@ -78,8 +80,9 @@ void PageLoadMetricsEmbedder::RegisterObservers(
         base::MakeUnique<google_captcha_observer::GoogleCaptchaObserver>());
     tracker->AddObserver(
         base::MakeUnique<DocumentWritePageLoadMetricsObserver>());
+    tracker->AddObserver(base::MakeUnique<MediaPageLoadMetricsObserver>());
     tracker->AddObserver(
-        base::WrapUnique(new previews::PreviewsPageLoadMetricsObserver()));
+        base::MakeUnique<previews::PreviewsPageLoadMetricsObserver>());
     tracker->AddObserver(
         base::MakeUnique<ServiceWorkerPageLoadMetricsObserver>());
     tracker->AddObserver(base::MakeUnique<SubresourceFilterMetricsObserver>());
@@ -88,9 +91,10 @@ void PageLoadMetricsEmbedder::RegisterObservers(
             web_contents_->GetBrowserContext()));
     tracker->AddObserver(base::MakeUnique<CssScanningMetricsObserver>());
     tracker->AddObserver(base::MakeUnique<ProtocolPageLoadMetricsObserver>());
+    tracker->AddObserver(base::MakeUnique<TabRestorePageLoadMetricsObserver>());
 
     std::unique_ptr<page_load_metrics::PageLoadMetricsObserver> ukm_observer =
-        UkmPageLoadMetricsObserver::CreateIfNeeded();
+        UkmPageLoadMetricsObserver::CreateIfNeeded(web_contents_);
     if (ukm_observer)
       tracker->AddObserver(std::move(ukm_observer));
 

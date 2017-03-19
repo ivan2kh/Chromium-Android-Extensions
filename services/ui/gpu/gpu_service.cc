@@ -35,6 +35,11 @@
 #include "ui/gl/init/gl_factory.h"
 #include "url/gurl.h"
 
+#if defined(OS_ANDROID)
+#include "base/android/throw_uncaught_exception.h"
+#include "media/gpu/avda_codec_allocator.h"
+#endif
+
 namespace ui {
 
 GpuService::GpuService(const gpu::GPUInfo& gpu_info,
@@ -66,6 +71,7 @@ GpuService::~GpuService() {
 
 void GpuService::InitializeWithHost(mojom::GpuHostPtr gpu_host,
                                     const gpu::GpuPreferences& preferences,
+                                    gpu::GpuProcessActivityFlags activity_flags,
                                     gpu::SyncPointManager* sync_point_manager,
                                     base::WaitableEvent* shutdown_event) {
   DCHECK(CalledOnValidThread());
@@ -83,9 +89,7 @@ void GpuService::InitializeWithHost(mojom::GpuHostPtr gpu_host,
 
   sync_point_manager_ = sync_point_manager;
   if (!sync_point_manager_) {
-    const bool allow_threaded_wait = false;
-    owned_sync_point_manager_ =
-        base::MakeUnique<gpu::SyncPointManager>(allow_threaded_wait);
+    owned_sync_point_manager_ = base::MakeUnique<gpu::SyncPointManager>();
     sync_point_manager_ = owned_sync_point_manager_.get();
   }
 
@@ -96,7 +100,8 @@ void GpuService::InitializeWithHost(mojom::GpuHostPtr gpu_host,
       gpu_preferences_, this, watchdog_thread_.get(),
       base::ThreadTaskRunnerHandle::Get().get(), io_runner_.get(),
       shutdown_event ? shutdown_event : &shutdown_event_, sync_point_manager_,
-      gpu_memory_buffer_factory_, gpu_feature_info_));
+      gpu_memory_buffer_factory_, gpu_feature_info_,
+      std::move(activity_flags)));
 
   media_gpu_channel_manager_.reset(
       new media::MediaGpuChannelManager(gpu_channel_manager_.get()));
@@ -125,6 +130,16 @@ void GpuService::DestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id,
   DCHECK(CalledOnValidThread());
   if (gpu_channel_manager_)
     gpu_channel_manager_->DestroyGpuMemoryBuffer(id, client_id, sync_token);
+}
+
+void GpuService::GetVideoMemoryUsageStats(
+    const GetVideoMemoryUsageStatsCallback& callback) {
+  gpu::VideoMemoryUsageStats video_memory_usage_stats;
+  if (gpu_channel_manager_) {
+    gpu_channel_manager_->gpu_memory_manager()->GetVideoMemoryUsageStats(
+        &video_memory_usage_stats);
+  }
+  callback.Run(video_memory_usage_stats);
 }
 
 void GpuService::DidCreateOffscreenContext(const GURL& active_url) {
@@ -187,6 +202,74 @@ void GpuService::EstablishGpuChannel(
   channel_handle.reset(handle.mojo_handle);
   media_gpu_channel_manager_->AddChannel(client_id);
   callback.Run(std::move(channel_handle));
+}
+
+void GpuService::CloseChannel(int32_t client_id) {
+  if (!gpu_channel_manager_)
+    return;
+  gpu_channel_manager_->RemoveChannel(client_id);
+}
+
+void GpuService::LoadedShader(const std::string& data) {
+  if (!gpu_channel_manager_)
+    return;
+  gpu_channel_manager_->PopulateShaderCache(data);
+}
+
+void GpuService::DestroyingVideoSurface(
+    int32_t surface_id,
+    const DestroyingVideoSurfaceCallback& callback) {
+#if defined(OS_ANDROID)
+  media::AVDACodecAllocator::Instance()->OnSurfaceDestroyed(surface_id);
+#else
+  NOTREACHED() << "DestroyingVideoSurface() not supported on this platform.";
+#endif
+  callback.Run();
+}
+
+void GpuService::WakeUpGpu() {
+#if defined(OS_ANDROID)
+  if (!gpu_channel_manager_)
+    return;
+  gpu_channel_manager_->WakeUpGpu();
+#else
+  NOTREACHED() << "WakeUpGpu() not supported on this platform.";
+#endif
+}
+
+void GpuService::DestroyAllChannels() {
+  if (!gpu_channel_manager_)
+    return;
+  DVLOG(1) << "GPU: Removing all contexts";
+  gpu_channel_manager_->DestroyAllChannels();
+}
+
+void GpuService::Crash() {
+  DVLOG(1) << "GPU: Simulating GPU crash";
+  // Good bye, cruel world.
+  volatile int* it_s_the_end_of_the_world_as_we_know_it = NULL;
+  *it_s_the_end_of_the_world_as_we_know_it = 0xdead;
+}
+
+void GpuService::Hang() {
+  DVLOG(1) << "GPU: Simulating GPU hang";
+  for (;;) {
+    // Do not sleep here. The GPU watchdog timer tracks the amount of user
+    // time this thread is using and it doesn't use much while calling Sleep.
+  }
+}
+
+void GpuService::ThrowJavaException() {
+#if defined(OS_ANDROID)
+  base::android::ThrowUncaughtException();
+#else
+  NOTREACHED() << "Java exception not supported on this platform.";
+#endif
+}
+
+void GpuService::Stop(const StopCallback& callback) {
+  base::MessageLoop::current()->QuitWhenIdle();
+  callback.Run();
 }
 
 }  // namespace ui

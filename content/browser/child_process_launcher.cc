@@ -85,9 +85,10 @@ void ChildProcessLauncher::Notify(
   if (process_.process.IsValid()) {
     // Set up Mojo IPC to the new process.
     DCHECK(pending_connection);
-    pending_connection->Connect(process_.process.Handle(),
-                                std::move(server_handle),
-                                process_error_callback_);
+    pending_connection->Connect(
+        process_.process.Handle(),
+        mojo::edk::ConnectionParams(std::move(server_handle)),
+        process_error_callback_);
     client_->OnProcessLaunched();
   } else {
     termination_status_ = base::TERMINATION_STATUS_LAUNCH_FAILED;
@@ -156,6 +157,11 @@ void ChildProcessLauncher::SetRegisteredFilesForService(
     catalog::RequiredFileMap required_files) {
   ChildProcessLauncherHelper::SetRegisteredFilesForService(
       service_name, std::move(required_files));
+}
+
+// static
+void ChildProcessLauncher::ResetRegisteredFilesForTesting() {
+  ChildProcessLauncherHelper::ResetRegisteredFilesForTesting();
 }
 
 ChildProcessLauncher::Client* ChildProcessLauncher::ReplaceClientForTest(

@@ -11,6 +11,7 @@
 #include "base/threading/thread.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/client/gpu_memory_buffer_manager.h"
+#include "gpu/command_buffer/common/activity_flags.h"
 #include "gpu/command_buffer/service/gpu_preferences.h"
 #include "gpu/config/gpu_info.h"
 #include "gpu/ipc/common/surface_handle.h"
@@ -55,6 +56,7 @@ class GpuService : public gpu::GpuChannelManagerDelegate,
 
   void InitializeWithHost(mojom::GpuHostPtr gpu_host,
                           const gpu::GpuPreferences& preferences,
+                          gpu::GpuProcessActivityFlags activity_flags,
                           gpu::SyncPointManager* sync_point_manager = nullptr,
                           base::WaitableEvent* shutdown_event = nullptr);
   void Bind(mojom::GpuServiceRequest request);
@@ -75,13 +77,6 @@ class GpuService : public gpu::GpuChannelManagerDelegate,
 
  private:
   friend class GpuMain;
-
-  gfx::GpuMemoryBufferHandle CreateGpuMemoryBufferFromeHandle(
-      gfx::GpuMemoryBufferHandle buffer_handle,
-      gfx::GpuMemoryBufferId id,
-      const gfx::Size& size,
-      gfx::BufferFormat format,
-      int client_id);
 
   gpu::SyncPointManager* sync_point_manager() { return sync_point_manager_; }
 
@@ -118,6 +113,7 @@ class GpuService : public gpu::GpuChannelManagerDelegate,
       uint64_t client_tracing_id,
       bool is_gpu_host,
       const EstablishGpuChannelCallback& callback) override;
+  void CloseChannel(int32_t client_id) override;
   void CreateGpuMemoryBuffer(
       gfx::GpuMemoryBufferId id,
       const gfx::Size& size,
@@ -129,6 +125,18 @@ class GpuService : public gpu::GpuChannelManagerDelegate,
   void DestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id,
                               int client_id,
                               const gpu::SyncToken& sync_token) override;
+  void GetVideoMemoryUsageStats(
+      const GetVideoMemoryUsageStatsCallback& callback) override;
+  void LoadedShader(const std::string& data) override;
+  void DestroyingVideoSurface(
+      int32_t surface_id,
+      const DestroyingVideoSurfaceCallback& callback) override;
+  void WakeUpGpu() override;
+  void DestroyAllChannels() override;
+  void Crash() override;
+  void Hang() override;
+  void ThrowJavaException() override;
+  void Stop(const StopCallback& callback) override;
 
   scoped_refptr<base::SingleThreadTaskRunner> io_runner_;
 

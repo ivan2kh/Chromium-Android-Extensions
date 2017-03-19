@@ -19,66 +19,49 @@ generate_jni("jni_headers") {
   jni_package = "remoting"
 }
 
-shared_library("remoting_client_jni") {
-  deps = [
-    "//remoting/android:jni_headers",
-    "//remoting/base",
-    "//remoting/client",
-    "//remoting/client/display",
-    "//remoting/protocol",
-    "//ui/events:dom_keycode_converter",
-    "//ui/gfx",
+action("credits") {
+  credits_html_file = "$target_gen_dir/credits.html"
+  script = "//tools/licenses.py"
+  depfile = "$target_gen_dir/$target_name.d"
+  credits_template = "//remoting/credits/credits.tmpl"
+  credits_entry_template = "//remoting/credits/credits_entry.tmpl"
+  inputs = [
+    credits_template,
+    credits_entry_template,
   ]
-  sources = [
-    "//remoting/client/audio_player_android.cc",
-    "//remoting/client/audio_player_android.h",
-    "//remoting/client/jni/android_keymap.cc",
-    "//remoting/client/jni/android_keymap.h",
-    "//remoting/client/jni/chromoting_jni_instance.cc",
-    "//remoting/client/jni/chromoting_jni_instance.h",
-    "//remoting/client/jni/chromoting_jni_runtime.cc",
-    "//remoting/client/jni/chromoting_jni_runtime.h",
-    "//remoting/client/jni/connect_to_host_info.cc",
-    "//remoting/client/jni/connect_to_host_info.h",
-    "//remoting/client/jni/display_updater_factory.h",
-    "//remoting/client/jni/egl_thread_context.cc",
-    "//remoting/client/jni/egl_thread_context.h",
-    "//remoting/client/jni/jni_client.cc",
-    "//remoting/client/jni/jni_client.h",
-    "//remoting/client/jni/jni_gl_display_handler.cc",
-    "//remoting/client/jni/jni_gl_display_handler.h",
-    "//remoting/client/jni/jni_pairing_secret_fetcher.cc",
-    "//remoting/client/jni/jni_pairing_secret_fetcher.h",
-    "//remoting/client/jni/jni_touch_event_data.cc",
-    "//remoting/client/jni/jni_touch_event_data.h",
-    "//remoting/client/jni/remoting_jni_onload.cc",
-    "//remoting/client/jni/remoting_jni_registrar.cc",
-    "//remoting/client/jni/remoting_jni_registrar.h",
+  outputs = [
+    credits_html_file,
   ]
-  libs = [
-    "android",
-    "OpenSLES",
-    "EGL",
+  args = [
+    "credits",
+    rebase_path(credits_html_file, root_build_dir),
+    "--file-template",
+    rebase_path(credits_template, root_build_dir),
+    "--entry-template",
+    rebase_path(credits_entry_template, root_build_dir),
+    "--depfile",
+    rebase_path(depfile, root_build_dir),
+    "--gn-target",
+    "//remoting/android:remoting_apk",
+    "--gn-out-dir",
+    rebase_path(root_build_dir),
   ]
-  configs += [ "//remoting/build/config:enable_webrtc_remoting_client" ]
-  assert_no_deps = [ "//third_party/ffmpeg:*" ]
 }
 
 _raw_resources_base_dir = "$target_gen_dir/remoting_android_raw_resources/res"
 copy("remoting_android_raw_resources") {
-  _credits_html = get_label_info("//remoting/webapp:credits",
+  _credits_html = get_label_info("//remoting/android:credits",
                                  "target_gen_dir") + "/credits.html"
   sources = [
-    "//remoting/webapp/base/html/credits_css.css",
-    "//remoting/webapp/base/html/main.css",
-    "//remoting/webapp/base/js/credits_js.js",
+    "//remoting/credits/credits_css.css",
+    "//remoting/credits/credits_js.js",
     _credits_html,
   ]
   outputs = [
     "$_raw_resources_base_dir/raw/{{source_file_part}}",
   ]
   deps = [
-    "//remoting/webapp:credits",
+    ":credits",
   ]
 }
 

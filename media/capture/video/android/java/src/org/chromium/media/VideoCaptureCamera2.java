@@ -97,6 +97,7 @@ public class VideoCaptureCamera2 extends VideoCapture {
                 return;
             }
             // Now wait for trigger on CrImageReaderListener.onImageAvailable();
+            nativeOnStarted(mNativeVideoCaptureDeviceAndroid);
             changeCameraStateAndNotify(CameraState.STARTED);
         }
 
@@ -700,6 +701,7 @@ public class VideoCaptureCamera2 extends VideoCapture {
         return true;
     }
 
+    @Override
     public PhotoCapabilities getPhotoCapabilities() {
         final CameraCharacteristics cameraCharacteristics = getCameraCharacteristics(mContext, mId);
         PhotoCapabilities.Builder builder = new PhotoCapabilities.Builder();

@@ -2041,7 +2041,7 @@ TEST(HeapTest, HashMapOfMembers) {
     EXPECT_TRUE(map->contains(one));
     EXPECT_TRUE(map->contains(anotherOne));
 
-    IntWrapper* gotten(map->get(one));
+    IntWrapper* gotten(map->at(one));
     EXPECT_EQ(gotten->value(), one->value());
     EXPECT_EQ(gotten, one);
 
@@ -2060,7 +2060,7 @@ TEST(HeapTest, HashMapOfMembers) {
     size_t afterAdding1000 = heap.objectPayloadSizeForTesting();
     EXPECT_TRUE(afterAdding1000 > afterGC2);
 
-    IntWrapper* gross(map->get(dozen));
+    IntWrapper* gross(map->at(dozen));
     EXPECT_EQ(gross->value(), 144);
 
     // This should clear out any junk backings created by all the adds.
@@ -2426,27 +2426,27 @@ TEST(HeapTest, HeapCollectionTypes) {
       set3->add(oneB);
       set3->add(oneB);
       vector->push_back(oneB);
-      deque->append(oneB);
+      deque->push_back(oneB);
       vector2->push_back(threeB);
       vector2->push_back(fourB);
-      deque2->append(threeE);
-      deque2->append(fourE);
+      deque2->push_back(threeE);
+      deque2->push_back(fourE);
       vectorWU->push_back(PairWrappedUnwrapped(&*oneC, 42));
-      dequeWU->append(PairWrappedUnwrapped(&*oneE, 42));
+      dequeWU->push_back(PairWrappedUnwrapped(&*oneE, 42));
       vectorWU2->push_back(PairWrappedUnwrapped(&*threeC, 43));
       vectorWU2->push_back(PairWrappedUnwrapped(&*fourC, 44));
       vectorWU2->push_back(PairWrappedUnwrapped(&*fiveC, 45));
-      dequeWU2->append(PairWrappedUnwrapped(&*threeE, 43));
-      dequeWU2->append(PairWrappedUnwrapped(&*fourE, 44));
-      dequeWU2->append(PairWrappedUnwrapped(&*fiveE, 45));
+      dequeWU2->push_back(PairWrappedUnwrapped(&*threeE, 43));
+      dequeWU2->push_back(PairWrappedUnwrapped(&*fourE, 44));
+      dequeWU2->push_back(PairWrappedUnwrapped(&*fiveE, 45));
       vectorUW->push_back(PairUnwrappedWrapped(1, &*oneD));
       vectorUW2->push_back(PairUnwrappedWrapped(103, &*threeD));
       vectorUW2->push_back(PairUnwrappedWrapped(104, &*fourD));
       vectorUW2->push_back(PairUnwrappedWrapped(105, &*fiveD));
-      dequeUW->append(PairUnwrappedWrapped(1, &*oneF));
-      dequeUW2->append(PairUnwrappedWrapped(103, &*threeF));
-      dequeUW2->append(PairUnwrappedWrapped(104, &*fourF));
-      dequeUW2->append(PairUnwrappedWrapped(105, &*fiveF));
+      dequeUW->push_back(PairUnwrappedWrapped(1, &*oneF));
+      dequeUW2->push_back(PairUnwrappedWrapped(103, &*threeF));
+      dequeUW2->push_back(PairUnwrappedWrapped(104, &*fourF));
+      dequeUW2->push_back(PairUnwrappedWrapped(105, &*fiveF));
 
       EXPECT_TRUE(dequeContains(*deque, oneB));
 
@@ -2526,18 +2526,18 @@ TEST(HeapTest, HeapCollectionTypes) {
       memberMember3->swap(containedMap);
       memberMember3->swap(*memberMember);
 
-      EXPECT_TRUE(memberMember->get(one) == two);
-      EXPECT_TRUE(memberMember->get(two) == three);
-      EXPECT_TRUE(memberMember->get(three) == four);
-      EXPECT_TRUE(memberMember->get(four) == one);
-      EXPECT_TRUE(primitiveMember->get(1) == two);
-      EXPECT_TRUE(primitiveMember->get(2) == three);
-      EXPECT_TRUE(primitiveMember->get(3) == four);
-      EXPECT_TRUE(primitiveMember->get(4) == one);
-      EXPECT_EQ(1, memberPrimitive->get(four));
-      EXPECT_EQ(2, memberPrimitive->get(one));
-      EXPECT_EQ(3, memberPrimitive->get(two));
-      EXPECT_EQ(4, memberPrimitive->get(three));
+      EXPECT_TRUE(memberMember->at(one) == two);
+      EXPECT_TRUE(memberMember->at(two) == three);
+      EXPECT_TRUE(memberMember->at(three) == four);
+      EXPECT_TRUE(memberMember->at(four) == one);
+      EXPECT_TRUE(primitiveMember->at(1) == two);
+      EXPECT_TRUE(primitiveMember->at(2) == three);
+      EXPECT_TRUE(primitiveMember->at(3) == four);
+      EXPECT_TRUE(primitiveMember->at(4) == one);
+      EXPECT_EQ(1, memberPrimitive->at(four));
+      EXPECT_EQ(2, memberPrimitive->at(one));
+      EXPECT_EQ(3, memberPrimitive->at(two));
+      EXPECT_EQ(4, memberPrimitive->at(three));
       EXPECT_TRUE(set->contains(one));
       EXPECT_TRUE(set->contains(two));
       EXPECT_TRUE(set->contains(three));
@@ -2594,11 +2594,11 @@ TEST(HeapTest, HeapCollectionTypes) {
     EXPECT_EQ(3u, dequeUW->size());
     EXPECT_EQ(1u, deque2->size());
 
-    EXPECT_TRUE(memberMember->get(one) == two);
-    EXPECT_TRUE(primitiveMember->get(1) == two);
-    EXPECT_TRUE(primitiveMember->get(4) == one);
-    EXPECT_EQ(2, memberPrimitive->get(one));
-    EXPECT_EQ(3, memberPrimitive->get(two));
+    EXPECT_TRUE(memberMember->at(one) == two);
+    EXPECT_TRUE(primitiveMember->at(1) == two);
+    EXPECT_TRUE(primitiveMember->at(4) == one);
+    EXPECT_EQ(2, memberPrimitive->at(one));
+    EXPECT_EQ(3, memberPrimitive->at(two));
     EXPECT_TRUE(set->contains(one));
     EXPECT_TRUE(set->contains(two));
     EXPECT_FALSE(set->contains(oneB));
@@ -2872,7 +2872,7 @@ class NonTrivialObject final {
  public:
   NonTrivialObject() {}
   explicit NonTrivialObject(int num) {
-    m_deque.append(IntWrapper::create(num));
+    m_deque.push_back(IntWrapper::create(num));
     m_vector.push_back(IntWrapper::create(num));
   }
   DEFINE_INLINE_TRACE() {
@@ -2994,13 +2994,13 @@ void orderedSetHelper(bool strong) {
   keepNumbersAlive.push_back(IntWrapper::create(103));
   keepNumbersAlive.push_back(IntWrapper::create(10));
 
-  set1->add(IntWrapper::create(0));
-  set1->add(keepNumbersAlive[0]);
-  set1->add(keepNumbersAlive[1]);
-  set1->add(keepNumbersAlive[2]);
+  set1->insert(IntWrapper::create(0));
+  set1->insert(keepNumbersAlive[0]);
+  set1->insert(keepNumbersAlive[1]);
+  set1->insert(keepNumbersAlive[2]);
 
   set2->clear();
-  set2->add(IntWrapper::create(42));
+  set2->insert(IntWrapper::create(42));
   set2->clear();
 
   EXPECT_EQ(4u, set1->size());
@@ -3064,7 +3064,7 @@ void orderedSetHelper(bool strong) {
   EXPECT_EQ(set2->end(), iX);
 
   if (strong)
-    set1->remove(keepNumbersAlive[0]);
+    set1->erase(keepNumbersAlive[0]);
 
   keepNumbersAlive[0] = nullptr;
 
@@ -3393,7 +3393,7 @@ TEST(HeapTest, HeapWeakCollectionTypes) {
         strongWeak->insert(wrapped2, wrapped);
         weakWeak->insert(wrapped, wrapped2);
         weakSet->insert(wrapped);
-        weakOrderedSet->add(wrapped);
+        weakOrderedSet->insert(wrapped);
       }
 
       EXPECT_EQ(64u, weakStrong->size());
@@ -3415,9 +3415,9 @@ TEST(HeapTest, HeapWeakCollectionTypes) {
       for (int i = 0; i < 128; i += 2) {
         IntWrapper* wrapped = keepNumbersAlive[i];
         IntWrapper* wrapped2 = keepNumbersAlive[i + 1];
-        EXPECT_EQ(wrapped2, weakStrong->get(wrapped));
-        EXPECT_EQ(wrapped, strongWeak->get(wrapped2));
-        EXPECT_EQ(wrapped2, weakWeak->get(wrapped));
+        EXPECT_EQ(wrapped2, weakStrong->at(wrapped));
+        EXPECT_EQ(wrapped, strongWeak->at(wrapped2));
+        EXPECT_EQ(wrapped2, weakWeak->at(wrapped));
         EXPECT_TRUE(weakSet->contains(wrapped));
         EXPECT_TRUE(weakOrderedSet->contains(wrapped));
       }
@@ -3497,7 +3497,7 @@ TEST(HeapTest, HeapWeakCollectionTypes) {
           } else if (collectionNumber == weakOrderedSetIndex && firstAlive) {
             ASSERT_TRUE(weakOrderedSet->contains(keepNumbersAlive[i]));
             if (deleteAfterwards)
-              weakOrderedSet->remove(keepNumbersAlive[i]);
+              weakOrderedSet->erase(keepNumbersAlive[i]);
             else
               count++;
           }
@@ -3510,7 +3510,7 @@ TEST(HeapTest, HeapWeakCollectionTypes) {
             strongWeak->insert(wrapped, wrapped);
             weakWeak->insert(wrapped, wrapped);
             weakSet->insert(wrapped);
-            weakOrderedSet->add(wrapped);
+            weakOrderedSet->insert(wrapped);
           }
         }
         if (collectionNumber == weakStrongIndex)
@@ -3854,8 +3854,8 @@ TEST(HeapTest, PersistentHeapCollectionTypes) {
     pVec.push_back(one);
     pVec.push_back(two);
 
-    pDeque.append(seven);
-    pDeque.append(two);
+    pDeque.push_back(seven);
+    pDeque.push_back(two);
 
     Vec* vec = new Vec();
     vec->swap(pVec);
@@ -3864,8 +3864,8 @@ TEST(HeapTest, PersistentHeapCollectionTypes) {
     pVec.push_back(three);
 
     pSet.insert(four);
-    pListSet.add(eight);
-    pLinkedSet.add(nine);
+    pListSet.insert(eight);
+    pLinkedSet.insert(nine);
     pMap.insert(five, six);
     wpMap.insert(ten, eleven);
 
@@ -3879,9 +3879,9 @@ TEST(HeapTest, PersistentHeapCollectionTypes) {
     EXPECT_EQ(three, pVec.at(1));
 
     EXPECT_EQ(2u, pDeque.size());
-    EXPECT_EQ(seven, pDeque.first());
+    EXPECT_EQ(seven, pDeque.front());
     EXPECT_EQ(seven, pDeque.takeFirst());
-    EXPECT_EQ(two, pDeque.first());
+    EXPECT_EQ(two, pDeque.front());
 
     EXPECT_EQ(1u, pDeque.size());
 
@@ -3895,10 +3895,10 @@ TEST(HeapTest, PersistentHeapCollectionTypes) {
     EXPECT_TRUE(pLinkedSet.contains(nine));
 
     EXPECT_EQ(1u, pMap.size());
-    EXPECT_EQ(six, pMap.get(five));
+    EXPECT_EQ(six, pMap.at(five));
 
     EXPECT_EQ(1u, wpMap.size());
-    EXPECT_EQ(eleven, wpMap.get(ten));
+    EXPECT_EQ(eleven, wpMap.at(ten));
     ten.clear();
     preciselyCollectGarbage();
     EXPECT_EQ(0u, wpMap.size());
@@ -3926,16 +3926,16 @@ TEST(HeapTest, CollectionNesting) {
   map2->insert(key, IntDeque());
 
   HeapHashMap<void*, IntVector>::iterator it = map->find(key);
-  EXPECT_EQ(0u, map->get(key).size());
+  EXPECT_EQ(0u, map->at(key).size());
 
   HeapHashMap<void*, IntDeque>::iterator it2 = map2->find(key);
-  EXPECT_EQ(0u, map2->get(key).size());
+  EXPECT_EQ(0u, map2->at(key).size());
 
   it->value.push_back(IntWrapper::create(42));
-  EXPECT_EQ(1u, map->get(key).size());
+  EXPECT_EQ(1u, map->at(key).size());
 
-  it2->value.append(IntWrapper::create(42));
-  EXPECT_EQ(1u, map2->get(key).size());
+  it2->value.push_back(IntWrapper::create(42));
+  EXPECT_EQ(1u, map2->at(key).size());
 
   Persistent<HeapHashMap<void*, IntVector>> keepAlive(map);
   Persistent<HeapHashMap<void*, IntDeque>> keepAlive2(map2);
@@ -3947,8 +3947,8 @@ TEST(HeapTest, CollectionNesting) {
 
   preciselyCollectGarbage();
 
-  EXPECT_EQ(1u, map->get(key).size());
-  EXPECT_EQ(1u, map2->get(key).size());
+  EXPECT_EQ(1u, map->at(key).size());
+  EXPECT_EQ(1u, map2->at(key).size());
   EXPECT_EQ(0, IntWrapper::s_destructorCalls);
 
   keepAlive = nullptr;
@@ -3985,14 +3985,14 @@ TEST(HeapTest, CollectionNesting2) {
   map->insert(key, IntSet());
 
   HeapHashMap<void*, IntSet>::iterator it = map->find(key);
-  EXPECT_EQ(0u, map->get(key).size());
+  EXPECT_EQ(0u, map->at(key).size());
 
   it->value.insert(IntWrapper::create(42));
-  EXPECT_EQ(1u, map->get(key).size());
+  EXPECT_EQ(1u, map->at(key).size());
 
   Persistent<HeapHashMap<void*, IntSet>> keepAlive(map);
   preciselyCollectGarbage();
-  EXPECT_EQ(1u, map->get(key).size());
+  EXPECT_EQ(1u, map->at(key).size());
   EXPECT_EQ(0, IntWrapper::s_destructorCalls);
 }
 
@@ -4005,7 +4005,7 @@ TEST(HeapTest, CollectionNesting3) {
   HeapDeque<IntDeque>* deque = new HeapDeque<IntDeque>();
 
   vector->push_back(IntVector());
-  deque->append(IntDeque());
+  deque->push_back(IntDeque());
 
   HeapVector<IntVector>::iterator it = vector->begin();
   HeapDeque<IntDeque>::iterator it2 = deque->begin();
@@ -4013,7 +4013,7 @@ TEST(HeapTest, CollectionNesting3) {
   EXPECT_EQ(0u, it2->size());
 
   it->push_back(IntWrapper::create(42));
-  it2->append(IntWrapper::create(42));
+  it2->push_back(IntWrapper::create(42));
   EXPECT_EQ(1u, it->size());
   EXPECT_EQ(1u, it2->size());
 
@@ -4058,17 +4058,17 @@ TEST(HeapTest, EmbeddedInDeque) {
     PersistentHeapDeque<VectorObject, 2> inlineDeque;
     PersistentHeapDeque<VectorObject> outlineDeque;
     VectorObject i1, i2;
-    inlineDeque.append(i1);
-    inlineDeque.append(i2);
+    inlineDeque.push_back(i1);
+    inlineDeque.push_back(i2);
 
     VectorObject o1, o2;
-    outlineDeque.append(o1);
-    outlineDeque.append(o2);
+    outlineDeque.push_back(o1);
+    outlineDeque.push_back(o2);
 
     PersistentHeapDeque<VectorObjectInheritedTrace> dequeInheritedTrace;
     VectorObjectInheritedTrace it1, it2;
-    dequeInheritedTrace.append(it1);
-    dequeInheritedTrace.append(it2);
+    dequeInheritedTrace.push_back(it1);
+    dequeInheritedTrace.push_back(it2);
 
     preciselyCollectGarbage();
     EXPECT_EQ(0, SimpleFinalizedObject::s_destructorCalls);
@@ -4979,17 +4979,17 @@ TEST(HeapTest, EphemeronsInEphemerons) {
       Persistent<IntWrapper> two = IntWrapper::create(2);
       outer->insert(one, InnerMap());
       outer->begin()->value.insert(two, IntWrapper::create(3));
-      EXPECT_EQ(1u, outer->get(one).size());
+      EXPECT_EQ(1u, outer->at(one).size());
       if (!keepOuterAlive)
         one.clear();
       if (!keepInnerAlive)
         two.clear();
       preciselyCollectGarbage();
       if (keepOuterAlive) {
-        const InnerMap& inner = outer->get(one);
+        const InnerMap& inner = outer->at(one);
         if (keepInnerAlive) {
           EXPECT_EQ(1u, inner.size());
-          IntWrapper* three = inner.get(two);
+          IntWrapper* three = inner.at(two);
           EXPECT_EQ(3, three->value());
         } else {
           EXPECT_EQ(0u, inner.size());
@@ -5015,8 +5015,9 @@ TEST(HeapTest, EphemeronsInEphemerons) {
       EXPECT_EQ(10000u, outer->size());
       for (int i = 0; i < 10000; i++) {
         IntWrapper* value = keepAlive->at(i);
-        EXPECT_EQ(1u, outer->get(value)
-                          .size());  // Other one was deleted by weak handling.
+        EXPECT_EQ(1u,
+                  outer->at(value)
+                      .size());  // Other one was deleted by weak handling.
         if (i & 1)
           keepAlive->at(i) = nullptr;
       }
@@ -5058,9 +5059,9 @@ TEST(HeapTest, EphemeronsPointToEphemerons) {
   for (int i = 0; i < 100; i++) {
     EXPECT_EQ(1u, wrapper->getMap().size());
     if (i == 49)
-      wrapper = wrapper->getMap().get(key2);
+      wrapper = wrapper->getMap().at(key2);
     else
-      wrapper = wrapper->getMap().get(key);
+      wrapper = wrapper->getMap().at(key);
   }
   EXPECT_EQ(nullptr, wrapper);
 
@@ -5070,7 +5071,7 @@ TEST(HeapTest, EphemeronsPointToEphemerons) {
   wrapper = chain;
   for (int i = 0; i < 50; i++) {
     EXPECT_EQ(i == 49 ? 0u : 1u, wrapper->getMap().size());
-    wrapper = wrapper->getMap().get(key);
+    wrapper = wrapper->getMap().at(key);
   }
   EXPECT_EQ(nullptr, wrapper);
 
@@ -5184,12 +5185,12 @@ TEST(HeapTest, IndirectStrongToWeak) {
   EXPECT_EQ(2u, map->size());
   preciselyCollectGarbage();
   EXPECT_EQ(2u, map->size());
-  EXPECT_EQ(deadObject, map->get(deadObject)->link());
-  EXPECT_EQ(lifeObject, map->get(lifeObject)->link());
+  EXPECT_EQ(deadObject, map->at(deadObject)->link());
+  EXPECT_EQ(lifeObject, map->at(lifeObject)->link());
   deadObject.clear();  // Now it can live up to its name.
   preciselyCollectGarbage();
   EXPECT_EQ(1u, map->size());
-  EXPECT_EQ(lifeObject, map->get(lifeObject)->link());
+  EXPECT_EQ(lifeObject, map->at(lifeObject)->link());
   lifeObject.clear();  // Despite its name.
   preciselyCollectGarbage();
   EXPECT_EQ(0u, map->size());
@@ -5710,7 +5711,7 @@ TEST(HeapTest, DequeExpand) {
   // deque's buffer.
   int i = 0;
   for (; i < 60; ++i)
-    deque->append(IntWrapper::create(i));
+    deque->push_back(IntWrapper::create(i));
 
   EXPECT_EQ(60u, deque->size());
   i = 0;
@@ -5734,7 +5735,7 @@ TEST(HeapTest, DequeExpand) {
   // Append even more, eventually causing an expansion of the underlying
   // buffer once the end index wraps around and reaches the start index.
   for (i = 0; i < 70; ++i)
-    deque->append(IntWrapper::create(60 + i));
+    deque->push_back(IntWrapper::create(60 + i));
 
   // Verify that the final buffer expansion copied the start and end segments
   // of the old buffer to both ends of the expanded buffer, along with
@@ -5794,8 +5795,8 @@ TEST(HeapTest, DequePartObjectsExpand) {
   // deque's buffer.
   int i = 0;
   for (; i < 60; ++i) {
-    deque->append(PartObjectWithRef(i));
-    dequeUnused->append(PartObjectWithRef(i));
+    deque->push_back(PartObjectWithRef(i));
+    dequeUnused->push_back(PartObjectWithRef(i));
   }
 
   EXPECT_EQ(60u, deque->size());
@@ -5820,7 +5821,7 @@ TEST(HeapTest, DequePartObjectsExpand) {
   // Append even more, eventually causing an expansion of the underlying
   // buffer once the end index wraps around and reaches the start index.
   for (i = 0; i < 70; ++i)
-    deque->append(PartObjectWithRef(60 + i));
+    deque->push_back(PartObjectWithRef(60 + i));
 
   // Verify that the final buffer expansion copied the start and end segments
   // of the old buffer to both ends of the expanded buffer, along with
@@ -5833,7 +5834,7 @@ TEST(HeapTest, DequePartObjectsExpand) {
   }
 
   for (i = 0; i < 70; ++i)
-    deque->append(PartObjectWithRef(130 + i));
+    deque->push_back(PartObjectWithRef(130 + i));
 
   EXPECT_EQ(150u, deque->size());
   i = 0;

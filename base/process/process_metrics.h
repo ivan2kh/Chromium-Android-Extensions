@@ -136,8 +136,7 @@ class BASE_EXPORT ProcessMetrics {
   // memory currently allocated to a process that cannot be shared. Returns
   // false on platform specific error conditions.  Note: |private_bytes|
   // returns 0 on unsupported OSes: prior to XP SP2.
-  bool GetMemoryBytes(size_t* private_bytes,
-                      size_t* shared_bytes);
+  bool GetMemoryBytes(size_t* private_bytes, size_t* shared_bytes) const;
   // Fills a CommittedKBytes with both resident and paged
   // memory usage as per definition of CommittedBytes.
   void GetCommittedKBytes(CommittedKBytes* usage) const;
@@ -155,6 +154,10 @@ class BASE_EXPORT ProcessMetrics {
   // system call.
   bool GetCommittedAndWorkingSetKBytes(CommittedKBytes* usage,
                                        WorkingSetKBytes* ws_usage) const;
+  // Returns private, shared, and total resident bytes.
+  bool GetMemoryBytes(size_t* private_bytes,
+                      size_t* shared_bytes,
+                      size_t* resident_bytes) const;
 #endif
 
   // Returns the CPU usage in percent since the last time this method or
@@ -185,6 +188,10 @@ class BASE_EXPORT ProcessMetrics {
   // Returns the number of file descriptors currently open by the process, or
   // -1 on error.
   int GetOpenFdCount() const;
+
+  // Returns the soft limit of file descriptors that can be opened by the
+  // process, or -1 on error.
+  int GetOpenFdSoftLimit() const;
 #endif  // defined(OS_LINUX)
 
  private:

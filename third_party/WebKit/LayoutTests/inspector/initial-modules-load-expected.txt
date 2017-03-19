@@ -6,12 +6,16 @@ Loaded modules:
     bindings
     common
     components
+    console_model
     dom_extension
     emulation
     extensions
+    help
     host
     main
     network_conditions
+    network_log
+    object_ui
     persistence
     platform
     protocol
@@ -26,15 +30,19 @@ Loaded modules:
     color_picker
     common
     components
+    console_model
     dom_extension
     elements
     emulation
     event_listeners
     extensions
+    help
     host
     inline_editor
     main
     network_conditions
+    network_log
+    object_ui
     persistence
     platform
     protocol
@@ -51,6 +59,7 @@ Loaded modules:
     color_picker
     common
     components
+    console_model
     cookie_table
     data_grid
     diff
@@ -59,11 +68,14 @@ Loaded modules:
     emulation
     event_listeners
     extensions
+    help
     host
     inline_editor
     main
     network
     network_conditions
+    network_log
+    object_ui
     perf_ui
     persistence
     platform
@@ -74,6 +86,7 @@ Loaded modules:
     text_editor
     ui
     workspace
+    workspace_diff
 
 Running: testShowSourcesPanel
 Loaded modules:
@@ -83,6 +96,7 @@ Loaded modules:
     color_picker
     common
     components
+    console_model
     cookie_table
     data_grid
     diff
@@ -91,11 +105,14 @@ Loaded modules:
     emulation
     event_listeners
     extensions
+    help
     host
     inline_editor
     main
     network
     network_conditions
+    network_log
+    object_ui
     perf_ui
     persistence
     platform
@@ -109,6 +126,7 @@ Loaded modules:
     text_editor
     ui
     workspace
+    workspace_diff
 
 Running: testOpenUISourceCode
 Loaded modules:
@@ -118,6 +136,7 @@ Loaded modules:
     color_picker
     common
     components
+    console_model
     cookie_table
     data_grid
     diff
@@ -126,11 +145,14 @@ Loaded modules:
     emulation
     event_listeners
     extensions
+    help
     host
     inline_editor
     main
     network
     network_conditions
+    network_log
+    object_ui
     perf_ui
     persistence
     platform
@@ -144,4 +166,5 @@ Loaded modules:
     text_editor
     ui
     workspace
+    workspace_diff
 

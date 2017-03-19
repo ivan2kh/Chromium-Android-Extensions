@@ -311,8 +311,9 @@ class HWNDMessageHandler::ScopedRedrawLock {
 };
 
 // static HWNDMessageHandler member initialization.
-base::LazyInstance<HWNDMessageHandler::FullscreenWindowMonitorMap>
-    HWNDMessageHandler::fullscreen_monitor_map_ = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<HWNDMessageHandler::FullscreenWindowMonitorMap>::
+    DestructorAtExit HWNDMessageHandler::fullscreen_monitor_map_ =
+        LAZY_INSTANCE_INITIALIZER;
 
 ////////////////////////////////////////////////////////////////////////////////
 // HWNDMessageHandler, public:
@@ -827,10 +828,6 @@ void HWNDMessageHandler::SetWindowIcons(const gfx::ImageSkia& window_icon,
 void HWNDMessageHandler::SetFullscreen(bool fullscreen) {
   background_fullscreen_hack_ = false;
   fullscreen_handler()->SetFullscreen(fullscreen);
-  // If we are out of fullscreen and there was a pending DWM transition for the
-  // window, then go ahead and do it now.
-  if (!fullscreen && dwm_transition_desired_)
-    PerformDwmTransition();
 
   // Add the fullscreen window to the fullscreen window map which is used to
   // handle window activations.
@@ -843,6 +840,10 @@ void HWNDMessageHandler::SetFullscreen(bool fullscreen) {
     if (iter != fullscreen_monitor_map_.Get().end())
       fullscreen_monitor_map_.Get().erase(iter);
   }
+  // If we are out of fullscreen and there was a pending DWM transition for the
+  // window, then go ahead and do it now.
+  if (!fullscreen && dwm_transition_desired_)
+    PerformDwmTransition();
 }
 
 void HWNDMessageHandler::SizeConstraintsChanged() {
@@ -2633,7 +2634,9 @@ void HWNDMessageHandler::GenerateTouchEvent(ui::EventType event_type,
                                             unsigned int id,
                                             base::TimeTicks time_stamp,
                                             TouchEvents* touch_events) {
-  ui::TouchEvent event(event_type, point, id, time_stamp);
+  ui::TouchEvent event(
+      event_type, point, time_stamp,
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, id));
 
   event.set_flags(ui::GetModifiersFromKeyState());
 

@@ -32,9 +32,9 @@
 #define V8LazyEventListener_h
 
 #include "bindings/core/v8/V8AbstractEventListener.h"
+#include "v8/include/v8.h"
 #include "wtf/PassRefPtr.h"
 #include "wtf/text/TextPosition.h"
-#include <v8.h>
 
 namespace blink {
 
@@ -79,6 +79,10 @@ class V8LazyEventListener final : public V8AbstractEventListener {
   v8::Local<v8::Value> callListenerFunction(ScriptState*,
                                             v8::Local<v8::Value>,
                                             Event*) override;
+
+  // Return true, so that event handlers from markup are not cloned twice when
+  // building the shadow tree for SVGUseElements.
+  bool wasCreatedFromMarkup() const override { return true; }
 
   void compileScript(ScriptState*, ExecutionContext*);
 

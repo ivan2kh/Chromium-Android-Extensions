@@ -61,6 +61,11 @@ void AwRenderViewHostExt::ClearCache() {
   Send(new AwViewMsg_ClearCache);
 }
 
+void AwRenderViewHostExt::KillRenderProcess() {
+  DCHECK(CalledOnValidThread());
+  Send(new AwViewMsg_KillProcess);
+}
+
 bool AwRenderViewHostExt::HasNewHitTestData() const {
   return has_new_hit_test_data_;
 }
@@ -155,6 +160,10 @@ void AwRenderViewHostExt::RenderFrameCreated(
 void AwRenderViewHostExt::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
   DCHECK(CalledOnValidThread());
+  if (!navigation_handle->HasCommitted() ||
+      (!navigation_handle->IsInMainFrame() &&
+       !navigation_handle->HasSubframeNavigationEntryCommitted()))
+    return;
 
   AwBrowserContext::FromWebContents(web_contents())
       ->AddVisitedURLs(navigation_handle->GetRedirectChain());

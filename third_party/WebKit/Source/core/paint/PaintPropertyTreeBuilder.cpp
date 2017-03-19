@@ -4,6 +4,7 @@
 
 #include "core/paint/PaintPropertyTreeBuilder.h"
 
+#include <memory>
 #include "core/dom/DOMNodeIds.h"
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalFrame.h"
@@ -11,21 +12,22 @@
 #include "core/layout/LayoutInline.h"
 #include "core/layout/LayoutView.h"
 #include "core/layout/compositing/CompositingReasonFinder.h"
+#include "core/layout/svg/LayoutSVGResourceMasker.h"
 #include "core/layout/svg/LayoutSVGRoot.h"
 #include "core/layout/svg/SVGLayoutSupport.h"
+#include "core/layout/svg/SVGResources.h"
+#include "core/layout/svg/SVGResourcesCache.h"
 #include "core/paint/FindPropertiesNeedingUpdate.h"
 #include "core/paint/ObjectPaintProperties.h"
 #include "core/paint/PaintLayer.h"
 #include "core/paint/SVGRootPainter.h"
 #include "platform/transforms/TransformationMatrix.h"
 #include "wtf/PtrUtil.h"
-#include <memory>
 
 namespace blink {
 
-PaintPropertyTreeBuilderContext
-PaintPropertyTreeBuilder::setupInitialContext() {
-  PaintPropertyTreeBuilderContext context;
+void PaintPropertyTreeBuilder::setupInitialContext(
+    PaintPropertyTreeBuilderContext& context) {
   context.current.clip = context.absolutePosition.clip =
       context.fixedPosition.clip = ClipPaintPropertyNode::root();
   context.currentEffect = EffectPaintPropertyNode::root();
@@ -34,7 +36,6 @@ PaintPropertyTreeBuilder::setupInitialContext() {
       context.fixedPosition.transform = TransformPaintPropertyNode::root();
   context.current.scroll = context.absolutePosition.scroll =
       context.fixedPosition.scroll = ScrollPaintPropertyNode::root();
-  return context;
 }
 
 // True if a new property was created, false if an existing one was updated.
@@ -88,7 +89,8 @@ static bool updateScrollTranslation(
     const IntSize& bounds,
     bool userScrollableHorizontal,
     bool userScrollableVertical,
-    MainThreadScrollingReasons mainThreadScrollingReasons) {
+    MainThreadScrollingReasons mainThreadScrollingReasons,
+    WebLayerScrollClient* scrollClient) {
   DCHECK(!RuntimeEnabledFeatures::rootLayerScrollingEnabled());
   CompositorElementId compositorElementId =
       createDomNodeBasedCompositorElementId(*frameView.layoutView());
@@ -99,7 +101,7 @@ static bool updateScrollTranslation(
         std::move(parent), matrix, origin, false, 0, CompositingReasonNone,
         compositorElementId, std::move(scrollParent), clip, bounds,
         userScrollableHorizontal, userScrollableVertical,
-        mainThreadScrollingReasons);
+        mainThreadScrollingReasons, scrollClient);
     return existingReasons != mainThreadScrollingReasons;
   }
   frameView.setScrollTranslation(
@@ -107,7 +109,7 @@ static bool updateScrollTranslation(
           std::move(parent), matrix, origin, false, 0, CompositingReasonNone,
           compositorElementId, std::move(scrollParent), clip, bounds,
           userScrollableHorizontal, userScrollableVertical,
-          mainThreadScrollingReasons));
+          mainThreadScrollingReasons, scrollClient));
   return true;
 }
 
@@ -175,7 +177,8 @@ void PaintPropertyTreeBuilder::updateProperties(
       context.forceSubtreeUpdate |= updateScrollTranslation(
           frameView, frameView.preTranslation(), frameScroll, FloatPoint3D(),
           context.current.scroll, scrollClip, scrollBounds,
-          userScrollableHorizontal, userScrollableVertical, reasons);
+          userScrollableHorizontal, userScrollableVertical, reasons,
+          frameView.getScrollableArea());
     } else {
       if (frameView.scrollTranslation()) {
         // Ensure pre-existing properties are cleared if there is no scrolling.
@@ -411,14 +414,23 @@ void PaintPropertyTreeBuilder::updateTransform(
 }
 
 static bool computeMaskParameters(IntRect& maskClip,
+                                  ColorFilter& maskColorFilter,
                                   const LayoutObject& object,
                                   const LayoutPoint& paintOffset) {
   DCHECK(object.isBoxModelObject() || object.isSVGChild());
   const ComputedStyle& style = object.styleRef();
 
   if (object.isSVGChild()) {
-    // TODO(trchen): Implement SVG masks.
-    return false;
+    SVGResources* resources =
+        SVGResourcesCache::cachedResourcesForLayoutObject(&object);
+    LayoutSVGResourceMasker* masker = resources ? resources->masker() : nullptr;
+    if (!masker)
+      return false;
+    maskClip = enclosingIntRect(object.objectBoundingBox());
+    maskColorFilter = masker->style()->svgStyle().maskType() == MT_LUMINANCE
+                          ? ColorFilterLuminanceToAlpha
+                          : ColorFilterNone;
+    return true;
   }
   if (!style.hasMask())
     return false;
@@ -439,6 +451,7 @@ static bool computeMaskParameters(IntRect& maskClip,
   }
   maximumMaskRegion.moveBy(paintOffset);
   maskClip = enclosingIntRect(maximumMaskRegion);
+  maskColorFilter = ColorFilterNone;
   return true;
 }
 
@@ -505,8 +518,9 @@ void PaintPropertyTreeBuilder::updateEffect(
            compositingReasons != CompositingReasonNone);
 
     IntRect maskClip;
-    bool hasMask =
-        computeMaskParameters(maskClip, object, context.current.paintOffset);
+    ColorFilter maskColorFilter;
+    bool hasMask = computeMaskParameters(maskClip, maskColorFilter, object,
+                                         context.current.paintOffset);
     if (hasMask) {
       effectNodeNeeded = true;
 
@@ -529,8 +543,8 @@ void PaintPropertyTreeBuilder::updateEffect(
       auto& properties = object.getMutableForPainting().ensurePaintProperties();
       context.forceSubtreeUpdate |= properties.updateEffect(
           context.currentEffect, context.current.transform, outputClip,
-          CompositorFilterOperations(), opacity, blendMode, compositingReasons,
-          compositorElementId);
+          ColorFilterNone, CompositorFilterOperations(), opacity, blendMode,
+          compositingReasons, compositorElementId);
       if (hasMask) {
         // TODO(crbug.com/683425): PaintArtifactCompositor does not handle
         // grouping (i.e. descendant-dependent compositing reason) properly yet.
@@ -538,8 +552,9 @@ void PaintPropertyTreeBuilder::updateEffect(
         // squashed into a child effect. Have no compositing reason otherwise.
         context.forceSubtreeUpdate |= properties.updateMask(
             properties.effect(), context.current.transform, outputClip,
-            CompositorFilterOperations(), 1.f, SkBlendMode::kDstIn,
-            CompositingReasonSquashingDisallowed, CompositorElementId());
+            maskColorFilter, CompositorFilterOperations(), 1.f,
+            SkBlendMode::kDstIn, CompositingReasonSquashingDisallowed,
+            CompositorElementId());
       } else {
         context.forceSubtreeUpdate |= properties.clearMask();
       }
@@ -620,8 +635,8 @@ void PaintPropertyTreeBuilder::updateFilter(
       auto& properties = object.getMutableForPainting().ensurePaintProperties();
       context.forceSubtreeUpdate |= properties.updateFilter(
           context.currentEffect, context.current.transform, outputClip,
-          std::move(filter), 1.f, SkBlendMode::kSrcOver, compositingReasons,
-          compositorElementId);
+          ColorFilterNone, std::move(filter), 1.f, SkBlendMode::kSrcOver,
+          compositingReasons, compositorElementId);
     }
   }
 
@@ -668,9 +683,8 @@ void PaintPropertyTreeBuilder::updateLocalBorderBoxContext(
   if (!object.needsPaintPropertyUpdate() && !context.forceSubtreeUpdate)
     return;
 
-  // Avoid adding an ObjectPaintProperties for non-boxes to save memory, since
-  // we don't need them at the moment.
-  if (!object.isBox() && !object.hasLayer()) {
+  // We need localBorderBoxProperties for layered objects only.
+  if (!object.hasLayer()) {
     if (auto* properties = object.getMutableForPainting().paintProperties())
       properties->clearLocalBorderBoxProperties();
   } else {
@@ -853,7 +867,7 @@ void PaintPropertyTreeBuilder::updateScrollAndScrollTranslation(
       bool scrollNodeNeededForMainThreadReasons = ancestorReasons != reasons;
 
       const LayoutBox& box = toLayoutBox(object);
-      const auto* scrollableArea = box.getScrollableArea();
+      auto* scrollableArea = box.getScrollableArea();
       IntSize scrollOffset = box.scrolledContentOffset();
       if (scrollNodeNeededForMainThreadReasons || !scrollOffset.isZero() ||
           scrollableArea->scrollsOverflow()) {
@@ -886,7 +900,7 @@ void PaintPropertyTreeBuilder::updateScrollAndScrollTranslation(
             context.current.renderingContextId, CompositingReasonNone,
             compositorElementId, context.current.scroll, scrollClip,
             scrollBounds, userScrollableHorizontal, userScrollableVertical,
-            reasons);
+            reasons, scrollableArea);
       }
     }
 
@@ -1026,7 +1040,7 @@ void PaintPropertyTreeBuilder::updatePaintOffset(
   }
 }
 
-void PaintPropertyTreeBuilder::updateForObjectLocation(
+void PaintPropertyTreeBuilder::updateForObjectLocationAndSize(
     const LayoutObject& object,
     PaintPropertyTreeBuilderContext& context) {
   if (object.isBoxModelObject()) {
@@ -1034,18 +1048,43 @@ void PaintPropertyTreeBuilder::updateForObjectLocation(
     updatePaintOffsetTranslation(toLayoutBoxModelObject(object), context);
   }
 
-  if (object.paintOffset() == context.current.paintOffset)
+  if (object.paintOffset() != context.current.paintOffset) {
+    // Many paint properties depend on paint offset so we force an update of
+    // the entire subtree on paint offset changes.
+    context.forceSubtreeUpdate = true;
+
+    if (RuntimeEnabledFeatures::slimmingPaintV2Enabled()) {
+      object.getMutableForPainting().setShouldDoFullPaintInvalidation(
+          PaintInvalidationLocationChange);
+    }
+    object.getMutableForPainting().setPaintOffset(context.current.paintOffset);
+  }
+
+  if (!object.isBox())
+    return;
+  const LayoutBox& box = toLayoutBox(object);
+  if (box.size() == box.previousSize())
     return;
 
-  // Many paint properties depend on paint offset so we force an update of
-  // the entire subtree on paint offset changes.
-  context.forceSubtreeUpdate = true;
-
-  if (RuntimeEnabledFeatures::slimmingPaintV2Enabled()) {
-    object.getMutableForPainting().setShouldDoFullPaintInvalidation(
-        PaintInvalidationLocationChange);
-  }
-  object.getMutableForPainting().setPaintOffset(context.current.paintOffset);
+  // CSS mask and clip-path comes with an implicit clip to the border box.
+  // Currently only SPv2 generate and take advantage of those.
+  const bool boxGeneratesPropertyNodesForMaskAndClipPath =
+      RuntimeEnabledFeatures::slimmingPaintV2Enabled() &&
+      (box.hasMask() || box.hasClipPath());
+  // The overflow clip paint property depends on the border box rect through
+  // overflowClipRect(). The border box rect's size equals the frame rect's
+  // size so we trigger a paint property update when the frame rect changes.
+  if (box.shouldClipOverflow() ||
+      // The used value of CSS clip may depend on size of the box, e.g. for
+      // clip: rect(auto auto auto -5px).
+      box.hasClip() ||
+      // Relative lengths (e.g., percentage values) in transform, perspective,
+      // transform-origin, and perspective-origin can depend on the size of the
+      // frame rect, so force a property update if it changes. TODO(pdr): We
+      // only need to update properties if there are relative lengths.
+      box.styleRef().hasTransform() || box.styleRef().hasPerspective() ||
+      boxGeneratesPropertyNodesForMaskAndClipPath)
+    box.getMutableForPainting().setNeedsPaintPropertyUpdate();
 }
 
 void PaintPropertyTreeBuilder::updatePropertiesForSelf(
@@ -1053,7 +1092,7 @@ void PaintPropertyTreeBuilder::updatePropertiesForSelf(
     PaintPropertyTreeBuilderContext& context) {
   // This is not in FindObjectPropertiesNeedingUpdateScope because paint offset
   // can change without needsPaintPropertyUpdate.
-  updateForObjectLocation(object, context);
+  updateForObjectLocationAndSize(object, context);
 
 #if DCHECK_IS_ON()
   FindObjectPropertiesNeedingUpdateScope checkNeedsUpdateScope(object, context);

@@ -56,6 +56,7 @@
 #include "modules/serviceworkers/ServiceWorkerRegistration.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/weborigin/SchemeRegistry.h"
+#include "platform/weborigin/SecurityViolationReportingPolicy.h"
 #include "public/platform/WebString.h"
 #include "public/platform/WebURL.h"
 #include "public/platform/modules/serviceworker/WebServiceWorker.h"
@@ -247,7 +248,7 @@ void ServiceWorkerContainer::registerServiceWorkerImpl(
               WebURLRequest::RequestContextServiceWorker, scriptURL) &&
           csp->allowWorkerContextFromSource(
               scriptURL, ResourceRequest::RedirectStatus::NoRedirect,
-              ContentSecurityPolicy::SendReport))) {
+              SecurityViolationReportingPolicy::Report))) {
       callbacks->onError(WebServiceWorkerError(
           WebServiceWorkerError::ErrorTypeSecurity,
           String(
@@ -282,16 +283,14 @@ ScriptPromise ServiceWorkerContainer::registerServiceWorker(
   if (!executionContext)
     return ScriptPromise();
 
-  KURL scriptURL =
-      enteredExecutionContext(scriptState->isolate())->completeURL(url);
+  KURL scriptURL = executionContext->completeURL(url);
   scriptURL.removeFragmentIdentifier();
 
   KURL patternURL;
   if (options.scope().isNull())
     patternURL = KURL(scriptURL, "./");
   else
-    patternURL = enteredExecutionContext(scriptState->isolate())
-                     ->completeURL(options.scope());
+    patternURL = executionContext->completeURL(options.scope());
 
   registerServiceWorkerImpl(
       executionContext, scriptURL, patternURL,
@@ -339,8 +338,7 @@ ScriptPromise ServiceWorkerContainer::getRegistration(
     return promise;
   }
 
-  KURL completedURL =
-      enteredExecutionContext(scriptState->isolate())->completeURL(documentURL);
+  KURL completedURL = executionContext->completeURL(documentURL);
   completedURL.removeFragmentIdentifier();
   if (!documentOrigin->canRequest(completedURL)) {
     RefPtr<SecurityOrigin> documentURLOrigin =

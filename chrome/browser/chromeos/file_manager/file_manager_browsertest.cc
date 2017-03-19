@@ -72,7 +72,7 @@ IN_PROC_BROWSER_TEST_P(FileManagerBrowserTestWithLegacyEventDispatch, Test) {
 #define MAYBE_FileDisplay FileDisplay
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_FileDisplay,
+    DISABLED_FileDisplay,
     FileManagerBrowserTest,
     ::testing::Values(TestParameter(NOT_IN_GUEST_MODE, "fileDisplayDownloads"),
                       TestParameter(IN_GUEST_MODE, "fileDisplayDownloads"),
@@ -83,13 +83,14 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
                       TestParameter(NOT_IN_GUEST_MODE, "searchNotFound")));
 
 // Fails on official build. http://crbug.com/429294
+// Disabled due to flakiness. https://crbug.com/701451
 #if defined(DISABLE_SLOW_FILESAPP_TESTS) || defined(OFFICIAL_BUILD)
 #define MAYBE_OpenVideoFiles DISABLED_OpenVideoFiles
 #else
 #define MAYBE_OpenVideoFiles OpenVideoFiles
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_OpenVideoFiles,
+    DISABLED_OpenVideoFiles,
     FileManagerBrowserTest,
     ::testing::Values(TestParameter(IN_GUEST_MODE, "videoOpenDownloads"),
                       TestParameter(NOT_IN_GUEST_MODE, "videoOpenDownloads"),
@@ -112,7 +113,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
         TestParameter(NOT_IN_GUEST_MODE, "audioRepeatAllModeSingleFileDrive"),
         TestParameter(NOT_IN_GUEST_MODE, "audioNoRepeatModeSingleFileDrive"),
         TestParameter(NOT_IN_GUEST_MODE, "audioRepeatOneModeSingleFileDrive"),
-        TestParameter(NOT_IN_GUEST_MODE, "audioRepeatAllModeMultipleFileDrive"),
+        // TODO(crbug.com/701922) Revive this flaky test.
+        // TestParameter(NOT_IN_GUEST_MODE,
+        //               "audioRepeatAllModeMultipleFileDrive"),
         TestParameter(NOT_IN_GUEST_MODE, "audioNoRepeatModeMultipleFileDrive"),
         TestParameter(NOT_IN_GUEST_MODE,
                       "audioRepeatOneModeMultipleFileDrive")));
@@ -154,32 +157,30 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #define MAYBE_KeyboardOperations KeyboardOperations
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_KeyboardOperations,
+    DISABLED_KeyboardOperations,
     FileManagerBrowserTest,
-    ::testing::Values(TestParameter(IN_GUEST_MODE, "keyboardDeleteDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE,
-                                    "keyboardDeleteDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE, "keyboardDeleteDrive"),
-                      TestParameter(IN_GUEST_MODE, "keyboardCopyDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE, "keyboardCopyDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE, "keyboardCopyDrive"),
-                      TestParameter(IN_GUEST_MODE, "renameFileDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE, "renameFileDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE, "renameFileDrive"),
-                      TestParameter(IN_GUEST_MODE,
-                                    "renameNewDirectoryDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE,
-                                    "renameNewDirectoryDownloads"),
-                      TestParameter(NOT_IN_GUEST_MODE,
-                                    "renameNewDirectoryDrive")));
+    ::testing::Values(
+        TestParameter(IN_GUEST_MODE, "keyboardDeleteDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "keyboardDeleteDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "keyboardDeleteDrive"),
+        TestParameter(IN_GUEST_MODE, "keyboardCopyDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "keyboardCopyDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "keyboardCopyDrive"),
+        TestParameter(IN_GUEST_MODE, "renameFileDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "renameFileDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "renameFileDrive"),
+        TestParameter(IN_GUEST_MODE, "renameNewDirectoryDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "renameNewDirectoryDownloads"),
+        TestParameter(NOT_IN_GUEST_MODE, "renameNewDirectoryDrive")));
 
 #if defined(DISABLE_SLOW_FILESAPP_TESTS)
 #define MAYBE_Delete DISABLED_Delete
 #else
 #define MAYBE_Delete Delete
 #endif
+// Flaky: crbug.com/699426
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_Delete,
+    DISABLE_Delete,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE,
@@ -196,8 +197,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_DirectoryTreeContextMenu DirectoryTreeContextMenu
 #endif
+// Flaky: crbug.com/700156, crbug.com/699083
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_DirectoryTreeContextMenu,
+    DISABLED_DirectoryTreeContextMenu,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE,
@@ -257,8 +259,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_DriveSpecific DriveSpecific
 #endif
+// Flaky: crbug.com/698834
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_DriveSpecific,
+    DISABLED_DriveSpecific,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE, "openSidebarRecent"),
@@ -276,7 +279,7 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #define MAYBE_Transfer Transfer
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_Transfer,
+    DISABLED_Transfer,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE, "transferFromDriveToDownloads"),
@@ -289,13 +292,14 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
         TestParameter(NOT_IN_GUEST_MODE, "transferFromOfflineToDrive")));
 
 // Fails on official build. http://crbug.com/429294
+// Disabled due to flakiness. https://crbug.com/701924
 #if defined(DISABLE_SLOW_FILESAPP_TESTS) || defined(OFFICIAL_BUILD)
 #define MAYBE_RestorePrefs DISABLED_RestorePrefs
 #else
 #define MAYBE_RestorePrefs RestorePrefs
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_RestorePrefs,
+    DISABLED_RestorePrefs,
     FileManagerBrowserTest,
     ::testing::Values(TestParameter(IN_GUEST_MODE, "restoreSortColumn"),
                       TestParameter(NOT_IN_GUEST_MODE, "restoreSortColumn"),
@@ -343,8 +347,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_SuggestAppDialog SuggestAppDialog
 #endif
+// Flaky: crbug.com/701923
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_SuggestAppDialog,
+    DISABLE_SuggestAppDialog,
     FileManagerBrowserTest,
     ::testing::Values(TestParameter(NOT_IN_GUEST_MODE, "suggestAppDialog")));
 
@@ -354,8 +359,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_ExecuteDefaultTaskOnDownloads ExecuteDefaultTaskOnDownloads
 #endif
+// Flaky: crbug.com/699171
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_ExecuteDefaultTaskOnDownloads,
+    DISABLED_ExecuteDefaultTaskOnDownloads,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE, "executeDefaultTaskOnDownloads"),
@@ -366,8 +372,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_ExecuteDefaultTaskOnDrive ExecuteDefaultTaskOnDrive
 #endif
+// Flaky: crbug.com/699978
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_ExecuteDefaultTaskOnDrive,
+    DISABLED_ExecuteDefaultTaskOnDrive,
     FileManagerBrowserTest,
     ::testing::Values(TestParameter(NOT_IN_GUEST_MODE,
                                     "executeDefaultTaskOnDrive")));
@@ -391,7 +398,7 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #define MAYBE_GenericTask GenericTask
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_GenericTask,
+    DISABLED_GenericTask,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE, "genericTaskIsNotExecuted"),
@@ -446,8 +453,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_TabindexFocusDownloads TabindexFocusDownloads
 #endif
+// Flaky: crbug.com/699534
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_TabindexFocusDownloads,
+    DISABLED_TabindexFocusDownloads,
     FileManagerBrowserTestWithLegacyEventDispatch,
     ::testing::Values(TestParameter(NOT_IN_GUEST_MODE,
                                     "tabindexFocusDownloads"),
@@ -538,8 +546,9 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #else
 #define MAYBE_ShowGridView ShowGridView
 #endif
+// Flaky: crbug.com/698772
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_ShowGridView,
+    DISABLED_ShowGridView,
     FileManagerBrowserTest,
     ::testing::Values(TestParameter(NOT_IN_GUEST_MODE, "showGridViewDownloads"),
                       TestParameter(IN_GUEST_MODE, "showGridViewDownloads"),
@@ -565,7 +574,7 @@ WRAPPED_INSTANTIATE_TEST_CASE_P(
 #define MAYBE_GearMenu GearMenu
 #endif
 WRAPPED_INSTANTIATE_TEST_CASE_P(
-    MAYBE_GearMenu,
+    DISABLED_GearMenu,
     FileManagerBrowserTest,
     ::testing::Values(
         TestParameter(NOT_IN_GUEST_MODE, "showHiddenFilesOnDownloads"),

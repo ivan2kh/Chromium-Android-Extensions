@@ -1014,7 +1014,7 @@ ExtensionFunction::ResponseAction TabsCreateFunction::Run() {
 
   std::string error;
   std::unique_ptr<base::DictionaryValue> result(
-      ExtensionTabUtil::OpenTab(this, options, &error));
+      ExtensionTabUtil::OpenTab(this, options, false, &error));
   if (!result)
     return RespondNow(Error(error));
 
@@ -1670,13 +1670,14 @@ bool TabsCaptureVisibleTabFunction::RunAsync() {
     EXTENSION_FUNCTION_VALIDATE(args_->Get(1, &spec) && spec);
     image_details = ImageDetails::FromValue(*spec);
   }
-
-  WebContents* contents = GetWebContentsForID(context_id);
-
-  return CaptureAsync(
-      contents, image_details.get(),
-      base::Bind(&TabsCaptureVisibleTabFunction::CopyFromBackingStoreComplete,
-                 this));
+  NOTIMPLEMENTED();
+  return false;
+//  WebContents* contents = GetWebContentsForID(context_id);
+//
+//  return CaptureAsync(
+//      contents, image_details.get(),
+//      base::Bind(&TabsCaptureVisibleTabFunction::CopyFromBackingStoreComplete,
+//                 this));
 }
 
 void TabsCaptureVisibleTabFunction::OnCaptureSuccess(const SkBitmap& bitmap) {
@@ -1686,7 +1687,7 @@ void TabsCaptureVisibleTabFunction::OnCaptureSuccess(const SkBitmap& bitmap) {
     return;
   }
 
-  SetResult(base::MakeUnique<base::StringValue>(base64_result));
+  SetResult(base::MakeUnique<base::Value>(base64_result));
   SendResponse(true);
 }
 
@@ -1796,7 +1797,7 @@ void TabsDetectLanguageFunction::Observe(
 }
 
 void TabsDetectLanguageFunction::GotLanguage(const std::string& language) {
-  SetResult(base::MakeUnique<base::StringValue>(language.c_str()));
+  SetResult(base::MakeUnique<base::Value>(language.c_str()));
   SendResponse(true);
 
   Release();  // Balanced in Run()

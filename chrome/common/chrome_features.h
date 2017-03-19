@@ -24,6 +24,7 @@ extern const base::Feature kAllowAutoplayUnmutedInWebappManifestScope;
 
 #if defined(OS_MACOSX)
 extern const base::Feature kAppleScriptExecuteJavaScript;
+extern const base::Feature kViewsTaskManager;
 #endif  // defined(OS_MACOSX)
 
 #if defined(OS_CHROMEOS)
@@ -52,6 +53,7 @@ extern const base::Feature kBrowserHangFixesExperiment;
 
 #if defined(OS_MACOSX)
 extern const base::Feature kBrowserTouchBar;
+extern const base::Feature kTabStripKeyboardFocus;
 #endif  // defined(OS_MACOSX)
 
 #if defined(OS_ANDROID)
@@ -122,6 +124,8 @@ extern const base::Feature kPostScriptPrinting;
 #if BUILDFLAG(ENABLE_PLUGINS)
 extern const base::Feature kPreferHtmlOverPlugins;
 #endif
+
+extern const base::Feature kPrefService;
 
 #if defined(OS_CHROMEOS)
 extern const base::Feature kPreloadLockScreen;

@@ -16,15 +16,15 @@ class ChromeLauncherController;
 class ArcPlaystoreShortcutLauncherItemController
     : public AppShortcutLauncherItemController {
  public:
-  ArcPlaystoreShortcutLauncherItemController(
+  explicit ArcPlaystoreShortcutLauncherItemController(
       ChromeLauncherController* controller);
   ~ArcPlaystoreShortcutLauncherItemController() override;
 
   // LauncherItemController overrides:
-  ash::ShelfAction ItemSelected(ui::EventType event_type,
-                                int event_flags,
-                                int64_t display_id,
-                                ash::ShelfLaunchSource source) override;
+  void ItemSelected(std::unique_ptr<ui::Event> event,
+                    int64_t display_id,
+                    ash::ShelfLaunchSource source,
+                    const ItemSelectedCallback& callback) override;
 
  private:
   std::unique_ptr<ArcAppLauncher> playstore_launcher_;

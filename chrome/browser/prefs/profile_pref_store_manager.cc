@@ -25,7 +25,7 @@
 #include "components/user_prefs/tracked/tracked_preferences_migration.h"
 
 #if defined(OS_WIN)
-#include "chrome/installer/util/browser_distribution.h"
+#include "chrome/install_static/install_util.h"
 #include "components/user_prefs/tracked/registry_hash_store_contents_win.h"
 #endif
 
@@ -102,7 +102,7 @@ void ProfilePrefStoreManager::SetPreferenceValidationRegistryPathForTesting(
 PersistentPrefStore* ProfilePrefStoreManager::CreateProfilePrefStore(
     const scoped_refptr<base::SequencedTaskRunner>& io_task_runner,
     const base::Closure& on_reset_on_load,
-    TrackedPreferenceValidationDelegate* validation_delegate) {
+    prefs::mojom::TrackedPreferenceValidationDelegate* validation_delegate) {
   std::unique_ptr<PrefFilter> pref_filter;
   if (!kPlatformSupportsPreferenceTracking) {
     return new JsonPrefStore(profile_path_.Append(chrome::kPreferencesFilename),
@@ -120,7 +120,8 @@ PersistentPrefStore* ProfilePrefStoreManager::CreateProfilePrefStore(
            it = tracking_configuration_.begin();
        it != tracking_configuration_.end();
        ++it) {
-    if (it->enforcement_level > PrefHashFilter::NO_ENFORCEMENT) {
+    if (it->enforcement_level >
+        PrefHashFilter::EnforcementLevel::NO_ENFORCEMENT) {
       protected_configuration.push_back(*it);
       protected_pref_names.insert(it->name);
     } else {
@@ -147,11 +148,8 @@ PersistentPrefStore* ProfilePrefStoreManager::CreateProfilePrefStore(
   scoped_refptr<JsonPrefStore> unprotected_pref_store(new JsonPrefStore(
       profile_path_.Append(chrome::kPreferencesFilename), io_task_runner.get(),
       std::move(unprotected_pref_hash_filter)));
-  // TODO(gab): Remove kDeprecatedProtectedPreferencesFilename as an alternate
-  // file in M40+.
   scoped_refptr<JsonPrefStore> protected_pref_store(new JsonPrefStore(
       profile_path_.Append(chrome::kSecurePreferencesFilename),
-      profile_path_.Append(chrome::kProtectedPreferencesFilenameDeprecated),
       io_task_runner.get(), std::move(protected_pref_hash_filter)));
 
   SetupTrackedPreferencesMigration(
@@ -170,23 +168,18 @@ PersistentPrefStore* ProfilePrefStoreManager::CreateProfilePrefStore(
 }
 
 bool ProfilePrefStoreManager::InitializePrefsFromMasterPrefs(
-    const base::DictionaryValue& master_prefs) {
+    std::unique_ptr<base::DictionaryValue> master_prefs) {
   // Create the profile directory if it doesn't exist yet (very possible on
   // first run).
   if (!base::CreateDirectory(profile_path_))
     return false;
 
-  const base::DictionaryValue* to_serialize = &master_prefs;
-  std::unique_ptr<base::DictionaryValue> copy;
-
   if (kPlatformSupportsPreferenceTracking) {
-    copy.reset(master_prefs.DeepCopy());
-    to_serialize = copy.get();
     PrefHashFilter(GetPrefHashStore(false),
                    GetExternalVerificationPrefHashStorePair(),
                    tracking_configuration_, base::Closure(), NULL,
                    reporting_ids_count_, false)
-        .Initialize(copy.get());
+        .Initialize(master_prefs.get());
   }
 
   // This will write out to a single combined file which will be immediately
@@ -199,7 +192,7 @@ bool ProfilePrefStoreManager::InitializePrefsFromMasterPrefs(
   // complete before Chrome can start (as master preferences seed the Local
   // State and Preferences files). This won't trip ThreadIORestrictions as they
   // won't have kicked in yet on the main thread.
-  bool success = serializer.Serialize(*to_serialize);
+  bool success = serializer.Serialize(*master_prefs);
 
   UMA_HISTOGRAM_BOOLEAN("Settings.InitializedFromMasterPrefs", success);
   return success;
@@ -226,7 +219,7 @@ ProfilePrefStoreManager::GetExternalVerificationPrefHashStorePair() {
                 *g_preference_validation_registry_path_for_testing,
                 profile_path_.BaseName().LossyDisplayName())
           : base::MakeUnique<RegistryHashStoreContentsWin>(
-                BrowserDistribution::GetDistribution()->GetRegistryPath(),
+                install_static::GetRegistryPath(),
                 profile_path_.BaseName().LossyDisplayName()));
 #else
   return std::make_pair(nullptr, nullptr);

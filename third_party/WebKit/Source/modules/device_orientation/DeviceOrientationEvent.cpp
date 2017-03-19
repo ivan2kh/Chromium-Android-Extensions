@@ -26,6 +26,7 @@
 #include "modules/device_orientation/DeviceOrientationEvent.h"
 
 #include "modules/device_orientation/DeviceOrientationData.h"
+#include "modules/device_orientation/DeviceOrientationEventInit.h"
 
 namespace blink {
 
@@ -36,24 +37,15 @@ DeviceOrientationEvent::DeviceOrientationEvent()
 
 DeviceOrientationEvent::DeviceOrientationEvent(
     const AtomicString& eventType,
+    const DeviceOrientationEventInit& initializer)
+    : Event(eventType, initializer),
+      m_orientation(DeviceOrientationData::create(initializer)) {}
+
+DeviceOrientationEvent::DeviceOrientationEvent(
+    const AtomicString& eventType,
     DeviceOrientationData* orientation)
     : Event(eventType, false, false),  // Can't bubble, not cancelable
       m_orientation(orientation) {}
-
-void DeviceOrientationEvent::initDeviceOrientationEvent(
-    const AtomicString& type,
-    bool bubbles,
-    bool cancelable,
-    const Nullable<double>& alpha,
-    const Nullable<double>& beta,
-    const Nullable<double>& gamma,
-    bool absolute) {
-  if (isBeingDispatched())
-    return;
-
-  initEvent(type, bubbles, cancelable);
-  m_orientation = DeviceOrientationData::create(alpha, beta, gamma, absolute);
-}
 
 double DeviceOrientationEvent::alpha(bool& isNull) const {
   if (m_orientation->canProvideAlpha())

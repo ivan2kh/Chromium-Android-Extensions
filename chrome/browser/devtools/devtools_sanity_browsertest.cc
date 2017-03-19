@@ -64,8 +64,10 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/notification_types.h"
+#include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/common/switches.h"
 #include "extensions/common/value_builder.h"
 #include "net/dns/mock_host_resolver.h"
@@ -489,23 +491,9 @@ class DevToolsExtensionTest : public DevToolsSanityTest,
         browser()->profile())->extension_service();
     extensions::ExtensionRegistry* registry =
         extensions::ExtensionRegistry::Get(browser()->profile());
-    size_t num_before = registry->enabled_extensions().size();
-    {
-      content::NotificationRegistrar registrar;
-      registrar.Add(this,
-                    extensions::NOTIFICATION_EXTENSION_LOADED_DEPRECATED,
-                    content::NotificationService::AllSources());
-      base::CancelableClosure timeout(
-          base::Bind(&TimeoutCallback, "Extension load timed out."));
-      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
-          FROM_HERE, timeout.callback(), TestTimeouts::action_timeout());
-      extensions::UnpackedInstaller::Create(service)->Load(path);
-      content::RunMessageLoop();
-      timeout.Cancel();
-    }
-    size_t num_after = registry->enabled_extensions().size();
-    if (num_after != (num_before + 1))
-      return nullptr;
+    extensions::TestExtensionRegistryObserver observer(registry);
+    extensions::UnpackedInstaller::Create(service)->Load(path);
+    observer.WaitForExtensionLoaded();
 
     if (!WaitForExtensionViewsToLoad())
       return nullptr;
@@ -560,15 +548,9 @@ class DevToolsExtensionTest : public DevToolsSanityTest,
   void Observe(int type,
                const content::NotificationSource& source,
                const content::NotificationDetails& details) override {
-    switch (type) {
-      case extensions::NOTIFICATION_EXTENSION_LOADED_DEPRECATED:
-      case extensions::NOTIFICATION_EXTENSION_HOST_DID_STOP_FIRST_LOAD:
-        base::MessageLoopForUI::current()->QuitWhenIdle();
-        break;
-      default:
-        NOTREACHED();
-        break;
-    }
+    DCHECK_EQ(extensions::NOTIFICATION_EXTENSION_HOST_DID_STOP_FIRST_LOAD,
+              type);
+    base::MessageLoopForUI::current()->QuitWhenIdle();
   }
 
   base::FilePath test_extensions_dir_;
@@ -729,8 +711,16 @@ IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest, TestDockedDevToolsClose) {
 
 // Tests that BeforeUnload event gets called on docked devtools if
 // we try to close the inspected page.
+// Flaky on Windows, Linux and ChromiumOS.  http://crbug.com/702171
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#define MAYBE_TestDockedDevToolsInspectedTabClose \
+  DISABLED_TestDockedDevToolsInspectedTabClose
+#else
+#define MAYBE_TestDockedDevToolsInspectedTabClose \
+  TestDockedDevToolsInspectedTabClose
+#endif
 IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
-                       TestDockedDevToolsInspectedTabClose) {
+                       MAYBE_TestDockedDevToolsInspectedTabClose) {
   RunBeforeUnloadSanityTest(true, base::Bind(
       &DevToolsBeforeUnloadTest::CloseInspectedTab,
       base::Unretained(this)));
@@ -738,8 +728,16 @@ IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
 
 // Tests that BeforeUnload event gets called on docked devtools if
 // we try to close the inspected browser.
+// Flaky on Windows. http://crbug.com/702171
+#if defined(OS_WIN)
+#define MAYBE_TestDockedDevToolsInspectedBrowserClose \
+  DISABLED_TestDockedDevToolsInspectedBrowserClose
+#else
+#define MAYBE_TestDockedDevToolsInspectedBrowserClose \
+  TestDockedDevToolsInspectedBrowserClose
+#endif
 IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
-                       TestDockedDevToolsInspectedBrowserClose) {
+                       MAYBE_TestDockedDevToolsInspectedBrowserClose) {
   RunBeforeUnloadSanityTest(true, base::Bind(
       &DevToolsBeforeUnloadTest::CloseInspectedBrowser,
       base::Unretained(this)));
@@ -747,7 +745,14 @@ IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
 
 // Tests that BeforeUnload event gets called on undocked devtools if
 // we try to close them.
-IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest, TestUndockedDevToolsClose) {
+// Flaky on Windows, Linux and ChromiumOS.  http://crbug.com/702171
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#define MAYBE_TestUndockedDevToolsClose DISABLED_TestUndockedDevToolsClose
+#else
+#define MAYBE_TestUndockedDevToolsClose TestUndockedDevToolsClose
+#endif
+IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
+                       MAYBE_TestUndockedDevToolsClose) {
   RunBeforeUnloadSanityTest(false, base::Bind(
       &DevToolsBeforeUnloadTest::CloseDevToolsWindowAsync,
       base::Unretained(this)), false);
@@ -755,8 +760,16 @@ IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest, TestUndockedDevToolsClose) {
 
 // Tests that BeforeUnload event gets called on undocked devtools if
 // we try to close the inspected page.
+// Flaky on Windows. http://crbug.com/702171
+#if defined(OS_WIN)
+#define MAYBE_TestUndockedDevToolsInspectedTabClose \
+  DISABLED_TestUndockedDevToolsInspectedTabClose
+#else
+#define MAYBE_TestUndockedDevToolsInspectedTabClose \
+  TestUndockedDevToolsInspectedTabClose
+#endif
 IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
-                       TestUndockedDevToolsInspectedTabClose) {
+                       MAYBE_TestUndockedDevToolsInspectedTabClose) {
   RunBeforeUnloadSanityTest(false, base::Bind(
       &DevToolsBeforeUnloadTest::CloseInspectedTab,
       base::Unretained(this)));
@@ -764,8 +777,16 @@ IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
 
 // Tests that BeforeUnload event gets called on undocked devtools if
 // we try to close the inspected browser.
+// Flaky on Windows, Linux and ChromiumOS.  http://crbug.com/702171
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#define MAYBE_TestUndockedDevToolsInspectedBrowserClose \
+  DISABLED_TestUndockedDevToolsInspectedBrowserClose
+#else
+#define MAYBE_TestUndockedDevToolsInspectedBrowserClose \
+  TestUndockedDevToolsInspectedBrowserClose
+#endif
 IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
-                       TestUndockedDevToolsInspectedBrowserClose) {
+                       MAYBE_TestUndockedDevToolsInspectedBrowserClose) {
   RunBeforeUnloadSanityTest(false, base::Bind(
       &DevToolsBeforeUnloadTest::CloseInspectedBrowser,
       base::Unretained(this)));
@@ -773,8 +794,16 @@ IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
 
 // Tests that BeforeUnload event gets called on undocked devtools if
 // we try to exit application.
+// Flaky on Windows, Linux and ChromiumOS.  http://crbug.com/702171
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#define MAYBE_TestUndockedDevToolsApplicationClose \
+  DISABLED_TestUndockedDevToolsApplicationClose
+#else
+#define MAYBE_TestUndockedDevToolsApplicationClose \
+  TestUndockedDevToolsApplicationClose
+#endif
 IN_PROC_BROWSER_TEST_F(DevToolsBeforeUnloadTest,
-                       TestUndockedDevToolsApplicationClose) {
+                       MAYBE_TestUndockedDevToolsApplicationClose) {
   RunBeforeUnloadSanityTest(false, base::Bind(
       &chrome::CloseAllBrowsers));
 }
@@ -1222,7 +1251,13 @@ IN_PROC_BROWSER_TEST_F(DevToolsSanityTest, TestDevToolsExternalNavigation) {
 }
 
 // Tests that toolbox window is loaded when DevTools window is undocked.
-IN_PROC_BROWSER_TEST_F(DevToolsSanityTest, TestToolboxLoadedUndocked) {
+// Crashes on Linux only.  https://crbug.com/702641
+#if defined(OS_LINUX)
+#define MAYBE_TestToolboxLoadedUndocked DISABLED_TestToolboxLoadedUndocked
+#else
+#define MAYBE_TestToolboxLoadedUndocked TestToolboxLoadedUndocked
+#endif
+IN_PROC_BROWSER_TEST_F(DevToolsSanityTest, MAYBE_TestToolboxLoadedUndocked) {
   OpenDevToolsWindow(kDebuggerTestPage, false);
   ASSERT_TRUE(toolbox_web_contents());
   DevToolsWindow* on_self =
@@ -1339,16 +1374,9 @@ IN_PROC_BROWSER_TEST_F(WorkerDevToolsSanityTest, InspectSharedWorker) {
   RunTest("testSharedWorker", kSharedWorkerTestPage, kSharedWorkerTestWorker);
 }
 
-// Flakey on Win.  http://crbug.com/663351
-#if defined(OS_WIN)
-#define MAYBE_PauseInSharedWorkerInitialization \
-  DISABLED_PauseInSharedWorkerInitialization
-#else
-#define MAYBE_PauseInSharedWorkerInitialization \
-  PauseInSharedWorkerInitialization
-#endif
+// Flaky on multiple platforms. See http://crbug.com/432444
 IN_PROC_BROWSER_TEST_F(WorkerDevToolsSanityTest,
-                       MAYBE_PauseInSharedWorkerInitialization) {
+                       DISABLED_PauseInSharedWorkerInitialization) {
   ASSERT_TRUE(spawned_test_server()->Start());
   GURL url = spawned_test_server()->GetURL(kReloadSharedWorkerTestPage);
   ui_test_utils::NavigateToURL(browser(), url);

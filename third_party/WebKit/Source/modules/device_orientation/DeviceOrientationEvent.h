@@ -32,6 +32,7 @@
 
 namespace blink {
 
+class DeviceOrientationEventInit;
 class DeviceOrientationData;
 
 class DeviceOrientationEvent final : public Event {
@@ -40,18 +41,15 @@ class DeviceOrientationEvent final : public Event {
  public:
   ~DeviceOrientationEvent() override;
   static DeviceOrientationEvent* create() { return new DeviceOrientationEvent; }
+  static DeviceOrientationEvent* create(
+      const AtomicString& eventType,
+      const DeviceOrientationEventInit& initializer) {
+    return new DeviceOrientationEvent(eventType, initializer);
+  }
   static DeviceOrientationEvent* create(const AtomicString& eventType,
                                         DeviceOrientationData* orientation) {
     return new DeviceOrientationEvent(eventType, orientation);
   }
-
-  void initDeviceOrientationEvent(const AtomicString& type,
-                                  bool bubbles,
-                                  bool cancelable,
-                                  const Nullable<double>& alpha,
-                                  const Nullable<double>& beta,
-                                  const Nullable<double>& gamma,
-                                  bool absolute);
 
   DeviceOrientationData* orientation() const { return m_orientation.get(); }
 
@@ -66,6 +64,8 @@ class DeviceOrientationEvent final : public Event {
 
  private:
   DeviceOrientationEvent();
+  DeviceOrientationEvent(const AtomicString&,
+                         const DeviceOrientationEventInit&);
   DeviceOrientationEvent(const AtomicString& eventType, DeviceOrientationData*);
 
   Member<DeviceOrientationData> m_orientation;

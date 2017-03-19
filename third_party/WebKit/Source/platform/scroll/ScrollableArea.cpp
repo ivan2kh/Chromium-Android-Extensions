@@ -486,7 +486,7 @@ void ScrollableArea::layerForScrollingDidChange(
 
 bool ScrollableArea::scheduleAnimation() {
   if (HostWindow* window = getHostWindow()) {
-    window->scheduleAnimation(getWidget());
+    window->scheduleAnimation(getFrameViewBase());
     return true;
   }
   return false;
@@ -635,7 +635,7 @@ float ScrollableArea::pixelStep(ScrollbarOrientation) const {
 
 int ScrollableArea::verticalScrollbarWidth(
     OverlayScrollbarClipBehavior behavior) const {
-  DCHECK_EQ(behavior, IgnoreOverlayScrollbarSize);
+  DCHECK_EQ(behavior, IgnorePlatformOverlayScrollbarSize);
   if (Scrollbar* verticalBar = verticalScrollbar())
     return !verticalBar->isOverlayScrollbar() ? verticalBar->width() : 0;
   return 0;
@@ -643,7 +643,7 @@ int ScrollableArea::verticalScrollbarWidth(
 
 int ScrollableArea::horizontalScrollbarHeight(
     OverlayScrollbarClipBehavior behavior) const {
-  DCHECK_EQ(behavior, IgnoreOverlayScrollbarSize);
+  DCHECK_EQ(behavior, IgnorePlatformOverlayScrollbarSize);
   if (Scrollbar* horizontalBar = horizontalScrollbar())
     return !horizontalBar->isOverlayScrollbar() ? horizontalBar->height() : 0;
   return 0;

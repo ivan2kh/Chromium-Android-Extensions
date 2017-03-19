@@ -217,8 +217,7 @@ CategoryInfo DownloadSuggestionsProvider::GetCategoryInfo(Category category) {
   return CategoryInfo(
       l10n_util::GetStringUTF16(IDS_NTP_DOWNLOAD_SUGGESTIONS_SECTION_HEADER),
       ntp_snippets::ContentSuggestionsCardLayout::FULL_CARD,
-      /*has_fetch_action=*/false,
-      /*has_view_all_action=*/true,
+      ntp_snippets::ContentSuggestionsAdditionalAction::VIEW_ALL,
       /*show_if_empty=*/false,
       l10n_util::GetStringUTF16(IDS_NTP_DOWNLOADS_SUGGESTIONS_SECTION_EMPTY));
 }
@@ -617,6 +616,7 @@ ContentSuggestion DownloadSuggestionsProvider::ConvertDownloadItem(
   suggestion.set_publisher_name(
       base::UTF8ToUTF16(download_item.GetURL().host()));
   auto extra = base::MakeUnique<ntp_snippets::DownloadSuggestionExtra>();
+  extra->download_guid = download_item.GetGuid();
   extra->target_file_path = download_item.GetTargetFilePath();
   extra->mime_type = download_item.GetMimeType();
   extra->is_download_asset = true;

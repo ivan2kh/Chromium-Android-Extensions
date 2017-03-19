@@ -8,6 +8,7 @@
 #include <cmath>
 #include <list>
 #include <memory>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -24,6 +25,8 @@ extern "C" {
 };
 #endif
 
+using std::abs;
+using std::copysign;
 using std::exp;
 using std::log;
 using std::max;
@@ -34,6 +37,19 @@ using std::sqrt;
 namespace gfx {
 
 namespace {
+
+void InitStringStream(std::stringstream* ss) {
+  ss->imbue(std::locale::classic());
+  ss->precision(8);
+  *ss << std::scientific;
+}
+
+std::string Str(float f) {
+  std::stringstream ss;
+  InitStringStream(&ss);
+  ss << f;
+  return ss.str();
+}
 
 // Helper for scoped QCMS profiles.
 struct QcmsProfileDeleter {
@@ -48,7 +64,7 @@ using ScopedQcmsProfile = std::unique_ptr<qcms_profile, QcmsProfileDeleter>;
 Transform Invert(const Transform& t) {
   Transform ret = t;
   if (!t.GetInverse(&ret)) {
-    LOG(ERROR) << "Inverse should alsways be possible.";
+    LOG(ERROR) << "Inverse should always be possible.";
   }
   return ret;
 }
@@ -227,6 +243,7 @@ Transform GetPrimaryTransform(const gfx::ColorSpace& color_space) {
 }  // namespace
 
 class ColorTransformMatrix;
+class ColorTransformSkTransferFn;
 class ColorTransformFromLinear;
 class ColorTransformToBT2020CL;
 class ColorTransformFromBT2020CL;
@@ -240,6 +257,7 @@ class ColorTransformStep {
   virtual ColorTransformFromLinear* GetFromLinear() { return nullptr; }
   virtual ColorTransformToBT2020CL* GetToBT2020CL() { return nullptr; }
   virtual ColorTransformFromBT2020CL* GetFromBT2020CL() { return nullptr; }
+  virtual ColorTransformSkTransferFn* GetSkTransferFn() { return nullptr; }
   virtual ColorTransformMatrix* GetMatrix() { return nullptr; }
   virtual ColorTransformNull* GetNull() { return nullptr; }
   virtual QCMSColorTransform* GetQCMS() { return nullptr; }
@@ -253,7 +271,7 @@ class ColorTransformStep {
   virtual bool IsNull() { return false; }
   virtual void Transform(ColorTransform::TriStim* color, size_t num) const = 0;
   virtual bool CanAppendShaderSource() { return false; }
-  virtual void AppendShaderSource(std::string* result) { NOTREACHED(); }
+  virtual void AppendShaderSource(std::stringstream* result) { NOTREACHED(); }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ColorTransformStep);
@@ -294,19 +312,13 @@ class ColorTransformInternal : public ColorTransform {
   gfx::ColorSpace dst_;
 };
 
-#define SRC(...)                                                     \
-  do {                                                               \
-    *result += std::string("  ") + base::StringPrintf(__VA_ARGS__) + \
-               std::string("\n");                                    \
-  } while (0)
-
 class ColorTransformNull : public ColorTransformStep {
  public:
   ColorTransformNull* GetNull() override { return this; }
   bool IsNull() override { return true; }
   void Transform(ColorTransform::TriStim* color, size_t num) const override {}
   bool CanAppendShaderSource() override { return true; }
-  void AppendShaderSource(std::string* result) override {}
+  void AppendShaderSource(std::stringstream* result) override {}
 };
 
 class ColorTransformMatrix : public ColorTransformStep {
@@ -335,87 +347,169 @@ class ColorTransformMatrix : public ColorTransformStep {
 
   bool CanAppendShaderSource() override { return true; }
 
-  void AppendShaderSource(std::string* result) override {
+  void AppendShaderSource(std::stringstream* result) override {
     const SkMatrix44& m = matrix_.matrix();
-    SRC("color = mat3(%1.8e, %1.8e, %1.8e, %1.8e, %1.8e, %1.8e, %1.8e, %1.8e, "
-        "%1.8e) * color;",
-        m.get(0, 0), m.get(1, 0), m.get(2, 0),   // column 1
-        m.get(0, 1), m.get(1, 1), m.get(2, 1),   // column 2
-        m.get(0, 2), m.get(1, 2), m.get(2, 2));  // column 3
-    SRC("color += vec3(%1.8e, %1.8e, %1.8e);", m.get(0, 3), m.get(1, 3),
-        m.get(2, 3));
+    *result << "  color = mat3(";
+    *result << m.get(0, 0) << ", " << m.get(1, 0) << ", " << m.get(2, 0) << ",";
+    *result << std::endl;
+    *result << "               ";
+    *result << m.get(0, 1) << ", " << m.get(1, 1) << ", " << m.get(2, 1) << ",";
+    *result << std::endl;
+    *result << "               ";
+    *result << m.get(0, 2) << ", " << m.get(1, 2) << ", " << m.get(2, 2) << ")";
+    *result << " * color;" << std::endl;
+
+    // Only print the translational component if it isn't the identity.
+    if (m.get(0, 3) != 0.f || m.get(1, 3) != 0.f || m.get(2, 3) != 0.f) {
+      *result << "  color += vec3(";
+      *result << m.get(0, 3) << ", " << m.get(1, 3) << ", " << m.get(2, 3);
+      *result << ");" << std::endl;
+    }
   }
 
  private:
   class Transform matrix_;
 };
 
+class ColorTransformSkTransferFn : public ColorTransformStep {
+ public:
+  explicit ColorTransformSkTransferFn(const SkColorSpaceTransferFn& fn,
+                                      bool extended)
+      : fn_(fn), extended_(extended) {}
+  ColorTransformSkTransferFn* GetSkTransferFn() override { return this; }
+
+  bool Join(ColorTransformStep* next_untyped) override {
+    ColorTransformSkTransferFn* next = next_untyped->GetSkTransferFn();
+    if (!next)
+      return false;
+    if (!extended_ && !next->extended_ &&
+        SkTransferFnsApproximatelyCancel(fn_, next->fn_)) {
+      // Set to be the identity.
+      fn_.fA = 1;
+      fn_.fB = 0;
+      fn_.fC = 1;
+      fn_.fD = 0;
+      fn_.fE = 0;
+      fn_.fF = 0;
+      fn_.fG = 1;
+      return true;
+    }
+    return false;
+  }
+
+  bool IsNull() override { return SkTransferFnIsApproximatelyIdentity(fn_); }
+
+  void Transform(ColorTransform::TriStim* colors, size_t num) const override {
+    for (size_t i = 0; i < num; i++) {
+      ColorTransform::TriStim& c = colors[i];
+      if (extended_) {
+        c.set_x(copysign(SkTransferFnEval(fn_, abs(c.x())), c.x()));
+        c.set_y(copysign(SkTransferFnEval(fn_, abs(c.y())), c.y()));
+        c.set_z(copysign(SkTransferFnEval(fn_, abs(c.z())), c.z()));
+      } else {
+        c.set_x(SkTransferFnEval(fn_, c.x()));
+        c.set_y(SkTransferFnEval(fn_, c.y()));
+        c.set_z(SkTransferFnEval(fn_, c.z()));
+      }
+    }
+  }
+
+  bool CanAppendShaderSource() override { return true; }
+
+  void AppendShaderSourceChannel(std::stringstream* result,
+                                 const std::string& value) {
+    std::string abs_value = "abs(" + value + ")";
+    const float kEpsilon = 1.f / 1024.f;
+
+    // Construct the linear segment
+    //   linear = C * x + F
+    // Elide operations that will be close to the identity.
+    std::string linear = value;
+    if (std::abs(fn_.fC - 1.f) > kEpsilon)
+      linear = Str(fn_.fC) + " * " + linear;
+    if (std::abs(fn_.fF) > kEpsilon)
+      linear = linear + " + " + Str(fn_.fF);
+
+    // Construct the nonlinear segment.
+    //   nonlinear = pow(A * x + B, G) + E
+    // Elide operations (especially the pow) that will be close to the
+    // identity.
+    std::string nonlinear = extended_ ? abs_value : value;
+    if (std::abs(fn_.fA - 1.f) > kEpsilon)
+      nonlinear = Str(fn_.fA) + " * " + nonlinear;
+    if (std::abs(fn_.fB) > kEpsilon)
+      nonlinear = nonlinear + " + " + Str(fn_.fB);
+    if (std::abs(fn_.fG - 1.f) > kEpsilon)
+      nonlinear = "pow(" + nonlinear + ", " + Str(fn_.fG) + ")";
+    if (std::abs(fn_.fE) > kEpsilon)
+      nonlinear = nonlinear + " + " + Str(fn_.fE);
+    if (extended_) {
+      if (nonlinear == abs_value)
+        nonlinear = value;
+      else
+        nonlinear = "sign(" + value + ") * (" + nonlinear + ")";
+    }
+
+    // Add both parts, skpping the if clause if possible.
+    if (fn_.fD > kEpsilon) {
+      if (extended_) {
+        *result << "  if (" << abs_value << " < " << Str(fn_.fD) << ")"
+                << std::endl;
+      } else {
+        *result << "  if (" << value << " < " << Str(fn_.fD) << ")"
+                << std::endl;
+      }
+      *result << "    " << value << " = " << linear << ";" << std::endl;
+      *result << "  else" << std::endl;
+      *result << "    " << value << " = " << nonlinear << ";" << std::endl;
+    } else {
+      *result << "  " << value << " = " << nonlinear << ";" << std::endl;
+    }
+  }
+
+  void AppendShaderSource(std::stringstream* result) override {
+    // Append the transfer function for each channel.
+    AppendShaderSourceChannel(result, "color.r");
+    AppendShaderSourceChannel(result, "color.g");
+    AppendShaderSourceChannel(result, "color.b");
+  }
+
+ private:
+  SkColorSpaceTransferFn fn_;
+  // True if the transfer function is extended to be defined for all real
+  // values.
+  const bool extended_ = false;
+};
+
 class ColorTransformFromLinear : public ColorTransformStep {
  public:
-  explicit ColorTransformFromLinear(ColorSpace::TransferID transfer,
-                                    const SkColorSpaceTransferFn& fn,
-                                    bool fn_valid)
-      : transfer_(transfer), fn_(fn), fn_valid_(fn_valid) {
-    if (transfer_ == ColorSpace::TransferID::LINEAR_HDR)
-      transfer_ = ColorSpace::TransferID::LINEAR;
-  }
+  explicit ColorTransformFromLinear(ColorSpace::TransferID transfer)
+      : transfer_(transfer) {}
   ColorTransformFromLinear* GetFromLinear() override { return this; }
   bool IsNull() override { return transfer_ == ColorSpace::TransferID::LINEAR; }
   void Transform(ColorTransform::TriStim* colors, size_t num) const override {
-    if (fn_valid_) {
-      for (size_t i = 0; i < num; i++) {
-        colors[i].set_x(EvalSkTransferFn(fn_, colors[i].x()));
-        colors[i].set_y(EvalSkTransferFn(fn_, colors[i].y()));
-        colors[i].set_z(EvalSkTransferFn(fn_, colors[i].z()));
-      }
-    } else {
-      for (size_t i = 0; i < num; i++) {
-        colors[i].set_x(FromLinear(transfer_, colors[i].x()));
-        colors[i].set_y(FromLinear(transfer_, colors[i].y()));
-        colors[i].set_z(FromLinear(transfer_, colors[i].z()));
-      }
+    for (size_t i = 0; i < num; i++) {
+      colors[i].set_x(FromLinear(transfer_, colors[i].x()));
+      colors[i].set_y(FromLinear(transfer_, colors[i].y()));
+      colors[i].set_z(FromLinear(transfer_, colors[i].z()));
     }
   }
 
  private:
   friend class ColorTransformToLinear;
   ColorSpace::TransferID transfer_;
-  SkColorSpaceTransferFn fn_;
-  bool fn_valid_ = false;
 };
 
 class ColorTransformToLinear : public ColorTransformStep {
  public:
-  explicit ColorTransformToLinear(ColorSpace::TransferID transfer,
-                                  const SkColorSpaceTransferFn& fn,
-                                  bool fn_valid)
-      : transfer_(transfer), fn_(fn), fn_valid_(fn_valid) {
-    if (transfer_ == ColorSpace::TransferID::LINEAR_HDR)
-      transfer_ = ColorSpace::TransferID::LINEAR;
-  }
-
-  static bool IsGamma22(ColorSpace::TransferID transfer) {
-    switch (transfer) {
-      // We don't need to check BT709 here because it's been translated into
-      // SRGB in ColorSpaceToColorSpaceTransform::ColorSpaceToLinear below.
-      case ColorSpace::TransferID::GAMMA22:
-      case ColorSpace::TransferID::IEC61966_2_1:  // SRGB
-        return true;
-
-      default:
-        return false;
-    }
-  }
+  explicit ColorTransformToLinear(ColorSpace::TransferID transfer)
+      : transfer_(transfer) {}
 
   bool Join(ColorTransformStep* next_untyped) override {
     ColorTransformFromLinear* next = next_untyped->GetFromLinear();
     if (!next)
       return false;
-    // TODO(ccameron): Use SkTransferFnsApproximatelyCancel and
-    // SkTransferFnIsApproximatelyIdentity to merge parametric transfer
-    // functions.
-    if (transfer_ == next->transfer_ ||
-        (IsGamma22(transfer_) && IsGamma22(next->transfer_))) {
+    if (transfer_ == next->transfer_) {
       transfer_ = ColorSpace::TransferID::LINEAR;
       return true;
     }
@@ -443,13 +537,7 @@ class ColorTransformToLinear : public ColorTransformStep {
   }
 
   void Transform(ColorTransform::TriStim* colors, size_t num) const override {
-    if (fn_valid_) {
-      for (size_t i = 0; i < num; i++) {
-        colors[i].set_x(EvalSkTransferFn(fn_, colors[i].x()));
-        colors[i].set_y(EvalSkTransferFn(fn_, colors[i].y()));
-        colors[i].set_z(EvalSkTransferFn(fn_, colors[i].z()));
-      }
-    } else if (transfer_ == ColorSpace::TransferID::SMPTEST2084_NON_HDR) {
+    if (transfer_ == ColorSpace::TransferID::SMPTEST2084_NON_HDR) {
       for (size_t i = 0; i < num; i++) {
         ColorTransform::TriStim ret(ToLinear(transfer_, colors[i].x()),
                                     ToLinear(transfer_, colors[i].y()),
@@ -475,8 +563,6 @@ class ColorTransformToLinear : public ColorTransformStep {
 
  private:
   ColorSpace::TransferID transfer_;
-  SkColorSpaceTransferFn fn_;
-  bool fn_valid_ = false;
 };
 
 // BT2020 Constant Luminance is different than most other
@@ -618,14 +704,18 @@ void ColorTransformInternal::AppendColorSpaceToColorSpaceTransform(
       base::MakeUnique<ColorTransformMatrix>(Invert(GetTransferMatrix(from))));
 
   // If the target color space is not defined, just apply the adjust and
-  // tranfer matrices.
+  // tranfer matrices. This path is used by YUV to RGB color conversion
+  // when full color conversion is not enabled.
   if (!to.IsValid())
     return;
 
   SkColorSpaceTransferFn to_linear_fn;
-  bool to_linear_fn_valid = from.GetTransferFunction(&to_linear_fn);
-  steps_.push_back(base::MakeUnique<ColorTransformToLinear>(
-      from.transfer_, to_linear_fn, to_linear_fn_valid));
+  if (from.GetTransferFunction(&to_linear_fn)) {
+    steps_.push_back(base::MakeUnique<ColorTransformSkTransferFn>(
+        to_linear_fn, from.HasExtendedSkTransferFn()));
+  } else {
+    steps_.push_back(base::MakeUnique<ColorTransformToLinear>(from.transfer_));
+  }
 
   if (from.matrix_ == ColorSpace::MatrixID::BT2020_CL) {
     // BT2020 CL is a special case.
@@ -642,9 +732,12 @@ void ColorTransformInternal::AppendColorSpaceToColorSpaceTransform(
   }
 
   SkColorSpaceTransferFn from_linear_fn;
-  bool from_linear_fn_valid = to.GetInverseTransferFunction(&from_linear_fn);
-  steps_.push_back(base::MakeUnique<ColorTransformFromLinear>(
-      to.transfer_, from_linear_fn, from_linear_fn_valid));
+  if (to.GetInverseTransferFunction(&from_linear_fn)) {
+    steps_.push_back(base::MakeUnique<ColorTransformSkTransferFn>(
+        from_linear_fn, to.HasExtendedSkTransferFn()));
+  } else {
+    steps_.push_back(base::MakeUnique<ColorTransformFromLinear>(to.transfer_));
+  }
 
   steps_.push_back(
       base::MakeUnique<ColorTransformMatrix>(GetTransferMatrix(to)));
@@ -653,6 +746,7 @@ void ColorTransformInternal::AppendColorSpaceToColorSpaceTransform(
       base::MakeUnique<ColorTransformMatrix>(Invert(GetRangeAdjustMatrix(to))));
 }
 
+// TODO(ccameron): Change this to SkColorSpaceXform.
 class QCMSColorTransform : public ColorTransformStep {
  public:
   // Takes ownership of the profiles
@@ -695,9 +789,21 @@ class QCMSColorTransform : public ColorTransformStep {
 
 ScopedQcmsProfile ColorTransformInternal::GetQCMSProfileIfNecessary(
     const ColorSpace& color_space) {
-  ICCProfile icc_profile;
-  if (!ICCProfile::FromId(color_space.icc_profile_id_, true, &icc_profile))
+  if (color_space.primaries_ != ColorSpace::PrimaryID::ICC_BASED &&
+      color_space.transfer_ != ColorSpace::TransferID::ICC_BASED) {
     return nullptr;
+  }
+  // TODO(ccameron): Use SkColorSpaceXform here to avoid looking up the
+  // ICCProfile.
+  ICCProfile icc_profile;
+  if (!ICCProfile::FromId(color_space.icc_profile_id_, &icc_profile)) {
+    // We needed the original ICC profile to construct this transform, but it
+    // has been flushed from our cache. Fall back to using the ICC profile's
+    // inaccurate, so spam the console.
+    // TODO(ccameron): This will go away when we switch to SkColorSpaceXform.
+    LOG(ERROR) << "Failed to retrieve original ICC profile, using sRGB";
+    return ScopedQcmsProfile(qcms_profile_sRGB());
+  }
   return ScopedQcmsProfile(qcms_profile_from_memory(
       icc_profile.GetData().data(), icc_profile.GetData().size()));
 }
@@ -732,8 +838,15 @@ ColorTransformInternal::ColorTransformInternal(const ColorSpace& src,
   if (!src_.IsValid())
     return;
 
-  ScopedQcmsProfile src_profile = GetQCMSProfileIfNecessary(src_);
-  ScopedQcmsProfile dst_profile = GetQCMSProfileIfNecessary(dst_);
+  // If the target color space is not defined, just apply the adjust and
+  // tranfer matrices. This path is used by YUV to RGB color conversion
+  // when full color conversion is not enabled.
+  ScopedQcmsProfile src_profile;
+  ScopedQcmsProfile dst_profile;
+  if (dst.IsValid()) {
+    src_profile = GetQCMSProfileIfNecessary(src_);
+    dst_profile = GetQCMSProfileIfNecessary(dst_);
+  }
   bool has_src_profile = !!src_profile;
   bool has_dst_profile = !!dst_profile;
 
@@ -756,13 +869,14 @@ ColorTransformInternal::ColorTransformInternal(const ColorSpace& src,
 }
 
 std::string ColorTransformInternal::GetShaderSource() const {
-  std::string result;
-  result += "vec3 DoColorConversion(vec3 color) {\n";
+  std::stringstream result;
+  InitStringStream(&result);
+  result << "vec3 DoColorConversion(vec3 color) {" << std::endl;
   for (const auto& step : steps_)
     step->AppendShaderSource(&result);
-  result += "  return color;\n";
-  result += "}\n";
-  return result;
+  result << "  return color;" << std::endl;
+  result << "}" << std::endl;
+  return result.str();
 }
 
 bool ColorTransformInternal::CanGetShaderSource() const {

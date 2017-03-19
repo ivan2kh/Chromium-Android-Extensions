@@ -14,7 +14,7 @@ import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.chrome.browser.ChromeApplication;
+import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.childaccounts.ChildAccountService;
 import org.chromium.chrome.browser.identity.UniqueIdentificationGenerator;
 import org.chromium.chrome.browser.identity.UniqueIdentificationGeneratorFactory;
@@ -77,6 +77,7 @@ public class SyncController implements ProfileSyncService.SyncStateChangedListen
         mProfileSyncService.addSyncStateChangedListener(this);
         mProfileSyncService.setMasterSyncEnabledProvider(
                 new ProfileSyncService.MasterSyncEnabledProvider() {
+                    @Override
                     public boolean isMasterSyncEnabled() {
                         return AndroidSyncSettings.isMasterSyncEnabled(mContext);
                     }
@@ -101,8 +102,7 @@ public class SyncController implements ProfileSyncService.SyncStateChangedListen
             }
         });
 
-        GmsCoreSyncListener gmsCoreSyncListener =
-                ((ChromeApplication) context.getApplicationContext()).createGmsCoreSyncListener();
+        GmsCoreSyncListener gmsCoreSyncListener = AppHooks.get().createGmsCoreSyncListener();
         if (gmsCoreSyncListener != null) {
             mProfileSyncService.addSyncStateChangedListener(gmsCoreSyncListener);
         }

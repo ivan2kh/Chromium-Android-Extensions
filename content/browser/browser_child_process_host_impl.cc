@@ -58,11 +58,12 @@
 namespace content {
 namespace {
 
-static base::LazyInstance<BrowserChildProcessHostImpl::BrowserChildProcessList>
+static base::LazyInstance<
+    BrowserChildProcessHostImpl::BrowserChildProcessList>::DestructorAtExit
     g_child_process_list = LAZY_INSTANCE_INITIALIZER;
 
-base::LazyInstance<base::ObserverList<BrowserChildProcessObserver>>
-    g_observers = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<base::ObserverList<BrowserChildProcessObserver>>::
+    DestructorAtExit g_observers = LAZY_INSTANCE_INITIALIZER;
 
 void NotifyProcessLaunchedAndConnected(const ChildProcessData& data) {
   for (auto& observer : g_observers.Get())
@@ -308,10 +309,6 @@ void BrowserChildProcessHostImpl::ForceShutdown() {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   g_child_process_list.Get().remove(this);
   child_process_host_->ForceShutdown();
-}
-
-void BrowserChildProcessHostImpl::SetBackgrounded(bool backgrounded) {
-  child_process_->SetProcessBackgrounded(backgrounded);
 }
 
 void BrowserChildProcessHostImpl::AddFilter(BrowserMessageFilter* filter) {

@@ -63,6 +63,7 @@
 #include "content/browser/gpu/gpu_process_host_ui_shim.h"
 #include "content/browser/gpu/shader_cache_factory.h"
 #include "content/browser/histogram_synchronizer.h"
+#include "content/browser/leveldb_wrapper_impl.h"
 #include "content/browser/loader/resource_dispatcher_host_impl.h"
 #include "content/browser/loader_delegate_impl.h"
 #include "content/browser/media/media_internals.h"
@@ -91,7 +92,7 @@
 #include "content/public/common/result_codes.h"
 #include "device/battery/battery_status_service.h"
 #include "device/gamepad/gamepad_service.h"
-#include "device/sensors/device_sensor_service.h"
+#include "gpu/vulkan/features.h"
 #include "media/audio/audio_system_impl.h"
 #include "media/base/media.h"
 #include "media/base/user_input_monitor.h"
@@ -102,6 +103,7 @@
 #include "net/socket/client_socket_factory.h"
 #include "net/ssl/ssl_config_service.h"
 #include "ppapi/features/features.h"
+#include "services/resource_coordinator/memory/coordinator/coordinator_impl.h"
 #include "services/service_manager/runner/common/client_util.h"
 #include "skia/ext/event_tracer_impl.h"
 #include "skia/ext/skia_memory_dump_provider.h"
@@ -125,7 +127,6 @@
 #include "content/browser/android/scoped_surface_request_manager.h"
 #include "content/browser/android/tracing_controller_android.h"
 #include "content/browser/media/android/browser_media_player_manager.h"
-#include "content/browser/renderer_host/context_provider_factory_impl_android.h"
 #include "content/browser/screen_orientation/screen_orientation_delegate_android.h"
 #include "media/base/android/media_client_android.h"
 #include "ui/android/screen_android.h"
@@ -206,7 +207,7 @@
 #include "crypto/nss_util.h"
 #endif
 
-#if defined(ENABLE_VULKAN)
+#if BUILDFLAG(ENABLE_VULKAN)
 #include "gpu/vulkan/vulkan_implementation.h"
 #endif
 
@@ -274,6 +275,12 @@ static void GLibLogHandler(const gchar* log_domain,
   } else if (strstr(message, "Cannot do system-bus activation with no user")) {
     LOG(ERROR) << message << " (http://crbug.com/431005)";
   } else if (strstr(message, "deprecated")) {
+    LOG(ERROR) << message;
+  } else if (strstr(message, "Could not obtain desktop path or name")) {
+    LOG(ERROR) << message;
+  } else if (strstr(message, "Theme parsing error")) {
+    LOG(ERROR) << message;
+  } else if (strstr(message, "unknown signature")) {
     LOG(ERROR) << message;
   } else {
     LOG(DFATAL) << log_domain << ": " << message;
@@ -406,9 +413,9 @@ CreateWinMemoryPressureMonitor(const base::CommandLine& parsed_command_line) {
 
 enum WorkerPoolType : size_t {
   BACKGROUND = 0,
-  BACKGROUND_FILE_IO,
+  BACKGROUND_BLOCKING,
   FOREGROUND,
-  FOREGROUND_FILE_IO,
+  FOREGROUND_BLOCKING,
   WORKER_POOL_COUNT  // Always last.
 };
 
@@ -424,26 +431,28 @@ GetDefaultSchedulerWorkerPoolParams() {
        base::RecommendedMaxNumberOfThreadsInPool(2, 8, 0.1, 0),
        base::TimeDelta::FromSeconds(30));
   params_vector.emplace_back(
-      "BackgroundFileIO", ThreadPriority::BACKGROUND, StandbyThreadPolicy::ONE,
-       base::RecommendedMaxNumberOfThreadsInPool(2, 8, 0.1, 0),
-       base::TimeDelta::FromSeconds(30));
+      "BackgroundBlocking", ThreadPriority::BACKGROUND,
+      StandbyThreadPolicy::ONE,
+      base::RecommendedMaxNumberOfThreadsInPool(2, 8, 0.1, 0),
+      base::TimeDelta::FromSeconds(30));
   params_vector.emplace_back(
       "Foreground", ThreadPriority::NORMAL, StandbyThreadPolicy::ONE,
        base::RecommendedMaxNumberOfThreadsInPool(3, 8, 0.3, 0),
        base::TimeDelta::FromSeconds(30));
   params_vector.emplace_back(
-      "ForegroundFileIO", ThreadPriority::NORMAL, StandbyThreadPolicy::ONE,
-       base::RecommendedMaxNumberOfThreadsInPool(3, 8, 0.1, 0),
-       base::TimeDelta::FromSeconds(30));
+      "ForegroundBlocking", ThreadPriority::NORMAL, StandbyThreadPolicy::ONE,
+      base::RecommendedMaxNumberOfThreadsInPool(3, 8, 0.3, 0),
+      base::TimeDelta::FromSeconds(30));
 #else
   params_vector.emplace_back(
       "Background", ThreadPriority::BACKGROUND, StandbyThreadPolicy::ONE,
        base::RecommendedMaxNumberOfThreadsInPool(3, 8, 0.1, 0),
        base::TimeDelta::FromSeconds(30));
   params_vector.emplace_back(
-      "BackgroundFileIO", ThreadPriority::BACKGROUND, StandbyThreadPolicy::ONE,
-       base::RecommendedMaxNumberOfThreadsInPool(3, 8, 0.1, 0),
-       base::TimeDelta::FromSeconds(30));
+      "BackgroundBlocking", ThreadPriority::BACKGROUND,
+      StandbyThreadPolicy::ONE,
+      base::RecommendedMaxNumberOfThreadsInPool(3, 8, 0.1, 0),
+      base::TimeDelta::FromSeconds(30));
   params_vector.emplace_back(
       "Foreground", ThreadPriority::NORMAL, StandbyThreadPolicy::ONE,
        base::RecommendedMaxNumberOfThreadsInPool(8, 32, 0.3, 0),
@@ -452,7 +461,7 @@ GetDefaultSchedulerWorkerPoolParams() {
   // to this pool. Since COM STA is initialized in these environments, it must
   // also be initialized in this pool.
   params_vector.emplace_back(
-      "ForegroundFileIO", ThreadPriority::NORMAL, StandbyThreadPolicy::ONE,
+      "ForegroundBlocking", ThreadPriority::NORMAL, StandbyThreadPolicy::ONE,
       base::RecommendedMaxNumberOfThreadsInPool(8, 32, 0.3, 0),
       base::TimeDelta::FromSeconds(30),
       base::SchedulerBackwardCompatibility::INIT_COM_STA);
@@ -462,13 +471,13 @@ GetDefaultSchedulerWorkerPoolParams() {
 }
 
 // Returns the worker pool index for |traits| defaulting to FOREGROUND or
-// FOREGROUND_FILE_IO on any other priorities based off of worker pools defined
+// FOREGROUND_BLOCKING on any other priorities based off of worker pools defined
 // in GetDefaultSchedulerWorkerPoolParams().
 size_t DefaultBrowserWorkerPoolIndexForTraits(const base::TaskTraits& traits) {
   const bool is_background =
       traits.priority() == base::TaskPriority::BACKGROUND;
   if (traits.may_block() || traits.with_base_sync_primitives())
-    return is_background ? BACKGROUND_FILE_IO : FOREGROUND_FILE_IO;
+    return is_background ? BACKGROUND_BLOCKING : FOREGROUND_BLOCKING;
 
   return is_background ? BACKGROUND : FOREGROUND;
 }
@@ -822,7 +831,16 @@ void BrowserMainLoop::PostMainMessageLoopStart() {
     TRACE_EVENT0("startup",
                  "BrowserMainLoop::Subsystem:EnableAggressiveCommitDelay");
     DOMStorageArea::EnableAggressiveCommitDelay();
+    LevelDBWrapperImpl::EnableAggressiveCommitDelay();
   }
+
+  // Create the memory instrumentation service. It will initialize the memory
+  // dump manager, too. It makes sense that BrowserMainLoop owns the service;
+  // this way, the service is alive for the lifetime of Mojo. Mojo is shutdown
+  // in BrowserMainLoop::ShutdownThreadsAndCleanupIO.
+  memory_instrumentation_coordinator_ =
+      base::MakeUnique<memory_instrumentation::CoordinatorImpl>(
+          true /* initialize_memory_dump_manager */);
 
   // Enable memory-infra dump providers.
   InitSkiaEventTracer();
@@ -1355,11 +1373,6 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
   {
     TRACE_EVENT0("shutdown", "BrowserMainLoop::Subsystem:GPUChannelFactory");
     if (BrowserGpuChannelHostFactory::instance()) {
-#if defined(OS_ANDROID)
-      // Clean up the references to the factory before terminating it.
-      ui::ContextProviderFactory::SetInstance(nullptr);
-      ContextProviderFactoryImpl::Terminate();
-#endif
       BrowserGpuChannelHostFactory::Terminate();
     }
   }
@@ -1369,10 +1382,6 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
   {
     TRACE_EVENT0("shutdown", "BrowserMainLoop::Subsystem:GamepadService");
     device::GamepadService::GetInstance()->Terminate();
-  }
-  {
-    TRACE_EVENT0("shutdown", "BrowserMainLoop::Subsystem:SensorService");
-    device::DeviceSensorService::GetInstance()->Shutdown();
   }
 #if !defined(OS_ANDROID)
   {
@@ -1428,7 +1437,7 @@ int BrowserMainLoop::BrowserThreadsStarted() {
   base::PlatformThread::SetCurrentThreadPriority(base::ThreadPriority::DISPLAY);
 #endif
 
-#if defined(ENABLE_VULKAN)
+#if BUILDFLAG(ENABLE_VULKAN)
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableVulkan)) {
     gpu::InitializeVulkan();
@@ -1449,10 +1458,6 @@ int BrowserMainLoop::BrowserThreadsStarted() {
   established_gpu_channel = false;
   always_uses_gpu = ShouldStartGpuProcessOnBrowserStartup();
   BrowserGpuChannelHostFactory::Initialize(established_gpu_channel);
-  ContextProviderFactoryImpl::Initialize(
-      BrowserGpuChannelHostFactory::instance());
-  ui::ContextProviderFactory::SetInstance(
-      ContextProviderFactoryImpl::GetInstance());
 #elif defined(USE_AURA) || defined(OS_MACOSX)
   established_gpu_channel = true;
   if (!GpuDataManagerImpl::GetInstance()->CanUseGpuBrowserCompositor() ||
@@ -1531,7 +1536,7 @@ int BrowserMainLoop::BrowserThreadsStarted() {
   {
     TRACE_EVENT0("startup",
       "BrowserMainLoop::BrowserThreadsStarted:InitMediaStreamManager");
-    media_stream_manager_.reset(new MediaStreamManager(audio_manager_.get()));
+    media_stream_manager_.reset(new MediaStreamManager(audio_system_.get()));
   }
 
   {
@@ -1618,21 +1623,11 @@ void BrowserMainLoop::InitializeMemoryManagementComponent() {
   if (base::FeatureList::IsEnabled(features::kMemoryCoordinator)) {
     // Disable MemoryPressureListener when memory coordinator is enabled.
     base::MemoryPressureListener::SetNotificationsSuppressed(true);
-    // base::Unretained is safe because the lifetime of MemoryCoordinator is
-    // tied to the lifetime of the browser process.
-    base::MemoryCoordinatorProxy::GetInstance()->
-        SetGetCurrentMemoryStateCallback(base::Bind(
-            &MemoryCoordinatorImpl::GetCurrentMemoryState,
-            base::Unretained(MemoryCoordinatorImpl::GetInstance())));
-    base::MemoryCoordinatorProxy::GetInstance()->
-        SetSetCurrentMemoryStateForTestingCallback(base::Bind(
-            &MemoryCoordinatorImpl::SetCurrentMemoryStateForTesting,
-            base::Unretained(MemoryCoordinatorImpl::GetInstance())));
-
+    auto* coordinator = MemoryCoordinatorImpl::GetInstance();
     if (memory_pressure_monitor_) {
       memory_pressure_monitor_->SetDispatchCallback(
           base::Bind(&MemoryCoordinatorImpl::RecordMemoryPressure,
-                     base::Unretained(MemoryCoordinatorImpl::GetInstance())));
+                     base::Unretained(coordinator)));
     }
   }
 }
@@ -1794,6 +1789,7 @@ void BrowserMainLoop::CreateAudioManager() {
     audio_thread_ = base::MakeUnique<AudioManagerThread>();
     audio_manager_ = media::AudioManager::Create(
         audio_thread_->task_runner(), audio_thread_->worker_task_runner(),
+        BrowserThread::GetTaskRunnerForThread(BrowserThread::FILE),
         MediaInternals::GetInstance());
   }
   CHECK(audio_manager_);

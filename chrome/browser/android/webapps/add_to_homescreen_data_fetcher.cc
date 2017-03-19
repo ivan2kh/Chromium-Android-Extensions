@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/callback.h"
 #include "base/location.h"
 #include "base/strings/string16.h"
 #include "base/task_runner_util.h"
@@ -98,13 +97,6 @@ AddToHomescreenDataFetcher::AddToHomescreenDataFetcher(
 
   // Send a message to the renderer to retrieve information about the page.
   Send(new ChromeViewMsg_GetWebApplicationInfo(routing_id()));
-}
-
-base::Closure AddToHomescreenDataFetcher::FetchSplashScreenImageCallback(
-    const std::string& webapp_id) {
-  return base::Bind(&ShortcutHelper::FetchSplashScreenImage, web_contents(),
-                    splash_screen_url_, ideal_splash_image_size_in_px_,
-                    minimum_splash_image_size_in_px_, webapp_id);
 }
 
 void AddToHomescreenDataFetcher::OnDidGetWebApplicationInfo(
@@ -209,7 +201,7 @@ void AddToHomescreenDataFetcher::OnDidPerformInstallableCheck(
     const InstallableData& data) {
   badge_icon_.reset();
 
-  if (!web_contents() || !weak_observer_)
+  if (!web_contents() || !weak_observer_ || is_installable_check_complete_)
     return;
 
   is_installable_check_complete_ = true;
@@ -244,10 +236,13 @@ void AddToHomescreenDataFetcher::OnDidPerformInstallableCheck(
   }
 
   // Save the splash screen URL for the later download.
-  splash_screen_url_ = ManifestIconSelector::FindBestMatchingIcon(
+  shortcut_info_.splash_image_url = ManifestIconSelector::FindBestMatchingIcon(
       data.manifest.icons, ideal_splash_image_size_in_px_,
       minimum_splash_image_size_in_px_,
       content::Manifest::Icon::IconPurpose::ANY);
+  shortcut_info_.ideal_splash_image_size_in_px = ideal_splash_image_size_in_px_;
+  shortcut_info_.minimum_splash_image_size_in_px =
+      minimum_splash_image_size_in_px_;
 
   weak_observer_->OnUserTitleAvailable(shortcut_info_.user_title);
 

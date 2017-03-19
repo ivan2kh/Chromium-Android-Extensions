@@ -30,6 +30,7 @@ struct CONTENT_EXPORT StreamOverrideParameters {
   ResourceResponseHead response;
   std::vector<GURL> redirects;
   std::vector<ResourceResponseInfo> redirect_responses;
+  std::vector<net::RedirectInfo> redirect_infos;
 
   // The delta between the actual transfer size and the one reported by the
   // AsyncResourceLoader due to not having the ResourceResponse.
@@ -52,7 +53,7 @@ class CONTENT_EXPORT WebURLLoaderImpl
   static blink::WebURLRequest PopulateURLRequestForRedirect(
       const blink::WebURLRequest& request,
       const net::RedirectInfo& redirect_info,
-      blink::WebURLRequest::SkipServiceWorker skip_service_worker);
+      blink::WebURLRequest::ServiceWorkerMode service_worker_mode);
 
   // WebURLLoader methods:
   void loadSynchronously(const blink::WebURLRequest& request,

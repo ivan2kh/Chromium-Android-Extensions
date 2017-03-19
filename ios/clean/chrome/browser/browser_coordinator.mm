@@ -21,15 +21,17 @@
     NSMutableSet<BrowserCoordinator*>* childCoordinators;
 // Parent coordinator of this object, if any.
 @property(nonatomic, readwrite, weak) BrowserCoordinator* parentCoordinator;
+@property(nonatomic, readwrite) BOOL started;
 @property(nonatomic, readwrite) BOOL overlaying;
 @end
 
 @implementation BrowserCoordinator
 
 @synthesize context = _context;
-@synthesize browserState = _browserState;
+@synthesize browser = _browser;
 @synthesize childCoordinators = _childCoordinators;
 @synthesize parentCoordinator = _parentCoordinator;
+@synthesize started = _started;
 @synthesize overlaying = _overlaying;
 
 - (instancetype)init {
@@ -43,11 +45,13 @@
 #pragma mark - Public API
 
 - (void)start {
-  // Default implementation is a no-op.
+  self.started = YES;
+  [self.parentCoordinator childCoordinatorDidStart:self];
 }
 
 - (void)stop {
-  // Default implementation is a no-op.
+  [self.parentCoordinator childCoordinatorWillStop:self];
+  self.started = NO;
 }
 
 @end
@@ -66,8 +70,9 @@
          "property.";
   [self.childCoordinators addObject:coordinator];
   coordinator.parentCoordinator = self;
-  coordinator.browserState = self.browserState;
+  coordinator.browser = self.browser;
   coordinator.context.baseViewController = self.viewController;
+  [coordinator coordinatorDidMoveToParentCoordinator:self];
 }
 
 - (BrowserCoordinator*)overlayCoordinator {
@@ -120,6 +125,19 @@
     return;
   [self.childCoordinators removeObject:coordinator];
   coordinator.parentCoordinator = nil;
+}
+
+- (void)coordinatorDidMoveToParentCoordinator:
+    (BrowserCoordinator*)parentCoordinator {
+  // Default implementation is a no-op.
+}
+
+- (void)childCoordinatorDidStart:(BrowserCoordinator*)childCoordinator {
+  // Default implementation is a no-op.
+}
+
+- (void)childCoordinatorWillStop:(BrowserCoordinator*)childCoordinator {
+  // Default implementation is a no-op.
 }
 
 @end

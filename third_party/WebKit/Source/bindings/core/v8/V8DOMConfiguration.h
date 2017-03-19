@@ -33,8 +33,7 @@
 #include "bindings/core/v8/V8Binding.h"
 #include "bindings/core/v8/V8DOMWrapper.h"
 #include "core/CoreExport.h"
-
-#include <v8.h>
+#include "v8/include/v8.h"
 
 namespace blink {
 
@@ -49,39 +48,54 @@ class CORE_EXPORT V8DOMConfiguration final {
   // data table driven setup.
 
   // Bitflags to show where the member will be defined.
-  enum PropertyLocationConfiguration {
+  enum PropertyLocationConfiguration : unsigned {
     OnInstance = 1 << 0,
     OnPrototype = 1 << 1,
     OnInterface = 1 << 2,
   };
 
-  enum HolderCheckConfiguration {
+  // TODO(dcheng): Make these enum classes.
+  enum HolderCheckConfiguration : unsigned {
     CheckHolder,
     DoNotCheckHolder,
+  };
+
+  enum AccessCheckConfiguration : unsigned {
+    CheckAccess,
+    DoNotCheckAccess,
+  };
+
+  // Bit field to select which worlds the member will be defined in.
+  enum WorldConfiguration : unsigned {
+    MainWorld = 1 << 0,
+    NonMainWorlds = 1 << 1,
+    AllWorlds = MainWorld | NonMainWorlds,
   };
 
   typedef v8::Local<v8::Private> (*CachedAccessorCallback)(v8::Isolate*);
 
   // AttributeConfiguration translates into calls to SetNativeDataProperty() on
   // either the instance or the prototype ObjectTemplate, based on
-  // |instanceOrPrototypeConfiguration|.
+  // |propertyLocationConfiguration|.
   struct AttributeConfiguration {
     AttributeConfiguration& operator=(const AttributeConfiguration&) = delete;
     DISALLOW_NEW();
     const char* const name;
     v8::AccessorNameGetterCallback getter;
     v8::AccessorNameSetterCallback setter;
-    v8::AccessorNameGetterCallback getterForMainWorld;
-    v8::AccessorNameSetterCallback setterForMainWorld;
     // TODO(vogelheim): This has to be removed too since it's only used in
     //                  accessors.
     // The accessor's 'result' is stored in a private property.
     CachedAccessorCallback cachedAccessorCallback;
     const WrapperTypeInfo* data;
-    unsigned attribute : 8;  // v8::PropertyAttribute
-    unsigned
-        propertyLocationConfiguration : 3;  // PropertyLocationConfiguration
-    unsigned holderCheckConfiguration : 1;  // HolderCheckConfiguration
+    // v8::PropertyAttribute
+    unsigned attribute : 8;
+    // PropertyLocationConfiguration
+    unsigned propertyLocationConfiguration : 3;
+    // HolderCheckConfiguration
+    unsigned holderCheckConfiguration : 1;
+    // WorldConfiguration
+    unsigned worldConfiguration : 2;
   };
 
   static void installAttributes(v8::Isolate*,
@@ -125,15 +139,17 @@ class CORE_EXPORT V8DOMConfiguration final {
     const char* const name;
     v8::FunctionCallback getter;
     v8::FunctionCallback setter;
-    v8::FunctionCallback getterForMainWorld;
-    v8::FunctionCallback setterForMainWorld;
     // The accessor's 'result' is stored in a private property.
     CachedAccessorCallback cachedAccessorCallback;
     const WrapperTypeInfo* data;
-    unsigned attribute : 8;  // v8::PropertyAttribute
-    unsigned
-        propertyLocationConfiguration : 3;  // PropertyLocationConfiguration
-    unsigned holderCheckConfiguration : 1;  // HolderCheckConfiguration
+    // v8::PropertyAttribute
+    unsigned attribute : 8;
+    // PropertyLocationConfiguration
+    unsigned propertyLocationConfiguration : 3;
+    // HolderCheckConfiguration
+    unsigned holderCheckConfiguration : 1;
+    // WorldConfiguration
+    unsigned worldConfiguration : 2;
   };
 
   static void installAccessors(
@@ -224,19 +240,20 @@ class CORE_EXPORT V8DOMConfiguration final {
     v8::Local<v8::Name> methodName(v8::Isolate* isolate) const {
       return v8AtomicString(isolate, name);
     }
-    v8::FunctionCallback callbackForWorld(const DOMWrapperWorld& world) const {
-      return world.isMainWorld() && callbackForMainWorld ? callbackForMainWorld
-                                                         : callback;
-    }
 
     const char* const name;
     v8::FunctionCallback callback;
-    v8::FunctionCallback callbackForMainWorld;
     int length;
-    unsigned attribute : 8;  // v8::PropertyAttribute
-    unsigned
-        propertyLocationConfiguration : 3;  // PropertyLocationConfiguration
-    unsigned holderCheckConfiguration : 1;  // HolderCheckConfiguration
+    // v8::PropertyAttribute
+    unsigned attribute : 8;
+    // PropertyLocationConfiguration
+    unsigned propertyLocationConfiguration : 3;
+    // HolderCheckConfiguration
+    unsigned holderCheckConfiguration : 1;
+    // AccessCheckConfiguration
+    unsigned accessCheckConfiguration : 1;
+    // WorldConfiguration
+    unsigned worldConfiguration : 2;
   };
 
   struct SymbolKeyedMethodConfiguration {
@@ -246,18 +263,19 @@ class CORE_EXPORT V8DOMConfiguration final {
     v8::Local<v8::Name> methodName(v8::Isolate* isolate) const {
       return getSymbol(isolate);
     }
-    v8::FunctionCallback callbackForWorld(const DOMWrapperWorld&) const {
-      return callback;
-    }
 
     v8::Local<v8::Symbol> (*getSymbol)(v8::Isolate*);
     v8::FunctionCallback callback;
     // SymbolKeyedMethodConfiguration doesn't support per-world bindings.
     int length;
-    unsigned attribute : 8;  // v8::PropertyAttribute
-    unsigned
-        propertyLocationConfiguration : 3;  // PropertyLocationConfiguration
-    unsigned holderCheckConfiguration : 1;  // HolderCheckConfiguration
+    // v8::PropertyAttribute
+    unsigned attribute : 8;
+    // PropertyLocationConfiguration
+    unsigned propertyLocationConfiguration : 3;
+    // HolderCheckConfiguration
+    unsigned holderCheckConfiguration : 1;
+    // AccessCheckConfiguration
+    unsigned accessCheckConfiguration : 1;
   };
 
   static void installMethods(v8::Isolate*,

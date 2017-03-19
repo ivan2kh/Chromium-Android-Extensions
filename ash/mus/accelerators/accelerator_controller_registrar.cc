@@ -11,6 +11,7 @@
 #include "ash/common/wm_shell.h"
 #include "ash/mus/accelerators/accelerator_ids.h"
 #include "ash/mus/window_manager.h"
+#include "ash/shell.h"
 #include "base/logging.h"
 #include "services/ui/common/accelerator_util.h"
 #include "ui/base/accelerators/accelerator_history.h"
@@ -69,7 +70,7 @@ ui::mojom::EventResult AcceleratorControllerRegistrar::OnAccelerator(
 
   const Ids& ids = iter->second;
   AcceleratorController* accelerator_controller =
-      WmShell::Get()->accelerator_controller();
+      Shell::Get()->accelerator_controller();
   const bool is_pre = GetAcceleratorLocalId(id) == ids.pre_id;
   if (is_pre) {
     // TODO(sky): this does not exactly match ash code. In particular ash code
@@ -83,7 +84,7 @@ ui::mojom::EventResult AcceleratorControllerRegistrar::OnAccelerator(
         accelerator);
     WmWindow* target_window = WmShell::Get()->GetFocusedWindow();
     if (!target_window)
-      target_window = WmShell::Get()->GetRootWindowForNewWindows();
+      target_window = Shell::GetWmRootWindowForNewWindows();
     DCHECK(target_window);
     return router_->ProcessAccelerator(target_window, *(event.AsKeyEvent()),
                                        accelerator)
@@ -92,14 +93,14 @@ ui::mojom::EventResult AcceleratorControllerRegistrar::OnAccelerator(
   }
   DCHECK_EQ(GetAcceleratorLocalId(id), ids.post_id);
   // NOTE: for post return value doesn't really matter.
-  return WmShell::Get()->accelerator_controller()->Process(accelerator)
+  return Shell::Get()->accelerator_controller()->Process(accelerator)
              ? ui::mojom::EventResult::HANDLED
              : ui::mojom::EventResult::UNHANDLED;
 }
 
 void AcceleratorControllerRegistrar::OnAcceleratorsRegistered(
     const std::vector<ui::Accelerator>& accelerators) {
-  std::vector<ui::mojom::AcceleratorPtr> accelerator_vector;
+  std::vector<ui::mojom::WmAcceleratorPtr> accelerator_vector;
 
   for (const ui::Accelerator& accelerator : accelerators)
     AddAcceleratorToVector(accelerator, accelerator_vector);
@@ -126,7 +127,7 @@ void AcceleratorControllerRegistrar::OnAcceleratorUnregistered(
 
 void AcceleratorControllerRegistrar::AddAcceleratorToVector(
     const ui::Accelerator& accelerator,
-    std::vector<ui::mojom::AcceleratorPtr>& accelerator_vector) {
+    std::vector<ui::mojom::WmAcceleratorPtr>& accelerator_vector) {
   Ids ids;
   if (!GenerateIds(&ids)) {
     LOG(ERROR) << "max number of accelerators registered, dropping request";
@@ -141,10 +142,8 @@ void AcceleratorControllerRegistrar::AddAcceleratorToVector(
       accelerator.modifiers());
   pre_event_matcher->accelerator_phase =
       ui::mojom::AcceleratorPhase::PRE_TARGET;
-  DCHECK(accelerator.type() == ui::ET_KEY_PRESSED ||
-         accelerator.type() == ui::ET_KEY_RELEASED);
   pre_event_matcher->type_matcher->type =
-      accelerator.type() == ui::ET_KEY_PRESSED
+      accelerator.key_state() == ui::Accelerator::KeyState::PRESSED
           ? ui::mojom::EventType::KEY_PRESSED
           : ui::mojom::EventType::KEY_RELEASED;
 

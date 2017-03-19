@@ -130,12 +130,7 @@ gfx::ColorSpace H264SPS::GetColorSpace() const {
         video_full_range_flag ? gfx::ColorSpace::RangeID::FULL
                               : gfx::ColorSpace::RangeID::LIMITED);
   } else {
-    // TODO(ccameron/hubbe): Add a uniform way to handle default video frames.
-    return gfx::ColorSpace(
-        gfx::ColorSpace::PrimaryID::BT709, gfx::ColorSpace::TransferID::BT709,
-        gfx::ColorSpace::MatrixID::BT709,
-        video_full_range_flag ? gfx::ColorSpace::RangeID::FULL
-                              : gfx::ColorSpace::RangeID::LIMITED);
+    return gfx::ColorSpace();
   }
 }
 
@@ -739,7 +734,7 @@ H264Parser::Result H264Parser::ParsePPSScalingLists(const H264SPS& sps,
         DefaultScalingList4x4(i, pps->scaling_list4x4);
 
     } else {
-      if (sps.seq_scaling_matrix_present_flag) {
+      if (!sps.seq_scaling_matrix_present_flag) {
         // Table 7-2 fallback rule A in spec.
         FallbackScalingList4x4(
             i, kDefault4x4Intra, kDefault4x4Inter, pps->scaling_list4x4);
@@ -768,7 +763,7 @@ H264Parser::Result H264Parser::ParsePPSScalingLists(const H264SPS& sps,
           DefaultScalingList8x8(i, pps->scaling_list8x8);
 
       } else {
-        if (sps.seq_scaling_matrix_present_flag) {
+        if (!sps.seq_scaling_matrix_present_flag) {
           // Table 7-2 fallback rule A in spec.
           FallbackScalingList8x8(
               i, kDefault8x8Intra, kDefault8x8Inter, pps->scaling_list8x8);

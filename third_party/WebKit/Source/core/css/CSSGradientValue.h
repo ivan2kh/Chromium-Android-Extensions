@@ -64,8 +64,8 @@ struct CSSGradientColorStop {
   Member<CSSValue> m_color;
   bool m_colorIsDerivedFromElement;
   bool operator==(const CSSGradientColorStop& other) const {
-    return compareCSSValuePtr(m_color, other.m_color) &&
-           compareCSSValuePtr(m_position, other.m_position);
+    return dataEquivalent(m_color, other.m_color) &&
+           dataEquivalent(m_position, other.m_position);
   }
   bool isHint() const {
     ASSERT(m_color || m_position);
@@ -114,6 +114,8 @@ class CSSGradientValue : public CSSImageGeneratorValue {
 
   DECLARE_TRACE_AFTER_DISPATCH();
 
+  struct GradientDesc;
+
  protected:
   CSSGradientValue(ClassType classType,
                    CSSGradientRepeat repeat,
@@ -123,10 +125,10 @@ class CSSGradientValue : public CSSImageGeneratorValue {
         m_gradientType(gradientType),
         m_repeating(repeat == Repeating) {}
 
-  void addStops(Gradient*,
+  void addStops(GradientDesc&,
                 const CSSToLengthConversionData&,
                 const LayoutObject&);
-  void addDeprecatedStops(Gradient*, const LayoutObject&);
+  void addDeprecatedStops(GradientDesc&, const LayoutObject&);
 
   // Resolve points/radii to front end values.
   FloatPoint computeEndPoint(CSSValue*,

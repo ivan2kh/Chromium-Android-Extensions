@@ -23,9 +23,7 @@ extern const char kEnableAccountConsistency[];
 extern const char kEnableNewProfileManagement[];
 extern const char kEnableRefreshTokenAnnotationRequest[];
 extern const char kExtensionsMultiAccount[];
-extern const char kGoogleProfileInfo[];
 
-extern const base::Feature kMaterialDesignUserMenu;
 extern const base::Feature kUsePasswordSeparatedSigninFlow;
 
 }  // namespace switches

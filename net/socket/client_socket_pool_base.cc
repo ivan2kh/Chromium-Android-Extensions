@@ -620,6 +620,18 @@ void ClientSocketPoolBaseHelper::CloseIdleSockets() {
   DCHECK_EQ(0, idle_socket_count_);
 }
 
+void ClientSocketPoolBaseHelper::CloseIdleSocketsInGroup(
+    const std::string& group_name) {
+  if (idle_socket_count_ == 0)
+    return;
+  GroupMap::iterator it = group_map_.find(group_name);
+  if (it == group_map_.end())
+    return;
+  CleanupIdleSocketsInGroup(true, it->second, base::TimeTicks::Now());
+  if (it->second->IsEmpty())
+    RemoveGroup(it);
+}
+
 int ClientSocketPoolBaseHelper::IdleSocketCountInGroup(
     const std::string& group_name) const {
   GroupMap::const_iterator i = group_map_.find(group_name);
@@ -721,7 +733,7 @@ void ClientSocketPoolBaseHelper::DumpMemoryStats(
   size_t total_size = 0;
   size_t buffer_size = 0;
   size_t cert_count = 0;
-  size_t serialized_cert_size = 0;
+  size_t cert_size = 0;
   for (const auto& kv : group_map_) {
     for (const auto& socket : kv.second->idle_sockets()) {
       StreamSocket::SocketMemoryStats stats;
@@ -729,7 +741,7 @@ void ClientSocketPoolBaseHelper::DumpMemoryStats(
       total_size += stats.total_size;
       buffer_size += stats.buffer_size;
       cert_count += stats.cert_count;
-      serialized_cert_size += stats.serialized_cert_size;
+      cert_size += stats.cert_size;
       ++socket_count;
     }
   }
@@ -751,9 +763,8 @@ void ClientSocketPoolBaseHelper::DumpMemoryStats(
         "cert_count", base::trace_event::MemoryAllocatorDump::kUnitsObjects,
         cert_count);
     socket_pool_dump->AddScalar(
-        "serialized_cert_size",
-        base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-        serialized_cert_size);
+        "cert_size", base::trace_event::MemoryAllocatorDump::kUnitsBytes,
+        cert_size);
   }
 }
 
@@ -774,39 +785,46 @@ void ClientSocketPoolBaseHelper::CleanupIdleSockets(bool force) {
   GroupMap::iterator i = group_map_.begin();
   while (i != group_map_.end()) {
     Group* group = i->second;
-
-    auto idle_socket_it = group->mutable_idle_sockets()->begin();
-    while (idle_socket_it != group->idle_sockets().end()) {
-      base::TimeDelta timeout = idle_socket_it->socket->WasEverUsed()
-                                    ? used_idle_socket_timeout_
-                                    : unused_idle_socket_timeout_;
-      bool timed_out = (now - idle_socket_it->start_time) >= timeout;
-      bool should_clean_up = force || timed_out || !idle_socket_it->IsUsable();
-      if (should_clean_up) {
-        if (force) {
-          RecordIdleSocketFate(IDLE_SOCKET_FATE_CLEAN_UP_FORCED);
-        } else if (timed_out) {
-          RecordIdleSocketFate(
-              idle_socket_it->socket->WasEverUsed()
-                  ? IDLE_SOCKET_FATE_CLEAN_UP_TIMED_OUT_REUSED
-                  : IDLE_SOCKET_FATE_CLEAN_UP_TIMED_OUT_UNUSED);
-        } else {
-          DCHECK(!idle_socket_it->IsUsable());
-          RecordIdleSocketFate(IDLE_SOCKET_FATE_CLEAN_UP_UNUSABLE);
-        }
-        delete idle_socket_it->socket;
-        idle_socket_it = group->mutable_idle_sockets()->erase(idle_socket_it);
-        DecrementIdleCount();
-      } else {
-        ++idle_socket_it;
-      }
-    }
-
+    CleanupIdleSocketsInGroup(force, group, now);
     // Delete group if no longer needed.
     if (group->IsEmpty()) {
-      RemoveGroup(i++);
+      // TODO(xunjieli): Evaluate other RemoveGroup() instances after
+      // crbug.com/700549 is fixed.
+      GroupMap::iterator old = i++;
+      RemoveGroup(old);
     } else {
       ++i;
+    }
+  }
+}
+
+void ClientSocketPoolBaseHelper::CleanupIdleSocketsInGroup(
+    bool force,
+    Group* group,
+    const base::TimeTicks& now) {
+  auto idle_socket_it = group->mutable_idle_sockets()->begin();
+  while (idle_socket_it != group->idle_sockets().end()) {
+    base::TimeDelta timeout = idle_socket_it->socket->WasEverUsed()
+                                  ? used_idle_socket_timeout_
+                                  : unused_idle_socket_timeout_;
+    bool timed_out = (now - idle_socket_it->start_time) >= timeout;
+    bool should_clean_up = force || timed_out || !idle_socket_it->IsUsable();
+    if (should_clean_up) {
+      if (force) {
+        RecordIdleSocketFate(IDLE_SOCKET_FATE_CLEAN_UP_FORCED);
+      } else if (timed_out) {
+        RecordIdleSocketFate(idle_socket_it->socket->WasEverUsed()
+                                 ? IDLE_SOCKET_FATE_CLEAN_UP_TIMED_OUT_REUSED
+                                 : IDLE_SOCKET_FATE_CLEAN_UP_TIMED_OUT_UNUSED);
+      } else {
+        DCHECK(!idle_socket_it->IsUsable());
+        RecordIdleSocketFate(IDLE_SOCKET_FATE_CLEAN_UP_UNUSABLE);
+      }
+      delete idle_socket_it->socket;
+      idle_socket_it = group->mutable_idle_sockets()->erase(idle_socket_it);
+      DecrementIdleCount();
+    } else {
+      ++idle_socket_it;
     }
   }
 }

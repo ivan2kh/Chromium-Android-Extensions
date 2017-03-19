@@ -103,8 +103,7 @@ void FirstRunBubbleTest::CreateAndCloseBubbleOnEventTest(ui::Event* event) {
       FirstRunBubble::ShowBubble(NULL, anchor_widget->GetContentsView());
   EXPECT_TRUE(delegate != NULL);
 
-  anchor_widget->GetFocusManager()->SetFocusedView(
-      anchor_widget->GetContentsView());
+  anchor_widget->GetContentsView()->RequestFocus();
 
   std::unique_ptr<WidgetClosingObserver> widget_observer(
       new WidgetClosingObserver(delegate->GetWidget()));
@@ -149,7 +148,8 @@ TEST_F(FirstRunBubbleTest, CloseBubbleOnMouseDownEvent) {
 
 TEST_F(FirstRunBubbleTest, CloseBubbleOnTouchDownEvent) {
   ui::TouchEvent touch_down(
-      ui::ET_TOUCH_PRESSED, gfx::Point(10, 10), 0, ui::EventTimeForNow());
+      ui::ET_TOUCH_PRESSED, gfx::Point(10, 10), ui::EventTimeForNow(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
   CreateAndCloseBubbleOnEventTest(&touch_down);
 }
 

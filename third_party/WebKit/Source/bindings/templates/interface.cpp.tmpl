@@ -1,14 +1,5 @@
 {% extends 'interface_base.cpp.tmpl' %}
 
-{% set has_prepare_prototype_and_interface_object =
-    unscopables or has_conditional_attributes_on_prototype or
-    methods | conditionally_exposed(is_partial) %}
-{% set prepare_prototype_and_interface_object_func =
-    '%s::preparePrototypeAndInterfaceObject' % v8_class
-    if has_prepare_prototype_and_interface_object
-    else 'nullptr' %}
-
-
 {##############################################################################}
 {% block indexed_property_getter %}
 {% if indexed_property_getter and not indexed_property_getter.is_custom %}
@@ -535,7 +526,7 @@ void {{v8_class_or_partial}}::{{cpp_class}}OriginSafeMethodSetterCallback(v8::Lo
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
-const WrapperTypeInfo {{v8_class}}Constructor::wrapperTypeInfo = { gin::kEmbedderBlink, {{v8_class}}Constructor::domTemplate, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func}}, "{{interface_name}}", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{lifetime}} };
+const WrapperTypeInfo {{v8_class}}Constructor::wrapperTypeInfo = { gin::kEmbedderBlink, {{v8_class}}Constructor::domTemplate, {{v8_class}}::trace, {{v8_class}}::traceWrappers, {{prepare_prototype_and_interface_object_func or 'nullptr'}}, "{{interface_name}}", 0, WrapperTypeInfo::WrapperTypeObjectPrototype, WrapperTypeInfo::{{wrapper_class_id}}, WrapperTypeInfo::{{active_scriptwrappable_inheritance}}, WrapperTypeInfo::{{lifetime}} };
 #if defined(COMPONENT_BUILD) && defined(WIN32) && COMPILER(CLANG)
 #pragma clang diagnostic pop
 #endif
@@ -551,10 +542,39 @@ v8::Local<v8::FunctionTemplate> {{v8_class}}Constructor::domTemplate(v8::Isolate
   result = v8::FunctionTemplate::New(isolate, {{v8_class}}ConstructorCallback);
   v8::Local<v8::ObjectTemplate> instanceTemplate = result->InstanceTemplate();
   instanceTemplate->SetInternalFieldCount({{v8_class}}::internalFieldCount);
-  result->SetClassName(v8AtomicString(isolate, "{{cpp_class}}"));
+  result->SetClassName(v8AtomicString(isolate, "{{named_constructor.name}}"));
   result->Inherit({{v8_class}}::domTemplate(isolate, world));
   data->setInterfaceTemplate(world, &domTemplateKey, result);
   return result;
+}
+
+void {{v8_class}}Constructor::NamedConstructorAttributeGetter(
+    v8::Local<v8::Name> propertyName,
+    const v8::PropertyCallbackInfo<v8::Value>& info) {
+  v8::Local<v8::Context> creationContext = info.Holder()->CreationContext();
+  V8PerContextData* perContextData = V8PerContextData::from(creationContext);
+  if (!perContextData) {
+    // TODO(yukishiino): Return a valid named constructor even after the context is detached
+    return;
+  }
+
+  v8::Local<v8::Function> namedConstructor = perContextData->constructorForType(&{{v8_class}}Constructor::wrapperTypeInfo);
+
+  // Set the prototype of named constructors to the regular constructor.
+  auto privateProperty = V8PrivateProperty::getNamedConstructorInitialized(info.GetIsolate());
+  v8::Local<v8::Context> currentContext = info.GetIsolate()->GetCurrentContext();
+  v8::Local<v8::Value> privateValue = privateProperty.get(currentContext, namedConstructor);
+
+  if (privateValue.IsEmpty()) {
+    v8::Local<v8::Function> interface = perContextData->constructorForType(&{{v8_class}}::wrapperTypeInfo);
+    v8::Local<v8::Value> interfacePrototype = interface->Get(currentContext, v8AtomicString(info.GetIsolate(), "prototype")).ToLocalChecked();
+    bool result = namedConstructor->Set(currentContext, v8AtomicString(info.GetIsolate(), "prototype"), interfacePrototype).ToChecked();
+    if (!result)
+      return;
+    privateProperty.set(currentContext, namedConstructor, v8::True(info.GetIsolate()));
+  }
+
+  v8SetReturnValue(info, namedConstructor);
 }
 
 {% endif %}
@@ -632,33 +652,34 @@ void {{v8_class}}::constructorCallback(const v8::FunctionCallbackInfo<v8::Value>
 
 
 {##############################################################################}
-{% macro install_origin_safe_method(method, world_suffix, instance_template, prototype_template) %}
+{% macro install_origin_safe_method(method, instance_template, prototype_template) %}
 {% from 'utilities.cpp.tmpl' import property_location %}
 {# TODO(dcheng): Currently, bindings must create a function object for each
    realm as a hack to support the incumbent realm. Clean this up when Blink
    properly supports the incumbent realm. #}
 {% set getter_callback =
-       '%s::%sOriginSafeMethodGetterCallback%s' %
-       (v8_class_or_partial, method.name, world_suffix) %}
+       '%s::%sOriginSafeMethodGetterCallback' %
+       (v8_class_or_partial, method.name) %}
 {% set setter_callback =
        '%s::%sOriginSafeMethodSetterCallback' % (v8_class_or_partial, cpp_class)
        if not method.is_unforgeable else 'nullptr' %}
-{% if method.is_per_world_bindings %}
-{% set getter_callback_for_main_world = '%sForMainWorld' % getter_callback %}
-{% set setter_callback_for_main_world = '%sForMainWorld' % setter_callback
-       if not method.is_unforgeable else 'nullptr' %}
-{% else %}
-{% set getter_callback_for_main_world = 'nullptr' %}
-{% set setter_callback_for_main_world = 'nullptr' %}
-{% endif %}
 {% set property_attribute =
        'static_cast<v8::PropertyAttribute>(%s)' %
        ' | '.join(method.property_attributes or ['v8::None']) %}
 {% set holder_check = 'V8DOMConfiguration::CheckHolder' %}
-const V8DOMConfiguration::AttributeConfiguration {{method.name}}OriginSafeAttributeConfiguration = {
-    "{{method.name}}", {{getter_callback}}, {{setter_callback}}, {{getter_callback_for_main_world}}, {{setter_callback_for_main_world}}, nullptr, &{{v8_class}}::wrapperTypeInfo, {{property_attribute}}, {{property_location(method)}}, {{holder_check}}
+static const V8DOMConfiguration::AttributeConfiguration {{method.name}}OriginSafeAttributeConfiguration[] = {
+{% if method.is_per_world_bindings %}
+{% set getter_callback_for_main_world = '%sForMainWorld' % getter_callback %}
+{% set setter_callback_for_main_world = '%sForMainWorld' % setter_callback
+       if not method.is_unforgeable else 'nullptr' %}
+    {"{{method.name}}", {{getter_callback_for_main_world}}, {{setter_callback_for_main_world}}, nullptr, &{{v8_class}}::wrapperTypeInfo, {{property_attribute}}, {{property_location(method)}}, {{holder_check}}, V8DOMConfiguration::MainWorld},
+    {"{{method.name}}", {{getter_callback}}, {{setter_callback}}, nullptr, &{{v8_class}}::wrapperTypeInfo, {{property_attribute}}, {{property_location(method)}}, {{holder_check}}, V8DOMConfiguration::NonMainWorlds}}
+{% else %}
+    {"{{method.name}}", {{getter_callback}}, {{setter_callback}}, nullptr, &{{v8_class}}::wrapperTypeInfo, {{property_attribute}}, {{property_location(method)}}, {{holder_check}}, V8DOMConfiguration::AllWorlds}
+{% endif %}
 };
-V8DOMConfiguration::installAttribute(isolate, world, {{instance_template}}, {{prototype_template}}, {{method.name}}OriginSafeAttributeConfiguration);
+for (const auto& attributeConfig : {{method.name}}OriginSafeAttributeConfiguration)
+  V8DOMConfiguration::installAttribute(isolate, world, {{instance_template}}, {{prototype_template}}, attributeConfig);
 {%- endmacro %}
 
 
@@ -781,7 +802,8 @@ v8::Local<v8::Object> {{v8_class}}::findInstanceInPrototypeChain(v8::Local<v8::V
   // Transfer the ownership of the allocated memory to an {{interface_name}} without
   // copying.
   v8::{{interface_name}}::Contents v8Contents = v8buffer->Externalize();
-  WTF::ArrayBufferContents contents(v8Contents.Data(), v8Contents.ByteLength(), WTF::ArrayBufferContents::{% if interface_name == 'ArrayBuffer' %}Not{% endif %}Shared);
+  WTF::ArrayBufferContents::DataHandle data(v8Contents.Data(), WTF::ArrayBufferContents::freeMemory);
+  WTF::ArrayBufferContents contents(std::move(data), v8Contents.ByteLength(), WTF::ArrayBufferContents::{% if interface_name == 'ArrayBuffer' %}Not{% endif %}Shared);
   {{cpp_class}}* buffer = {{cpp_class}}::create(contents);
   v8::Local<v8::Object> associatedWrapper = buffer->associateWithWrapper(v8::Isolate::GetCurrent(), buffer->wrapperTypeInfo(), object);
   DCHECK(associatedWrapper == object);
@@ -856,6 +878,15 @@ v8::Local<v8::Object> {{v8_class}}::findInstanceInPrototypeChain(v8::Local<v8::V
 {% else %}
   return hasInstance(value, isolate) ? toImpl(v8::Local<v8::Object>::Cast(value)) : nullptr;
 {% endif %}
+}
+
+{% endblock %}
+
+
+{##############################################################################}
+{% block native_value_traits %}
+{{cpp_class}}* NativeValueTraits<{{cpp_class}}>::nativeValue(v8::Isolate* isolate, v8::Local<v8::Value> value, ExceptionState& exceptionState) {
+  return {{v8_class}}::toImplWithTypeCheck(isolate, value);
 }
 
 {% endblock %}

@@ -63,8 +63,7 @@ DatabaseManager::~DatabaseManager() {}
 // This is just for ignoring DatabaseCallback::handleEvent()'s return value.
 static void databaseCallbackHandleEvent(DatabaseCallback* callback,
                                         Database* database) {
-  InspectorInstrumentation::AsyncTask asyncTask(database->getExecutionContext(),
-                                                callback);
+  probe::AsyncTask asyncTask(database->getExecutionContext(), callback);
   callback->handleEvent(database);
 }
 
@@ -73,7 +72,7 @@ DatabaseContext* DatabaseManager::existingDatabaseContextFor(
   ASSERT(m_databaseContextRegisteredCount >= 0);
   ASSERT(m_databaseContextInstanceCount >= 0);
   ASSERT(m_databaseContextRegisteredCount <= m_databaseContextInstanceCount);
-  return m_contextMap.get(context);
+  return m_contextMap.at(context);
 }
 
 DatabaseContext* DatabaseManager::databaseContextFor(
@@ -95,7 +94,7 @@ void DatabaseManager::registerDatabaseContext(
 void DatabaseManager::unregisterDatabaseContext(
     DatabaseContext* databaseContext) {
   ExecutionContext* context = databaseContext->getExecutionContext();
-  ASSERT(m_contextMap.get(context));
+  ASSERT(m_contextMap.at(context));
 #if DCHECK_IS_ON()
   m_databaseContextRegisteredCount--;
 #endif
@@ -198,8 +197,8 @@ Database* DatabaseManager::openDatabase(ExecutionContext* context,
   if (database->isNew() && creationCallback) {
     STORAGE_DVLOG(1) << "Scheduling DatabaseCreationCallbackTask for database "
                      << database;
-    InspectorInstrumentation::asyncTaskScheduled(
-        database->getExecutionContext(), "openDatabase", creationCallback);
+    probe::asyncTaskScheduled(database->getExecutionContext(), "openDatabase",
+                              creationCallback);
     TaskRunnerHelper::get(TaskType::DatabaseAccess,
                           database->getExecutionContext())
         ->postTask(BLINK_FROM_HERE, WTF::bind(&databaseCallbackHandleEvent,

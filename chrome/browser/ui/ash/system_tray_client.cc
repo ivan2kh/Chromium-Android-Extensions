@@ -7,6 +7,7 @@
 #include "ash/common/login_status.h"
 #include "ash/common/wm_shell.h"
 #include "ash/public/cpp/shell_window_ids.h"
+#include "ash/public/interfaces/constants.mojom.h"
 #include "ash/shell.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
@@ -86,7 +87,7 @@ ash::mojom::UpdateSeverity GetUpdateSeverity(UpgradeDetector* detector) {
 SystemTrayClient::SystemTrayClient() : binding_(this) {
   content::ServiceManagerConnection::GetForProcess()
       ->GetConnector()
-      ->BindInterface(ash_util::GetAshServiceName(), &system_tray_);
+      ->BindInterface(ash::mojom::kServiceName, &system_tray_);
   // Register this object as the client interface implementation.
   system_tray_->SetClient(binding_.CreateInterfacePtrAndBind());
 
@@ -179,7 +180,7 @@ Widget* SystemTrayClient::CreateUnownedDialogWidget(
   // Place the dialog in the appropriate modal dialog container, either above
   // or below the lock screen, based on the login state.
   int container_id = GetDialogParentContainerId();
-  if (chrome::IsRunningInMash()) {
+  if (ash_util::IsRunningInMash()) {
     using ui::mojom::WindowManager;
     params.mus_properties[WindowManager::kContainerId_InitProperty] =
         mojo::ConvertTo<std::vector<uint8_t>>(container_id);
@@ -359,9 +360,9 @@ void SystemTrayClient::HandleUpdateAvailable() {
   // Get the Chrome update severity.
   ash::mojom::UpdateSeverity severity = GetUpdateSeverity(detector);
 
-  // Flash updates are elevated severity unless the Chrome severity is higher.
+  // Flash updates are low severity unless the Chrome severity is higher.
   if (flash_update_available_)
-    severity = std::max(severity, ash::mojom::UpdateSeverity::ELEVATED);
+    severity = std::max(severity, ash::mojom::UpdateSeverity::LOW);
 
   system_tray_->ShowUpdateIcon(severity, detector->is_factory_reset_required());
 }

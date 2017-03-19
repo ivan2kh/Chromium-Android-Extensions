@@ -31,6 +31,7 @@
 
 #include "core/timing/PerformanceBase.h"
 
+#include <algorithm>
 #include "core/dom/Document.h"
 #include "core/dom/DocumentTiming.h"
 #include "core/events/Event.h"
@@ -43,11 +44,10 @@
 #include "core/timing/PerformanceResourceTiming.h"
 #include "core/timing/PerformanceUserTiming.h"
 #include "platform/RuntimeEnabledFeatures.h"
-#include "platform/network/ResourceResponse.h"
-#include "platform/network/ResourceTimingInfo.h"
+#include "platform/loader/fetch/ResourceResponse.h"
+#include "platform/loader/fetch/ResourceTimingInfo.h"
 #include "platform/weborigin/SecurityOrigin.h"
 #include "wtf/CurrentTime.h"
-#include <algorithm>
 
 namespace blink {
 
@@ -110,10 +110,14 @@ PerformanceTiming* PerformanceBase::timing() const {
   return nullptr;
 }
 
-PerformanceEntryVector PerformanceBase::getEntries() const {
+PerformanceEntryVector PerformanceBase::getEntries() {
   PerformanceEntryVector entries;
 
   entries.appendVector(m_resourceTimingBuffer);
+  if (!m_navigationTiming)
+    m_navigationTiming = createNavigationTimingInstance();
+  // This extra checking is needed when WorkerPerformance
+  // calls this method.
   if (m_navigationTiming)
     entries.push_back(m_navigationTiming);
   entries.appendVector(m_frameTimingBuffer);
@@ -140,6 +144,8 @@ PerformanceEntryVector PerformanceBase::getEntriesByType(
         entries.push_back(resource);
       break;
     case PerformanceEntry::Navigation:
+      if (!m_navigationTiming)
+        m_navigationTiming = createNavigationTimingInstance();
       if (m_navigationTiming)
         entries.push_back(m_navigationTiming);
       break;
@@ -195,6 +201,8 @@ PerformanceEntryVector PerformanceBase::getEntriesByName(
   }
 
   if (entryType.isNull() || type == PerformanceEntry::Navigation) {
+    if (!m_navigationTiming)
+      m_navigationTiming = createNavigationTimingInstance();
     if (m_navigationTiming && m_navigationTiming->name() == name)
       entries.push_back(m_navigationTiming);
   }
@@ -344,66 +352,12 @@ void PerformanceBase::addResourceTiming(const ResourceTimingInfo& info) {
     addResourceTimingBuffer(*entry);
 }
 
-void PerformanceBase::addNavigationTiming(LocalFrame* frame) {
-  if (!RuntimeEnabledFeatures::performanceNavigationTiming2Enabled())
-    return;
-  DCHECK(frame);
-  const DocumentLoader* documentLoader = frame->loader().documentLoader();
-  DCHECK(documentLoader);
-
-  const DocumentLoadTiming& documentLoadTiming = documentLoader->timing();
-
-  const DocumentTiming* documentTiming =
-      frame->document() ? &(frame->document()->timing()) : nullptr;
-
-  ResourceTimingInfo* navigationTimingInfo =
-      documentLoader->getNavigationTimingInfo();
-  if (!navigationTimingInfo)
-    return;
-
-  const ResourceResponse& finalResponse = navigationTimingInfo->finalResponse();
-
-  ResourceLoadTiming* resourceLoadTiming = finalResponse.resourceLoadTiming();
-  // Don't create a navigation timing instance when
-  // resourceLoadTiming is null, which could happen when visiting non-http sites
-  // such as about:blank or in some error cases.
-  if (!resourceLoadTiming)
-    return;
-  double lastRedirectEndTime = documentLoadTiming.redirectEnd();
-  double finishTime = documentLoadTiming.loadEventEnd();
-
-  ExecutionContext* context = getExecutionContext();
-  SecurityOrigin* securityOrigin = getSecurityOrigin(context);
-  if (!securityOrigin)
-    return;
-
-  bool allowRedirectDetails =
-      allowsTimingRedirect(navigationTimingInfo->redirectChain(), finalResponse,
-                           *securityOrigin, context);
-
-  unsigned long long transferSize = navigationTimingInfo->transferSize();
-  unsigned long long encodedBodyLength = finalResponse.encodedBodyLength();
-  unsigned long long decodedBodyLength = finalResponse.decodedBodyLength();
-  bool didReuseConnection = finalResponse.connectionReused();
-  PerformanceNavigationTiming::NavigationType type =
-      getNavigationType(documentLoader->getNavigationType(), frame->document());
-
-  m_navigationTiming = new PerformanceNavigationTiming(
-      timeOrigin(), navigationTimingInfo->initialURL().getString(),
-      documentLoadTiming.unloadEventStart(),
-      documentLoadTiming.unloadEventEnd(), documentLoadTiming.loadEventStart(),
-      documentLoadTiming.loadEventEnd(), documentLoadTiming.redirectCount(),
-      documentTiming ? documentTiming->domInteractive() : 0,
-      documentTiming ? documentTiming->domContentLoadedEventStart() : 0,
-      documentTiming ? documentTiming->domContentLoadedEventEnd() : 0,
-      documentTiming ? documentTiming->domComplete() : 0, type,
-      documentLoadTiming.redirectStart(), documentLoadTiming.redirectEnd(),
-      documentLoadTiming.fetchStart(), documentLoadTiming.responseEnd(),
-      allowRedirectDetails,
-      documentLoadTiming.hasSameOriginAsPreviousDocument(), resourceLoadTiming,
-      lastRedirectEndTime, finishTime, transferSize, encodedBodyLength,
-      decodedBodyLength, didReuseConnection);
-  notifyObserversOfEntry(*m_navigationTiming);
+// Called after loadEventEnd happens.
+void PerformanceBase::notifyNavigationTimingToObservers() {
+  if (!m_navigationTiming)
+    m_navigationTiming = createNavigationTimingInstance();
+  if (m_navigationTiming)
+    notifyObserversOfEntry(*m_navigationTiming);
 }
 
 void PerformanceBase::addFirstPaintTiming(double startTime) {
@@ -495,7 +449,7 @@ void PerformanceBase::clearMeasures(const String& measureName) {
 void PerformanceBase::registerPerformanceObserver(
     PerformanceObserver& observer) {
   m_observerFilterOptions |= observer.filterOptions();
-  m_observers.add(&observer);
+  m_observers.insert(&observer);
   updateLongTaskInstrumentation();
 }
 
@@ -506,9 +460,9 @@ void PerformanceBase::unregisterPerformanceObserver(
   if (m_activeObservers.contains(&oldObserver) &&
       !oldObserver.shouldBeSuspended()) {
     oldObserver.deliver();
-    m_activeObservers.remove(&oldObserver);
+    m_activeObservers.erase(&oldObserver);
   }
-  m_observers.remove(&oldObserver);
+  m_observers.erase(&oldObserver);
   updatePerformanceObserverFilterOptions();
   updateLongTaskInstrumentation();
 }
@@ -537,7 +491,7 @@ void PerformanceBase::activateObserver(PerformanceObserver& observer) {
   if (m_activeObservers.isEmpty())
     m_deliverObservationsTimer.startOneShot(0, BLINK_FROM_HERE);
 
-  m_activeObservers.add(&observer);
+  m_activeObservers.insert(&observer);
 }
 
 void PerformanceBase::resumeSuspendedObservers() {
@@ -549,7 +503,7 @@ void PerformanceBase::resumeSuspendedObservers() {
   copyToVector(m_suspendedObservers, suspended);
   for (size_t i = 0; i < suspended.size(); ++i) {
     if (!suspended[i]->shouldBeSuspended()) {
-      m_suspendedObservers.remove(suspended[i]);
+      m_suspendedObservers.erase(suspended[i]);
       activateObserver(*suspended[i]);
     }
   }
@@ -561,7 +515,7 @@ void PerformanceBase::deliverObservationsTimerFired(TimerBase*) {
   m_activeObservers.swap(observers);
   for (const auto& observer : observers) {
     if (observer->shouldBeSuspended())
-      m_suspendedObservers.add(observer);
+      m_suspendedObservers.insert(observer);
     else
       observer->deliver();
   }

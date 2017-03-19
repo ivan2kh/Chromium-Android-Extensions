@@ -32,11 +32,11 @@ LayoutSVGResourceRadialGradient::LayoutSVGResourceRadialGradient(
 
 LayoutSVGResourceRadialGradient::~LayoutSVGResourceRadialGradient() {}
 
-bool LayoutSVGResourceRadialGradient::collectGradientAttributes(
-    SVGGradientElement* gradientElement) {
+bool LayoutSVGResourceRadialGradient::collectGradientAttributes() {
+  DCHECK(element());
   m_attributesWrapper->set(RadialGradientAttributes());
-  return toSVGRadialGradientElement(gradientElement)
-      ->collectGradientAttributes(mutableAttributes());
+  return toSVGRadialGradientElement(element())->collectGradientAttributes(
+      mutableAttributes());
 }
 
 FloatPoint LayoutSVGResourceRadialGradient::centerPoint(
@@ -65,12 +65,12 @@ float LayoutSVGResourceRadialGradient::focalRadius(
 
 PassRefPtr<Gradient> LayoutSVGResourceRadialGradient::buildGradient() const {
   const RadialGradientAttributes& attributes = this->attributes();
-  RefPtr<Gradient> gradient =
-      Gradient::create(focalPoint(attributes), focalRadius(attributes),
-                       centerPoint(attributes), radius(attributes));
-  gradient->setSpreadMethod(
-      platformSpreadMethodFromSVGType(attributes.spreadMethod()));
-  addStops(*gradient, attributes.stops());
+  RefPtr<Gradient> gradient = Gradient::create(
+      focalPoint(attributes), focalRadius(attributes), centerPoint(attributes),
+      radius(attributes), 1,
+      platformSpreadMethodFromSVGType(attributes.spreadMethod()),
+      Gradient::ColorInterpolation::Unpremultiplied);
+  gradient->addColorStops(attributes.stops());
   return gradient.release();
 }
 

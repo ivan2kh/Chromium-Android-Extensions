@@ -26,6 +26,8 @@
 
 #include "core/workers/WorkerThread.h"
 
+#include <limits.h>
+#include <memory>
 #include "bindings/core/v8/Microtask.h"
 #include "bindings/core/v8/ScriptSourceCode.h"
 #include "bindings/core/v8/WorkerOrWorkletScriptController.h"
@@ -53,8 +55,6 @@
 #include "wtf/PtrUtil.h"
 #include "wtf/Threading.h"
 #include "wtf/text/WTFString.h"
-#include <limits.h>
-#include <memory>
 
 namespace blink {
 
@@ -104,13 +104,15 @@ WorkerThread::~WorkerThread() {
   exitCodeHistogram.count(static_cast<int>(m_exitCode));
 }
 
-void WorkerThread::start(std::unique_ptr<WorkerThreadStartupData> startupData) {
+void WorkerThread::start(std::unique_ptr<WorkerThreadStartupData> startupData,
+                         ParentFrameTaskRunners* parentFrameTaskRunners) {
   DCHECK(isMainThread());
 
   if (m_requestedToStart)
     return;
 
   m_requestedToStart = true;
+  m_parentFrameTaskRunners = parentFrameTaskRunners;
   workerBackingThread().backingThread().postTask(
       BLINK_FROM_HERE, crossThreadBind(&WorkerThread::initializeOnWorkerThread,
                                        crossThreadUnretained(this),
@@ -189,13 +191,26 @@ bool WorkerThread::isCurrentThread() {
 }
 
 void WorkerThread::postTask(const WebTraceLocation& location,
+                            std::unique_ptr<WTF::Closure> task) {
+  DCHECK(isCurrentThread());
+  if (isInShutdown())
+    return;
+  workerBackingThread().backingThread().postTask(
+      location,
+      WTF::bind(
+          &WorkerThread::performTaskOnWorkerThread<WTF::SameThreadAffinity>,
+          WTF::unretained(this), WTF::passed(std::move(task))));
+}
+
+void WorkerThread::postTask(const WebTraceLocation& location,
                             std::unique_ptr<WTF::CrossThreadClosure> task) {
   if (isInShutdown())
     return;
   workerBackingThread().backingThread().postTask(
-      location, crossThreadBind(&WorkerThread::performTaskOnWorkerThread,
-                                crossThreadUnretained(this),
-                                WTF::passed(std::move(task))));
+      location,
+      crossThreadBind(
+          &WorkerThread::performTaskOnWorkerThread<WTF::CrossThreadAffinity>,
+          crossThreadUnretained(this), WTF::passed(std::move(task))));
 }
 
 void WorkerThread::appendDebuggerTask(
@@ -284,14 +299,12 @@ bool WorkerThread::isForciblyTerminated() {
 }
 
 WorkerThread::WorkerThread(PassRefPtr<WorkerLoaderProxy> workerLoaderProxy,
-                           WorkerReportingProxy& workerReportingProxy,
-                           ParentFrameTaskRunners* parentFrameTaskRunners)
+                           WorkerReportingProxy& workerReportingProxy)
     : m_workerThreadId(getNextWorkerThreadId()),
       m_forcibleTerminationDelayInMs(kForcibleTerminationDelayInMs),
       m_inspectorTaskRunner(WTF::makeUnique<InspectorTaskRunner>()),
       m_workerLoaderProxy(workerLoaderProxy),
       m_workerReportingProxy(workerReportingProxy),
-      m_parentFrameTaskRunners(parentFrameTaskRunners),
       m_shutdownEvent(WTF::wrapUnique(
           new WaitableEvent(WaitableEvent::ResetPolicy::Manual,
                             WaitableEvent::InitialState::NonSignaled))),
@@ -514,7 +527,7 @@ void WorkerThread::prepareForShutdownOnWorkerThread() {
 
   m_inspectorTaskRunner->kill();
   workerReportingProxy().willDestroyWorkerGlobalScope();
-  InspectorInstrumentation::allAsyncTasksCanceled(globalScope());
+  probe::allAsyncTasksCanceled(globalScope());
 
   globalScope()->notifyContextDestroyed();
   if (m_workerInspectorController) {
@@ -550,8 +563,9 @@ void WorkerThread::performShutdownOnWorkerThread() {
   m_shutdownEvent->signal();
 }
 
+template <WTF::FunctionThreadAffinity threadAffinity>
 void WorkerThread::performTaskOnWorkerThread(
-    std::unique_ptr<WTF::CrossThreadClosure> task) {
+    std::unique_ptr<Function<void(), threadAffinity>> task) {
   DCHECK(isCurrentThread());
   if (m_threadState != ThreadState::Running)
     return;

@@ -39,20 +39,18 @@ namespace safe_browsing {
 // static
 ThreatDetailsFactory* ThreatDetails::factory_ = NULL;
 
-const base::Feature kFillDOMInThreatDetails{"FillDOMInThreatDetails",
-                                            base::FEATURE_DISABLED_BY_DEFAULT};
-
 namespace {
 
 typedef std::unordered_set<std::string> StringSet;
 // A set of HTTPS headers that are allowed to be collected. Contains both
 // request and response headers. All entries in this list should be lower-case
 // to support case-insensitive comparison.
-struct WhitelistedHttpsHeadersTraits :
-    base::DefaultLazyInstanceTraits<StringSet> {
+struct WhitelistedHttpsHeadersTraits
+    : base::internal::DestructorAtExitLazyInstanceTraits<StringSet> {
   static StringSet* New(void* instance) {
-    StringSet* headers = base::DefaultLazyInstanceTraits<StringSet>::New(
-        instance);
+    StringSet* headers =
+        base::internal::DestructorAtExitLazyInstanceTraits<StringSet>::New(
+            instance);
     headers->insert({"google-creative-id", "google-lineitem-id", "referer",
         "content-type", "content-length", "date", "server", "cache-control",
         "pragma", "expires"});
@@ -144,14 +142,14 @@ class ThreatDetailsFactoryImpl : public ThreatDetailsFactory {
   }
 
  private:
-  friend struct base::DefaultLazyInstanceTraits<ThreatDetailsFactoryImpl>;
+  friend struct base::LazyInstanceTraitsBase<ThreatDetailsFactoryImpl>;
 
   ThreatDetailsFactoryImpl() {}
 
   DISALLOW_COPY_AND_ASSIGN(ThreatDetailsFactoryImpl);
 };
 
-static base::LazyInstance<ThreatDetailsFactoryImpl>
+static base::LazyInstance<ThreatDetailsFactoryImpl>::DestructorAtExit
     g_threat_details_factory_impl = LAZY_INSTANCE_INITIALIZER;
 
 // Create a ThreatDetails for the given tab.
@@ -283,11 +281,8 @@ void ThreatDetails::AddDomElement(
     const int element_node_id,
     const std::string& tagname,
     const int parent_element_node_id,
+    const std::vector<AttributeNameValue>& attributes,
     const ClientSafeBrowsingReportRequest::Resource* resource) {
-  if (!base::FeatureList::IsEnabled(kFillDOMInThreatDetails)) {
-    return;
-  }
-
   // Create the element. It should not exist already since this function should
   // only be called once for each element.
   const std::string element_key =
@@ -299,13 +294,15 @@ void ThreatDetails::AddDomElement(
   if (!tag_name_upper.empty()) {
     cur_element->set_tag(tag_name_upper);
   }
+  for (const AttributeNameValue& attribute : attributes) {
+    HTMLElement::Attribute* attribute_pb = cur_element->add_attribute();
+    attribute_pb->set_name(attribute.first);
+    attribute_pb->set_value(attribute.second);
+  }
   bool is_frame = tag_name_upper == "IFRAME" || tag_name_upper == "FRAME";
 
   if (resource) {
     cur_element->set_resource_id(resource->id());
-    HTMLElement::Attribute* src_attribute = cur_element->add_attribute();
-    src_attribute->set_name("SRC");
-    src_attribute->set_value(resource->url());
 
     // For iframes, remember that this HTML Element represents an iframe with a
     // specific URL. Elements from a frame with this URL are children of this
@@ -496,11 +493,15 @@ void ThreatDetails::AddDOMDetails(
   for (size_t i = 0; i < params.size() && i < kMaxDomNodes; ++i) {
     SafeBrowsingHostMsg_ThreatDOMDetails_Node node = params[i];
     DVLOG(1) << node.url << ", " << node.tag_name << ", " << node.parent;
-    ClientSafeBrowsingReportRequest::Resource* resource =
-        AddUrl(node.url, node.parent, node.tag_name, &(node.children));
+    ClientSafeBrowsingReportRequest::Resource* resource = nullptr;
+    if (!node.url.is_empty()) {
+      resource = AddUrl(node.url, node.parent, node.tag_name, &(node.children));
+    }
+    // Check for a tag_name to avoid adding the summary node to the DOM.
     if (!node.tag_name.empty()) {
       AddDomElement(frame_tree_node_id, frame_url.spec(), node.node_id,
-                    node.tag_name, node.parent_node_id, resource);
+                    node.tag_name, node.parent_node_id, node.attributes,
+                    resource);
     }
   }
 }

@@ -41,8 +41,6 @@ NSString* const kHeuristicsForPasswordGeneration =
     @"HeuristicsForPasswordGeneration";
 NSString* const kMDMIntegrationDisabled = @"MDMIntegrationDisabled";
 NSString* const kOriginServerHost = @"AlternateOriginServerHost";
-NSString* const kPendingIndexNavigationDisabled =
-    @"PendingIndexNavigationDisabled";
 NSString* const kSafariVCSignInDisabled = @"SafariVCSignInDisabled";
 NSString* const kWhatsNewPromoStatus = @"WhatsNewPromoStatus";
 
@@ -201,11 +199,6 @@ bool IsPaymentRequestEnabled() {
                           base::CompareCase::INSENSITIVE_ASCII);
 }
 
-bool IsPendingIndexNavigationEnabled() {
-  return ![[NSUserDefaults standardUserDefaults]
-      boolForKey:kPendingIndexNavigationDisabled];
-}
-
 bool IsPhysicalWebEnabled() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kEnableIOSPhysicalWeb)) {
@@ -233,11 +226,6 @@ bool IsReadingListEnabled() {
 bool IsSafariVCSignInEnabled() {
   return ![[NSUserDefaults standardUserDefaults]
       boolForKey:kSafariVCSignInDisabled];
-}
-
-bool IsSpotlightActionsEnabled() {
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  return !command_line->HasSwitch(switches::kDisableSpotlightActions);
 }
 
 bool IsStartupCrashEnabled() {

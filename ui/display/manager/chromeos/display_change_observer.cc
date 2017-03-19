@@ -38,7 +38,8 @@ struct DeviceScaleFactorDPIThreshold {
 };
 
 const DeviceScaleFactorDPIThreshold kThresholdTable[] = {
-    {200.0f, 2.0f},
+    {220.0f, 2.0f},
+    {180.0f, 1.5f},
     {150.0f, 1.25f},
     {0.0f, 1.0f},
 };
@@ -293,8 +294,6 @@ void DisplayChangeObserver::OnTouchscreenDeviceConfigurationChanged() {
   const auto& cached_displays = display_configurator_->cached_displays();
   if (!cached_displays.empty())
     OnDisplayModeChanged(cached_displays);
-  else
-    VLOG(1) << "Not updating touchscreen associations";
 }
 
 // static

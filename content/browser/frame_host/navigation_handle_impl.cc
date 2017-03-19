@@ -6,7 +6,6 @@
 
 #include <iterator>
 
-#include "base/debug/dump_without_crashing.h"
 #include "base/logging.h"
 #include "content/browser/appcache/appcache_navigation_handle.h"
 #include "content/browser/appcache/appcache_service_impl.h"
@@ -15,6 +14,7 @@
 #include "content/browser/devtools/render_frame_devtools_agent_host.h"
 #include "content/browser/frame_host/ancestor_throttle.h"
 #include "content/browser/frame_host/debug_urls.h"
+#include "content/browser/frame_host/form_submission_throttle.h"
 #include "content/browser/frame_host/frame_tree_node.h"
 #include "content/browser/frame_host/mixed_content_navigation_throttle.h"
 #include "content/browser/frame_host/navigation_controller_impl.h"
@@ -65,11 +65,13 @@ std::unique_ptr<NavigationHandleImpl> NavigationHandleImpl::Create(
     bool is_same_page,
     const base::TimeTicks& navigation_start,
     int pending_nav_entry_id,
-    bool started_from_context_menu) {
+    bool started_from_context_menu,
+    CSPDisposition should_check_main_world_csp,
+    bool is_form_submission) {
   return std::unique_ptr<NavigationHandleImpl>(new NavigationHandleImpl(
       url, redirect_chain, frame_tree_node, is_renderer_initiated, is_same_page,
-      navigation_start, pending_nav_entry_id,
-      started_from_context_menu));
+      navigation_start, pending_nav_entry_id, started_from_context_menu,
+      should_check_main_world_csp, is_form_submission));
 }
 
 NavigationHandleImpl::NavigationHandleImpl(
@@ -80,7 +82,9 @@ NavigationHandleImpl::NavigationHandleImpl(
     bool is_same_page,
     const base::TimeTicks& navigation_start,
     int pending_nav_entry_id,
-    bool started_from_context_menu)
+    bool started_from_context_menu,
+    CSPDisposition should_check_main_world_csp,
+    bool is_form_submission)
     : url_(url),
       has_user_gesture_(false),
       transition_(ui::PAGE_TRANSITION_LINK),
@@ -92,6 +96,7 @@ NavigationHandleImpl::NavigationHandleImpl(
       was_redirected_(false),
       did_replace_entry_(false),
       should_update_history_(false),
+      subframe_entry_committed_(false),
       connection_info_(net::HttpResponseInfo::CONNECTION_INFO_UNKNOWN),
       original_url_(url),
       state_(INITIAL),
@@ -108,7 +113,10 @@ NavigationHandleImpl::NavigationHandleImpl(
       is_stream_(false),
       started_from_context_menu_(started_from_context_menu),
       reload_type_(ReloadType::NONE),
+      restore_type_(RestoreType::NONE),
       navigation_type_(NAVIGATION_TYPE_UNKNOWN),
+      should_check_main_world_csp_(should_check_main_world_csp),
+      is_form_submission_(is_form_submission),
       weak_factory_(this) {
   DCHECK(!navigation_start.is_null());
   if (redirect_chain_.empty())
@@ -130,8 +138,10 @@ NavigationHandleImpl::NavigationHandleImpl(
       nav_entry = nav_controller->GetPendingEntry();
     }
 
-    if (nav_entry)
+    if (nav_entry) {
       reload_type_ = nav_entry->reload_type();
+      restore_type_ = nav_entry->restore_type();
+    }
   }
 
   if (!IsRendererDebugURL(url_))
@@ -263,7 +273,7 @@ RenderFrameHostImpl* NavigationHandleImpl::GetRenderFrameHost() {
   return render_frame_host_;
 }
 
-bool NavigationHandleImpl::IsSamePage() {
+bool NavigationHandleImpl::IsSameDocument() {
   return is_same_page_;
 }
 
@@ -282,6 +292,12 @@ bool NavigationHandleImpl::HasCommitted() {
 
 bool NavigationHandleImpl::IsErrorPage() {
   return state_ == DID_COMMIT_ERROR_PAGE;
+}
+
+bool NavigationHandleImpl::HasSubframeNavigationEntryCommitted() {
+  DCHECK(!IsInMainFrame());
+  DCHECK(state_ == DID_COMMIT || state_ == DID_COMMIT_ERROR_PAGE);
+  return subframe_entry_committed_;
 }
 
 bool NavigationHandleImpl::DidReplaceEntry() {
@@ -427,12 +443,12 @@ void NavigationHandleImpl::CallDidCommitNavigationForTesting(const GURL& url) {
   params.searchable_form_encoding = std::string();
   params.did_create_new_entry = false;
   params.gesture = NavigationGestureUser;
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   params.method = "GET";
   params.page_state = PageState::CreateFromURL(url);
   params.contents_mime_type = std::string("text/html");
 
-  DidCommitNavigation(params, false, GURL(), NAVIGATION_TYPE_NEW_PAGE,
+  DidCommitNavigation(params, true, false, GURL(), NAVIGATION_TYPE_NEW_PAGE,
                       render_frame_host_);
 }
 
@@ -450,6 +466,14 @@ const std::string& NavigationHandleImpl::GetSearchableFormEncoding() {
 
 ReloadType NavigationHandleImpl::GetReloadType() {
   return reload_type_;
+}
+
+RestoreType NavigationHandleImpl::GetRestoreType() {
+  return restore_type_;
+}
+
+const GURL& NavigationHandleImpl::GetBaseURLForDataURL() {
+  return base_url_for_data_url_;
 }
 
 NavigationData* NavigationHandleImpl::GetNavigationData() {
@@ -617,12 +641,13 @@ void NavigationHandleImpl::ReadyToCommitNavigation(
   render_frame_host_ = render_frame_host;
   state_ = READY_TO_COMMIT;
 
-  if (!IsRendererDebugURL(url_) && !IsSamePage())
+  if (!IsRendererDebugURL(url_) && !IsSameDocument())
     GetDelegate()->ReadyToCommitNavigation(this);
 }
 
 void NavigationHandleImpl::DidCommitNavigation(
     const FrameHostMsg_DidCommitProvisionalLoad_Params& params,
+    bool navigation_entry_committed,
     bool did_replace_entry,
     const GURL& previous_url,
     NavigationType navigation_type,
@@ -642,6 +667,11 @@ void NavigationHandleImpl::DidCommitNavigation(
   socket_address_ = params.socket_address;
   navigation_type_ = navigation_type;
 
+  DCHECK(!IsInMainFrame() || navigation_entry_committed)
+      << "Only subframe navigations can get here without changing the "
+      << "NavigationEntry";
+  subframe_entry_committed_ = navigation_entry_committed;
+
   // If an error page reloads, net_error_code might be 200 but we still want to
   // count it as an error page.
   if (params.base_url.spec() == kUnreachableWebDataURL ||
@@ -649,6 +679,14 @@ void NavigationHandleImpl::DidCommitNavigation(
     state_ = DID_COMMIT_ERROR_PAGE;
   } else {
     state_ = DID_COMMIT;
+  }
+
+  if (url_.SchemeIs(url::kDataScheme) && IsInMainFrame() &&
+      IsRendererInitiated()) {
+    GetRenderFrameHost()->AddMessageToConsole(
+        CONSOLE_MESSAGE_LEVEL_WARNING,
+        "Upcoming versions will block content-initiated top frame navigations "
+        "to data: URLs. For more information, see https://goo.gl/BaZAea.");
   }
 }
 
@@ -659,7 +697,9 @@ void NavigationHandleImpl::Transfer() {
   // transferring, the URLRequest can no longer be cancelled by its original
   // RenderFrame. Instead it will persist until being picked up by the transfer
   // RenderFrame, even if the original RenderFrame is destroyed.
-  BrowserThread::PostTask(BrowserThread::IO, FROM_HERE, transfer_callback_);
+  // Note: |transfer_callback_| can be null in unit tests.
+  if (!transfer_callback_.is_null())
+    BrowserThread::PostTask(BrowserThread::IO, FROM_HERE, transfer_callback_);
   transfer_callback_.Reset();
 }
 
@@ -675,9 +715,9 @@ NavigationHandleImpl::CheckWillStartRequest() {
       case NavigationThrottle::PROCEED:
         continue;
 
+      case NavigationThrottle::BLOCK_REQUEST:
       case NavigationThrottle::CANCEL:
       case NavigationThrottle::CANCEL_AND_IGNORE:
-      case NavigationThrottle::BLOCK_REQUEST:
         state_ = CANCELING;
         return result;
 
@@ -707,6 +747,9 @@ NavigationHandleImpl::CheckWillRedirectRequest() {
       case NavigationThrottle::PROCEED:
         continue;
 
+      case NavigationThrottle::BLOCK_REQUEST:
+        CHECK(IsBrowserSideNavigationEnabled())
+            << "BLOCK_REQUEST must not be used on redirect without PlzNavigate";
       case NavigationThrottle::CANCEL:
       case NavigationThrottle::CANCEL_AND_IGNORE:
         state_ = CANCELING;
@@ -717,7 +760,6 @@ NavigationHandleImpl::CheckWillRedirectRequest() {
         next_index_ = i + 1;
         return result;
 
-      case NavigationThrottle::BLOCK_REQUEST:
       case NavigationThrottle::BLOCK_RESPONSE:
         NOTREACHED();
     }
@@ -801,9 +843,6 @@ bool NavigationHandleImpl::MaybeTransferAndProceedInternal() {
   if (!render_frame_host_->is_active()) {
     // This will cause the deletion of this NavigationHandle and the
     // cancellation of the navigation.
-    // TODO(clamy): Remove the logging code once we understand better how we can
-    // get there.
-    base::debug::DumpWithoutCrashing();
     render_frame_host_->SetNavigationHandle(nullptr);
     return false;
   }
@@ -867,6 +906,11 @@ void NavigationHandleImpl::RunCompleteCallback(
   ThrottleChecksFinishedCallback callback = complete_callback_;
   complete_callback_.Reset();
 
+  if (!complete_callback_for_testing_.is_null()) {
+    complete_callback_for_testing_.Run(result);
+    complete_callback_for_testing_.Reset();
+  }
+
   if (!callback.is_null())
     callback.Run(result);
 
@@ -885,6 +929,20 @@ void NavigationHandleImpl::RegisterNavigationThrottles() {
   std::vector<std::unique_ptr<NavigationThrottle>> throttles_to_register =
       GetDelegate()->CreateThrottlesForNavigation(this);
 
+  std::unique_ptr<content::NavigationThrottle> ancestor_throttle =
+      content::AncestorThrottle::MaybeCreateThrottleFor(this);
+  if (ancestor_throttle)
+    throttles_.push_back(std::move(ancestor_throttle));
+
+  std::unique_ptr<content::NavigationThrottle> form_submission_throttle =
+      content::FormSubmissionThrottle::MaybeCreateThrottleFor(this);
+  if (form_submission_throttle)
+    throttles_.push_back(std::move(form_submission_throttle));
+
+  // Check for mixed content. This is done after the AncestorThrottle and the
+  // FormSubmissionThrottle so that when folks block mixed content with a CSP
+  // policy, they don't get a warning. They'll still get a warning in the
+  // console about CSP blocking the load.
   std::unique_ptr<NavigationThrottle> mixed_content_throttle =
       MixedContentNavigationThrottle::CreateThrottleForNavigation(this);
   if (mixed_content_throttle)
@@ -899,11 +957,6 @@ void NavigationHandleImpl::RegisterNavigationThrottles() {
       ClearSiteDataThrottle::CreateThrottleForNavigation(this);
   if (clear_site_data_throttle)
     throttles_to_register.push_back(std::move(clear_site_data_throttle));
-
-  std::unique_ptr<content::NavigationThrottle> ancestor_throttle =
-      content::AncestorThrottle::MaybeCreateThrottleFor(this);
-  if (ancestor_throttle)
-    throttles_.push_back(std::move(ancestor_throttle));
 
   throttles_.insert(throttles_.begin(),
                     std::make_move_iterator(throttles_to_register.begin()),

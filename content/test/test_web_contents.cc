@@ -93,7 +93,10 @@ int TestWebContents::DownloadImage(const GURL& url,
                                    bool bypass_cache,
                                    const ImageDownloadCallback& callback) {
   static int g_next_image_download_id = 0;
-  return ++g_next_image_download_id;
+  ++g_next_image_download_id;
+  pending_image_downloads_[url].emplace_back(g_next_image_download_id,
+                                             callback);
+  return g_next_image_download_id;
 }
 
 void TestWebContents::TestDidNavigate(RenderFrameHost* render_frame_host,
@@ -128,7 +131,7 @@ void TestWebContents::TestDidNavigateWithSequenceNumber(
     const GURL& url,
     const Referrer& referrer,
     ui::PageTransition transition,
-    bool was_within_same_page,
+    bool was_within_same_document,
     int item_sequence_number,
     int document_sequence_number) {
   TestRenderFrameHost* rfh =
@@ -158,7 +161,7 @@ void TestWebContents::TestDidNavigateWithSequenceNumber(
   params.gesture = NavigationGestureUser;
   params.method = "GET";
   params.post_id = 0;
-  params.was_within_same_page = was_within_same_page;
+  params.was_within_same_document = was_within_same_document;
   params.http_status_code = 200;
   params.url_is_unreachable = false;
   if (item_sequence_number != -1 && document_sequence_number != -1) {
@@ -184,6 +187,24 @@ void TestWebContents::TestDidNavigateWithSequenceNumber(
 
 const std::string& TestWebContents::GetSaveFrameHeaders() {
   return save_frame_headers_;
+}
+
+bool TestWebContents::HasPendingDownloadImage(const GURL& url) {
+  return !pending_image_downloads_[url].empty();
+}
+
+bool TestWebContents::TestDidDownloadImage(
+    const GURL& url,
+    int http_status_code,
+    const std::vector<SkBitmap>& bitmaps,
+    const std::vector<gfx::Size>& original_bitmap_sizes) {
+  if (!HasPendingDownloadImage(url))
+    return false;
+  int id = pending_image_downloads_[url].front().first;
+  ImageDownloadCallback callback = pending_image_downloads_[url].front().second;
+  pending_image_downloads_[url].pop_front();
+  callback.Run(id, http_status_code, url, bitmaps, original_bitmap_sizes);
+  return true;
 }
 
 bool TestWebContents::CrossProcessNavigationPending() {

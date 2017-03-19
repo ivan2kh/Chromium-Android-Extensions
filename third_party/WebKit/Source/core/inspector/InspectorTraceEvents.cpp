@@ -4,6 +4,10 @@
 
 #include "core/inspector/InspectorTraceEvents.h"
 
+#include <inttypes.h>
+
+#include <memory>
+
 #include "bindings/core/v8/ScriptSourceCode.h"
 #include "bindings/core/v8/SourceLocation.h"
 #include "core/animation/Animation.h"
@@ -15,7 +19,9 @@
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalFrame.h"
 #include "core/html/HTMLFrameOwnerElement.h"
+#include "core/html/parser/HTMLDocumentParser.h"
 #include "core/inspector/IdentifiersFactory.h"
+#include "core/inspector/InspectorInstrumentation.h"
 #include "core/layout/HitTestResult.h"
 #include "core/layout/LayoutImage.h"
 #include "core/layout/LayoutObject.h"
@@ -28,18 +34,24 @@
 #include "platform/InstanceCounters.h"
 #include "platform/graphics/GraphicsLayer.h"
 #include "platform/instrumentation/tracing/TracedValue.h"
-#include "platform/network/ResourceLoadPriority.h"
-#include "platform/network/ResourceRequest.h"
-#include "platform/network/ResourceResponse.h"
+#include "platform/loader/fetch/ResourceLoadPriority.h"
+#include "platform/loader/fetch/ResourceRequest.h"
+#include "platform/loader/fetch/ResourceResponse.h"
 #include "platform/weborigin/KURL.h"
+#include "v8/include/v8-profiler.h"
+#include "v8/include/v8.h"
 #include "wtf/Vector.h"
 #include "wtf/text/TextPosition.h"
-#include <inttypes.h>
-#include <memory>
-#include <v8-profiler.h>
-#include <v8.h>
 
 namespace blink {
+
+namespace {
+
+void* asyncId(unsigned long identifier) {
+  return reinterpret_cast<void*>((identifier << 1) | 1);
+}
+
+}  //  namespace
 
 String toHexString(const void* p) {
   return String::format("0x%" PRIx64,
@@ -59,6 +71,122 @@ void setCallStack(TracedValue* value) {
   // binding call site info.
   SourceLocation::capture()->toTracedValue(value, "stackTrace");
   v8::Isolate::GetCurrent()->GetCpuProfiler()->CollectSample();
+}
+
+void InspectorTraceEvents::init(InstrumentingAgents* instrumentingAgents,
+                                protocol::UberDispatcher*,
+                                protocol::DictionaryValue*) {
+  m_instrumentingAgents = instrumentingAgents;
+  m_instrumentingAgents->addInspectorTraceEvents(this);
+}
+
+void InspectorTraceEvents::dispose() {
+  m_instrumentingAgents->removeInspectorTraceEvents(this);
+  m_instrumentingAgents = nullptr;
+}
+
+DEFINE_TRACE(InspectorTraceEvents) {
+  visitor->trace(m_instrumentingAgents);
+  InspectorAgent::trace(visitor);
+}
+
+void InspectorTraceEvents::willSendRequest(
+    LocalFrame* frame,
+    unsigned long identifier,
+    DocumentLoader*,
+    ResourceRequest& request,
+    const ResourceResponse& redirectResponse,
+    const FetchInitiatorInfo&) {
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceSendRequest", TRACE_EVENT_SCOPE_THREAD,
+      "data", InspectorSendRequestEvent::data(identifier, frame, request));
+  probe::asyncTaskScheduled(frame->document(), "SendRequest",
+                            asyncId(identifier));
+}
+
+void InspectorTraceEvents::didReceiveResourceResponse(
+    LocalFrame* frame,
+    unsigned long identifier,
+    DocumentLoader*,
+    const ResourceResponse& response,
+    Resource*) {
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceReceiveResponse", TRACE_EVENT_SCOPE_THREAD,
+      "data", InspectorReceiveResponseEvent::data(identifier, frame, response));
+  probe::AsyncTask asyncTask(frame->document(), asyncId(identifier),
+                             "response");
+}
+
+void InspectorTraceEvents::didReceiveData(LocalFrame* frame,
+                                          unsigned long identifier,
+                                          const char* data,
+                                          int encodedDataLength) {
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceReceivedData", TRACE_EVENT_SCOPE_THREAD,
+      "data",
+      InspectorReceiveDataEvent::data(identifier, frame, encodedDataLength));
+  probe::AsyncTask asyncTask(frame->document(), asyncId(identifier), "data");
+}
+
+void InspectorTraceEvents::didFinishLoading(LocalFrame* frame,
+                                            unsigned long identifier,
+                                            double finishTime,
+                                            int64_t encodedDataLength,
+                                            int64_t decodedBodyLength) {
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceFinish", TRACE_EVENT_SCOPE_THREAD, "data",
+      InspectorResourceFinishEvent::data(identifier, finishTime, false,
+                                         encodedDataLength, decodedBodyLength));
+  probe::AsyncTask asyncTask(frame->document(), asyncId(identifier));
+}
+
+void InspectorTraceEvents::didFailLoading(unsigned long identifier,
+                                          const ResourceError&) {
+  TRACE_EVENT_INSTANT1(
+      "devtools.timeline", "ResourceFinish", TRACE_EVENT_SCOPE_THREAD, "data",
+      InspectorResourceFinishEvent::data(identifier, 0, true, 0, 0));
+}
+
+void InspectorTraceEvents::will(const probe::ExecuteScript&) {}
+
+void InspectorTraceEvents::did(const probe::ExecuteScript&) {
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
+                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
+                       InspectorUpdateCountersEvent::data());
+}
+
+void InspectorTraceEvents::will(const probe::ParseHTML& probe) {
+  // FIXME: Pass in current input length.
+  TRACE_EVENT_BEGIN1(
+      "devtools.timeline", "ParseHTML", "beginData",
+      InspectorParseHtmlEvent::beginData(
+          probe.parser->document(), probe.parser->lineNumber().zeroBasedInt()));
+}
+
+void InspectorTraceEvents::did(const probe::ParseHTML& probe) {
+  TRACE_EVENT_END1("devtools.timeline", "ParseHTML", "endData",
+                   InspectorParseHtmlEvent::endData(
+                       probe.parser->lineNumber().zeroBasedInt() - 1));
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
+                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
+                       InspectorUpdateCountersEvent::data());
+}
+
+void InspectorTraceEvents::will(const probe::CallFunction& probe) {
+  if (probe.depth)
+    return;
+  TRACE_EVENT_BEGIN1(
+      "devtools.timeline", "FunctionCall", "data",
+      InspectorFunctionCallEvent::data(probe.context, probe.function));
+}
+
+void InspectorTraceEvents::did(const probe::CallFunction& probe) {
+  if (probe.depth)
+    return;
+  TRACE_EVENT_END0("devtools.timeline", "FunctionCall");
+  TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
+                       "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data",
+                       InspectorUpdateCountersEvent::data());
 }
 
 namespace {
@@ -596,13 +724,15 @@ std::unique_ptr<TracedValue> InspectorResourceFinishEvent::data(
     unsigned long identifier,
     double finishTime,
     bool didFail,
-    int64_t encodedDataLength) {
+    int64_t encodedDataLength,
+    int64_t decodedBodyLength) {
   String requestId = IdentifiersFactory::requestId(identifier);
 
   std::unique_ptr<TracedValue> value = TracedValue::create();
   value->setString("requestId", requestId);
   value->setBoolean("didFail", didFail);
   value->setDouble("encodedDataLength", encodedDataLength);
+  value->setDouble("decodedBodyLength", decodedBodyLength);
   if (finishTime)
     value->setDouble("finishTime", finishTime);
   return value;
@@ -1074,6 +1204,12 @@ std::unique_ptr<TracedValue> InspectorHitTestEvent::endData(
     value->setBoolean("listBased", true);
   else if (Node* node = result.innerNode())
     setNodeInfo(value.get(), node, "nodeId", "nodeName");
+  return value;
+}
+
+std::unique_ptr<TracedValue> InspectorAsyncTask::data(const String& name) {
+  std::unique_ptr<TracedValue> value = TracedValue::create();
+  value->setString("name", name);
   return value;
 }
 

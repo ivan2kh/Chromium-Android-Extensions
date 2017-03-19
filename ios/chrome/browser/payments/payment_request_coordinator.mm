@@ -7,9 +7,6 @@
 #include <unordered_set>
 #include <vector>
 
-#import "base/ios/weak_nsobject.h"
-#include "base/mac/objc_property_releaser.h"
-#include "base/mac/scoped_nsobject.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/sys_string_conversions.h"
@@ -22,11 +19,24 @@
 #include "components/autofill/core/browser/payments/full_card_request.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
 #include "components/autofill/core/browser/ui/card_unmask_prompt_controller_impl.h"
+#include "components/payments/core/payment_address.h"
+#include "components/payments/core/payment_request_data_util.h"
+#include "components/strings/grit/components_strings.h"
 #include "ios/chrome/browser/application_context.h"
 #include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #include "ios/chrome/browser/payments/payment_request.h"
 #include "ios/chrome/browser/payments/payment_request_util.h"
 #include "ios/chrome/browser/ui/autofill/card_unmask_prompt_view_bridge.h"
+#include "ui/base/l10n/l10n_util.h"
+
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
+namespace {
+using ::payments::data_util::GetBasicCardResponseFromAutofillCreditCard;
+using ::payments::data_util::GetPaymentAddressFromAutofillProfile;
+}  // namespace
 
 // The unmask prompt UI for Payment Request.
 class PRCardUnmaskPromptViewBridge
@@ -36,7 +46,7 @@ class PRCardUnmaskPromptViewBridge
       autofill::CardUnmaskPromptController* controller,
       UIViewController* base_view_controller)
       : autofill::CardUnmaskPromptViewBridge(controller),
-        base_view_controller_(base_view_controller){};
+        base_view_controller_(base_view_controller) {}
 
   // autofill::CardUnmaskPromptView:
   void Show() override {
@@ -48,7 +58,7 @@ class PRCardUnmaskPromptViewBridge
   };
 
  private:
-  UIViewController* base_view_controller_;  // Weak.
+  __weak UIViewController* base_view_controller_;
   DISALLOW_COPY_AND_ASSIGN(PRCardUnmaskPromptViewBridge);
 };
 
@@ -108,36 +118,26 @@ class FullCardRequester
   }
 
  private:
-  PaymentRequestCoordinator* owner_;        // Weak. Owns this instance.
-  UIViewController* base_view_controller_;  // Weak.
+  __weak PaymentRequestCoordinator* owner_;
+  __weak UIViewController* base_view_controller_;
   autofill::CardUnmaskPromptControllerImpl unmask_controller_;
 
   DISALLOW_COPY_AND_ASSIGN(FullCardRequester);
 };
 
-@interface PaymentRequestCoordinator () {
-  base::WeakNSProtocol<id<PaymentRequestCoordinatorDelegate>> _delegate;
-  base::scoped_nsobject<UINavigationController> _navigationController;
-  base::scoped_nsobject<PaymentRequestViewController> _viewController;
-  base::scoped_nsobject<PaymentItemsDisplayCoordinator>
-      _itemsDisplayCoordinator;
-  base::scoped_nsobject<ShippingAddressSelectionCoordinator>
-      _shippingAddressSelectionCoordinator;
-  base::scoped_nsobject<ShippingOptionSelectionCoordinator>
-      _shippingOptionSelectionCoordinator;
-  base::scoped_nsobject<PaymentMethodSelectionCoordinator>
-      _methodSelectionCoordinator;
+@implementation PaymentRequestCoordinator {
+  UINavigationController* _navigationController;
+  PaymentRequestViewController* _viewController;
+  PaymentRequestErrorCoordinator* _errorCoordinator;
+  PaymentItemsDisplayCoordinator* _itemsDisplayCoordinator;
+  ShippingAddressSelectionCoordinator* _shippingAddressSelectionCoordinator;
+  ShippingOptionSelectionCoordinator* _shippingOptionSelectionCoordinator;
+  PaymentMethodSelectionCoordinator* _methodSelectionCoordinator;
 
   // Receiver of the full credit card details. Also displays the unmask prompt
   // UI.
   std::unique_ptr<FullCardRequester> _fullCardRequester;
 
-  base::mac::ObjCPropertyReleaser _propertyReleaser_PaymentRequestCoordinator;
-}
-
-@end
-
-@implementation PaymentRequestCoordinator {
   // The selected shipping address, pending approval from the page.
   autofill::AutofillProfile* _pendingShippingAddress;
 }
@@ -148,35 +148,19 @@ class FullCardRequester
 @synthesize pageFavicon = _pageFavicon;
 @synthesize pageTitle = _pageTitle;
 @synthesize pageHost = _pageHost;
-
-- (instancetype)initWithBaseViewController:
-    (UIViewController*)baseViewController {
-  if ((self = [super initWithBaseViewController:baseViewController])) {
-    _propertyReleaser_PaymentRequestCoordinator.Init(
-        self, [PaymentRequestCoordinator class]);
-  }
-  return self;
-}
-
-- (id<PaymentRequestCoordinatorDelegate>)delegate {
-  return _delegate.get();
-}
-
-- (void)setDelegate:(id<PaymentRequestCoordinatorDelegate>)delegate {
-  _delegate.reset(delegate);
-}
+@synthesize delegate = _delegate;
 
 - (void)start {
-  _viewController.reset([[PaymentRequestViewController alloc]
-      initWithPaymentRequest:_paymentRequest]);
+  _viewController = [[PaymentRequestViewController alloc]
+      initWithPaymentRequest:_paymentRequest];
   [_viewController setPageFavicon:_pageFavicon];
   [_viewController setPageTitle:_pageTitle];
   [_viewController setPageHost:_pageHost];
   [_viewController setDelegate:self];
   [_viewController loadModel];
 
-  _navigationController.reset([[UINavigationController alloc]
-      initWithRootViewController:_viewController]);
+  _navigationController = [[UINavigationController alloc]
+      initWithRootViewController:_viewController];
   [_navigationController setNavigationBarHidden:YES];
 
   [[self baseViewController] presentViewController:_navigationController
@@ -188,12 +172,13 @@ class FullCardRequester
   [[_navigationController presentingViewController]
       dismissViewControllerAnimated:YES
                          completion:nil];
-  _itemsDisplayCoordinator.reset();
-  _shippingAddressSelectionCoordinator.reset();
-  _shippingOptionSelectionCoordinator.reset();
-  _methodSelectionCoordinator.reset();
-  _navigationController.reset();
-  _viewController.reset();
+  _itemsDisplayCoordinator = nil;
+  _shippingAddressSelectionCoordinator = nil;
+  _shippingOptionSelectionCoordinator = nil;
+  _methodSelectionCoordinator = nil;
+  _errorCoordinator = nil;
+  _viewController = nil;
+  _navigationController = nil;
 }
 
 - (void)sendPaymentResponse {
@@ -207,24 +192,65 @@ class FullCardRequester
 - (void)fullCardRequestDidSucceedWithCard:(const autofill::CreditCard&)card
                                       CVC:(const base::string16&)cvc {
   web::PaymentResponse paymentResponse;
-  paymentResponse.details.cardholder_name =
-      card.GetRawInfo(autofill::CREDIT_CARD_NAME_FULL);
-  paymentResponse.details.card_number =
-      card.GetRawInfo(autofill::CREDIT_CARD_NUMBER);
-  paymentResponse.details.expiry_month =
-      card.GetRawInfo(autofill::CREDIT_CARD_EXP_MONTH);
-  paymentResponse.details.expiry_year =
-      card.GetRawInfo(autofill::CREDIT_CARD_EXP_4_DIGIT_YEAR);
-  paymentResponse.details.card_security_code = cvc;
-  if (!card.billing_address_id().empty()) {
-    autofill::AutofillProfile* address =
-        autofill::PersonalDataManager::GetProfileFromProfilesByGUID(
-            card.billing_address_id(), _paymentRequest->billing_profiles());
-    if (address) {
-      paymentResponse.details.billing_address =
-          payment_request_util::PaymentAddressFromAutofillProfile(address);
-    }
+
+  paymentResponse.method_name =
+      base::ASCIIToUTF16(autofill::data_util::GetPaymentRequestData(card.type())
+                             .basic_card_payment_type);
+
+  paymentResponse.details = GetBasicCardResponseFromAutofillCreditCard(
+      card, cvc, _paymentRequest->billing_profiles(),
+      GetApplicationContext()->GetApplicationLocale());
+
+  if (_paymentRequest->payment_options().request_shipping) {
+    autofill::AutofillProfile* shippingAddress =
+        _paymentRequest->selected_shipping_profile();
+    // TODO(crbug.com/602666): User should get here only if they have selected
+    // a shipping address.
+    DCHECK(shippingAddress);
+    paymentResponse.shipping_address = GetPaymentAddressFromAutofillProfile(
+        *shippingAddress, GetApplicationContext()->GetApplicationLocale());
+
+    web::PaymentShippingOption* shippingOption =
+        _paymentRequest->selected_shipping_option();
+    DCHECK(shippingOption);
+    paymentResponse.shipping_option = shippingOption->id;
   }
+
+  if (_paymentRequest->payment_options().request_payer_name) {
+    autofill::AutofillProfile* contactInfo =
+        _paymentRequest->selected_contact_profile();
+    // TODO(crbug.com/602666): User should get here only if they have selected
+    // a contact info.
+    DCHECK(contactInfo);
+    paymentResponse.payer_name =
+        contactInfo->GetInfo(autofill::AutofillType(autofill::NAME_FULL),
+                             GetApplicationContext()->GetApplicationLocale());
+  }
+
+  if (_paymentRequest->payment_options().request_payer_email) {
+    autofill::AutofillProfile* contactInfo =
+        _paymentRequest->selected_contact_profile();
+    // TODO(crbug.com/602666): User should get here only if they have selected
+    // a contact info.
+    DCHECK(contactInfo);
+    paymentResponse.payer_email =
+        contactInfo->GetRawInfo(autofill::EMAIL_ADDRESS);
+  }
+
+  if (_paymentRequest->payment_options().request_payer_phone) {
+    autofill::AutofillProfile* contactInfo =
+        _paymentRequest->selected_contact_profile();
+    // TODO(crbug.com/602666): User should get here only if they have selected
+    // a contact info.
+    DCHECK(contactInfo);
+    paymentResponse.payer_phone =
+        contactInfo->GetRawInfo(autofill::PHONE_HOME_WHOLE_NUMBER);
+  }
+
+  _viewController.view.userInteractionEnabled = NO;
+  [_viewController setPending:YES];
+  [_viewController loadModel];
+  [[_viewController collectionView] reloadData];
 
   [_delegate paymentRequestCoordinator:self
          didConfirmWithPaymentResponse:paymentResponse];
@@ -235,7 +261,7 @@ class FullCardRequester
       (_paymentRequest->payment_details().total != paymentDetails.total);
   _paymentRequest->set_payment_details(paymentDetails);
 
-  if (!paymentDetails.error.empty()) {
+  if (_paymentRequest->shipping_options().empty()) {
     // Display error in the shipping address/option selection view.
     if (_shippingAddressSelectionCoordinator) {
       _paymentRequest->set_selected_shipping_profile(nil);
@@ -260,7 +286,7 @@ class FullCardRequester
 
       // Dismiss the shipping address selection view.
       [_shippingAddressSelectionCoordinator stop];
-      _shippingAddressSelectionCoordinator.reset();
+      _shippingAddressSelectionCoordinator = nil;
     } else if (_shippingOptionSelectionCoordinator) {
       // Update the selected shipping option in the payment request summary
       // view. The updated selection is already reflected in |_paymentRequest|.
@@ -268,9 +294,18 @@ class FullCardRequester
 
       // Dismiss the shipping option selection view.
       [_shippingOptionSelectionCoordinator stop];
-      _shippingOptionSelectionCoordinator.reset();
+      _shippingOptionSelectionCoordinator = nil;
     }
   }
+}
+
+- (void)displayErrorWithCallback:(ProceduralBlock)callback {
+  _errorCoordinator = [[PaymentRequestErrorCoordinator alloc]
+      initWithBaseViewController:_navigationController];
+  [_errorCoordinator setCallback:callback];
+  [_errorCoordinator setDelegate:self];
+
+  [_errorCoordinator start];
 }
 
 #pragma mark - PaymentRequestViewControllerDelegate
@@ -287,8 +322,8 @@ class FullCardRequester
 
 - (void)paymentRequestViewControllerDidSelectPaymentSummaryItem:
     (PaymentRequestViewController*)controller {
-  _itemsDisplayCoordinator.reset([[PaymentItemsDisplayCoordinator alloc]
-      initWithBaseViewController:_viewController]);
+  _itemsDisplayCoordinator = [[PaymentItemsDisplayCoordinator alloc]
+      initWithBaseViewController:_viewController];
   [_itemsDisplayCoordinator setPaymentRequest:_paymentRequest];
   [_itemsDisplayCoordinator setDelegate:self];
 
@@ -297,9 +332,9 @@ class FullCardRequester
 
 - (void)paymentRequestViewControllerDidSelectShippingAddressItem:
     (PaymentRequestViewController*)controller {
-  _shippingAddressSelectionCoordinator.reset(
+  _shippingAddressSelectionCoordinator =
       [[ShippingAddressSelectionCoordinator alloc]
-          initWithBaseViewController:_viewController]);
+          initWithBaseViewController:_viewController];
   [_shippingAddressSelectionCoordinator setPaymentRequest:_paymentRequest];
   [_shippingAddressSelectionCoordinator setDelegate:self];
 
@@ -308,9 +343,9 @@ class FullCardRequester
 
 - (void)paymentRequestViewControllerDidSelectShippingOptionItem:
     (PaymentRequestViewController*)controller {
-  _shippingOptionSelectionCoordinator.reset(
+  _shippingOptionSelectionCoordinator =
       [[ShippingOptionSelectionCoordinator alloc]
-          initWithBaseViewController:_viewController]);
+          initWithBaseViewController:_viewController];
   [_shippingOptionSelectionCoordinator setPaymentRequest:_paymentRequest];
   [_shippingOptionSelectionCoordinator setDelegate:self];
 
@@ -319,12 +354,25 @@ class FullCardRequester
 
 - (void)paymentRequestViewControllerDidSelectPaymentMethodItem:
     (PaymentRequestViewController*)controller {
-  _methodSelectionCoordinator.reset([[PaymentMethodSelectionCoordinator alloc]
-      initWithBaseViewController:_viewController]);
+  _methodSelectionCoordinator = [[PaymentMethodSelectionCoordinator alloc]
+      initWithBaseViewController:_viewController];
   [_methodSelectionCoordinator setPaymentRequest:_paymentRequest];
   [_methodSelectionCoordinator setDelegate:self];
 
   [_methodSelectionCoordinator start];
+}
+
+#pragma mark - PaymentRequestErrorCoordinatorDelegate
+
+- (void)paymentRequestErrorCoordinatorDidDismiss:
+    (PaymentRequestErrorCoordinator*)coordinator {
+  ProceduralBlock callback = coordinator.callback;
+
+  [_errorCoordinator stop];
+  _errorCoordinator = nil;
+
+  if (callback)
+    callback();
 }
 
 #pragma mark - PaymentItemsDisplayCoordinatorDelegate
@@ -335,7 +383,7 @@ class FullCardRequester
   [_viewController updatePaymentSummaryWithTotalValueChanged:NO];
 
   [_itemsDisplayCoordinator stop];
-  _itemsDisplayCoordinator.reset();
+  _itemsDisplayCoordinator = nil;
 }
 
 - (void)paymentItemsDisplayCoordinatorDidConfirm:
@@ -350,9 +398,9 @@ class FullCardRequester
                    didSelectShippingAddress:
                        (autofill::AutofillProfile*)shippingAddress {
   _pendingShippingAddress = shippingAddress;
-
-  web::PaymentAddress address =
-      payment_request_util::PaymentAddressFromAutofillProfile(shippingAddress);
+  DCHECK(shippingAddress);
+  payments::PaymentAddress address = GetPaymentAddressFromAutofillProfile(
+      *shippingAddress, GetApplicationContext()->GetApplicationLocale());
   [_delegate paymentRequestCoordinator:self didSelectShippingAddress:address];
 }
 
@@ -362,7 +410,7 @@ class FullCardRequester
   [_viewController updatePaymentSummaryWithTotalValueChanged:NO];
 
   [_shippingAddressSelectionCoordinator stop];
-  _shippingAddressSelectionCoordinator.reset();
+  _shippingAddressSelectionCoordinator = nil;
 }
 
 #pragma mark - ShippingOptionSelectionCoordinatorDelegate
@@ -381,7 +429,7 @@ class FullCardRequester
   [_viewController updatePaymentSummaryWithTotalValueChanged:NO];
 
   [_shippingOptionSelectionCoordinator stop];
-  _shippingOptionSelectionCoordinator.reset();
+  _shippingOptionSelectionCoordinator = nil;
 }
 
 #pragma mark - PaymentMethodSelectionCoordinatorDelegate
@@ -397,7 +445,7 @@ class FullCardRequester
   [_viewController updatePaymentSummaryWithTotalValueChanged:NO];
 
   [_methodSelectionCoordinator stop];
-  _methodSelectionCoordinator.reset();
+  _methodSelectionCoordinator = nil;
 }
 
 - (void)paymentMethodSelectionCoordinatorDidReturn:
@@ -406,7 +454,7 @@ class FullCardRequester
   [_viewController updatePaymentSummaryWithTotalValueChanged:NO];
 
   [_methodSelectionCoordinator stop];
-  _methodSelectionCoordinator.reset();
+  _methodSelectionCoordinator = nil;
 }
 
 @end

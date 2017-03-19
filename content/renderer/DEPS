@@ -5,6 +5,7 @@ include_rules = [
   "+components/payments",
   "+components/scheduler",
   "+components/url_formatter",
+  "+components/variations",
 
   "+cc/blink",
   "+content/public/child",
@@ -23,7 +24,7 @@ include_rules = [
   "+services",
   "-storage/browser",
   "+third_party/hyphen/hyphen.h",
-  "+third_party/libjingle",
+  "+third_party/webrtc_overrides",
   "+v8/include",
   "+v8/src/third_party/vtune",
 ]

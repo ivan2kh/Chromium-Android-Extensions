@@ -143,6 +143,7 @@ void RendererImpl::Initialize(MediaResource* media_resource,
   init_cb_ = init_cb;
 
   if (HasEncryptedStream() && !cdm_context_) {
+    DVLOG(1) << __func__ << ": Has encrypted stream but CDM is not set.";
     state_ = STATE_INIT_PENDING_CDM;
     return;
   }
@@ -353,7 +354,7 @@ bool RendererImpl::HasEncryptedStream() {
   std::vector<DemuxerStream*> demuxer_streams =
       media_resource_->GetAllStreams();
 
-  for (const auto& stream : demuxer_streams) {
+  for (auto* stream : demuxer_streams) {
     if (stream->type() == DemuxerStream::AUDIO &&
         stream->audio_decoder_config().is_encrypted())
       return true;

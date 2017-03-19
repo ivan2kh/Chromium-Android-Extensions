@@ -100,7 +100,8 @@ class GpuChildThread : public ChildThreadImpl,
   // ui::mojom::GpuMain:
   void CreateGpuService(ui::mojom::GpuServiceRequest request,
                         ui::mojom::GpuHostPtr gpu_host,
-                        const gpu::GpuPreferences& preferences) override;
+                        const gpu::GpuPreferences& preferences,
+                        mojo::ScopedSharedBufferHandle activity_flags) override;
   void CreateDisplayCompositor(
       cc::mojom::DisplayCompositorRequest request,
       cc::mojom::DisplayCompositorClientPtr client) override;
@@ -110,29 +111,14 @@ class GpuChildThread : public ChildThreadImpl,
                                   const std::string& group_name) override;
 
   // Message handlers.
-  void OnFinalize();
   void OnCollectGraphicsInfo();
-  void OnGetVideoMemoryUsageStats();
   void OnSetVideoMemoryWindowCount(uint32_t window_count);
 
-  void OnClean();
-  void OnCrash();
-  void OnHang();
-#if defined(OS_ANDROID)
-  void OnJavaCrash();
-#endif
   void OnGpuSwitched();
 
-  void OnCloseChannel(int32_t client_id);
-  void OnLoadedShader(const std::string& shader);
   void OnDestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id,
                                 int client_id,
                                 const gpu::SyncToken& sync_token);
-#if defined(OS_ANDROID)
-  void OnWakeUpGpu();
-  void OnDestroyingVideoSurface(int surface_id);
-#endif
-
   void BindServiceFactoryRequest(
       service_manager::mojom::ServiceFactoryRequest request);
 

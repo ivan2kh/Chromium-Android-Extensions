@@ -5,48 +5,41 @@
 #ifndef NGFloatingObject_h
 #define NGFloatingObject_h
 
+#include "core/layout/ng/geometry/ng_box_strut.h"
 #include "core/layout/ng/ng_block_node.h"
 #include "core/layout/ng/ng_constraint_space.h"
-#include "core/layout/ng/ng_units.h"
+#include "core/layout/ng/ng_exclusion.h"
+#include "core/layout/ng/ng_physical_fragment.h"
 #include "core/style/ComputedStyle.h"
 #include "core/style/ComputedStyleConstants.h"
-#include "platform/heap/Handle.h"
+#include "wtf/RefPtr.h"
 
 namespace blink {
 
-class NGPhysicalFragment;
-
 // Struct that keeps all information needed to position floats in LayoutNG.
-struct CORE_EXPORT NGFloatingObject
-    : public GarbageCollectedFinalized<NGFloatingObject> {
-  NGFloatingObject(NGPhysicalFragment* fragment,
-                   NGConstraintSpace* space,
-                   const NGConstraintSpace* parent_space,
-                   NGBlockNode* node,
-                   const ComputedStyle& style,
-                   const NGBoxStrut& margins)
-      : fragment(fragment),
-        space(space),
-        parent_space(parent_space),
-        node(node),
-        margins(margins) {
-    exclusion_type = NGExclusion::kFloatLeft;
-    if (style.floating() == EFloat::kRight)
-      exclusion_type = NGExclusion::kFloatRight;
-    clear_type = style.clear();
+struct CORE_EXPORT NGFloatingObject : public RefCounted<NGFloatingObject> {
+ public:
+  static RefPtr<NGFloatingObject> Create(const NGConstraintSpace* space,
+                                         const NGConstraintSpace* parent_space,
+                                         const ComputedStyle& style,
+                                         const NGBoxStrut& margins,
+                                         NGPhysicalFragment* fragment) {
+    return adoptRef(
+        new NGFloatingObject(space, parent_space, style, margins, fragment));
   }
 
-  RefPtr<NGPhysicalFragment> fragment;
-  // TODO(glebl): Constraint space should be const here.
-  Member<NGConstraintSpace> space;
+  // Original constraint space of the float.
+  RefPtr<const NGConstraintSpace> space;
 
   // Parent space is used so we can calculate the inline offset relative to
   // the original parent of this float.
-  Member<const NGConstraintSpace> parent_space;
-  Member<NGBlockNode> node;
+  RefPtr<const NGConstraintSpace> original_parent_space;
+
   NGExclusion::Type exclusion_type;
   EClear clear_type;
   NGBoxStrut margins;
+
+  RefPtr<NGPhysicalFragment> fragment;
 
   // In the case where a legacy FloatingObject is attached to not its own
   // parent, e.g. a float surrounded by a bunch of nested empty divs,
@@ -57,10 +50,20 @@ struct CORE_EXPORT NGFloatingObject
   // would be attached.
   LayoutUnit left_offset;
 
-  DEFINE_INLINE_TRACE() {
-    visitor->trace(space);
-    visitor->trace(parent_space);
-    visitor->trace(node);
+ private:
+  NGFloatingObject(const NGConstraintSpace* space,
+                   const NGConstraintSpace* parent_space,
+                   const ComputedStyle& style,
+                   const NGBoxStrut& margins,
+                   NGPhysicalFragment* fragment)
+      : space(space),
+        original_parent_space(parent_space),
+        margins(margins),
+        fragment(fragment) {
+    exclusion_type = NGExclusion::kFloatLeft;
+    if (style.floating() == EFloat::kRight)
+      exclusion_type = NGExclusion::kFloatRight;
+    clear_type = style.clear();
   }
 };
 

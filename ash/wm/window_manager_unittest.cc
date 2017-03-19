@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "ash/common/wm_shell.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
@@ -161,7 +162,9 @@ TEST_F(WindowManagerTest, Focus) {
   // Touch on a sub-window (w122) to focus it.
   gfx::Point click_point = w122->bounds().CenterPoint();
   aura::Window::ConvertPointToTarget(w122->parent(), root_window, &click_point);
-  ui::TouchEvent touchev(ui::ET_TOUCH_PRESSED, click_point, 0, getTime());
+  ui::TouchEvent touchev(
+      ui::ET_TOUCH_PRESSED, click_point, getTime(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
   details = dispatcher->OnEventFromSource(&touchev);
   ASSERT_FALSE(details.dispatcher_destroyed);
   focus_client = aura::client::GetFocusClient(w122.get());
@@ -415,7 +418,9 @@ TEST_F(WindowManagerTest, ActivateOnTouch) {
   // Touch window2.
   gfx::Point press_point = w2->bounds().CenterPoint();
   aura::Window::ConvertPointToTarget(w2->parent(), root_window, &press_point);
-  ui::TouchEvent touchev1(ui::ET_TOUCH_PRESSED, press_point, 0, getTime());
+  ui::TouchEvent touchev1(
+      ui::ET_TOUCH_PRESSED, press_point, getTime(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
 
   ui::EventProcessor* dispatcher = root_window->GetHost()->event_processor();
   ui::EventDispatchDetails details = dispatcher->OnEventFromSource(&touchev1);
@@ -435,7 +440,9 @@ TEST_F(WindowManagerTest, ActivateOnTouch) {
   press_point = w1->bounds().CenterPoint();
   aura::Window::ConvertPointToTarget(w1->parent(), root_window, &press_point);
   d1.set_activate(false);
-  ui::TouchEvent touchev2(ui::ET_TOUCH_PRESSED, press_point, 1, getTime());
+  ui::TouchEvent touchev2(
+      ui::ET_TOUCH_PRESSED, press_point, getTime(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 1));
   details = dispatcher->OnEventFromSource(&touchev2);
   ASSERT_FALSE(details.dispatcher_destroyed);
 
@@ -461,6 +468,10 @@ TEST_F(WindowManagerTest, ActivateOnTouch) {
 }
 
 TEST_F(WindowManagerTest, MouseEventCursors) {
+  // TODO: investigate failure in mash. http://crbug.com/698895.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   aura::Window* root_window = Shell::GetPrimaryRootWindow();
 
   // Create a window.
@@ -696,6 +707,10 @@ TEST_F(WindowManagerTest, AdditionalFilters) {
 
 // Touch visually hides the cursor.
 TEST_F(WindowManagerTest, UpdateCursorVisibility) {
+  // TODO: mash doesn't support CursorManager. http://crbug.com/631103.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   ui::test::EventGenerator& generator = GetEventGenerator();
   ::wm::CursorManager* cursor_manager =
       ash::Shell::GetInstance()->cursor_manager();
@@ -716,6 +731,10 @@ TEST_F(WindowManagerTest, UpdateCursorVisibility) {
 
 // Cursor is hidden on keypress.
 TEST_F(WindowManagerTest, UpdateCursorVisibilityOnKeyEvent) {
+  // TODO: mash doesn't support CursorManager. http://crbug.com/631103.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   ui::test::EventGenerator& generator = GetEventGenerator();
   ::wm::CursorManager* cursor_manager =
       ash::Shell::GetInstance()->cursor_manager();
@@ -737,6 +756,10 @@ TEST_F(WindowManagerTest, UpdateCursorVisibilityOnKeyEvent) {
 
 // Test that pressing an accelerator does not hide the cursor.
 TEST_F(WindowManagerTest, UpdateCursorVisibilityAccelerator) {
+  // TODO: mash doesn't support CursorManager. http://crbug.com/631103.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   ui::test::EventGenerator& generator = GetEventGenerator();
   ::wm::CursorManager* cursor_manager = Shell::GetInstance()->cursor_manager();
 
@@ -758,6 +781,10 @@ TEST_F(WindowManagerTest, UpdateCursorVisibilityAccelerator) {
 }
 
 TEST_F(WindowManagerTest, TestCursorClientObserver) {
+  // TODO: mash doesn't support CursorManager. http://crbug.com/631103.
+  if (WmShell::Get()->IsRunningInMash())
+    return;
+
   ui::test::EventGenerator& generator = GetEventGenerator();
   ::wm::CursorManager* cursor_manager =
       ash::Shell::GetInstance()->cursor_manager();

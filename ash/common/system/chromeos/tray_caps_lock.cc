@@ -12,10 +12,11 @@
 #include "ash/common/system/tray/tray_popup_utils.h"
 #include "ash/common/system/tray/tri_view.h"
 #include "ash/common/wm_shell.h"
+#include "ash/resources/grit/ash_resources.h"
 #include "ash/resources/vector_icons/vector_icons.h"
+#include "ash/shell.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "base/sys_info.h"
-#include "grit/ash_resources.h"
-#include "grit/ash_strings.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/ime/chromeos/ime_keyboard.h"
 #include "ui/base/ime/chromeos/input_method_manager.h"
@@ -57,7 +58,7 @@ class CapsLockDefaultView : public ActionableView {
     SetLayoutManager(new views::FillLayout);
     AddChildView(tri_view);
 
-    auto image = TrayPopupUtils::CreateMainImageView();
+    auto* image = TrayPopupUtils::CreateMainImageView();
     image->SetEnabled(enabled());
     TrayPopupItemStyle default_view_style(
         TrayPopupItemStyle::FontStyle::DEFAULT_VIEW_LABEL);
@@ -158,7 +159,7 @@ void TrayCapsLock::OnCapsLockChanged(bool enabled) {
   caps_lock_enabled_ = enabled;
 
   // Send an a11y alert.
-  WmShell::Get()->accessibility_delegate()->TriggerAccessibilityAlert(
+  Shell::GetInstance()->accessibility_delegate()->TriggerAccessibilityAlert(
       enabled ? A11Y_ALERT_CAPS_ON : A11Y_ALERT_CAPS_OFF);
 
   if (tray_view())

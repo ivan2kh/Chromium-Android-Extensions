@@ -76,7 +76,8 @@ void LoginUIService::DisplayLoginResult(Browser* browser,
 #endif
   last_login_result_ = error_message;
   last_login_error_email_ = email;
-  if (switches::IsMaterialDesignUserMenu() && !error_message.empty()) {
+
+  if (!error_message.empty()) {
 #if 0 //not implemented
     if (browser)
       browser->ShowModalSigninErrorWindow();
@@ -88,7 +89,7 @@ void LoginUIService::DisplayLoginResult(Browser* browser,
         error_message.empty() ? BrowserWindow::AVATAR_BUBBLE_MODE_CONFIRM_SIGNIN
                               : BrowserWindow::AVATAR_BUBBLE_MODE_SHOW_ERROR,
         signin::ManageAccountsParams(),
-        signin_metrics::AccessPoint::ACCESS_POINT_EXTENSIONS);
+        signin_metrics::AccessPoint::ACCESS_POINT_EXTENSIONS, false);
   }
 }
 

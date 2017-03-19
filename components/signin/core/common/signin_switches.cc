@@ -32,14 +32,6 @@ extern const char kEnableRefreshTokenAnnotationRequest[] =
 // Enables multiple account versions of chrome.identity APIs.
 const char kExtensionsMultiAccount[] = "extensions-multi-account";
 
-// Enables using GAIA information to populate profile name and icon.
-const char kGoogleProfileInfo[] = "google-profile-info";
-
-// Enables or disables the material design desktop user menu.
-const base::Feature kMaterialDesignUserMenu {
-  "MaterialDesignUserMenu", base::FEATURE_ENABLED_BY_DEFAULT
-};
-
 // Enables or disables the new password separated sign in flow in a tab modal
 // dialog.
 const base::Feature kUsePasswordSeparatedSigninFlow {

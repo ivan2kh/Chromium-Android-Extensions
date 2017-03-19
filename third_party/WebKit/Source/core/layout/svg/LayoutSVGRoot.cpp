@@ -230,8 +230,8 @@ LayoutRect LayoutSVGRoot::visualOverflowRect() const {
 
 LayoutRect LayoutSVGRoot::overflowClipRect(const LayoutPoint& location,
                                            OverlayScrollbarClipBehavior) const {
-  return LayoutRect(pixelSnappedIntRect(
-      LayoutReplaced::overflowClipRect(location, IgnoreOverlayScrollbarSize)));
+  return LayoutRect(pixelSnappedIntRect(LayoutReplaced::overflowClipRect(
+      location, IgnorePlatformOverlayScrollbarSize)));
 }
 
 void LayoutSVGRoot::paintReplaced(const PaintInfo& paintInfo,
@@ -248,7 +248,7 @@ void LayoutSVGRoot::styleDidChange(StyleDifference diff,
                                    const ComputedStyle* oldStyle) {
   if (diff.needsFullLayout())
     setNeedsBoundariesUpdate();
-  if (diff.needsPaintInvalidation()) {
+  if (diff.needsFullPaintInvalidation()) {
     // Box decorations may have appeared/disappeared - recompute status.
     m_hasBoxDecorationBackground = styleRef().hasBoxDecorationBackground();
   }

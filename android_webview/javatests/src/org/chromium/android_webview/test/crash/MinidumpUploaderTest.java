@@ -12,15 +12,17 @@ import android.support.test.filters.MediumTest;
 import android.webkit.ValueCallback;
 
 import org.chromium.android_webview.PlatformServiceBridge;
+import org.chromium.android_webview.crash.AwMinidumpUploaderDelegate;
 import org.chromium.android_webview.crash.CrashReceiverService;
-import org.chromium.android_webview.crash.MinidumpUploader;
-import org.chromium.android_webview.crash.MinidumpUploaderImpl;
 import org.chromium.base.FileUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.components.minidump_uploader.CrashFileManager;
 import org.chromium.components.minidump_uploader.CrashTestCase;
 import org.chromium.components.minidump_uploader.MinidumpUploadCallable;
 import org.chromium.components.minidump_uploader.MinidumpUploadCallableTest;
+import org.chromium.components.minidump_uploader.MinidumpUploader;
+import org.chromium.components.minidump_uploader.MinidumpUploaderDelegate;
+import org.chromium.components.minidump_uploader.MinidumpUploaderImpl;
 import org.chromium.components.minidump_uploader.util.CrashReportingPermissionManager;
 import org.chromium.components.minidump_uploader.util.HttpURLConnectionFactory;
 
@@ -73,13 +75,37 @@ public class MinidumpUploaderTest extends CrashTestCase {
         }
     }
 
-    private static class TestMinidumpUploaderImpl extends MinidumpUploaderImpl {
-        private CrashReportingPermissionManager mPermissionManager;
+    private static class TestMinidumpUploaderDelegate extends AwMinidumpUploaderDelegate {
+        private final CrashReportingPermissionManager mPermissionManager;
 
-        TestMinidumpUploaderImpl(Context context, CrashReportingPermissionManager permissionManager,
-                boolean cleanOutMinidumps) {
-            super(context, cleanOutMinidumps);
+        TestMinidumpUploaderDelegate(
+                Context context, CrashReportingPermissionManager permissionManager) {
+            super(context);
             mPermissionManager = permissionManager;
+        }
+
+        @Override
+        public PlatformServiceBridge createPlatformServiceBridge() {
+            return new TestPlatformServiceBridge(true /* canUseGms */,
+                    mPermissionManager.isUsageAndCrashReportingPermittedByUser());
+        }
+    }
+
+    private static class TestMinidumpUploaderImpl extends MinidumpUploaderImpl {
+        private final CrashReportingPermissionManager mPermissionManager;
+
+        TestMinidumpUploaderImpl(MinidumpUploaderDelegate delegate,
+                CrashReportingPermissionManager permissionManager) {
+            super(delegate);
+            mPermissionManager = permissionManager;
+        }
+
+        @Override
+        public CrashFileManager createCrashFileManager(File crashDir) {
+            return new CrashFileManager(crashDir) {
+                @Override
+                public void cleanOutAllNonFreshMinidumpFiles() {}
+            };
         }
 
         @Override
@@ -88,12 +114,6 @@ public class MinidumpUploaderTest extends CrashTestCase {
             return new MinidumpUploadCallable(minidumpFile, logfile,
                     new MinidumpUploadCallableTest.TestHttpURLConnectionFactory(),
                     mPermissionManager);
-        }
-
-        @Override
-        public PlatformServiceBridge createPlatformServiceBridge() {
-            return new TestPlatformServiceBridge(true /* canUseGms */,
-                    mPermissionManager.isUsageAndCrashReportingPermittedByUser());
         }
     }
 
@@ -107,16 +127,14 @@ public class MinidumpUploaderTest extends CrashTestCase {
                 new MockCrashReportingPermissionManager() {
                     {
                         mIsInSample = true;
-                        mIsPermitted = true;
                         mIsUserPermitted = true;
-                        mIsCommandLineDisabled = false;
                         mIsNetworkAvailable = false; // Will cause us to fail uploads
                         mIsEnabledForTests = false;
                     }
                 };
-        MinidumpUploader minidumpUploader =
-                new TestMinidumpUploaderImpl(getInstrumentation().getTargetContext(), permManager,
-                        false /* cleanOutMinidumps */);
+        MinidumpUploaderDelegate delegate = new TestMinidumpUploaderDelegate(
+                getInstrumentation().getTargetContext(), permManager);
+        MinidumpUploader minidumpUploader = new TestMinidumpUploaderImpl(delegate, permManager);
 
         File firstFile = createMinidumpFileInCrashDir("1_abc.dmp0");
         File secondFile = createMinidumpFileInCrashDir("12_abc.dmp0");
@@ -206,9 +224,9 @@ public class MinidumpUploaderTest extends CrashTestCase {
                 new MockCrashReportingPermissionManager() {
                     { mIsEnabledForTests = true; }
                 };
-        MinidumpUploader minidumpUploader =
-                new TestMinidumpUploaderImpl(getInstrumentation().getTargetContext(), permManager,
-                        false /* cleanOutMinidumps */);
+        MinidumpUploaderDelegate delegate = new TestMinidumpUploaderDelegate(
+                getInstrumentation().getTargetContext(), permManager);
+        MinidumpUploader minidumpUploader = new TestMinidumpUploaderImpl(delegate, permManager);
 
         File firstFile = createMinidumpFileInCrashDir("1_abc.dmp0");
         File secondFile = createMinidumpFileInCrashDir("12_abcd.dmp0");
@@ -231,7 +249,13 @@ public class MinidumpUploaderTest extends CrashTestCase {
 
     private static MinidumpUploaderImpl createCallableListMinidumpUploader(Context context,
             final List<MinidumpUploadCallableCreator> callables, final boolean userPermitted) {
-        return new MinidumpUploaderImpl(context, false /* cleanOutMinidumps */) {
+        MinidumpUploaderDelegate delegate = new AwMinidumpUploaderDelegate(context) {
+            @Override
+            public PlatformServiceBridge createPlatformServiceBridge() {
+                return new TestPlatformServiceBridge(true /* canUseGms*/, userPermitted);
+            }
+        };
+        return new TestMinidumpUploaderImpl(delegate, null) {
             private int mIndex = 0;
 
             @Override
@@ -241,10 +265,6 @@ public class MinidumpUploaderTest extends CrashTestCase {
                     fail("Should not create callable number " + mIndex);
                 }
                 return callables.get(mIndex++).createCallable(minidumpFile, logfile);
-            }
-            @Override
-            public PlatformServiceBridge createPlatformServiceBridge() {
-                return new TestPlatformServiceBridge(true /* canUseGms*/, userPermitted);
             }
         };
     }
@@ -359,19 +379,22 @@ public class MinidumpUploaderTest extends CrashTestCase {
                     { mIsEnabledForTests = true; }
                 };
         final CountDownLatch stopStallingLatch = new CountDownLatch(1);
-        MinidumpUploaderImpl minidumpUploader = new MinidumpUploaderImpl(
-                getInstrumentation().getTargetContext(), false /* cleanOutMinidumps */) {
+        MinidumpUploaderDelegate delegate = new TestMinidumpUploaderDelegate(
+                getInstrumentation().getTargetContext(), permManager) {
+            @Override
+            public PlatformServiceBridge createPlatformServiceBridge() {
+                return new TestPlatformServiceBridge(
+                        true /* canUseGms*/, permManager.isUsageAndCrashReportingPermittedByUser());
+            }
+        };
+        MinidumpUploaderImpl minidumpUploader = new TestMinidumpUploaderImpl(
+                delegate, permManager) {
             @Override
             public MinidumpUploadCallable createMinidumpUploadCallable(
                     File minidumpFile, File logfile) {
                 return new MinidumpUploadCallable(minidumpFile, logfile,
                         new StallingHttpUrlConnectionFactory(stopStallingLatch, successfulUpload),
                         permManager);
-            }
-            @Override
-            public PlatformServiceBridge createPlatformServiceBridge() {
-                return new TestPlatformServiceBridge(
-                        true /* canUseGms*/, permManager.isUsageAndCrashReportingPermittedByUser());
             }
         };
 
@@ -465,14 +488,14 @@ public class MinidumpUploaderTest extends CrashTestCase {
     }
 
     /**
-     * MinidumpUploaderImpl sub-class that uses MinidumpUploaderImpl's implementation of
+     * MinidumpUploaderDelegate sub-class that uses MinidumpUploaderDelegate's implementation of
      * CrashReportingPermissionManager.isUsageAndCrashReportingPermittedByUser().
      */
-    private static class WebViewUserConsentMinidumpUploaderImpl extends MinidumpUploaderImpl {
-        boolean mUserConsent;
-        WebViewUserConsentMinidumpUploaderImpl(
-                Context context, boolean cleanOutMinidumps, boolean userConsent) {
-            super(context, cleanOutMinidumps);
+    private static class WebViewUserConsentMinidumpUploaderDelegate
+            extends AwMinidumpUploaderDelegate {
+        private final boolean mUserConsent;
+        WebViewUserConsentMinidumpUploaderDelegate(Context context, boolean userConsent) {
+            super(context);
             mUserConsent = userConsent;
         }
         @Override
@@ -480,23 +503,14 @@ public class MinidumpUploaderTest extends CrashTestCase {
             return new TestPlatformServiceBridge(true /* canUseGms */, mUserConsent);
         }
         @Override
-        public MinidumpUploadCallable createMinidumpUploadCallable(
-                File minidumpFile, File logfile) {
-            return new MinidumpUploadCallable(minidumpFile, logfile,
-                    new MinidumpUploadCallableTest.TestHttpURLConnectionFactory(),
-                    createWebViewCrashReportingManager());
-        }
-        @Override
-        protected CrashReportingPermissionManager createWebViewCrashReportingManager() {
+        public CrashReportingPermissionManager createCrashReportingPermissionManager() {
             final CrashReportingPermissionManager realPermissionManager =
-                    super.createWebViewCrashReportingManager();
+                    super.createCrashReportingPermissionManager();
             return new MockCrashReportingPermissionManager() {
                 {
                     // This setup ensures we depend on
                     // isUsageAndCrashReportingPermittedByUser().
                     mIsInSample = true;
-                    mIsPermitted = true;
-                    mIsCommandLineDisabled = false;
                     mIsNetworkAvailable = true;
                     mIsEnabledForTests = false;
                 }
@@ -514,9 +528,10 @@ public class MinidumpUploaderTest extends CrashTestCase {
     }
 
     private void testPlatformServicesBridgeIsUsed(final boolean userConsent) throws IOException {
-        MinidumpUploader minidumpUploader =
-                new WebViewUserConsentMinidumpUploaderImpl(getInstrumentation().getTargetContext(),
-                        false /* cleanOutMinidumps */, userConsent);
+        MinidumpUploaderDelegate delegate = new WebViewUserConsentMinidumpUploaderDelegate(
+                getInstrumentation().getTargetContext(), userConsent);
+        MinidumpUploader minidumpUploader = new TestMinidumpUploaderImpl(
+                delegate, delegate.createCrashReportingPermissionManager());
 
         File firstFile = createMinidumpFileInCrashDir("1_abc.dmp0");
         File secondFile = createMinidumpFileInCrashDir("12_abcd.dmp0");
@@ -657,9 +672,9 @@ public class MinidumpUploaderTest extends CrashTestCase {
                 new MockCrashReportingPermissionManager() {
                     { mIsEnabledForTests = true; }
                 };
-        MinidumpUploader minidumpUploader =
-                new TestMinidumpUploaderImpl(getInstrumentation().getTargetContext(), permManager,
-                        false /* cleanOutMinidumps */);
+        MinidumpUploaderDelegate delegate = new TestMinidumpUploaderDelegate(
+                getInstrumentation().getTargetContext(), permManager);
+        MinidumpUploader minidumpUploader = new TestMinidumpUploaderImpl(delegate, permManager);
 
         uploadMinidumpsSync(minidumpUploader, false /* expectReschedule */);
         // Ensure there are no minidumps left to upload.

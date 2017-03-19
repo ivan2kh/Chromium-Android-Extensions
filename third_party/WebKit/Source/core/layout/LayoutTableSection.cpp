@@ -115,9 +115,9 @@ LayoutTableSection::~LayoutTableSection() {}
 
 void LayoutTableSection::styleDidChange(StyleDifference diff,
                                         const ComputedStyle* oldStyle) {
-  DCHECK(style()->display() == EDisplay::TableFooterGroup ||
-         style()->display() == EDisplay::TableRowGroup ||
-         style()->display() == EDisplay::TableHeaderGroup);
+  DCHECK(style()->display() == EDisplay::kTableFooterGroup ||
+         style()->display() == EDisplay::kTableRowGroup ||
+         style()->display() == EDisplay::kTableHeaderGroup);
 
   LayoutTableBoxComponent::styleDidChange(diff, oldStyle);
   propagateStyleToAnonymousChildren();
@@ -1846,7 +1846,7 @@ LayoutTableSection* LayoutTableSection::createAnonymousWithParent(
     const LayoutObject* parent) {
   RefPtr<ComputedStyle> newStyle =
       ComputedStyle::createAnonymousStyleWithDisplay(parent->styleRef(),
-                                                     EDisplay::TableRowGroup);
+                                                     EDisplay::kTableRowGroup);
   LayoutTableSection* newSection = new LayoutTableSection(nullptr);
   newSection->setDocumentForAnonymous(&parent->document());
   newSection->setStyle(std::move(newStyle));
@@ -2063,9 +2063,9 @@ bool LayoutTableSection::isRepeatingHeaderGroup() const {
   return true;
 }
 
-bool LayoutTableSection::mapToVisualRectInAncestorSpace(
+bool LayoutTableSection::mapToVisualRectInAncestorSpaceInternal(
     const LayoutBoxModelObject* ancestor,
-    LayoutRect& rect,
+    TransformState& transformState,
     VisualRectFlags flags) const {
   if (ancestor == this)
     return true;
@@ -2075,10 +2075,14 @@ bool LayoutTableSection::mapToVisualRectInAncestorSpace(
   // the header in all columns.
   // Note that this is in flow thread coordinates, not visual coordinates. The
   // enclosing LayoutFlowThread will convert to visual coordinates.
-  if (table()->header() == this && isRepeatingHeaderGroup())
+  if (table()->header() == this && isRepeatingHeaderGroup()) {
+    transformState.flatten();
+    FloatRect rect = transformState.lastPlanarQuad().boundingBox();
     rect.setHeight(table()->logicalHeight());
-  return LayoutTableBoxComponent::mapToVisualRectInAncestorSpace(ancestor, rect,
-                                                                 flags);
+    transformState.setQuad(FloatQuad(rect));
+  }
+  return LayoutTableBoxComponent::mapToVisualRectInAncestorSpaceInternal(
+      ancestor, transformState, flags);
 }
 
 }  // namespace blink

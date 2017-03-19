@@ -76,9 +76,6 @@ bool IsPasswordGenerationEnabled();
 // Whether the Payment Request API is enabled or not.
 bool IsPaymentRequestEnabled();
 
-// Whether the back-forward navigation uses pending index.
-bool IsPendingIndexNavigationEnabled();
-
 // Whether the Physical Web feature is enabled.
 bool IsPhysicalWebEnabled();
 
@@ -90,9 +87,6 @@ bool IsReadingListEnabled();
 
 // Whether the Sign In Flow via SFSafariViewController is enabled.
 bool IsSafariVCSignInEnabled();
-
-// Whether launching actions from Spotlight is enabled.
-bool IsSpotlightActionsEnabled();
 
 // Whether startup crash is enabled.
 bool IsStartupCrashEnabled();

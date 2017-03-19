@@ -18,12 +18,11 @@
 #include "cc/layers/content_layer_client.h"
 #include "cc/layers/layer.h"
 #include "cc/layers/picture_layer.h"
-#include "cc/playback/display_item_list.h"
-#include "cc/playback/recording_source.h"
+#include "cc/layers/recording_source.h"
+#include "cc/paint/display_item_list.h"
 #include "cc/trees/layer_tree_host.h"
 #include "cc/trees/layer_tree_host_common.h"
 #include "skia/ext/analysis_canvas.h"
-#include "third_party/skia/include/utils/SkPictureUtils.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace cc {

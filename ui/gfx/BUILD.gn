@@ -21,6 +21,26 @@ source_set("gfx_export") {
   ]
 }
 
+component("geometry_skia") {
+  sources = [
+    "skia_util.cc",
+    "skia_util.h",
+    "transform.cc",
+    "transform.h",
+    "transform_util.cc",
+    "transform_util.h",
+  ]
+  public_deps = [
+    ":gfx_export",
+  ]
+  deps = [
+    "//base",
+    "//skia",
+    "//ui/gfx/geometry",
+  ]
+  defines = [ "GFX_IMPLEMENTATION" ]
+}
+
 component("gfx") {
   sources = [
     "android/gfx_jni_registrar.cc",
@@ -29,32 +49,7 @@ component("gfx") {
     "android/java_bitmap.h",
     "android/view_configuration.cc",
     "android/view_configuration.h",
-    "animation/animation.cc",
-    "animation/animation.h",
-    "animation/animation_container.cc",
-    "animation/animation_container.h",
-    "animation/animation_container_element.h",
-    "animation/animation_container_observer.h",
-    "animation/animation_delegate.h",
-    "animation/animation_mac.mm",
-    "animation/animation_win.cc",
-    "animation/linear_animation.cc",
-    "animation/linear_animation.h",
-    "animation/multi_animation.cc",
-    "animation/multi_animation.h",
-    "animation/slide_animation.cc",
-    "animation/slide_animation.h",
-    "animation/throb_animation.cc",
-    "animation/throb_animation.h",
-    "animation/tween.cc",
-    "animation/tween.h",
     "break_list.h",
-    "codec/jpeg_codec.cc",
-    "codec/jpeg_codec.h",
-    "codec/png_codec.cc",
-    "codec/png_codec.h",
-    "codec/skia_image_encoder_adapter.cc",
-    "codec/skia_image_encoder_adapter.h",
     "color_analysis.cc",
     "color_analysis.h",
     "color_palette.h",
@@ -172,8 +167,6 @@ component("gfx") {
     "skbitmap_operations.h",
     "skia_color_space_util.cc",
     "skia_color_space_util.h",
-    "skia_util.cc",
-    "skia_util.h",
     "switches.cc",
     "switches.h",
     "sys_color_change_listener.cc",
@@ -185,10 +178,6 @@ component("gfx") {
     "text_utils.h",
     "text_utils_android.cc",
     "text_utils_ios.mm",
-    "transform.cc",
-    "transform.h",
-    "transform_util.cc",
-    "transform_util.h",
     "ui_gfx_exports.cc",
     "utf16_indexing.cc",
     "utf16_indexing.h",
@@ -252,12 +241,15 @@ component("gfx") {
 
   public_deps = [
     ":color_space",
+    ":geometry_skia",
     ":memory_buffer_sources",
     ":native_widget_types",
     ":selection_bound_sources",
     "//base",
     "//skia",
     "//third_party/icu",
+    "//ui/gfx/animation",
+    "//ui/gfx/codec",
     "//ui/gfx/geometry",
     "//ui/gfx/range",
   ]
@@ -268,7 +260,6 @@ component("gfx") {
     "//base:i18n",
     "//base/third_party/dynamic_annotations",
     "//skia",
-    "//third_party/libpng",
     "//third_party/qcms",
     "//third_party/zlib",
   ]
@@ -308,17 +299,12 @@ component("gfx") {
 
   # iOS.
   if (is_ios) {
-    sources -= [
-      "codec/jpeg_codec.cc",
-      "codec/jpeg_codec.h",
-    ]
     set_sources_assignment_filter([])
     sources += [ "scoped_cg_context_save_gstate_mac.h" ]
     set_sources_assignment_filter(sources_assignment_filter)
   } else {
     deps += [
       "//cc/paint",
-      "//third_party:jpeg",
       "//third_party/harfbuzz-ng",
     ]
   }
@@ -330,7 +316,6 @@ component("gfx") {
       sources += [ "font_fallback_android.cc" ]
     } else {
       sources -= [
-        "animation/throb_animation.cc",
         "canvas_skia.cc",
         "path.cc",
         "selection_model.cc",
@@ -357,16 +342,11 @@ component("gfx") {
       "paint_vector_icon.cc",
       "paint_vector_icon.h",
       "vector_icon_types.h",
-      "vector_icons_public.h",
     ]
-    deps += [ "//ui/gfx/vector_icons" ]
   }
 
   # Windows.
   if (is_win) {
-    cflags = [ "/wd4324" ]  # Structure was padded due to __declspec(align()), which is
-                            # uninteresting.
-
     libs = [
       "setupapi.lib",
       "dwrite.lib",
@@ -385,16 +365,6 @@ component("gfx") {
   # Linux.
   if (is_linux) {
     deps += [ "//build/linux:fontconfig" ]
-  }
-
-  # Chrome OS
-  if (is_chromeos) {
-    # Robust JPEG decoding for the login screen.
-    sources += [
-      "chromeos/codec/jpeg_codec_robust_slow.cc",
-      "chromeos/codec/jpeg_codec_robust_slow.h",
-    ]
-    deps += [ "//third_party/libjpeg" ]
   }
 
   if (is_mac) {
@@ -533,6 +503,7 @@ source_set("memory_buffer_sources") {
     "gfx_export.h",
     "mac/io_surface.cc",
     "mac/io_surface.h",
+    "native_pixmap.h",
     "native_pixmap_handle.cc",
     "native_pixmap_handle.h",
   ]
@@ -549,6 +520,7 @@ source_set("memory_buffer_sources") {
   defines = [ "GFX_IMPLEMENTATION" ]
 
   deps = [
+    ":native_widget_types",
     "//base",
     "//ui/gfx/geometry",
   ]
@@ -582,6 +554,7 @@ static_library("test_support") {
     "//base/test:test_support",
     "//skia",
     "//testing/gtest",
+    "//ui/gfx/animation",
     "//ui/gfx/geometry",
   ]
 
@@ -675,7 +648,10 @@ test("gfx_unittests") {
   }
 
   if (!is_android && !is_ios) {
-    sources += [ "render_text_unittest.cc" ]
+    sources += [
+      "paint_vector_icon_unittest.cc",
+      "render_text_unittest.cc",
+    ]
   }
 
   # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
@@ -692,6 +668,7 @@ test("gfx_unittests") {
     "//third_party/libpng",
     "//third_party/zlib",
     "//ui/base",
+    "//ui/gfx/animation",
     "//ui/gfx/geometry",
     "//ui/gfx/range",
     "//ui/resources:ui_test_pak",
@@ -717,7 +694,7 @@ test("gfx_unittests") {
   }
 
   if (is_chromeos) {
-    sources += [ "chromeos/codec/jpeg_codec_robust_slow_unittest.cc" ]
+    sources += [ "codec/chromeos/jpeg_codec_robust_slow_unittest.cc" ]
   }
 
   if (is_win) {
@@ -746,6 +723,7 @@ test("gfx_unittests") {
 
   if (!is_ios) {
     deps += [
+      "//cc/paint",
       "//mojo/edk/system",
       "//mojo/public/cpp/bindings",
       "//ui/gfx/geometry/mojo:unit_test",

@@ -257,7 +257,8 @@ void MergeCancelOfResponses(const EventResponseDeltas& deltas,
 // Stores in |*new_url| the redirect request of the extension with highest
 // precedence. Extensions that did not command to redirect the request are
 // ignored in this logic.
-void MergeRedirectUrlOfResponses(const EventResponseDeltas& deltas,
+void MergeRedirectUrlOfResponses(const GURL& url,
+                                 const EventResponseDeltas& deltas,
                                  GURL* new_url,
                                  extensions::WarningSet* conflicting_extensions,
                                  const net::NetLogWithSource* net_log);
@@ -265,6 +266,7 @@ void MergeRedirectUrlOfResponses(const EventResponseDeltas& deltas,
 // precedence. Extensions that did not command to redirect the request are
 // ignored in this logic.
 void MergeOnBeforeRequestResponses(
+    const GURL& url,
     const EventResponseDeltas& deltas,
     GURL* new_url,
     extensions::WarningSet* conflicting_extensions,
@@ -279,11 +281,14 @@ void MergeCookiesInOnBeforeSendHeadersResponses(
     const net::NetLogWithSource* net_log);
 // Modifies the headers in |request_headers| according to |deltas|. Conflicts
 // are tried to be resolved.
+// Stores in |request_headers_modified| whether the request headers were
+// modified.
 void MergeOnBeforeSendHeadersResponses(
     const EventResponseDeltas& deltas,
     net::HttpRequestHeaders* request_headers,
     extensions::WarningSet* conflicting_extensions,
-    const net::NetLogWithSource* net_log);
+    const net::NetLogWithSource* net_log,
+    bool* request_headers_modified);
 // Modifies the "Set-Cookie" headers in |override_response_headers| according to
 // |deltas.response_cookie_modifications|. If |override_response_headers| is
 // NULL, a copy of |original_response_headers| is created. Conflicts are
@@ -300,13 +305,17 @@ void MergeCookiesInOnHeadersReceivedResponses(
 // Extension-initiated redirects are written to |override_response_headers|
 // (to request redirection) and |*allowed_unsafe_redirect_url| (to make sure
 // that the request is not cancelled with net::ERR_UNSAFE_REDIRECT).
+// Stores in |response_headers_modified| whether the response headers were
+// modified.
 void MergeOnHeadersReceivedResponses(
+    const GURL& url,
     const EventResponseDeltas& deltas,
     const net::HttpResponseHeaders* original_response_headers,
     scoped_refptr<net::HttpResponseHeaders>* override_response_headers,
     GURL* allowed_unsafe_redirect_url,
     extensions::WarningSet* conflicting_extensions,
-    const net::NetLogWithSource* net_log);
+    const net::NetLogWithSource* net_log,
+    bool* response_headers_modified);
 // Merge the responses of blocked onAuthRequired handlers. The first
 // registered listener that supplies authentication credentials in a response,
 // if any, will have its authentication credentials used. |request| must be

@@ -10,7 +10,7 @@
 
 #include "base/cancelable_callback.h"
 #include "base/macros.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/output/color_lut_cache.h"
 #include "cc/output/context_cache_controller.h"
 #include "cc/output/direct_renderer.h"
@@ -244,6 +244,7 @@ class CC_EXPORT GLRenderer : public DirectRenderer {
   void RestoreGLState();
 
   void ScheduleCALayers();
+  void ScheduleDCLayers();
   void ScheduleOverlays();
 
   // Copies the contents of the render pass draw quad, including filter effects,
@@ -337,6 +338,8 @@ class CC_EXPORT GLRenderer : public DirectRenderer {
   bool use_sync_query_ = false;
   bool use_blend_equation_advanced_ = false;
   bool use_blend_equation_advanced_coherent_ = false;
+  bool use_occlusion_query_ = false;
+  bool use_swap_with_bounds_ = false;
 
   // Some overlays require that content is copied from a render pass into an
   // overlay resource. This means the GLRenderer needs its own ResourcePool.
@@ -355,7 +358,6 @@ class CC_EXPORT GLRenderer : public DirectRenderer {
   BoundGeometry bound_geometry_;
   ColorLUTCache color_lut_cache_;
 
-  bool use_occlusion_query_;
   unsigned offscreen_stencil_renderbuffer_id_ = 0;
   gfx::Size offscreen_stencil_renderbuffer_size_;
 

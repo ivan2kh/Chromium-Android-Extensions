@@ -16,6 +16,7 @@
 #include "cc/quads/surface_draw_quad.h"
 #include "cc/quads/texture_draw_quad.h"
 #include "cc/quads/yuv_video_draw_quad.h"
+#include "cc/test/begin_frame_args_test.h"
 #include "mojo/public/cpp/bindings/binding_set.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkString.h"
@@ -41,6 +42,11 @@ class StructTraitsTest : public testing::Test, public mojom::TraitsTestService {
     callback.Run(b);
   }
 
+  void EchoBeginFrameAck(const BeginFrameAck& b,
+                         const EchoBeginFrameAckCallback& callback) override {
+    callback.Run(b);
+  }
+
   void EchoCompositorFrame(
       CompositorFrame c,
       const EchoCompositorFrameCallback& callback) override {
@@ -48,9 +54,9 @@ class StructTraitsTest : public testing::Test, public mojom::TraitsTestService {
   }
 
   void EchoCompositorFrameMetadata(
-      const CompositorFrameMetadata& c,
+      CompositorFrameMetadata c,
       const EchoCompositorFrameMetadataCallback& callback) override {
-    callback.Run(c);
+    callback.Run(std::move(c));
   }
 
   void EchoCopyOutputRequest(
@@ -169,7 +175,11 @@ TEST_F(StructTraitsTest, BeginFrameArgs) {
   const base::TimeDelta interval = base::TimeDelta::FromMilliseconds(1337);
   const BeginFrameArgs::BeginFrameArgsType type = BeginFrameArgs::NORMAL;
   const bool on_critical_path = true;
+  const uint32_t source_id = 5;
+  const uint64_t sequence_number = 10;
   BeginFrameArgs input;
+  input.source_id = source_id;
+  input.sequence_number = sequence_number;
   input.frame_time = frame_time;
   input.deadline = deadline;
   input.interval = interval;
@@ -178,11 +188,37 @@ TEST_F(StructTraitsTest, BeginFrameArgs) {
   mojom::TraitsTestServicePtr proxy = GetTraitsTestProxy();
   BeginFrameArgs output;
   proxy->EchoBeginFrameArgs(input, &output);
+  EXPECT_EQ(source_id, output.source_id);
+  EXPECT_EQ(sequence_number, output.sequence_number);
   EXPECT_EQ(frame_time, output.frame_time);
   EXPECT_EQ(deadline, output.deadline);
   EXPECT_EQ(interval, output.interval);
   EXPECT_EQ(type, output.type);
   EXPECT_EQ(on_critical_path, output.on_critical_path);
+}
+
+TEST_F(StructTraitsTest, BeginFrameAck) {
+  const uint32_t source_id = 5;
+  const uint64_t sequence_number = 10;
+  const uint64_t latest_confirmed_sequence_number = 8;
+  const uint32_t remaining_frames = 1;
+  const bool has_damage = true;
+  BeginFrameAck input;
+  input.source_id = source_id;
+  input.sequence_number = sequence_number;
+  input.latest_confirmed_sequence_number = latest_confirmed_sequence_number;
+  input.remaining_frames = remaining_frames;
+  input.has_damage = has_damage;
+  mojom::TraitsTestServicePtr proxy = GetTraitsTestProxy();
+  BeginFrameAck output;
+  proxy->EchoBeginFrameAck(input, &output);
+  EXPECT_EQ(source_id, output.source_id);
+  EXPECT_EQ(sequence_number, output.sequence_number);
+  EXPECT_EQ(latest_confirmed_sequence_number,
+            output.latest_confirmed_sequence_number);
+  // |remaining_frames| and |has_damage| are not transmitted.
+  EXPECT_EQ(0u, output.remaining_frames);
+  EXPECT_FALSE(output.has_damage);
 }
 
 // Note that this is a fairly trivial test of CompositorFrame serialization as
@@ -227,11 +263,13 @@ TEST_F(StructTraitsTest, CompositorFrame) {
   // TransferableResource constants.
   const uint32_t tr_id = 1337;
   const ResourceFormat tr_format = ALPHA_8;
+  const gfx::BufferFormat tr_buffer_format = gfx::BufferFormat::R_8;
   const uint32_t tr_filter = 1234;
   const gfx::Size tr_size(1234, 5678);
   TransferableResource resource;
   resource.id = tr_id;
   resource.format = tr_format;
+  resource.buffer_format = tr_buffer_format;
   resource.filter = tr_filter;
   resource.size = tr_size;
 
@@ -240,6 +278,8 @@ TEST_F(StructTraitsTest, CompositorFrame) {
   const gfx::Vector2dF root_scroll_offset(1234.5f, 6789.1f);
   const float page_scale_factor = 1337.5f;
   const gfx::SizeF scrollable_viewport_size(1337.7f, 1234.5f);
+  const uint32_t content_source_id = 3;
+  const BeginFrameAck begin_frame_ack(5, 10, 8, 0, false);
 
   CompositorFrame input;
   input.metadata.device_scale_factor = device_scale_factor;
@@ -248,6 +288,8 @@ TEST_F(StructTraitsTest, CompositorFrame) {
   input.metadata.scrollable_viewport_size = scrollable_viewport_size;
   input.render_pass_list.push_back(std::move(render_pass));
   input.resource_list.push_back(resource);
+  input.metadata.content_source_id = content_source_id;
+  input.metadata.begin_frame_ack = begin_frame_ack;
 
   mojom::TraitsTestServicePtr proxy = GetTraitsTestProxy();
   CompositorFrame output;
@@ -257,11 +299,14 @@ TEST_F(StructTraitsTest, CompositorFrame) {
   EXPECT_EQ(root_scroll_offset, output.metadata.root_scroll_offset);
   EXPECT_EQ(page_scale_factor, output.metadata.page_scale_factor);
   EXPECT_EQ(scrollable_viewport_size, output.metadata.scrollable_viewport_size);
+  EXPECT_EQ(content_source_id, output.metadata.content_source_id);
+  EXPECT_EQ(begin_frame_ack, output.metadata.begin_frame_ack);
 
   ASSERT_EQ(1u, output.resource_list.size());
   TransferableResource out_resource = output.resource_list[0];
   EXPECT_EQ(tr_id, out_resource.id);
   EXPECT_EQ(tr_format, out_resource.format);
+  EXPECT_EQ(tr_buffer_format, out_resource.buffer_format);
   EXPECT_EQ(tr_filter, out_resource.filter);
   EXPECT_EQ(tr_size, out_resource.size);
 
@@ -357,7 +402,7 @@ TEST_F(StructTraitsTest, CompositorFrameMetadata) {
 
   mojom::TraitsTestServicePtr proxy = GetTraitsTestProxy();
   CompositorFrameMetadata output;
-  proxy->EchoCompositorFrameMetadata(input, &output);
+  proxy->EchoCompositorFrameMetadata(std::move(input), &output);
   EXPECT_EQ(device_scale_factor, output.device_scale_factor);
   EXPECT_EQ(root_scroll_offset, output.root_scroll_offset);
   EXPECT_EQ(page_scale_factor, output.page_scale_factor);
@@ -644,16 +689,17 @@ TEST_F(StructTraitsTest, QuadListBasic) {
   const gfx::Rect rect4(1234, 5678, 9101112, 13141516);
   const ResourceId resource_id4(1337);
   const int render_pass_id = 1234;
-  const gfx::Vector2dF mask_uv_scale(1337.1f, 1234.2f);
+  const gfx::RectF mask_uv_rect(0, 0, 1337.1f, 1234.2f);
   const gfx::Size mask_texture_size(1234, 5678);
   gfx::Vector2dF filters_scale(1234.1f, 4321.2f);
   gfx::PointF filters_origin(8765.4f, 4567.8f);
+  gfx::RectF tex_coord_rect(1.f, 1.f, 1234.f, 5678.f);
 
   RenderPassDrawQuad* render_pass_quad =
       render_pass->CreateAndAppendDrawQuad<RenderPassDrawQuad>();
   render_pass_quad->SetNew(sqs, rect4, rect4, render_pass_id, resource_id4,
-                           mask_uv_scale, mask_texture_size, filters_scale,
-                           filters_origin);
+                           mask_uv_rect, mask_texture_size, filters_scale,
+                           filters_origin, tex_coord_rect);
 
   const gfx::Rect rect5(123, 567, 91011, 131415);
   const ResourceId resource_id5(1337);

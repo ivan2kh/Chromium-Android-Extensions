@@ -56,6 +56,9 @@ class CORE_EXPORT SVGAnimateElement : public SVGAnimationElement {
 
   bool hasValidTarget() override;
 
+  void willChangeAnimationTarget() final;
+  void didChangeAnimationTarget() final;
+
   void resetAnimatedType() final;
   void clearAnimatedType() final;
 
@@ -74,9 +77,7 @@ class CORE_EXPORT SVGAnimateElement : public SVGAnimationElement {
   bool isAdditive() final;
 
   void parseAttribute(const AttributeModificationParams&) override;
-  void svgAttributeChanged(const QualifiedName&) override;
 
-  void setTargetElement(SVGElement*) final;
   void setAttributeName(const QualifiedName&);
 
   enum AttributeType { AttributeTypeCSS, AttributeTypeXML, AttributeTypeAuto };
@@ -95,9 +96,6 @@ class CORE_EXPORT SVGAnimateElement : public SVGAnimationElement {
 
   InsertionNotificationRequest insertedInto(ContainerNode*) final;
   void removedFrom(ContainerNode*) final;
-
-  void checkInvalidCSSAttributeType();
-  bool hasValidAttributeName() const;
 
   virtual void resolveTargetProperty();
   void clearTargetProperty();
@@ -128,7 +126,6 @@ class CORE_EXPORT SVGAnimateElement : public SVGAnimationElement {
   AnimatedPropertyValueType m_fromPropertyValueType;
   AnimatedPropertyValueType m_toPropertyValueType;
   AttributeType m_attributeType;
-  bool m_hasInvalidCSSAttributeType;
 };
 
 inline bool isSVGAnimateElement(const SVGElement& element) {

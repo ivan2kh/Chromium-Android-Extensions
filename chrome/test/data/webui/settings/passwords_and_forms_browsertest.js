@@ -253,25 +253,28 @@ TEST_F('PasswordsAndFormsBrowserTest', 'uiTests', function() {
       });
     });
 
-    test('testActionabilityNope', function() {
-      return createPrefs(false, false).then(function(prefs) {
-
+    test('testAutofillExtensionIndicator', function() {
+      return createPrefs(true, true).then(function(prefs) {
         var element = createPasswordsAndFormsElement(prefs);
 
-        assertFalse(element.$.autofillManagerButton.hasAttribute('actionable'));
-        assertFalse(element.$.passwordManagerButton.hasAttribute('actionable'));
+        assertFalse(!!element.$$('#autofillExtensionIndicator'));
+        element.set('prefs.autofill.enabled.extensionId', 'test-id');
+        Polymer.dom.flush();
 
+        assertTrue(!!element.$$('#autofillExtensionIndicator'));
         destroyPrefs(prefs);
       });
     });
 
-    test('testActionabilityYes', function() {
+    test('testPasswordsExtensionIndicator', function() {
       return createPrefs(true, true).then(function(prefs) {
         var element = createPasswordsAndFormsElement(prefs);
 
-        assertTrue(element.$.autofillManagerButton.hasAttribute('actionable'));
-        assertTrue(element.$.passwordManagerButton.hasAttribute('actionable'));
+        assertFalse(!!element.$$('#passwordsExtensionIndicator'));
+        element.set('prefs.credentials_enable_service.extensionId', 'test-id');
+        Polymer.dom.flush();
 
+        assertTrue(!!element.$$('#passwordsExtensionIndicator'));
         destroyPrefs(prefs);
       });
     });

@@ -52,7 +52,8 @@ GpuChannelManager::GpuChannelManager(
     base::WaitableEvent* shutdown_event,
     SyncPointManager* sync_point_manager,
     GpuMemoryBufferFactory* gpu_memory_buffer_factory,
-    const GpuFeatureInfo& gpu_feature_info)
+    const GpuFeatureInfo& gpu_feature_info,
+    GpuProcessActivityFlags activity_flags)
     : task_runner_(task_runner),
       io_task_runner_(io_task_runner),
       gpu_preferences_(gpu_preferences),
@@ -64,11 +65,10 @@ GpuChannelManager::GpuChannelManager(
       mailbox_manager_(gles2::MailboxManager::Create(gpu_preferences)),
       gpu_memory_manager_(this),
       sync_point_manager_(sync_point_manager),
-      sync_point_client_waiter_(
-          sync_point_manager->CreateSyncPointClientWaiter()),
       gpu_memory_buffer_factory_(gpu_memory_buffer_factory),
       gpu_feature_info_(gpu_feature_info),
       exiting_for_lost_context_(false),
+      activity_flags_(std::move(activity_flags)),
       weak_factory_(this) {
   DCHECK(task_runner);
   DCHECK(io_task_runner);
@@ -93,9 +93,9 @@ gles2::ProgramCache* GpuChannelManager::program_cache() {
         gpu_preferences_.disable_gpu_shader_disk_cache ||
         workarounds.disable_program_disk_cache;
     program_cache_.reset(new gles2::MemoryProgramCache(
-        gpu_preferences_.gpu_program_cache_size,
-        disable_disk_cache,
-        workarounds.disable_program_caching_for_transform_feedback));
+        gpu_preferences_.gpu_program_cache_size, disable_disk_cache,
+        workarounds.disable_program_caching_for_transform_feedback,
+        &activity_flags_));
   }
   return program_cache_.get();
 }
@@ -174,21 +174,13 @@ void GpuChannelManager::DestroyGpuMemoryBuffer(
     gfx::GpuMemoryBufferId id,
     int client_id,
     const SyncToken& sync_token) {
-  if (sync_token.HasData()) {
-    scoped_refptr<SyncPointClientState> release_state =
-        sync_point_manager()->GetSyncPointClientState(
-            sync_token.namespace_id(), sync_token.command_buffer_id());
-    if (release_state) {
-      sync_point_client_waiter_->WaitOutOfOrder(
-          release_state.get(), sync_token.release_count(),
+  if (!sync_point_manager_->WaitOutOfOrder(
+          sync_token,
           base::Bind(&GpuChannelManager::InternalDestroyGpuMemoryBuffer,
-                     base::Unretained(this), id, client_id));
-      return;
-    }
+                     base::Unretained(this), id, client_id))) {
+    // No sync token or invalid sync token, destroy immediately.
+    InternalDestroyGpuMemoryBuffer(id, client_id);
   }
-
-  // No sync token or invalid sync token, destroy immediately.
-  InternalDestroyGpuMemoryBuffer(id, client_id);
 }
 
 void GpuChannelManager::PopulateShaderCache(const std::string& program_proto) {

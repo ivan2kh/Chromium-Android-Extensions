@@ -143,10 +143,7 @@ WebMediaPlayerMSCompositor::WebMediaPlayerMSCompositor(
   if (!web_stream.isNull())
     web_stream.videoTracks(video_tracks);
 
-  const bool remote_video =
-      video_tracks.size() && video_tracks[0].source().remote();
-
-  if (remote_video &&
+  if (video_tracks.size() > 0 &&
       !base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDisableRTCSmoothnessAlgorithm)) {
     base::AutoLock auto_lock(current_frame_lock_);
@@ -158,8 +155,7 @@ WebMediaPlayerMSCompositor::WebMediaPlayerMSCompositor(
   // Just for logging purpose.
   std::string stream_id =
       web_stream.isNull() ? std::string() : web_stream.id().utf8();
-  const uint32_t hash_value = base::Hash(stream_id);
-  serial_ = (hash_value << 1) | (remote_video ? 1 : 0);
+  serial_ = base::Hash(stream_id);;
 }
 
 WebMediaPlayerMSCompositor::~WebMediaPlayerMSCompositor() {
@@ -179,13 +175,15 @@ base::TimeDelta WebMediaPlayerMSCompositor::GetCurrentTime() {
   return current_frame_.get() ? current_frame_->timestamp() : base::TimeDelta();
 }
 
-size_t WebMediaPlayerMSCompositor::total_frame_count() const {
+size_t WebMediaPlayerMSCompositor::total_frame_count() {
+  base::AutoLock auto_lock(current_frame_lock_);
   DVLOG(1) << __func__ << ", " << total_frame_count_;
   DCHECK(thread_checker_.CalledOnValidThread());
   return total_frame_count_;
 }
 
-size_t WebMediaPlayerMSCompositor::dropped_frame_count() const {
+size_t WebMediaPlayerMSCompositor::dropped_frame_count() {
+  base::AutoLock auto_lock(current_frame_lock_);
   DVLOG(1) << __func__ << ", " << dropped_frame_count_;
   DCHECK(thread_checker_.CalledOnValidThread());
   return dropped_frame_count_;

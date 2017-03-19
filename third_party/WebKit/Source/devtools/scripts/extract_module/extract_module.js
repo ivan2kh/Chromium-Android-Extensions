@@ -24,17 +24,16 @@ const APPLICATION_DESCRIPTORS = [
 const MODULES_TO_REMOVE = [];
 
 const JS_FILES_MAPPING = [
-  {file: 'components/EventListenersView.js', new: 'event_listeners'},
-  {file: 'components/EventListenersUtils.js', new: 'event_listeners'},
-  // {file: 'module/file.js', existing: 'module'}
+  {file: 'sdk/NetworkLog.js', new: 'network_log'},
+  {file: 'sdk/HAREntry.js', new: 'network_log'},
 ];
 
 const MODULE_MAPPING = {
-  event_listeners: {
-    dependencies: ['ui', 'common', 'components', 'sdk'],
-    dependents: ['elements', 'sources'],
+  network_log: {
+    dependencies: ['sdk'],
+    dependents: ['audits', 'components', 'console_model', 'extensions', 'main', 'network'],
     applications: ['inspector.json'],
-    autostart: false,
+    autostart: true,  // set to autostart because of extensions
   },
 };
 
@@ -74,8 +73,6 @@ function extractModule() {
   }, new Map());
 
   const cssFilesMapping = findCSSFiles();
-  // todo: one-off
-  cssFilesMapping.get('components/EventListenersView.js').delete('objectValue.css');
   console.log('cssFilesMapping', cssFilesMapping);
   const identifiersByFile = calculateIdentifiers();
   const identifierMap = mapIdentifiers(identifiersByFile, cssFilesMapping);
@@ -289,8 +286,8 @@ function updateBuildGNFile(cssFilesMapping, newModuleSet) {
         continue;
 
       const nextContent = top(contentStack) ? top(contentStack).toLowerCase() : '';
-      if ((line === startLine || nextContent > line.toLowerCase()) &&
-          (nextLine === endLine || nextContent < nextLine.toLowerCase()))
+      if ((line === startLine || nextContent >= line.toLowerCase()) &&
+          (nextLine === endLine || nextContent <= nextLine.toLowerCase()))
         lines.splice(i + 1, 0, contentStack.pop());
     }
     if (contentStack.length)

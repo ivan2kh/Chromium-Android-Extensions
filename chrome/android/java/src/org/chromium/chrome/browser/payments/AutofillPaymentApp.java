@@ -41,7 +41,8 @@ public class AutofillPaymentApp implements PaymentApp {
 
     @Override
     public void getInstruments(Map<String, PaymentMethodData> methodDataMap, String unusedOrigin,
-            byte[][] unusedCertificateChain, final InstrumentsCallback callback) {
+            String unusedIFRameOrigin, byte[][] unusedCertificateChain,
+            final InstrumentsCallback callback) {
         PersonalDataManager pdm = PersonalDataManager.getInstance();
         List<CreditCard> cards = pdm.getCreditCardsToSuggest();
         final List<PaymentInstrument> instruments = new ArrayList<>(cards.size());
@@ -55,7 +56,8 @@ public class AutofillPaymentApp implements PaymentApp {
                     ? null : pdm.getProfile(card.getBillingAddressId());
 
             if (billingAddress != null
-                    && AutofillAddress.checkAddressCompletionStatus(billingAddress)
+                    && AutofillAddress.checkAddressCompletionStatus(
+                               billingAddress, AutofillAddress.IGNORE_PHONE_COMPLETENESS_CHECK)
                             != AutofillAddress.COMPLETE) {
                 billingAddress = null;
             }

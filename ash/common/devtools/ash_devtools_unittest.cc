@@ -5,7 +5,6 @@
 #include "ash/common/devtools/ash_devtools_css_agent.h"
 #include "ash/common/devtools/ash_devtools_dom_agent.h"
 #include "ash/common/test/ash_test.h"
-#include "ash/common/wm_lookup.h"
 #include "ash/common/wm_shell.h"
 #include "ash/common/wm_window.h"
 #include "ash/root_window_controller.h"
@@ -200,8 +199,7 @@ class AshDevToolsTest : public AshTest {
     fake_frontend_channel_ = base::MakeUnique<FakeFrontendChannel>();
     uber_dispatcher_ =
         base::MakeUnique<UberDispatcher>(fake_frontend_channel_.get());
-    dom_agent_ =
-        base::MakeUnique<devtools::AshDevToolsDOMAgent>(WmShell::Get());
+    dom_agent_ = base::MakeUnique<devtools::AshDevToolsDOMAgent>();
     dom_agent_->Init(uber_dispatcher_.get());
     css_agent_ =
         base::MakeUnique<devtools::AshDevToolsCSSAgent>(dom_agent_.get());
@@ -233,12 +231,11 @@ class AshDevToolsTest : public AshTest {
                          parent_id, node_id)));
   }
 
-  void ExpectStyleSheetChanged(int node_id) {
-    EXPECT_EQ(1, frontend_channel()->CountProtocolNotificationMessage(
-                     base::StringPrintf(
-                         "{\"method\":\"CSS.styleSheetChanged\",\"params\":{"
-                         "\"styleSheetId\":\"%d\"}}",
-                         node_id)));
+  int GetStyleSheetChangedCount(int node_id) {
+    return frontend_channel()->CountProtocolNotificationMessage(
+        base::StringPrintf("{\"method\":\"CSS.styleSheetChanged\",\"params\":{"
+                           "\"styleSheetId\":\"%d\"}}",
+                           node_id));
   }
 
   void CompareNodeBounds(DOM::Node* node, const gfx::Rect& bounds) {
@@ -300,7 +297,7 @@ class AshDevToolsTest : public AshTest {
 TEST_F(AshDevToolsTest, GetDocumentWithWindowWidgetView) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(1, 1, 1, 1)));
-  WmWindow* parent_window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* parent_window = WmWindow::Get(widget->GetNativeWindow());
   parent_window->SetName("parent_window");
   std::unique_ptr<WindowOwner> child_owner(CreateChildWindow(parent_window));
   WmWindow* child_window = child_owner->window();
@@ -330,7 +327,7 @@ TEST_F(AshDevToolsTest, GetDocumentNativeWidgetOwnsWidget) {
   views::internal::NativeWidgetPrivate* native_widget_private =
       CreateTestNativeWidget();
   views::Widget* widget = native_widget_private->GetWidget();
-  WmWindow* parent_window = WmLookup::Get()->GetWindowForWidget(widget);
+  WmWindow* parent_window = WmWindow::Get(widget->GetNativeWindow());
 
   std::unique_ptr<ui::devtools::protocol::DOM::Node> root;
   dom_agent()->getDocument(&root);
@@ -454,7 +451,7 @@ TEST_F(AshDevToolsTest, WindowStackingChangedChildNodeRemovedAndInserted) {
 TEST_F(AshDevToolsTest, ViewInserted) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(1, 1, 1, 1)));
-  WmWindow* window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* window = WmWindow::Get(widget->GetNativeWindow());
   widget->Show();
 
   // Initialize DOMAgent
@@ -481,7 +478,7 @@ TEST_F(AshDevToolsTest, ViewRemoved) {
   // Need to store |view| in unique_ptr because it is removed from the widget
   // and needs to be destroyed independently
   std::unique_ptr<views::View> child_view = base::MakeUnique<views::View>();
-  WmWindow* window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* window = WmWindow::Get(widget->GetNativeWindow());
   widget->Show();
   views::View* root_view = widget->GetRootView();
   root_view->AddChildView(child_view.get());
@@ -508,7 +505,7 @@ TEST_F(AshDevToolsTest, ViewRemoved) {
 TEST_F(AshDevToolsTest, ViewRearranged) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(1, 1, 1, 1)));
-  WmWindow* window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* window = WmWindow::Get(widget->GetNativeWindow());
   widget->Show();
   views::View* root_view = widget->GetRootView();
   views::View* parent_view = new views::View;
@@ -546,7 +543,7 @@ TEST_F(AshDevToolsTest, ViewRearranged) {
 TEST_F(AshDevToolsTest, ViewRearrangedRemovedAndInserted) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(1, 1, 1, 1)));
-  WmWindow* window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* window = WmWindow::Get(widget->GetNativeWindow());
   widget->Show();
   views::View* root_view = widget->GetRootView();
   views::View* parent_view = new views::View;
@@ -585,7 +582,7 @@ TEST_F(AshDevToolsTest, ViewRearrangedRemovedAndInserted) {
 TEST_F(AshDevToolsTest, WindowWidgetViewHighlight) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(0, 0, 400, 400)));
-  WmWindow* parent_window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* parent_window = WmWindow::Get(widget->GetNativeWindow());
   std::unique_ptr<WindowOwner> child_owner(CreateChildWindow(parent_window));
   WmWindow* window = child_owner->window();
   views::View* root_view = widget->GetRootView();
@@ -645,7 +642,7 @@ TEST_F(AshDevToolsTest, MultipleDisplayHighlight) {
 TEST_F(AshDevToolsTest, WindowWidgetViewGetMatchedStylesForNode) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(1, 1, 1, 1)));
-  WmWindow* parent_window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* parent_window = WmWindow::Get(widget->GetNativeWindow());
   std::unique_ptr<WindowOwner> child_owner(CreateChildWindow(parent_window));
   WmWindow* window = child_owner->window();
   gfx::Rect window_bounds(2, 2, 3, 3);
@@ -672,35 +669,39 @@ TEST_F(AshDevToolsTest, WindowWidgetViewGetMatchedStylesForNode) {
 TEST_F(AshDevToolsTest, WindowWidgetViewStyleSheetChanged) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(1, 1, 1, 1)));
-  WmWindow* parent_window = WmLookup::Get()->GetWindowForWidget(widget.get());
-  std::unique_ptr<WindowOwner> child_owner(CreateChildWindow(parent_window));
-  WmWindow* window = child_owner->window();
+  WmWindow* widget_window = WmWindow::Get(widget->GetNativeWindow());
+  std::unique_ptr<WindowOwner> child_owner(CreateChildWindow(widget_window));
+  WmWindow* child = child_owner->window();
 
   std::unique_ptr<ui::devtools::protocol::DOM::Node> root;
   dom_agent()->getDocument(&root);
 
-  gfx::Rect window_bounds(2, 2, 3, 3);
-  gfx::Rect widget_bounds(10, 10, 5, 6);
+  gfx::Rect child_bounds(2, 2, 3, 3);
+  gfx::Rect widget_bounds(10, 10, 150, 160);
   gfx::Rect view_bounds(4, 4, 3, 3);
-  window->SetBounds(window_bounds);
+  child->SetBounds(child_bounds);
   widget->SetBounds(widget_bounds);
   widget->GetRootView()->SetBoundsRect(view_bounds);
 
-  DOM::Node* parent_node = FindInRoot(parent_window, root.get());
-  ASSERT_TRUE(parent_node);
-  Array<DOM::Node>* parent_children = parent_node->getChildren(nullptr);
-  ASSERT_TRUE(parent_children);
+  DOM::Node* widget_node = FindInRoot(widget_window, root.get());
+  ASSERT_TRUE(widget_node);
+  Array<DOM::Node>* widget_node_children = widget_node->getChildren(nullptr);
+  ASSERT_TRUE(widget_node_children);
 
-  ExpectStyleSheetChanged(parent_node->getNodeId());
-  ExpectStyleSheetChanged(parent_children->get(1)->getNodeId());
-  ExpectStyleSheetChanged(
-      parent_children->get(0)->getChildren(nullptr)->get(0)->getNodeId());
+  EXPECT_EQ(1, GetStyleSheetChangedCount(widget_node->getNodeId()));
+  EXPECT_EQ(
+      1, GetStyleSheetChangedCount(widget_node_children->get(1)->getNodeId()));
+  EXPECT_EQ(2,
+            GetStyleSheetChangedCount(widget_node_children->get(0)
+                                          ->getChildren(nullptr)
+                                          ->get(0)
+                                          ->getNodeId()));
 }
 
 TEST_F(AshDevToolsTest, WindowWidgetViewSetStyleText) {
   std::unique_ptr<views::Widget> widget(
       CreateTestWidget(gfx::Rect(0, 0, 400, 400)));
-  WmWindow* parent_window = WmLookup::Get()->GetWindowForWidget(widget.get());
+  WmWindow* parent_window = WmWindow::Get(widget->GetNativeWindow());
   std::unique_ptr<WindowOwner> child_owner(CreateChildWindow(parent_window));
   WmWindow* window = child_owner->window();
   views::View* root_view = widget->GetRootView();
@@ -716,14 +717,17 @@ TEST_F(AshDevToolsTest, WindowWidgetViewSetStyleText) {
   // Test different combinations on window node
   DOM::Node* window_node = parent_children->get(1);
 
-  SetStyleTexts(window_node, "x: 25; y:35; width: 5; height: 20;", true);
+  SetStyleTexts(window_node,
+                "x: 25; y:35; width: 5; height: 20; visibility: 1;", true);
   EXPECT_EQ(gfx::Rect(25, 35, 5, 20), window->GetBounds());
+  EXPECT_TRUE(window->IsVisible());
 
   SetStyleTexts(window_node, "test_nothing_happens:1;", false);
   EXPECT_EQ(gfx::Rect(25, 35, 5, 20), window->GetBounds());  // Not changed
 
-  SetStyleTexts(window_node, "\nheight: 10;\n  ", true);
+  SetStyleTexts(window_node, "\nheight: 10;\nvisibility: 0;\n", true);
   EXPECT_EQ(gfx::Rect(25, 35, 5, 10), window->GetBounds());
+  EXPECT_FALSE(window->IsVisible());
 
   SetStyleTexts(window_node, "\nx: 10; y: 23; width: 52;\n  ", true);
   EXPECT_EQ(gfx::Rect(10, 23, 52, 10), window->GetBounds());
@@ -731,15 +735,18 @@ TEST_F(AshDevToolsTest, WindowWidgetViewSetStyleText) {
   // Test different combinations on widget node
   DOM::Node* widget_node = parent_children->get(0);
 
-  SetStyleTexts(widget_node, "x: 25; y:35; width: 53; height: 64;", true);
+  SetStyleTexts(widget_node,
+                "x: 25; y:35; width: 53; height: 64; visibility: 0;", true);
   EXPECT_EQ(gfx::Rect(25, 35, 53, 64), widget->GetRestoredBounds());
+  EXPECT_FALSE(widget->IsVisible());
 
   SetStyleTexts(widget_node, "test_nothing_happens:1;", false);
   EXPECT_EQ(gfx::Rect(25, 35, 53, 64),
             widget->GetRestoredBounds());  // Not changed
 
-  SetStyleTexts(widget_node, "\nheight: 123;\n  ", true);
+  SetStyleTexts(widget_node, "\nheight: 123;\nvisibility: 1;\n", true);
   EXPECT_EQ(gfx::Rect(25, 35, 53, 123), widget->GetRestoredBounds());
+  EXPECT_TRUE(widget->IsVisible());
 
   SetStyleTexts(widget_node, "\nx: 10; y: 23; width: 98;\n  ", true);
   EXPECT_EQ(gfx::Rect(10, 23, 98, 123), widget->GetRestoredBounds());
@@ -747,8 +754,10 @@ TEST_F(AshDevToolsTest, WindowWidgetViewSetStyleText) {
   // Test different combinations on view node
   DOM::Node* root_view_node = widget_node->getChildren(nullptr)->get(0);
 
-  SetStyleTexts(root_view_node, "x: 25; y:35; width: 45; height: 20;", true);
+  SetStyleTexts(root_view_node,
+                "x: 25; y:35; width: 45; height: 20; visibility: 0;", true);
   EXPECT_EQ(gfx::Rect(25, 35, 45, 20), root_view->bounds());
+  EXPECT_FALSE(root_view->visible());
 
   SetStyleTexts(root_view_node, "test_nothing_happens:1;", false);
   EXPECT_EQ(gfx::Rect(25, 35, 45, 20), root_view->bounds());  // Not changed
@@ -756,8 +765,10 @@ TEST_F(AshDevToolsTest, WindowWidgetViewSetStyleText) {
   SetStyleTexts(root_view_node, "\nheight: 73;\n  ", true);
   EXPECT_EQ(gfx::Rect(25, 35, 45, 73), root_view->bounds());
 
-  SetStyleTexts(root_view_node, "\nx: 10; y: 23; width: 52;\n  ", true);
+  SetStyleTexts(root_view_node, "\nx: 10; y: 23; width: 52;\nvisibility: 1;\n",
+                true);
   EXPECT_EQ(gfx::Rect(10, 23, 52, 73), root_view->bounds());
+  EXPECT_TRUE(root_view->visible());
 }
 
 }  // namespace ash

@@ -33,6 +33,7 @@
 #include "core/dom/shadow/FlatTreeTraversal.h"
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalFrame.h"
+#include "core/frame/LocalFrameClient.h"
 #include "core/frame/Settings.h"
 #include "core/layout/LayoutView.h"
 #include "core/layout/svg/LayoutSVGRoot.h"
@@ -78,11 +79,11 @@ SVGImage::~SVGImage() {
   }
 
   // Verify that page teardown destroyed the Chrome
-  ASSERT(!m_chromeClient || !m_chromeClient->image());
+  DCHECK(!m_chromeClient || !m_chromeClient->image());
 }
 
 bool SVGImage::isInSVGImage(const Node* node) {
-  ASSERT(node);
+  DCHECK(node);
 
   Page* page = node->document().page();
   if (!page)
@@ -97,7 +98,7 @@ bool SVGImage::currentFrameHasSingleSecurityOrigin() const {
 
   LocalFrame* frame = toLocalFrame(m_page->mainFrame());
 
-  RELEASE_ASSERT(frame->document()->loadEventFinished());
+  CHECK(frame->document()->loadEventFinished());
 
   SVGSVGElement* rootElement =
       frame->document()->accessSVGExtensions().rootElement();
@@ -145,7 +146,7 @@ IntSize SVGImage::containerSize() const {
     return containerSize;
 
   // Assure that a container size is always given for a non-identity zoom level.
-  ASSERT(layoutObject->style()->effectiveZoom() == 1);
+  DCHECK_EQ(layoutObject->style()->effectiveZoom(), 1);
 
   // No set container size; use concrete object size.
   return m_intrinsicSize;
@@ -229,13 +230,8 @@ FloatSize SVGImage::concreteObjectSize(
   return defaultObjectSize;
 }
 
-void SVGImage::drawForContainer(PaintCanvas* canvas,
-                                const PaintFlags& flags,
-                                const FloatSize containerSize,
-                                float zoom,
-                                const FloatRect& dstRect,
-                                const FloatRect& srcRect,
-                                const KURL& url) {
+template <typename Func>
+void SVGImage::forContainer(const FloatSize& containerSize, Func&& func) {
   if (!m_page)
     return;
 
@@ -251,23 +247,32 @@ void SVGImage::drawForContainer(PaintCanvas* canvas,
       layoutObject->setContainerSize(roundedContainerSize);
   }
 
-  FloatRect scaledSrc = srcRect;
-  scaledSrc.scale(1 / zoom);
-
-  // Compensate for the container size rounding by adjusting the source rect.
-  FloatSize adjustedSrcSize = scaledSrc.size();
-  adjustedSrcSize.scale(roundedContainerSize.width() / containerSize.width(),
-                        roundedContainerSize.height() / containerSize.height());
-  scaledSrc.setSize(adjustedSrcSize);
-
-  drawInternal(canvas, flags, dstRect, scaledSrc, DoNotRespectImageOrientation,
-               ClampImageToSourceRect, url);
+  func(FloatSize(roundedContainerSize.width() / containerSize.width(),
+                 roundedContainerSize.height() / containerSize.height()));
 }
 
-sk_sp<SkImage> SVGImage::imageForCurrentFrame(
-    const ColorBehavior& colorBehavior) {
-  // TODO(ccameron): This function should not ignore |colorBehavior|.
-  // https://crbug.com/667431
+void SVGImage::drawForContainer(PaintCanvas* canvas,
+                                const PaintFlags& flags,
+                                const FloatSize& containerSize,
+                                float zoom,
+                                const FloatRect& dstRect,
+                                const FloatRect& srcRect,
+                                const KURL& url) {
+  forContainer(containerSize, [&](const FloatSize& residualScale) {
+    FloatRect scaledSrc = srcRect;
+    scaledSrc.scale(1 / zoom);
+
+    // Compensate for the container size rounding by adjusting the source rect.
+    FloatSize adjustedSrcSize = scaledSrc.size();
+    adjustedSrcSize.scale(residualScale.width(), residualScale.height());
+    scaledSrc.setSize(adjustedSrcSize);
+
+    drawInternal(canvas, flags, dstRect, scaledSrc,
+                 DoNotRespectImageOrientation, ClampImageToSourceRect, url);
+  });
+}
+
+sk_sp<SkImage> SVGImage::imageForCurrentFrame() {
   return imageForCurrentFrameForContainer(KURL(), size());
 }
 
@@ -357,15 +362,54 @@ static bool drawNeedsLayer(const PaintFlags& flags) {
   return !flags.isSrcOver();
 }
 
+bool SVGImage::applyShaderInternal(PaintFlags& flags,
+                                   const SkMatrix& localMatrix,
+                                   const KURL& url) {
+  const FloatSize size(containerSize());
+  if (size.isEmpty())
+    return false;
+
+  const FloatRect bounds(FloatPoint(), size);
+  flags.setShader(SkShader::MakePictureShader(
+      paintRecordForCurrentFrame(bounds, bounds, url),
+      SkShader::kRepeat_TileMode, SkShader::kRepeat_TileMode, &localMatrix,
+      nullptr));
+
+  // Animation is normally refreshed in draw() impls, which we don't reach when
+  // painting via shaders.
+  startAnimation();
+
+  return true;
+}
+
+bool SVGImage::applyShader(PaintFlags& flags, const SkMatrix& localMatrix) {
+  return applyShaderInternal(flags, localMatrix, KURL());
+}
+
+bool SVGImage::applyShaderForContainer(const FloatSize& containerSize,
+                                       float zoom,
+                                       const KURL& url,
+                                       PaintFlags& flags,
+                                       const SkMatrix& localMatrix) {
+  bool result = false;
+  forContainer(containerSize, [&](const FloatSize& residualScale) {
+    // Compensate for the container size rounding.
+    auto adjustedLocalMatrix = localMatrix;
+    adjustedLocalMatrix.preScale(zoom * residualScale.width(),
+                                 zoom * residualScale.height());
+
+    result = applyShaderInternal(flags, adjustedLocalMatrix, url);
+  });
+
+  return result;
+}
+
 void SVGImage::draw(PaintCanvas* canvas,
                     const PaintFlags& flags,
                     const FloatRect& dstRect,
                     const FloatRect& srcRect,
                     RespectImageOrientationEnum shouldRespectImageOrientation,
-                    ImageClampingMode clampMode,
-                    const ColorBehavior& colorBehavior) {
-  // TODO(ccameron): This function should not ignore |colorBehavior|.
-  // https://crbug.com/667431
+                    ImageClampingMode clampMode) {
   if (!m_page)
     return;
 
@@ -373,13 +417,10 @@ void SVGImage::draw(PaintCanvas* canvas,
                clampMode, KURL());
 }
 
-void SVGImage::drawInternal(PaintCanvas* canvas,
-                            const PaintFlags& flags,
-                            const FloatRect& dstRect,
-                            const FloatRect& srcRect,
-                            RespectImageOrientationEnum,
-                            ImageClampingMode,
-                            const KURL& url) {
+sk_sp<PaintRecord> SVGImage::paintRecordForCurrentFrame(
+    const FloatRect& srcRect,
+    const FloatRect& dstRect,
+    const KURL& url) {
   DCHECK(m_page);
   FrameView* view = toLocalFrame(m_page->mainFrame())->view();
   view->resize(containerSize());
@@ -426,17 +467,27 @@ void SVGImage::drawInternal(PaintCanvas* canvas,
 
     view->updateAllLifecyclePhasesExceptPaint();
     view->paint(builder.context(), CullRect(enclosingIntRect(srcRect)));
-    ASSERT(!view->needsLayout());
+    DCHECK(!view->needsLayout());
   }
 
+  return builder.endRecording();
+}
+
+void SVGImage::drawInternal(PaintCanvas* canvas,
+                            const PaintFlags& flags,
+                            const FloatRect& dstRect,
+                            const FloatRect& srcRect,
+                            RespectImageOrientationEnum,
+                            ImageClampingMode,
+                            const KURL& url) {
   {
     PaintCanvasAutoRestore ar(canvas, false);
     if (drawNeedsLayer(flags)) {
       SkRect layerRect = dstRect;
       canvas->saveLayer(&layerRect, &flags);
     }
-    sk_sp<PaintRecord> recording = builder.endRecording();
-    canvas->drawPicture(recording.get());
+
+    canvas->drawPicture(paintRecordForCurrentFrame(srcRect, dstRect, url));
   }
 
   // Start any (SMIL) animations if needed. This will restart or continue
@@ -579,19 +630,10 @@ Image::SizeAvailability SVGImage::dataChanged(bool allDataReceived) {
     // types.
     EventDispatchForbiddenScope::AllowUserAgentEvents allowUserAgentEvents;
 
-    DEFINE_STATIC_LOCAL(FrameLoaderClient, dummyFrameLoaderClient,
-                        (EmptyFrameLoaderClient::create()));
+    DEFINE_STATIC_LOCAL(LocalFrameClient, dummyLocalFrameClient,
+                        (EmptyLocalFrameClient::create()));
 
-    if (m_page) {
-      toLocalFrame(m_page->mainFrame())
-          ->loader()
-          .load(FrameLoadRequest(
-              0, blankURL(),
-              SubstituteData(data(), AtomicString("image/svg+xml"),
-                             AtomicString("UTF-8"), KURL(),
-                             ForceSynchronousLoad)));
-      return SizeAvailable;
-    }
+    CHECK(!m_page);
 
     Page::PageClients pageClients;
     fillWithEmptyClients(pageClients);
@@ -634,8 +676,7 @@ Image::SizeAvailability SVGImage::dataChanged(bool allDataReceived) {
     LocalFrame* frame = nullptr;
     {
       TRACE_EVENT0("blink", "SVGImage::dataChanged::createFrame");
-      frame =
-          LocalFrame::create(&dummyFrameLoaderClient, &page->frameHost(), 0);
+      frame = LocalFrame::create(&dummyLocalFrameClient, &page->frameHost(), 0);
       frame->setView(FrameView::create(*frame));
       frame->init();
     }

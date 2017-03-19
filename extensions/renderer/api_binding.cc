@@ -72,77 +72,17 @@ void CallbackHelper(const v8::FunctionCallbackInfo<v8::Value>& info) {
   callback->Run(&args);
 }
 
-// Decorates |object_template| with the properties specified by |properties|.
-void DecorateTemplateWithProperties(
-    v8::Isolate* isolate,
-    v8::Local<v8::ObjectTemplate> object_template,
-    const base::DictionaryValue& properties) {
-  static const char kValueKey[] = "value";
-  for (base::DictionaryValue::Iterator iter(properties); !iter.IsAtEnd();
-       iter.Advance()) {
-    const base::DictionaryValue* dict = nullptr;
-    CHECK(iter.value().GetAsDictionary(&dict));
-    bool optional = false;
-    if (dict->GetBoolean("optional", &optional)) {
-      // TODO(devlin): What does optional even mean here? It's only used, it
-      // seems, for lastError and inIncognitoContext, which are both handled
-      // with custom bindings. Investigate, and remove.
-      continue;
-    }
-    std::string ref;
-    if (dict->GetString("$ref", &ref)) {
-      // TODO(devlin): Handle refs. These are tricky(er), because they represent
-      // a type that's defined in (currently) JS.
-      continue;
-    }
-    std::string type;
-    CHECK(dict->GetString("type", &type));
-    if (type != "object" && !dict->HasKey(kValueKey)) {
-      // TODO(devlin): What does a fundamental property not having a value mean?
-      // It doesn't seem useful, and looks like it's only used by runtime.id,
-      // which is set by custom bindings. Investigate, and remove.
-      continue;
-    }
-    if (type == "integer") {
-      int val = 0;
-      CHECK(dict->GetInteger(kValueKey, &val));
-      object_template->Set(isolate, iter.key().c_str(),
-                           v8::Integer::New(isolate, val));
-    } else if (type == "boolean") {
-      bool val = false;
-      CHECK(dict->GetBoolean(kValueKey, &val));
-      object_template->Set(isolate, iter.key().c_str(),
-                           v8::Boolean::New(isolate, val));
-    } else if (type == "string") {
-      std::string val;
-      CHECK(dict->GetString(kValueKey, &val)) << iter.key();
-      object_template->Set(isolate, iter.key().c_str(),
-                           gin::StringToSymbol(isolate, val));
-    } else if (type == "object") {
-      v8::Local<v8::ObjectTemplate> property_template =
-          v8::ObjectTemplate::New(isolate);
-      const base::DictionaryValue* property_dict = nullptr;
-      CHECK(dict->GetDictionary("properties", &property_dict));
-      DecorateTemplateWithProperties(isolate, property_template,
-                                     *property_dict);
-      object_template->Set(isolate, iter.key().c_str(), property_template);
-    }
-  }
-}
-
 }  // namespace
 
 struct APIBinding::MethodData {
-  MethodData(std::string full_name,
-             const base::ListValue& method_signature)
-      : full_name(std::move(full_name)),
-        signature(method_signature) {}
+  MethodData(std::string full_name, const APISignature* signature)
+      : full_name(std::move(full_name)), signature(signature) {}
 
   // The fully-qualified name of this api (e.g. runtime.sendMessage instead of
   // sendMessage).
   std::string full_name;
   // The expected API signature.
-  APISignature signature;
+  const APISignature* signature;
   // The callback used by the v8 function.
   APIBinding::HandlerCallback callback;
 };
@@ -166,17 +106,36 @@ struct APIBinding::EventData {
   APIEventHandler* event_handler;
 };
 
+struct APIBinding::CustomPropertyData {
+  CustomPropertyData(const std::string& type_name,
+                     const std::string& property_name,
+                     const CreateCustomType& create_custom_type)
+      : type_name(type_name),
+        property_name(property_name),
+        create_custom_type(create_custom_type) {}
+
+  // The type of the property, e.g. 'storage.StorageArea'.
+  std::string type_name;
+  // The name of the property on the object, e.g. 'local' for
+  // chrome.storage.local.
+  std::string property_name;
+
+  CreateCustomType create_custom_type;
+};
+
 APIBinding::APIBinding(const std::string& api_name,
                        const base::ListValue* function_definitions,
                        const base::ListValue* type_definitions,
                        const base::ListValue* event_definitions,
                        const base::DictionaryValue* property_definitions,
+                       const CreateCustomType& create_custom_type,
                        std::unique_ptr<APIBindingHooks> binding_hooks,
                        APITypeReferenceMap* type_refs,
                        APIRequestHandler* request_handler,
                        APIEventHandler* event_handler)
     : api_name_(api_name),
       property_definitions_(property_definitions),
+      create_custom_type_(create_custom_type),
       binding_hooks_(std::move(binding_hooks)),
       type_refs_(type_refs),
       request_handler_(request_handler),
@@ -196,9 +155,11 @@ APIBinding::APIBinding(const std::string& api_name,
 
       const base::ListValue* params = nullptr;
       CHECK(func_dict->GetList("parameters", &params));
-      methods_[name] = base::MakeUnique<MethodData>(
-          base::StringPrintf("%s.%s", api_name_.c_str(), name.c_str()),
-          *params);
+      auto signature = base::MakeUnique<APISignature>(*params);
+      std::string full_name =
+          base::StringPrintf("%s.%s", api_name_.c_str(), name.c_str());
+      methods_[name] = base::MakeUnique<MethodData>(full_name, signature.get());
+      type_refs->AddAPIMethodSignature(full_name, std::move(signature));
     }
   }
 
@@ -224,6 +185,23 @@ APIBinding::APIBinding(const std::string& api_name,
         }
       }
       type_refs->AddSpec(id, std::move(argument_spec));
+      // Some types, like storage.StorageArea, have functions associated with
+      // them. Cache the function signatures in the type map.
+      const base::ListValue* type_functions = nullptr;
+      if (type_dict->GetList("functions", &type_functions)) {
+        for (const auto& func : *type_functions) {
+          const base::DictionaryValue* func_dict = nullptr;
+          CHECK(func->GetAsDictionary(&func_dict));
+          std::string function_name;
+          CHECK(func_dict->GetString("name", &function_name));
+
+          const base::ListValue* params = nullptr;
+          CHECK(func_dict->GetList("parameters", &params));
+          type_refs->AddTypeMethodSignature(
+              base::StringPrintf("%s.%s", id.c_str(), function_name.c_str()),
+              base::MakeUnique<APISignature>(*params));
+        }
+      }
     }
   }
 
@@ -273,14 +251,9 @@ v8::Local<v8::Object> APIBinding::CreateInstance(
     }
   }
 
-  binding_hooks_->InitializeInContext(context, api_name_);
+  binding_hooks_->InitializeInContext(context);
 
   return object;
-}
-
-v8::Local<v8::Object> APIBinding::GetJSHookInterface(
-    v8::Local<v8::Context> context) {
-  return binding_hooks_->GetJSHookInterface(api_name_, context);
 }
 
 void APIBinding::InitializeTemplate(v8::Isolate* isolate) {
@@ -293,7 +266,7 @@ void APIBinding::InitializeTemplate(v8::Isolate* isolate) {
     DCHECK(method.callback.is_null());
     method.callback =
         base::Bind(&APIBinding::HandleCall, weak_factory_.GetWeakPtr(),
-                   method.full_name, &method.signature);
+                   method.full_name, method.signature);
 
     object_template->Set(
         gin::StringToSymbol(isolate, key_value.first),
@@ -327,6 +300,67 @@ void APIBinding::InitializeTemplate(v8::Isolate* isolate) {
   object_template_.Set(isolate, object_template);
 }
 
+void APIBinding::DecorateTemplateWithProperties(
+    v8::Isolate* isolate,
+    v8::Local<v8::ObjectTemplate> object_template,
+    const base::DictionaryValue& properties) {
+  static const char kValueKey[] = "value";
+  for (base::DictionaryValue::Iterator iter(properties); !iter.IsAtEnd();
+       iter.Advance()) {
+    const base::DictionaryValue* dict = nullptr;
+    CHECK(iter.value().GetAsDictionary(&dict));
+    bool optional = false;
+    if (dict->GetBoolean("optional", &optional)) {
+      // TODO(devlin): What does optional even mean here? It's only used, it
+      // seems, for lastError and inIncognitoContext, which are both handled
+      // with custom bindings. Investigate, and remove.
+      continue;
+    }
+
+    v8::Local<v8::String> v8_key = gin::StringToSymbol(isolate, iter.key());
+    std::string ref;
+    if (dict->GetString("$ref", &ref)) {
+      auto property_data = base::MakeUnique<CustomPropertyData>(
+          ref, iter.key(), create_custom_type_);
+      object_template->SetLazyDataProperty(
+          v8_key, &APIBinding::GetCustomPropertyObject,
+          v8::External::New(isolate, property_data.get()));
+      custom_properties_.push_back(std::move(property_data));
+      continue;
+    }
+
+    std::string type;
+    CHECK(dict->GetString("type", &type));
+    if (type != "object" && !dict->HasKey(kValueKey)) {
+      // TODO(devlin): What does a fundamental property not having a value mean?
+      // It doesn't seem useful, and looks like it's only used by runtime.id,
+      // which is set by custom bindings. Investigate, and remove.
+      continue;
+    }
+    if (type == "integer") {
+      int val = 0;
+      CHECK(dict->GetInteger(kValueKey, &val));
+      object_template->Set(v8_key, v8::Integer::New(isolate, val));
+    } else if (type == "boolean") {
+      bool val = false;
+      CHECK(dict->GetBoolean(kValueKey, &val));
+      object_template->Set(v8_key, v8::Boolean::New(isolate, val));
+    } else if (type == "string") {
+      std::string val;
+      CHECK(dict->GetString(kValueKey, &val)) << iter.key();
+      object_template->Set(v8_key, gin::StringToSymbol(isolate, val));
+    } else if (type == "object" || !ref.empty()) {
+      v8::Local<v8::ObjectTemplate> property_template =
+          v8::ObjectTemplate::New(isolate);
+      const base::DictionaryValue* property_dict = nullptr;
+      CHECK(dict->GetDictionary("properties", &property_dict));
+      DecorateTemplateWithProperties(isolate, property_template,
+                                     *property_dict);
+      object_template->Set(v8_key, property_template);
+    }
+  }
+}
+
 // static
 void APIBinding::GetEventObject(
     v8::Local<v8::Name> property,
@@ -342,6 +376,27 @@ void APIBinding::GetEventObject(
       static_cast<EventData*>(info.Data().As<v8::External>()->Value());
   info.GetReturnValue().Set(event_data->event_handler->CreateEventInstance(
       event_data->full_name, context));
+}
+
+void APIBinding::GetCustomPropertyObject(
+    v8::Local<v8::Name> property_name,
+    const v8::PropertyCallbackInfo<v8::Value>& info) {
+  v8::Isolate* isolate = info.GetIsolate();
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Context> context = info.Holder()->CreationContext();
+  if (!IsContextValid(context))
+    return;
+
+  CHECK(info.Data()->IsExternal());
+  auto* property_data =
+      static_cast<CustomPropertyData*>(info.Data().As<v8::External>()->Value());
+
+  v8::Local<v8::Object> property = property_data->create_custom_type.Run(
+      context, property_data->type_name, property_data->property_name);
+  if (property.IsEmpty())
+    return;
+
+  info.GetReturnValue().Set(property);
 }
 
 void APIBinding::HandleCall(const std::string& name,
@@ -365,9 +420,8 @@ void APIBinding::HandleCall(const std::string& name,
   v8::Local<v8::Function> custom_callback;
   {
     v8::TryCatch try_catch(isolate);
-    APIBindingHooks::RequestResult hooks_result =
-        binding_hooks_->RunHooks(api_name_, name, context,
-                                 signature, &argument_list, *type_refs_);
+    APIBindingHooks::RequestResult hooks_result = binding_hooks_->RunHooks(
+        name, context, signature, &argument_list, *type_refs_);
 
     switch (hooks_result.code) {
       case APIBindingHooks::RequestResult::INVALID_INVOCATION:

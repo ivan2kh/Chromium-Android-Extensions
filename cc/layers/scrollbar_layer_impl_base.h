@@ -6,7 +6,7 @@
 #define CC_LAYERS_SCROLLBAR_LAYER_IMPL_BASE_H_
 
 #include "base/macros.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/input/scrollbar.h"
 #include "cc/layers/layer.h"
 #include "cc/layers/layer_impl.h"
@@ -54,6 +54,8 @@ class CC_EXPORT ScrollbarLayerImplBase : public LayerImpl {
   }
   bool SetThumbThicknessScaleFactor(float thumb_thickness_scale_factor);
 
+  virtual int ThumbThickness() const = 0;
+
  protected:
   ScrollbarLayerImplBase(LayerTreeImpl* tree_impl,
                          int id,
@@ -62,7 +64,6 @@ class CC_EXPORT ScrollbarLayerImplBase : public LayerImpl {
                          bool is_overlay);
   ~ScrollbarLayerImplBase() override;
 
-  virtual int ThumbThickness() const = 0;
   virtual int ThumbLength() const = 0;
   virtual float TrackLength() const = 0;
   virtual int TrackStart() const = 0;

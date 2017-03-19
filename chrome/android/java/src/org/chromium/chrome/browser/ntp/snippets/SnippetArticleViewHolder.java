@@ -38,9 +38,9 @@ import org.chromium.chrome.browser.ntp.ContextMenuManager.ContextMenuItemId;
 import org.chromium.chrome.browser.ntp.cards.CardViewHolder;
 import org.chromium.chrome.browser.ntp.cards.CardsVariationParameters;
 import org.chromium.chrome.browser.ntp.cards.ImpressionTracker;
-import org.chromium.chrome.browser.ntp.cards.NewTabPageRecyclerView;
 import org.chromium.chrome.browser.ntp.cards.NewTabPageViewHolder;
 import org.chromium.chrome.browser.ntp.cards.SuggestionsCategoryInfo;
+import org.chromium.chrome.browser.suggestions.SuggestionsRecyclerView;
 import org.chromium.chrome.browser.suggestions.SuggestionsUiDelegate;
 import org.chromium.chrome.browser.widget.TintedImageView;
 import org.chromium.chrome.browser.widget.displaystyle.DisplayStyleObserver;
@@ -87,6 +87,7 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
     private final boolean mUseFaviconService;
     private final ColorStateList mIconForegroundColorList;
     private final int mIconBackgroundColor;
+    private final int mFileTypeIconPaddingPx;
 
     private FetchImageCallback mImageCallback;
     private SnippetArticle mArticle;
@@ -95,12 +96,12 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
 
     /**
      * Constructs a {@link SnippetArticleViewHolder} item used to display snippets.
-     * @param parent The NewTabPageRecyclerView that is going to contain the newly created view.
+     * @param parent The SuggestionsRecyclerView that is going to contain the newly created view.
      * @param contextMenuManager The manager responsible for the context menu.
      * @param uiDelegate The delegate object used to open an article, fetch thumbnails, etc.
      * @param uiConfig The NTP UI configuration object used to adjust the article UI.
      */
-    public SnippetArticleViewHolder(NewTabPageRecyclerView parent,
+    public SnippetArticleViewHolder(SuggestionsRecyclerView parent,
             ContextMenuManager contextMenuManager, SuggestionsUiDelegate uiDelegate,
             UiConfig uiConfig) {
         super(R.layout.new_tab_page_snippets_card, parent, uiConfig, contextMenuManager);
@@ -124,6 +125,8 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
         mIconForegroundColorList = DownloadUtils.getIconForegroundColorList(parent.getContext());
         mThumbnailProvider = new ThumbnailProviderImpl(
                 Math.min(mThumbnailView.getMaxWidth(), mThumbnailView.getMaxHeight()));
+        mFileTypeIconPaddingPx = mThumbnailView.getResources().getDimensionPixelSize(
+                R.dimen.snippets_thumbnail_file_type_icon_padding);
 
         new ImpressionTracker(itemView, this);
         new DisplayStyleObserverAdapter(itemView, uiConfig, new DisplayStyleObserver() {
@@ -199,16 +202,17 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
         setThumbnail();
 
         // Set the favicon of the publisher.
+        // We start initialising with the default favicon to reserve the space and prevent the text
+        // from moving later.
+        setDefaultFaviconOnView();
         try {
             fetchFaviconFromLocalCache(new URI(mArticle.mUrl), true);
         } catch (URISyntaxException e) {
-            setDefaultFaviconOnView();
+            // Do nothing, stick to the default favicon.
         }
 
         mOfflineBadge.setVisibility(View.GONE);
         refreshOfflineBadgeVisibility();
-
-        mRecyclerView.onSnippetBound(itemView);
     }
 
     /**
@@ -286,13 +290,16 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
     private void setThumbnailFromBitmap(Bitmap thumbnail) {
         assert thumbnail != null && !thumbnail.isRecycled();
         mThumbnailView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        mThumbnailView.setPadding(0, 0, 0, 0);
         mThumbnailView.setBackground(null);
         mThumbnailView.setImageBitmap(thumbnail);
         mThumbnailView.setTint(null);
     }
 
     private void setThumbnailFromFileType(int fileType) {
-        mThumbnailView.setScaleType(ImageView.ScaleType.CENTER);
+        mThumbnailView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        mThumbnailView.setPadding(mFileTypeIconPaddingPx, mFileTypeIconPaddingPx,
+                mFileTypeIconPaddingPx, mFileTypeIconPaddingPx);
         mThumbnailView.setBackgroundColor(mIconBackgroundColor);
         mThumbnailView.setImageResource(DownloadUtils.getIconResId(fileType));
         mThumbnailView.setTint(mIconForegroundColorList);
@@ -339,6 +346,7 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
         }
 
         // Temporarily set placeholder and then fetch the thumbnail from a provider.
+        mThumbnailView.setPadding(0, 0, 0, 0);
         mThumbnailView.setBackground(null);
         mThumbnailView.setImageResource(R.drawable.ic_snippet_thumbnail_placeholder);
         mThumbnailView.setTint(null);
@@ -384,6 +392,7 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
                 new BitmapDrawable(mThumbnailView.getResources(), scaledThumbnail)};
         TransitionDrawable transitionDrawable = new TransitionDrawable(layers);
         mThumbnailView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        mThumbnailView.setPadding(0, 0, 0, 0);
         mThumbnailView.setBackground(null);
         mThumbnailView.setImageDrawable(transitionDrawable);
         mThumbnailView.setTint(null);
@@ -396,11 +405,12 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
                 getSnippetDomain(snippetUri), mPublisherFaviconSizePx, new FaviconImageCallback() {
                     @Override
                     public void onFaviconAvailable(Bitmap image, String iconUrl) {
-                        if (image == null && fallbackToService) {
+                        if (image != null) {
+                            setFaviconOnView(image);
+                        } else if (fallbackToService) {
                             fetchFaviconFromService(snippetUri);
-                            return;
                         }
-                        setFaviconOnView(image);
+                        // Else do nothing, we already have the placeholder set.
                     }
                 });
     }
@@ -408,9 +418,6 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
     // TODO(crbug.com/635567): Fix this properly.
     @SuppressLint("DefaultLocale")
     private void fetchFaviconFromService(final URI snippetUri) {
-        // Show the default favicon immediately.
-        setDefaultFaviconOnView();
-
         if (!mUseFaviconService) return;
         int sizePx = getFaviconServiceSupportedSize();
         if (sizePx == 0) return;
@@ -486,6 +493,7 @@ public class SnippetArticleViewHolder extends CardViewHolder implements Impressi
         public void onThumbnailRetrieved(String filePath, Bitmap thumbnail) {
             if (TextUtils.equals(getFilePath(), filePath) && thumbnail != null
                     && thumbnail.getWidth() > 0 && thumbnail.getHeight() > 0) {
+                assert !thumbnail.isRecycled();
                 onResult(thumbnail);
             }
         }

@@ -54,6 +54,7 @@
 #include "core/frame/FrameHost.h"
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalFrame.h"
+#include "core/frame/LocalFrameClient.h"
 #include "core/frame/PageScaleConstraintsSet.h"
 #include "core/frame/RootFrameViewport.h"
 #include "core/frame/Settings.h"
@@ -69,7 +70,6 @@
 #include "core/layout/api/LayoutBoxItem.h"
 #include "core/layout/compositing/CompositedLayerMapping.h"
 #include "core/layout/compositing/PaintLayerCompositor.h"
-#include "core/loader/FrameLoaderClient.h"
 #include "core/page/ChromeClient.h"
 #include "core/page/FocusController.h"
 #include "core/page/Page.h"
@@ -172,7 +172,7 @@ void PaintLayerScrollableArea::dispose() {
 
   box()
       .document()
-      .frameHost()
+      .page()
       ->globalRootScrollerController()
       .didDisposeScrollableArea(*this);
 
@@ -314,7 +314,7 @@ IntRect PaintLayerScrollableArea::scrollCornerRect() const {
   return IntRect();
 }
 
-IntRect PaintLayerScrollableArea::convertFromScrollbarToContainingWidget(
+IntRect PaintLayerScrollableArea::convertFromScrollbarToContainingFrameViewBase(
     const Scrollbar& scrollbar,
     const IntRect& scrollbarRect) const {
   LayoutView* view = box().view();
@@ -327,7 +327,7 @@ IntRect PaintLayerScrollableArea::convertFromScrollbarToContainingWidget(
   return view->frameView()->convertFromLayoutItem(LayoutBoxItem(&box()), rect);
 }
 
-IntRect PaintLayerScrollableArea::convertFromContainingWidgetToScrollbar(
+IntRect PaintLayerScrollableArea::convertFromContainingFrameViewBaseToScrollbar(
     const Scrollbar& scrollbar,
     const IntRect& parentRect) const {
   LayoutView* view = box().view();
@@ -340,7 +340,8 @@ IntRect PaintLayerScrollableArea::convertFromContainingWidgetToScrollbar(
   return rect;
 }
 
-IntPoint PaintLayerScrollableArea::convertFromScrollbarToContainingWidget(
+IntPoint
+PaintLayerScrollableArea::convertFromScrollbarToContainingFrameViewBase(
     const Scrollbar& scrollbar,
     const IntPoint& scrollbarPoint) const {
   LayoutView* view = box().view();
@@ -352,7 +353,8 @@ IntPoint PaintLayerScrollableArea::convertFromScrollbarToContainingWidget(
   return view->frameView()->convertFromLayoutItem(LayoutBoxItem(&box()), point);
 }
 
-IntPoint PaintLayerScrollableArea::convertFromContainingWidgetToScrollbar(
+IntPoint
+PaintLayerScrollableArea::convertFromContainingFrameViewBaseToScrollbar(
     const Scrollbar& scrollbar,
     const IntPoint& parentPoint) const {
   LayoutView* view = box().view();
@@ -403,15 +405,15 @@ void PaintLayerScrollableArea::updateScrollOffset(const ScrollOffset& newOffset,
     layer()->updateLayerPositionsAfterOverflowScroll();
     // Update regions, scrolling may change the clip of a particular region.
     frameView->updateDocumentAnnotatedRegions();
-    frameView->setNeedsUpdateWidgetGeometries();
+    frameView->setNeedsUpdateGeometries();
     updateCompositingLayersAfterScroll();
   }
 
   const LayoutBoxModelObject& paintInvalidationContainer =
       box().containerForPaintInvalidation();
 
-  FloatQuad quadForFakeMouseMoveEvent = FloatQuad(FloatRect(
-      layer()->layoutObject().previousVisualRectIncludingCompositedScrolling(
+  FloatQuad quadForFakeMouseMoveEvent = FloatQuad(
+      FloatRect(layer()->layoutObject().visualRectIncludingCompositedScrolling(
           paintInvalidationContainer)));
 
   quadForFakeMouseMoveEvent =
@@ -504,12 +506,15 @@ IntSize PaintLayerScrollableArea::maximumScrollOffsetInt() const {
 
   IntSize contentSize = contentsSize();
   IntSize visibleSize =
-      pixelSnappedIntRect(box().overflowClipRect(box().location())).size();
+      pixelSnappedIntRect(
+          box().overflowClipRect(box().location(),
+                                 IgnorePlatformAndCSSOverlayScrollbarSize))
+          .size();
 
-  FrameHost* host = layoutBox()->document().frameHost();
-  DCHECK(host);
+  Page* page = layoutBox()->document().page();
+  DCHECK(page);
   TopDocumentRootScrollerController& controller =
-      host->globalRootScrollerController();
+      page->globalRootScrollerController();
 
   // The global root scroller should be clipped by the top FrameView rather
   // than it's overflow clipping box. This is to ensure that content exposed by
@@ -563,6 +568,12 @@ IntSize PaintLayerScrollableArea::contentsSize() const {
   return IntSize(pixelSnappedScrollWidth(), pixelSnappedScrollHeight());
 }
 
+void PaintLayerScrollableArea::contentsResized() {
+  ScrollableArea::contentsResized();
+  // Need to update the bounds of the scroll property.
+  box().setNeedsPaintPropertyUpdate();
+}
+
 bool PaintLayerScrollableArea::isScrollable() const {
   return scrollsOverflow();
 }
@@ -590,6 +601,12 @@ void PaintLayerScrollableArea::scrollbarVisibilityChanged() {
 
   if (LayoutView* view = box().view())
     return view->clearHitTestCache();
+}
+
+void PaintLayerScrollableArea::scrollbarFrameRectChanged() {
+  // Size of non-overlay scrollbar affects overflow clip rect.
+  if (!hasOverlayScrollbars())
+    box().setNeedsPaintPropertyUpdate();
 }
 
 bool PaintLayerScrollableArea::scrollbarsCanBeActive() const {
@@ -1137,8 +1154,10 @@ static inline const LayoutObject& scrollbarStyleSource(
       return layoutObject;
 
     if (ShadowRoot* shadowRoot = node->containingShadowRoot()) {
-      if (shadowRoot->type() == ShadowRootType::UserAgent)
-        return *shadowRoot->host().layoutObject();
+      if (shadowRoot->type() == ShadowRootType::UserAgent) {
+        if (LayoutObject* hostLayoutObject = shadowRoot->host().layoutObject())
+          return *hostLayoutObject;
+      }
     }
   }
 
@@ -1284,10 +1303,18 @@ int PaintLayerScrollableArea::verticalScrollbarWidth(
     OverlayScrollbarClipBehavior overlayScrollbarClipBehavior) const {
   if (!hasVerticalScrollbar())
     return 0;
-  if (verticalScrollbar()->isOverlayScrollbar() &&
-      (overlayScrollbarClipBehavior == IgnoreOverlayScrollbarSize ||
-       !verticalScrollbar()->shouldParticipateInHitTesting()))
+  if (overlayScrollbarClipBehavior ==
+          IgnorePlatformAndCSSOverlayScrollbarSize &&
+      box().style()->overflowY() == EOverflow::kOverlay) {
     return 0;
+  }
+  if ((overlayScrollbarClipBehavior == IgnorePlatformOverlayScrollbarSize ||
+       overlayScrollbarClipBehavior ==
+           IgnorePlatformAndCSSOverlayScrollbarSize ||
+       !verticalScrollbar()->shouldParticipateInHitTesting()) &&
+      verticalScrollbar()->isOverlayScrollbar()) {
+    return 0;
+  }
   return verticalScrollbar()->scrollbarThickness();
 }
 
@@ -1295,10 +1322,18 @@ int PaintLayerScrollableArea::horizontalScrollbarHeight(
     OverlayScrollbarClipBehavior overlayScrollbarClipBehavior) const {
   if (!hasHorizontalScrollbar())
     return 0;
-  if (horizontalScrollbar()->isOverlayScrollbar() &&
-      (overlayScrollbarClipBehavior == IgnoreOverlayScrollbarSize ||
-       !horizontalScrollbar()->shouldParticipateInHitTesting()))
+  if (overlayScrollbarClipBehavior ==
+          IgnorePlatformAndCSSOverlayScrollbarSize &&
+      box().style()->overflowX() == EOverflow::kOverlay) {
     return 0;
+  }
+  if ((overlayScrollbarClipBehavior == IgnorePlatformOverlayScrollbarSize ||
+       overlayScrollbarClipBehavior ==
+           IgnorePlatformAndCSSOverlayScrollbarSize ||
+       !horizontalScrollbar()->shouldParticipateInHitTesting()) &&
+      horizontalScrollbar()->isOverlayScrollbar()) {
+    return 0;
+  }
   return horizontalScrollbar()->scrollbarThickness();
 }
 
@@ -1878,13 +1913,13 @@ bool PaintLayerScrollableArea::visualViewportSuppliesScrollbars() const {
     return false;
 
   const TopDocumentRootScrollerController& controller =
-      layoutBox()->document().frameHost()->globalRootScrollerController();
+      layoutBox()->document().page()->globalRootScrollerController();
 
   return RootScrollerUtil::scrollableAreaForRootScroller(
              controller.globalRootScroller()) == this;
 }
 
-Widget* PaintLayerScrollableArea::getWidget() {
+FrameViewBase* PaintLayerScrollableArea::getFrameViewBase() {
   return box().frame()->view();
 }
 

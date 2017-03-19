@@ -169,9 +169,9 @@ void TestRenderFrameHost::SimulateNavigationCommit(const GURL& url) {
   replacements.ClearRef();
 
   // This approach to determining whether a navigation is to be treated as
-  // same page is not robust, as it will not handle pushState type navigation.
-  // Do not use elsewhere!
-  params.was_within_same_page =
+  // same document is not robust, as it will not handle pushState type
+  // navigation. Do not use elsewhere!
+  params.was_within_same_document =
       (GetLastCommittedURL().is_valid() && !last_commit_was_error_page_ &&
        url.ReplaceComponents(replacements) ==
            GetLastCommittedURL().ReplaceComponents(replacements));
@@ -222,7 +222,7 @@ void TestRenderFrameHost::SimulateNavigationErrorPageCommit() {
   params.url = navigation_handle()->GetURL();
   params.transition = GetParent() ? ui::PAGE_TRANSITION_MANUAL_SUBFRAME
                                   : ui::PAGE_TRANSITION_LINK;
-  params.was_within_same_page = false;
+  params.was_within_same_document = false;
   params.url_is_unreachable = true;
   params.page_state = PageState::CreateForTesting(navigation_handle()->GetURL(),
                                                   false, nullptr, nullptr);
@@ -378,9 +378,9 @@ void TestRenderFrameHost::SendNavigateWithParameters(
   replacements.ClearRef();
 
   // This approach to determining whether a navigation is to be treated as
-  // same page is not robust, as it will not handle pushState type navigation.
-  // Do not use elsewhere!
-  params.was_within_same_page =
+  // same document is not robust, as it will not handle pushState type
+  // navigation. Do not use elsewhere!
+  params.was_within_same_document =
       !ui::PageTransitionCoreTypeIs(transition, ui::PAGE_TRANSITION_RELOAD) &&
       !ui::PageTransitionCoreTypeIs(transition, ui::PAGE_TRANSITION_TYPED) &&
       (GetLastCommittedURL().is_valid() && !last_commit_was_error_page_ &&
@@ -424,7 +424,9 @@ void TestRenderFrameHost::SendRendererInitiatedNavigationRequest(
     BeginNavigationParams begin_params(
         std::string(), net::LOAD_NORMAL, has_user_gesture, false,
         REQUEST_CONTEXT_TYPE_HYPERLINK,
-        blink::WebMixedContentContextType::Blockable, url::Origin());
+        blink::WebMixedContentContextType::Blockable,
+        false,  // is_form_submission
+        url::Origin());
     CommonNavigationParams common_params;
     common_params.url = url;
     common_params.referrer = Referrer(GURL(), blink::WebReferrerPolicyDefault);

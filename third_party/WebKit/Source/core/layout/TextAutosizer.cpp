@@ -51,79 +51,7 @@
 #include "core/page/Page.h"
 #include "wtf/PtrUtil.h"
 
-#ifdef AUTOSIZING_DOM_DEBUG_INFO
-#include "core/dom/ExecutionContextTask.h"
-#endif
-
 namespace blink {
-
-#ifdef AUTOSIZING_DOM_DEBUG_INFO
-class WriteDebugInfoTask : public ExecutionContextTask {
- public:
-  WriteDebugInfoTask(Element* element, AtomicString value)
-      : m_element(element), m_value(value) {}
-
-  virtual void performTask(ExecutionContext*) {
-    m_element->setAttribute("data-autosizing", m_value, ASSERT_NO_EXCEPTION);
-  }
-
- private:
-  Persistent<Element> m_element;
-  AtomicString m_value;
-};
-
-static void writeDebugInfo(LayoutObject* layoutObject,
-                           const AtomicString& output) {
-  Node* node = layoutObject->node();
-  if (!node)
-    return;
-  if (node->isDocumentNode())
-    node = toDocument(node)->documentElement();
-  if (!node->isElementNode())
-    return;
-  node->document().postTask(
-      BLINK_FROM_HERE,
-      WTF::wrapUnique(new WriteDebugInfoTask(toElement(node), output)));
-}
-
-void TextAutosizer::writeClusterDebugInfo(Cluster* cluster) {
-  String explanation = "";
-  if (cluster->m_flags & SUPPRESSING) {
-    explanation = "[suppressed]";
-  } else if (!(cluster->m_flags & (INDEPENDENT | WIDER_OR_NARROWER))) {
-    explanation = "[inherited]";
-  } else if (cluster->m_supercluster) {
-    explanation = "[supercluster]";
-  } else if (!clusterHasEnoughTextToAutosize(cluster)) {
-    explanation = "[insufficient-text]";
-  } else {
-    const LayoutBlock* widthProvider = clusterWidthProvider(cluster->m_root);
-    if (cluster->m_hasTableAncestor &&
-        cluster->m_multiplier < multiplierFromBlock(widthProvider)) {
-      explanation = "[table-ancestor-limited]";
-    } else {
-      explanation =
-          String::format("[from width %d of %s]",
-                         static_cast<int>(widthFromBlock(widthProvider)),
-                         widthProvider->debugName().utf8().data());
-    }
-  }
-  String pageInfo = "";
-  if (cluster->m_root->isLayoutView()) {
-    pageInfo =
-        String::format("; pageinfo: afsf %f * dsa %f * (lw %d / fw %d)",
-                       m_pageInfo.m_accessibilityFontScaleFactor,
-                       m_pageInfo.m_deviceScaleAdjustment,
-                       m_pageInfo.m_layoutWidth, m_pageInfo.m_frameWidth);
-  }
-  float multiplier =
-      cluster->m_flags & SUPPRESSING ? 1.0 : cluster->m_multiplier;
-  writeDebugInfo(const_cast<LayoutBlock*>(cluster->m_root),
-                 AtomicString(String::format("cluster: %f %s%s", multiplier,
-                                             explanation.utf8().data(),
-                                             pageInfo.utf8().data())));
-}
-#endif
 
 static LayoutObject* parentElementLayoutObject(
     const LayoutObject* layoutObject) {
@@ -695,7 +623,7 @@ void TextAutosizer::updatePageInfo() {
 IntSize TextAutosizer::windowSize() const {
   Page* page = m_document->page();
   ASSERT(page);
-  return page->frameHost().visualViewport().size();
+  return page->visualViewport().size();
 }
 
 void TextAutosizer::resetMultipliers() {
@@ -886,11 +814,6 @@ TextAutosizer::Cluster* TextAutosizer::maybeCreateCluster(LayoutBlock* block) {
   Cluster* cluster = new Cluster(
       block, flags, parentCluster,
       m_fingerprintMapper.createSuperclusterIfNeeded(block, isNewEntry));
-#ifdef AUTOSIZING_DOM_DEBUG_INFO
-  // Non-SUPPRESSING clusters are annotated in clusterMultiplier.
-  if (flags & SUPPRESSING)
-    writeClusterDebugInfo(cluster);
-#endif
   return cluster;
 }
 
@@ -940,10 +863,6 @@ float TextAutosizer::clusterMultiplier(Cluster* cluster) {
     if (cluster->m_supercluster)
       cluster->m_supercluster->m_inheritParentMultiplier = InheritMultiplier;
   }
-
-#ifdef AUTOSIZING_DOM_DEBUG_INFO
-  writeClusterDebugInfo(cluster);
-#endif
 
   ASSERT(cluster->m_multiplier);
   return cluster->m_multiplier;
@@ -1275,7 +1194,7 @@ void TextAutosizer::FingerprintMapper::assertMapsAreConsistent() {
     for (BlockSet::iterator blockIt = blocks->begin(); blockIt != blocks->end();
          ++blockIt) {
       const LayoutBlock* block = (*blockIt);
-      ASSERT(m_fingerprints.get(block) == fingerprint);
+      ASSERT(m_fingerprints.at(block) == fingerprint);
     }
   }
 }
@@ -1338,13 +1257,13 @@ bool TextAutosizer::FingerprintMapper::remove(LayoutObject* layoutObject) {
 
 TextAutosizer::Fingerprint TextAutosizer::FingerprintMapper::get(
     const LayoutObject* layoutObject) {
-  return m_fingerprints.get(layoutObject);
+  return m_fingerprints.at(layoutObject);
 }
 
 TextAutosizer::BlockSet*
 TextAutosizer::FingerprintMapper::getTentativeClusterRoots(
     Fingerprint fingerprint) {
-  return m_blocksForFingerprint.get(fingerprint);
+  return m_blocksForFingerprint.at(fingerprint);
 }
 
 TextAutosizer::LayoutScope::LayoutScope(LayoutBlock* block,

@@ -38,6 +38,7 @@
 #include "core/dom/DocumentFragment.h"
 #include "core/dom/ElementTraversal.h"
 #include "core/dom/ExceptionCode.h"
+#include "core/dom/NodeComputedStyle.h"
 #include "core/dom/NodeTraversal.h"
 #include "core/dom/StyleChangeReason.h"
 #include "core/dom/Text.h"
@@ -114,8 +115,8 @@ DEFINE_ELEMENT_FACTORY_WITH_TAGNAME(HTMLElement);
 
 String HTMLElement::debugNodeName() const {
   if (document().isHTMLDocument()) {
-    return tagQName().hasPrefix() ? Element::nodeName().upper()
-                                  : tagQName().localName().upper();
+    return tagQName().hasPrefix() ? Element::nodeName().upperASCII()
+                                  : tagQName().localName().upperASCII();
   }
   return Element::nodeName();
 }
@@ -131,29 +132,22 @@ String HTMLElement::nodeName() const {
   if (document().isHTMLDocument()) {
     if (!tagQName().hasPrefix())
       return tagQName().localNameUpper();
-    return Element::nodeName().upper();
+    return Element::nodeName().upperASCII();
   }
   return Element::nodeName();
 }
 
-bool HTMLElement::ieForbidsInsertHTML() const {
-  // FIXME: Supposedly IE disallows settting innerHTML, outerHTML
-  // and createContextualFragment on these tags.  We have no tests to
-  // verify this however, so this list could be totally wrong.
-  // This list was moved from the previous endTagRequirement() implementation.
-  // This is also called from editing and assumed to be the list of tags
-  // for which no end tag should be serialized. It's unclear if the list for
-  // IE compat and the list for serialization sanity are the same.
+bool HTMLElement::shouldSerializeEndTag() const {
+  // See https://www.w3.org/TR/DOM-Parsing/
   if (hasTagName(areaTag) || hasTagName(baseTag) || hasTagName(basefontTag) ||
-      hasTagName(brTag) || hasTagName(colTag) || hasTagName(embedTag) ||
-      hasTagName(frameTag) || hasTagName(hrTag) || hasTagName(imageTag) ||
+      hasTagName(bgsoundTag) || hasTagName(brTag) || hasTagName(colTag) ||
+      hasTagName(embedTag) || hasTagName(frameTag) || hasTagName(hrTag) ||
       hasTagName(imgTag) || hasTagName(inputTag) || hasTagName(keygenTag) ||
-      hasTagName(linkTag) || (RuntimeEnabledFeatures::contextMenuEnabled() &&
-                              hasTagName(menuitemTag)) ||
-      hasTagName(metaTag) || hasTagName(paramTag) || hasTagName(sourceTag) ||
-      hasTagName(trackTag) || hasTagName(wbrTag))
-    return true;
-  return false;
+      hasTagName(linkTag) || hasTagName(menuitemTag) || hasTagName(metaTag) ||
+      hasTagName(paramTag) || hasTagName(sourceTag) || hasTagName(trackTag) ||
+      hasTagName(wbrTag))
+    return false;
+  return true;
 }
 
 static inline CSSValueID unicodeBidiAttributeForDirAuto(HTMLElement* element) {
@@ -424,7 +418,7 @@ const AtomicString& HTMLElement::eventNameForAttributeName(
       attributeNameToEventNameMap.set(name.attr.localName(), name.event);
   }
 
-  return attributeNameToEventNameMap.get(attrName.localName());
+  return attributeNameToEventNameMap.at(attrName.localName());
 }
 
 void HTMLElement::attributeChanged(const AttributeModificationParams& params) {
@@ -507,29 +501,8 @@ DocumentFragment* HTMLElement::textToFragment(const String& text,
   return fragment;
 }
 
-static inline bool shouldProhibitSetInnerOuterText(const HTMLElement& element) {
-  return element.hasTagName(colTag) || element.hasTagName(colgroupTag) ||
-         element.hasTagName(framesetTag) || element.hasTagName(headTag) ||
-         element.hasTagName(htmlTag) || element.hasTagName(tableTag) ||
-         element.hasTagName(tbodyTag) || element.hasTagName(tfootTag) ||
-         element.hasTagName(theadTag) || element.hasTagName(trTag);
-}
-
 void HTMLElement::setInnerText(const String& text,
                                ExceptionState& exceptionState) {
-  if (ieForbidsInsertHTML()) {
-    exceptionState.throwDOMException(
-        NoModificationAllowedError,
-        "The '" + localName() + "' element does not support text insertion.");
-    return;
-  }
-  if (shouldProhibitSetInnerOuterText(*this)) {
-    exceptionState.throwDOMException(
-        NoModificationAllowedError,
-        "The '" + localName() + "' element does not support text insertion.");
-    return;
-  }
-
   // FIXME: This doesn't take whitespace collapsing into account at all.
 
   if (!text.contains('\n') && !text.contains('\r')) {
@@ -567,19 +540,6 @@ void HTMLElement::setInnerText(const String& text,
 
 void HTMLElement::setOuterText(const String& text,
                                ExceptionState& exceptionState) {
-  if (ieForbidsInsertHTML()) {
-    exceptionState.throwDOMException(
-        NoModificationAllowedError,
-        "The '" + localName() + "' element does not support text insertion.");
-    return;
-  }
-  if (shouldProhibitSetInnerOuterText(*this)) {
-    exceptionState.throwDOMException(
-        NoModificationAllowedError,
-        "The '" + localName() + "' element does not support text insertion.");
-    return;
-  }
-
   ContainerNode* parent = parentNode();
   if (!parent) {
     exceptionState.throwDOMException(NoModificationAllowedError,
@@ -873,8 +833,12 @@ TextDirection HTMLElement::directionality(
 }
 
 bool HTMLElement::selfOrAncestorHasDirAutoAttribute() const {
-  return layoutObject() && layoutObject()->style() &&
-         layoutObject()->style()->selfOrAncestorHasDirAutoAttribute();
+  // TODO(esprehn): Storing this state in the computed style is bad, we
+  // should be able to answer questions about the shape of the DOM and the
+  // text contained inside it without having style.
+  if (const ComputedStyle* style = computedStyle())
+    return style->selfOrAncestorHasDirAutoAttribute();
+  return false;
 }
 
 void HTMLElement::dirAttributeChanged(const AtomicString& value) {
@@ -896,11 +860,9 @@ void HTMLElement::dirAttributeChanged(const AtomicString& value) {
 void HTMLElement::adjustDirectionalityIfNeededAfterChildAttributeChanged(
     Element* child) {
   DCHECK(selfOrAncestorHasDirAutoAttribute());
-  TextDirection textDirection = directionality();
-  if (layoutObject() && layoutObject()->style() &&
-      layoutObject()->style()->direction() != textDirection) {
-    Element* elementToAdjust = this;
-    for (; elementToAdjust;
+  const ComputedStyle* style = computedStyle();
+  if (style && style->direction() != directionality()) {
+    for (Element* elementToAdjust = this; elementToAdjust;
          elementToAdjust = FlatTreeTraversal::parentElement(*elementToAdjust)) {
       if (elementAffectsDirectionality(elementToAdjust)) {
         elementToAdjust->setNeedsStyleRecalc(
@@ -914,8 +876,8 @@ void HTMLElement::adjustDirectionalityIfNeededAfterChildAttributeChanged(
 
 void HTMLElement::calculateAndAdjustDirectionality() {
   TextDirection textDirection = directionality();
-  if (layoutObject() && layoutObject()->style() &&
-      layoutObject()->style()->direction() != textDirection)
+  const ComputedStyle* style = computedStyle();
+  if (style && style->direction() != textDirection)
     setNeedsStyleRecalc(LocalStyleChange,
                         StyleChangeReasonForTracing::create(
                             StyleChangeReason::WritingModeChange));

@@ -235,7 +235,7 @@ void ScrollingCoordinator::updateAfterCompositingChangeIfNeeded() {
     Element* fullscreenElement =
         Fullscreen::fullscreenElementFrom(*mainFrameDocument);
     WebLayer* visualViewportScrollLayer =
-        toWebLayer(m_page->frameHost().visualViewport().scrollLayer());
+        toWebLayer(m_page->visualViewport().scrollLayer());
 
     if (visualViewportScrollLayer) {
       if (fullscreenElement &&
@@ -345,9 +345,16 @@ static std::unique_ptr<WebScrollbarLayer> createScrollbarLayer(
   std::unique_ptr<WebScrollbarThemeGeometry> geometry(
       WebScrollbarThemeGeometryNative::create(theme));
 
-  std::unique_ptr<WebScrollbarLayer> scrollbarLayer =
-      Platform::current()->compositorSupport()->createScrollbarLayer(
-          WebScrollbarImpl::create(&scrollbar), painter, std::move(geometry));
+  std::unique_ptr<WebScrollbarLayer> scrollbarLayer;
+  if (theme.usesOverlayScrollbars() && theme.usesNinePatchThumbResource()) {
+    scrollbarLayer =
+        Platform::current()->compositorSupport()->createOverlayScrollbarLayer(
+            WebScrollbarImpl::create(&scrollbar), painter, std::move(geometry));
+  } else {
+    scrollbarLayer =
+        Platform::current()->compositorSupport()->createScrollbarLayer(
+            WebScrollbarImpl::create(&scrollbar), painter, std::move(geometry));
+  }
   GraphicsLayer::registerContentsLayer(scrollbarLayer->layer());
   return scrollbarLayer;
 }
@@ -408,7 +415,7 @@ WebScrollbarLayer* ScrollingCoordinator::getWebScrollbarLayer(
   ScrollbarMap& scrollbars = orientation == HorizontalScrollbar
                                  ? m_horizontalScrollbars
                                  : m_verticalScrollbars;
-  return scrollbars.get(scrollableArea);
+  return scrollbars.at(scrollableArea);
 }
 
 void ScrollingCoordinator::scrollableAreaScrollbarLayerDidChange(
@@ -451,8 +458,8 @@ void ScrollingCoordinator::scrollableAreaScrollbarLayerDidChange(
             scrollbar.theme().trackPosition(scrollbar),
             scrollableArea->shouldPlaceVerticalScrollbarOnLeft());
       } else {
-        webScrollbarLayer =
-            createScrollbarLayer(scrollbar, m_page->deviceScaleFactor());
+        webScrollbarLayer = createScrollbarLayer(
+            scrollbar, m_page->deviceScaleFactorDeprecated());
       }
       scrollbarLayer = addWebScrollbarLayer(scrollableArea, orientation,
                                             std::move(webScrollbarLayer));
@@ -478,8 +485,7 @@ bool ScrollingCoordinator::scrollableAreaScrollLayerDidChange(
   GraphicsLayer* scrollLayer = scrollableArea->layerForScrolling();
 
   if (scrollLayer) {
-    bool isForVisualViewport =
-        scrollableArea == &m_page->frameHost().visualViewport();
+    bool isForVisualViewport = scrollableArea == &m_page->visualViewport();
     scrollLayer->setScrollableArea(scrollableArea, isForVisualViewport);
   }
 
@@ -833,8 +839,7 @@ void ScrollingCoordinator::setShouldUpdateScrollLayerPositionOnMainThread(
       !m_page->deprecatedLocalMainFrame()->view())
     return;
 
-  GraphicsLayer* visualViewportLayer =
-      m_page->frameHost().visualViewport().scrollLayer();
+  GraphicsLayer* visualViewportLayer = m_page->visualViewport().scrollLayer();
   WebLayer* visualViewportScrollLayer = toWebLayer(visualViewportLayer);
   GraphicsLayer* layer = m_page->deprecatedLocalMainFrame()
                              ->view()
@@ -989,8 +994,8 @@ Region ScrollingCoordinator::computeShouldHandleScrollGestureOnMainThreadRegion(
     }
   }
 
-  if (const FrameView::ChildrenWidgetSet* children = frameView->children()) {
-    for (const Member<Widget>& child : *children) {
+  if (const FrameView::ChildrenSet* children = frameView->children()) {
+    for (const Member<FrameViewBase>& child : *children) {
       if (!(*child).isPluginView())
         continue;
 
@@ -1019,7 +1024,7 @@ static void accumulateDocumentTouchEventTargetRects(LayerHitTestRects& rects,
                                                     const Document* document) {
   DCHECK(document);
   const EventTargetSet* targets =
-      document->frameHost()->eventHandlerRegistry().eventHandlerTargets(
+      document->page()->eventHandlerRegistry().eventHandlerTargets(
           EventHandlerRegistry::TouchStartOrMoveEventBlocking);
   if (!targets)
     return;

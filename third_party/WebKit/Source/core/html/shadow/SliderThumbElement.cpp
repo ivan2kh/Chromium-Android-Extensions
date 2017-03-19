@@ -177,7 +177,11 @@ void SliderThumbElement::setPositionFromPoint(const LayoutPoint& point) {
 
 void SliderThumbElement::startDragging() {
   if (LocalFrame* frame = document().frame()) {
-    frame->eventHandler().setCapturingMouseEventsNode(this);
+    // Note that we get to here only we through mouse event path. The touch
+    // events are implicitly captured to the starting element and will be
+    // handled in handleTouchEvent function.
+    frame->eventHandler().setPointerCapture(PointerEventFactory::s_mouseId,
+                                            this);
     m_inDragMode = true;
   }
 }
@@ -186,8 +190,10 @@ void SliderThumbElement::stopDragging() {
   if (!m_inDragMode)
     return;
 
-  if (LocalFrame* frame = document().frame())
-    frame->eventHandler().setCapturingMouseEventsNode(nullptr);
+  if (LocalFrame* frame = document().frame()) {
+    frame->eventHandler().releasePointerCapture(PointerEventFactory::s_mouseId,
+                                                this);
+  }
   m_inDragMode = false;
   if (layoutObject())
     layoutObject()->setNeedsLayoutAndFullPaintInvalidation(
@@ -197,6 +203,12 @@ void SliderThumbElement::stopDragging() {
 }
 
 void SliderThumbElement::defaultEventHandler(Event* event) {
+  if (event->isPointerEvent() &&
+      event->type() == EventTypeNames::lostpointercapture) {
+    stopDragging();
+    return;
+  }
+
   if (!event->isMouseEvent()) {
     HTMLDivElement::defaultEventHandler(event);
     return;
@@ -206,7 +218,7 @@ void SliderThumbElement::defaultEventHandler(Event* event) {
   // Missing this kind of check is likely to occur elsewhere if adding it in
   // each shadow element.
   HTMLInputElement* input = hostInput();
-  if (!input || input->isDisabledOrReadOnly()) {
+  if (!input || input->isDisabledFormControl()) {
     stopDragging();
     HTMLDivElement::defaultEventHandler(event);
     return;
@@ -239,7 +251,7 @@ void SliderThumbElement::defaultEventHandler(Event* event) {
 
 bool SliderThumbElement::willRespondToMouseMoveEvents() {
   const HTMLInputElement* input = hostInput();
-  if (input && !input->isDisabledOrReadOnly() && m_inDragMode)
+  if (input && !input->isDisabledFormControl() && m_inDragMode)
     return true;
 
   return HTMLDivElement::willRespondToMouseMoveEvents();
@@ -247,7 +259,7 @@ bool SliderThumbElement::willRespondToMouseMoveEvents() {
 
 bool SliderThumbElement::willRespondToMouseClickEvents() {
   const HTMLInputElement* input = hostInput();
-  if (input && !input->isDisabledOrReadOnly())
+  if (input && !input->isDisabledFormControl())
     return true;
 
   return HTMLDivElement::willRespondToMouseClickEvents();
@@ -327,7 +339,7 @@ void SliderContainerElement::defaultEventHandler(Event* event) {
 
 void SliderContainerElement::handleTouchEvent(TouchEvent* event) {
   HTMLInputElement* input = hostInput();
-  if (input->isDisabledOrReadOnly())
+  if (input->isDisabledFormControl())
     return;
 
   if (event->type() == EventTypeNames::touchend) {
@@ -434,10 +446,9 @@ void SliderContainerElement::updateTouchEventHandlerRegistry() {
   if (m_hasTouchEventHandler) {
     return;
   }
-  if (document().frameHost() &&
+  if (document().page() &&
       document().lifecycle().state() < DocumentLifecycle::Stopping) {
-    EventHandlerRegistry& registry =
-        document().frameHost()->eventHandlerRegistry();
+    EventHandlerRegistry& registry = document().page()->eventHandlerRegistry();
     registry.didAddEventHandler(
         *this, EventHandlerRegistry::TouchStartOrMoveEventPassive);
     m_hasTouchEventHandler = true;

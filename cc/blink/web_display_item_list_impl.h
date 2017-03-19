@@ -8,8 +8,8 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "cc/blink/cc_blink_export.h"
+#include "cc/paint/display_item_list.h"
 #include "cc/paint/paint_record.h"
-#include "cc/playback/display_item_list.h"
 #include "third_party/WebKit/public/platform/WebDisplayItemList.h"
 #include "third_party/WebKit/public/platform/WebVector.h"
 #include "third_party/skia/include/core/SkBlendMode.h"
@@ -67,8 +67,6 @@ class WebDisplayItemListImpl : public blink::WebDisplayItemList {
   void appendEndScrollItem() override;
 
   void setIsSuitableForGpuRasterization(bool isSuitable) override;
-
-  void setImpliedColorSpace(const gfx::ColorSpace& color_space) override;
 
  private:
   scoped_refptr<cc::DisplayItemList> display_item_list_;

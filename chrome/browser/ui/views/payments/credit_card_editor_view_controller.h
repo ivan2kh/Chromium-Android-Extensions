@@ -5,6 +5,11 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_PAYMENTS_CREDIT_CARD_EDITOR_VIEW_CONTROLLER_H_
 #define CHROME_BROWSER_UI_VIEWS_PAYMENTS_CREDIT_CARD_EDITOR_VIEW_CONTROLLER_H_
 
+#include <memory>
+#include <set>
+#include <string>
+#include <vector>
+
 #include "base/macros.h"
 #include "chrome/browser/ui/views/payments/editor_view_controller.h"
 #include "chrome/browser/ui/views/payments/validation_delegate.h"
@@ -12,19 +17,22 @@
 
 namespace payments {
 
-class PaymentRequest;
+class PaymentRequestSpec;
+class PaymentRequestState;
 class PaymentRequestDialogView;
 
 // Credit card editor screen of the Payment Request flow.
 class CreditCardEditorViewController : public EditorViewController {
  public:
   // Does not take ownership of the arguments, which should outlive this object.
-  CreditCardEditorViewController(PaymentRequest* request,
+  CreditCardEditorViewController(PaymentRequestSpec* spec,
+                                 PaymentRequestState* state,
                                  PaymentRequestDialogView* dialog);
   ~CreditCardEditorViewController() override;
 
   // EditorViewController:
   std::unique_ptr<views::View> CreateHeaderView() override;
+  int GetViewHeaderTitleId() const override;
   std::vector<EditorField> GetFieldDefinitions() override;
   bool ValidateModelAndSave() override;
   std::unique_ptr<ValidationDelegate> CreateValidationDelegate(
@@ -35,7 +43,13 @@ class CreditCardEditorViewController : public EditorViewController {
  private:
   class CreditCardValidationDelegate : public ValidationDelegate {
    public:
-    explicit CreditCardValidationDelegate(const EditorField& field);
+    // Used to validate |field| type. A reference to the |controller| should
+    // outlive this delegate, and a list of |supported_card_networks| can be
+    // passed in to validate |field| (the data will be copied to the delegate).
+    CreditCardValidationDelegate(
+        const EditorField& field,
+        EditorViewController* controller,
+        const std::vector<std::string>& supported_card_networks);
     ~CreditCardValidationDelegate() override;
 
     // ValidationDelegate:
@@ -47,6 +61,10 @@ class CreditCardEditorViewController : public EditorViewController {
     bool ValidateValue(const base::string16& value);
 
     EditorField field_;
+    // Outlives this class.
+    EditorViewController* controller_;
+    // The list of supported basic card networks.
+    std::set<std::string> supported_card_networks_;
 
     DISALLOW_COPY_AND_ASSIGN(CreditCardValidationDelegate);
   };

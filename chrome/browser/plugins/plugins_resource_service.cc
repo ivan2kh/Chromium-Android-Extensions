@@ -31,10 +31,14 @@ GURL GetPluginsServerURL() {
   std::string filename;
 #if defined(OS_WIN)
   filename = "plugins_win.json";
+#elif defined(OS_CHROMEOS)
+  filename = "plugins_chromeos.json";
 #elif defined(OS_LINUX)
   filename = "plugins_linux.json";
 #elif defined(OS_MACOSX)
   filename = "plugins_mac.json";
+#elif defined(OS_ANDROID)
+  filename = "plugins_android.json";
 #else
 #error Unknown platform
 #endif

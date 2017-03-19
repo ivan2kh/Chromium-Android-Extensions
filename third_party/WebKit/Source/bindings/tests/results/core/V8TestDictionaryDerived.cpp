@@ -12,6 +12,8 @@
 #include "V8TestDictionaryDerived.h"
 
 #include "bindings/core/v8/ExceptionState.h"
+#include "bindings/core/v8/IDLTypes.h"
+#include "bindings/core/v8/NativeValueTraitsImpl.h"
 #include "bindings/core/v8/V8TestDictionary.h"
 
 namespace blink {
@@ -25,17 +27,14 @@ void V8TestDictionaryDerivedImplementedAs::toImpl(v8::Isolate* isolate, v8::Loca
     exceptionState.throwTypeError("cannot convert to dictionary.");
     return;
   }
+  v8::Local<v8::Object> v8Object = v8Value.As<v8::Object>();
+  ALLOW_UNUSED_LOCAL(v8Object);
 
   V8TestDictionary::toImpl(isolate, v8Value, impl, exceptionState);
   if (exceptionState.hadException())
     return;
 
   v8::TryCatch block(isolate);
-  v8::Local<v8::Object> v8Object;
-  if (!v8Call(v8Value->ToObject(isolate->GetCurrentContext()), v8Object, block)) {
-    exceptionState.rethrowV8Exception(block.Exception());
-    return;
-  }
   v8::Local<v8::Value> derivedStringMemberValue;
   if (!v8Object->Get(isolate->GetCurrentContext(), v8AtomicString(isolate, "derivedStringMember")).ToLocal(&derivedStringMemberValue)) {
     exceptionState.rethrowV8Exception(block.Exception());
@@ -73,7 +72,7 @@ void V8TestDictionaryDerivedImplementedAs::toImpl(v8::Isolate* isolate, v8::Loca
     exceptionState.throwTypeError("required member requiredLongMember is undefined.");
     return;
   } else {
-    int requiredLongMember = toInt32(isolate, requiredLongMemberValue, NormalConversion, exceptionState);
+    int32_t requiredLongMember = NativeValueTraits<IDLLong>::nativeValue(isolate, requiredLongMemberValue, exceptionState, NormalConversion);
     if (exceptionState.hadException())
       return;
     impl.setRequiredLongMember(requiredLongMember);
@@ -114,7 +113,7 @@ bool toV8TestDictionaryDerivedImplementedAs(const TestDictionaryDerivedImplement
     if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "derivedStringMemberWithDefault"), v8String(isolate, impl.derivedStringMemberWithDefault()))))
       return false;
   } else {
-    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "derivedStringMemberWithDefault"), v8String(isolate, String("default string value")))))
+    if (!v8CallBoolean(dictionary->CreateDataProperty(isolate->GetCurrentContext(), v8AtomicString(isolate, "derivedStringMemberWithDefault"), v8String(isolate, "default string value"))))
       return false;
   }
 

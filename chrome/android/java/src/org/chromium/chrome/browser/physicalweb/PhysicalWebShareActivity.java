@@ -6,39 +6,35 @@ package org.chromium.chrome.browser.physicalweb;
 
 import android.content.Intent;
 import android.os.Build;
-import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
 
-import org.chromium.chrome.browser.share.ShareHelper;
-import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.util.IntentUtils;
+import org.chromium.chrome.browser.ChromeActivity;
+import org.chromium.chrome.browser.share.ShareActivity;
 
 /**
  * A simple activity that allows Chrome to start the physical web sharing service.
  */
-public class PhysicalWebShareActivity extends AppCompatActivity {
-    private static final String TAG = "PhysicalWebShareActivity";
-
+public class PhysicalWebShareActivity extends ShareActivity {
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void handleShareAction(ChromeActivity triggeringActivity) {
+        String url = triggeringActivity.getActivityTab().getUrl();
 
-        try {
-            Intent intent = getIntent();
-            if (intent == null) return;
-            if (!Intent.ACTION_SEND.equals(intent.getAction())) return;
-            if (!IntentUtils.safeHasExtra(getIntent(), ShareHelper.EXTRA_TASK_ID)) return;
-            handleShareAction();
-        } finally {
-            finish();
-        }
+        Intent intent = new Intent(this, PhysicalWebBroadcastService.class);
+        intent.putExtra(PhysicalWebBroadcastService.DISPLAY_URL_KEY, url);
+        startService(intent);
     }
 
-    private void handleShareAction() {
-        // TODO(iankc): implement sharing
-    }
-
-    public static boolean sharingIsEnabled(Tab currentTab) {
-        return PhysicalWeb.sharingIsEnabled() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+    /**
+     * Returns whether we should show this sharing option in the share sheet.
+     * Pre-conditions for Physical Web Sharing to be enabled:
+     *      Device has hardware BLE advertising capabilities.
+     *      Device had Bluetooth on.
+     *      Device is Marshmallow or above.
+     *      Device has sharing feature enabled.
+     * @return {@code true} if the feature should be enabled.
+     */
+    public static boolean featureIsAvailable() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
+        return PhysicalWeb.hasBleAdvertiseCapability() && PhysicalWeb.bluetoothIsEnabled()
+                && PhysicalWeb.sharingIsEnabled();
     }
 }

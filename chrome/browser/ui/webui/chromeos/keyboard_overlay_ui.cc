@@ -33,6 +33,7 @@
 #include "content/public/browser/web_ui_message_handler.h"
 #include "ui/base/ime/chromeos/ime_keyboard.h"
 #include "ui/base/ime/chromeos/input_method_manager.h"
+#include "ui/chromeos/events/pref_names.h"
 #include "ui/display/manager/display_manager.h"
 
 using chromeos::input_method::ModifierKey;
@@ -380,7 +381,7 @@ void KeyboardOverlayHandler::GetInputMethodId(const base::ListValue* args) {
       chromeos::input_method::InputMethodManager::Get();
   const chromeos::input_method::InputMethodDescriptor& descriptor =
       manager->GetActiveIMEState()->GetCurrentInputMethod();
-  base::StringValue param(descriptor.id());
+  base::Value param(descriptor.id());
   web_ui()->CallJavascriptFunctionUnsafe("initKeyboardOverlayId", param);
 }
 

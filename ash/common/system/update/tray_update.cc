@@ -15,7 +15,7 @@
 #include "ash/common/wm_shell.h"
 #include "ash/public/interfaces/update.mojom.h"
 #include "ash/resources/vector_icons/vector_icons.h"
-#include "grit/ash_strings.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/image/image.h"
@@ -82,7 +82,7 @@ class TrayUpdate::UpdateView : public ActionableView {
                   IDS_ASH_STATUS_TRAY_RESTART_AND_POWERWASH_TO_UPDATE)
             : bundle.GetLocalizedString(IDS_ASH_STATUS_TRAY_UPDATE);
     SetAccessibleName(label_text);
-    auto label = TrayPopupUtils::CreateDefaultLabel();
+    auto* label = TrayPopupUtils::CreateDefaultLabel();
     label->SetText(label_text);
     TrayPopupItemStyle style(TrayPopupItemStyle::FontStyle::DEFAULT_VIEW_LABEL);
     style.SetupLabel(label);

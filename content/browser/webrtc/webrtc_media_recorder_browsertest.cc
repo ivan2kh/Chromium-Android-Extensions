@@ -124,6 +124,13 @@ IN_PROC_BROWSER_TEST_F(WebRtcMediaRecorderTest, TwoChannelAudioRecording) {
   MakeTypicalCall("testTwoChannelAudio();", kMediaRecorderHtmlFile);
 }
 
+IN_PROC_BROWSER_TEST_P(WebRtcMediaRecorderTest, ResizeVideoInput) {
+  MaybeForceDisableEncodeAccelerator(GetParam().disable_accelerator);
+  MakeTypicalCall(base::StringPrintf("testResizeVideoInput(\"%s\");",
+                                     GetParam().mime_type.c_str()),
+                  kMediaRecorderHtmlFile);
+}
+
 IN_PROC_BROWSER_TEST_F(WebRtcMediaRecorderTest, IllegalStopThrowsDOMError) {
   MakeTypicalCall("testIllegalStopThrowsDOMError();", kMediaRecorderHtmlFile);
 }
@@ -146,7 +153,18 @@ IN_PROC_BROWSER_TEST_F(WebRtcMediaRecorderTest,
                   kMediaRecorderHtmlFile);
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaRecorderTest, PeerConnection) {
+#if defined(OS_ANDROID) && defined(ADDRESS_SANITIZER)
+// Parametrizations 1/2 (VP8/VP9+disabled) time out under Android ASAN:
+// https://crbug.com/693565.
+#define MAYBE_PeerConnection DISABLED_PeerConnection
+#elif defined(OS_LINUX) && defined(THREAD_SANITIZER)
+// Flaky on Linux TSan, https://crbug.com/694373.
+#define MAYBE_PeerConnection DISABLED_PeerConnection
+#else
+#define MAYBE_PeerConnection PeerConnection
+#endif
+
+IN_PROC_BROWSER_TEST_P(WebRtcMediaRecorderTest, MAYBE_PeerConnection) {
   MaybeForceDisableEncodeAccelerator(GetParam().disable_accelerator);
   MakeTypicalCall(base::StringPrintf("testRecordRemotePeerConnection(\"%s\");",
                                      GetParam().mime_type.c_str()),

@@ -43,6 +43,9 @@ struct GLContextAttribs {
   GpuPreference gpu_preference = PreferIntegratedGpu;
   bool bind_generates_resource = true;
   bool webgl_compatibility_context = false;
+  bool global_texture_share_group = false;
+  int client_major_es_version = 3;
+  int client_minor_es_version = 0;
 };
 
 // Encapsulates an OpenGL context, hiding platform specific management.
@@ -146,6 +149,12 @@ class GL_EXPORT GLContext : public base::RefCounted<GLContext> {
   // Get the CurrentGL object for this context containing the driver, version
   // and API.
   CurrentGL* GetCurrentGL();
+
+  // Reinitialize the dynamic bindings of this context.  Needed when the driver
+  // may be exposing different extensions compared to when it was initialized.
+  // TODO(geofflang): Try to make this call uncessessary by pre-loading all
+  // extension entry points.
+  void ReinitializeDynamicBindings();
 
  protected:
   virtual ~GLContext();

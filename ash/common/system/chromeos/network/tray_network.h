@@ -39,14 +39,12 @@ class TrayNetwork : public SystemTrayItem,
   void DestroyTrayView() override;
   void DestroyDefaultView() override;
   void DestroyDetailedView() override;
-  void UpdateAfterLoginStatusChange(LoginStatus status) override;
-  void UpdateAfterShelfAlignmentChange(ShelfAlignment alignment) override;
 
   // NetworkObserver
   void RequestToggleWifi() override;
 
   // NetworkPortalDetectorObserver
-  void OnCaptivePortalDetected(const std::string& service_path) override;
+  void OnCaptivePortalDetected(const std::string& guid) override;
 
   // TrayNetworkStateObserver::Delegate
   void NetworkStateChanged() override;

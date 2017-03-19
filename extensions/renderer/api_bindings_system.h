@@ -24,7 +24,7 @@ class ListValue;
 }
 
 namespace extensions {
-class APIRequestHandler;
+class APIBindingHooks;
 
 // A class encompassing the necessary pieces to construct the JS entry points
 // for Extension APIs. Designed to be used on a single thread, but safe between
@@ -33,6 +33,12 @@ class APIBindingsSystem {
  public:
   using GetAPISchemaMethod =
       base::Callback<const base::DictionaryValue&(const std::string&)>;
+  using CustomTypeHandler =
+      base::Callback<v8::Local<v8::Object>(v8::Local<v8::Context> context,
+                                           const std::string& property_name,
+                                           APIRequestHandler* request_handler,
+                                           APIEventHandler* event_handler,
+                                           APITypeReferenceMap* type_refs)>;
 
   APIBindingsSystem(const binding::RunJSFunction& call_js,
                     const binding::RunJSFunctionSync& call_js_sync,
@@ -49,7 +55,7 @@ class APIBindingsSystem {
       v8::Local<v8::Context> context,
       v8::Isolate* isolate,
       const APIBinding::AvailabilityCallback& is_available,
-      v8::Local<v8::Object>* hooks_interface_out);
+      APIBindingHooks** hooks_out);
 
   // Responds to the request with the given |request_id|, calling the callback
   // with |response|. If |error| is non-empty, sets the last error.
@@ -72,6 +78,19 @@ class APIBindingsSystem {
   // efficient to register multiple hooks for the same API.
   APIBindingHooks* GetHooksForAPI(const std::string& api_name);
 
+  // Registers the handler for creating a custom type with the given
+  // |type_name|, where |type_name| is the fully-qualified type (e.g.
+  // storage.StorageArea).
+  void RegisterCustomType(const std::string& type_name,
+                          const CustomTypeHandler& function);
+
+  // Handles any cleanup necessary before releasing the given |context|.
+  void WillReleaseContext(v8::Local<v8::Context> context);
+
+  APIRequestHandler* request_handler() { return &request_handler_; }
+  APIEventHandler* event_handler() { return &event_handler_; }
+  APITypeReferenceMap* type_reference_map() { return &type_reference_map_; }
+
  private:
   // Creates a new APIBinding for the given |api_name|.
   std::unique_ptr<APIBinding> CreateNewAPIBinding(const std::string& api_name);
@@ -79,6 +98,11 @@ class APIBindingsSystem {
   // Callback for the APITypeReferenceMap in order to initialize an unknown
   // type.
   void InitializeType(const std::string& name);
+
+  // Handles creating the type for the specified property.
+  v8::Local<v8::Object> CreateCustomType(v8::Local<v8::Context> context,
+                                         const std::string& type_name,
+                                         const std::string& property_name);
 
   // The map of cached API reference types.
   APITypeReferenceMap type_reference_map_;
@@ -97,6 +121,8 @@ class APIBindingsSystem {
   // TODO(devlin): This map is pretty pointer-y. Is that going to be a
   // performance concern?
   std::map<std::string, std::unique_ptr<APIBindingHooks>> binding_hooks_;
+
+  std::map<std::string, CustomTypeHandler> custom_types_;
 
   binding::RunJSFunction call_js_;
 

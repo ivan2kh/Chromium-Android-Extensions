@@ -21,9 +21,7 @@
 #include "services/ui/ws/ids.h"
 #include "services/ui/ws/platform_display.h"
 #include "services/ui/ws/platform_display_factory.h"
-#include "services/ui/ws/platform_display_init_params.h"
 #include "services/ui/ws/server_window.h"
-#include "services/ui/ws/server_window_compositor_frame_sink_manager_test_api.h"
 #include "services/ui/ws/test_change_tracker.h"
 #include "services/ui/ws/test_server_window_delegate.h"
 #include "services/ui/ws/test_utils.h"
@@ -60,13 +58,15 @@ ClientWindowId BuildClientWindowId(WindowTree* tree,
 // -----------------------------------------------------------------------------
 
 ui::PointerEvent CreatePointerDownEvent(int x, int y) {
-  return ui::PointerEvent(ui::TouchEvent(ui::ET_TOUCH_PRESSED, gfx::Point(x, y),
-                                         1, ui::EventTimeForNow()));
+  return ui::PointerEvent(ui::TouchEvent(
+      ui::ET_TOUCH_PRESSED, gfx::Point(x, y), ui::EventTimeForNow(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 1)));
 }
 
 ui::PointerEvent CreatePointerUpEvent(int x, int y) {
   return ui::PointerEvent(ui::TouchEvent(
-      ui::ET_TOUCH_RELEASED, gfx::Point(x, y), 1, ui::EventTimeForNow()));
+      ui::ET_TOUCH_RELEASED, gfx::Point(x, y), ui::EventTimeForNow(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 1)));
 }
 
 ui::PointerEvent CreatePointerWheelEvent(int x, int y) {
@@ -803,7 +803,7 @@ TEST_F(WindowTreeTest, ShowModalWindowWithDescendantCapture) {
   w2->SetBounds(gfx::Rect(50, 10, 10, 10));
   ASSERT_TRUE(tree->AddWindow(root_window_id, w2_id));
   ASSERT_TRUE(tree->AddTransientWindow(w1_id, w2_id));
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_WINDOW));
 
   // Set capture to |w11|.
   DispatchEventWithoutAck(CreatePointerDownEvent(25, 25));
@@ -856,7 +856,7 @@ TEST_F(WindowTreeTest, VisibleWindowToModalWithDescendantCapture) {
   // Set |w2| modal to |w1|. This should release the capture as the capture is
   // set to a descendant of the modal parent.
   ASSERT_TRUE(tree->AddTransientWindow(w1_id, w2_id));
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_WINDOW));
   EXPECT_EQ(nullptr, GetCaptureWindow(display));
 }
 
@@ -875,14 +875,14 @@ TEST_F(WindowTreeTest, ShowModalWindowWithNonDescendantCapture) {
   Display* display = tree->GetDisplay(w1);
 
   // Create |w2| as a child of |root_window| and modal to |w1| and leave it
-  // hidden..
+  // hidden.
   ClientWindowId w2_id = BuildClientWindowId(tree, 2);
   ASSERT_TRUE(tree->NewWindow(w2_id, ServerWindow::Properties()));
   ServerWindow* w2 = tree->GetWindowByClientId(w2_id);
   w2->SetBounds(gfx::Rect(50, 10, 10, 10));
   ASSERT_TRUE(tree->AddWindow(root_window_id, w2_id));
   ASSERT_TRUE(tree->AddTransientWindow(w1_id, w2_id));
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_WINDOW));
 
   // Create |w3| as a child of |root_window| and make it visible.
   ClientWindowId w3_id = BuildClientWindowId(tree, 3);
@@ -942,7 +942,7 @@ TEST_F(WindowTreeTest, VisibleWindowToModalWithNonDescendantCapture) {
   // Set |w2| modal to |w1|. This should not release the capture as the capture
   // is not set to a descendant of the modal parent.
   ASSERT_TRUE(tree->AddTransientWindow(w1_id, w2_id));
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_WINDOW));
   EXPECT_EQ(w3, GetCaptureWindow(display));
 }
 
@@ -966,7 +966,7 @@ TEST_F(WindowTreeTest, ShowSystemModalWindowWithCapture) {
   ServerWindow* w2 = tree->GetWindowByClientId(w2_id);
   w2->SetBounds(gfx::Rect(30, 10, 10, 10));
   ASSERT_TRUE(tree->AddWindow(root_window_id, w2_id));
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_SYSTEM));
 
   // Set capture to |w1|.
   DispatchEventWithoutAck(CreatePointerDownEvent(15, 15));
@@ -1008,7 +1008,7 @@ TEST_F(WindowTreeTest, VisibleWindowToSystemModalWithCapture) {
   AckPreviousEvent();
 
   // Make |w2| modal to system. This should release capture.
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_SYSTEM));
   EXPECT_EQ(nullptr, GetCaptureWindow(display));
 }
 
@@ -1043,7 +1043,7 @@ TEST_F(WindowTreeTest, MoveCaptureWindowToModalParent) {
 
   // Set |w2| modal to |w1|.
   ASSERT_TRUE(tree->AddTransientWindow(w1_id, w2_id));
-  ASSERT_TRUE(tree->SetModal(w2_id));
+  ASSERT_TRUE(tree->SetModalType(w2_id, MODAL_TYPE_WINDOW));
 
   // Set capture to |w3|.
   DispatchEventWithoutAck(CreatePointerDownEvent(25, 25));

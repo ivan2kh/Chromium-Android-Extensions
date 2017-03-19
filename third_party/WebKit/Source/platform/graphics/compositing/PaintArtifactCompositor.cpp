@@ -4,17 +4,22 @@
 
 #include "platform/graphics/compositing/PaintArtifactCompositor.h"
 
+#include <algorithm>
+#include <memory>
+#include <utility>
 #include "cc/layers/content_layer_client.h"
 #include "cc/layers/layer.h"
 #include "cc/layers/picture_layer.h"
-#include "cc/playback/compositing_display_item.h"
-#include "cc/playback/display_item_list.h"
-#include "cc/playback/drawing_display_item.h"
-#include "cc/playback/filter_display_item.h"
-#include "cc/playback/float_clip_display_item.h"
-#include "cc/playback/transform_display_item.h"
+#include "cc/paint/compositing_display_item.h"
+#include "cc/paint/display_item_list.h"
+#include "cc/paint/drawing_display_item.h"
+#include "cc/paint/filter_display_item.h"
+#include "cc/paint/float_clip_display_item.h"
+#include "cc/paint/transform_display_item.h"
 #include "cc/trees/layer_tree_host.h"
 #include "platform/RuntimeEnabledFeatures.h"
+#include "platform/graphics/GraphicsContext.h"
+#include "platform/graphics/compositing/PaintChunksToCcLayer.h"
 #include "platform/graphics/compositing/PropertyTreeManager.h"
 #include "platform/graphics/paint/ClipPaintPropertyNode.h"
 #include "platform/graphics/paint/DisplayItem.h"
@@ -40,9 +45,6 @@
 #include "wtf/Allocator.h"
 #include "wtf/Noncopyable.h"
 #include "wtf/PtrUtil.h"
-#include <algorithm>
-#include <memory>
-#include <utility>
 
 namespace blink {
 
@@ -60,6 +62,13 @@ static std::unique_ptr<JSONArray> sizeAsJSONArray(const T& size) {
   array->pushDouble(size.height());
   return array;
 }
+
+// cc property trees make use of a sequence number to identify when tree
+// topology changes. For now we naively increment the sequence number each time
+// we update the property trees. We should explore optimizing our management of
+// the sequence number through the use of a dirty bit or similar. See
+// http://crbug.com/692842#c4.
+static int sPropertyTreeSequenceNumber = 1;
 
 class PaintArtifactCompositor::ContentLayerClientImpl
     : public cc::ContentLayerClient {
@@ -214,29 +223,7 @@ std::unique_ptr<JSONObject> PaintArtifactCompositor::layersAsJSON(
   return json;
 }
 
-namespace {
-
-static gfx::Rect largeRect(-200000, -200000, 400000, 400000);
-
-static void appendDisplayItemToCcDisplayItemList(const DisplayItem& displayItem,
-                                                 cc::DisplayItemList* list) {
-  if (DisplayItem::isDrawingType(displayItem.getType())) {
-    const PaintRecord* record =
-        static_cast<const DrawingDisplayItem&>(displayItem).GetPaintRecord();
-    if (!record)
-      return;
-    // In theory we would pass the bounds of the record, previously done as:
-    // gfx::Rect bounds = gfx::SkIRectToRect(record->cullRect().roundOut());
-    // or use the visual rect directly. However, clip content layers attempt
-    // to raster in a different space than that of the visual rects. We'll be
-    // reworking visual rects further for SPv2, so for now we just pass a
-    // visual rect large enough to make sure items raster.
-    list->CreateAndAppendDrawingItem<cc::DrawingDisplayItem>(largeRect,
-                                                             sk_ref_sp(record));
-  }
-}
-
-scoped_refptr<cc::Layer> foreignLayerForPaintChunk(
+static scoped_refptr<cc::Layer> foreignLayerForPaintChunk(
     const PaintArtifact& paintArtifact,
     const PaintChunk& paintChunk,
     gfx::Vector2dF& layerOffset) {
@@ -256,208 +243,6 @@ scoped_refptr<cc::Layer> foreignLayerForPaintChunk(
   layer->SetBounds(foreignLayerDisplayItem.bounds());
   layer->SetIsDrawable(true);
   return layer;
-}
-
-enum EndDisplayItemType { EndTransform, EndClip, EndEffect };
-
-// Applies the clips between |localState| and |ancestorState| into a single
-// combined cc::FloatClipDisplayItem on |ccList|.
-static void applyClipsBetweenStates(const PropertyTreeState& localState,
-                                    const PropertyTreeState& ancestorState,
-                                    cc::DisplayItemList& ccList,
-                                    Vector<EndDisplayItemType>& endDisplayItems,
-                                    GeometryMapper& geometryMapper) {
-  DCHECK(localState.transform() == ancestorState.transform());
-#ifdef DCHECK_IS_ON
-  const TransformPaintPropertyNode* transformNode =
-      localState.clip()->localTransformSpace();
-  if (transformNode != ancestorState.transform()) {
-    const TransformationMatrix& localToAncestorMatrix =
-        geometryMapper.localToAncestorMatrix(transformNode,
-                                             ancestorState.transform());
-    // Clips are only in descendant spaces that are transformed by one
-    // or more scrolls.
-    DCHECK(localToAncestorMatrix.isIdentityOrTranslation());
-  }
-#endif
-
-  FloatRect combinedClip =
-      geometryMapper.localToAncestorClipRect(localState, ancestorState).rect();
-
-  ccList.CreateAndAppendPairedBeginItem<cc::FloatClipDisplayItem>(
-      gfx::RectF(combinedClip));
-  endDisplayItems.push_back(EndClip);
-}
-
-static void recordPairedBeginDisplayItems(
-    const Vector<PropertyTreeState>& pairedStates,
-    const PropertyTreeState& pendingLayerState,
-    cc::DisplayItemList& ccList,
-    Vector<EndDisplayItemType>& endDisplayItems,
-    GeometryMapper& geometryMapper) {
-  PropertyTreeState mappedClipDestinationSpace = pendingLayerState;
-  PropertyTreeState clipSpace = pendingLayerState;
-  bool hasClip = false;
-
-  for (Vector<PropertyTreeState>::const_reverse_iterator pairedState =
-           pairedStates.rbegin();
-       pairedState != pairedStates.rend(); ++pairedState) {
-    switch (pairedState->innermostNode()) {
-      case PropertyTreeState::Transform: {
-        if (hasClip) {
-          applyClipsBetweenStates(clipSpace, mappedClipDestinationSpace, ccList,
-                                  endDisplayItems, geometryMapper);
-          hasClip = false;
-        }
-        mappedClipDestinationSpace = *pairedState;
-        clipSpace = *pairedState;
-
-        TransformationMatrix matrix = pairedState->transform()->matrix();
-        matrix.applyTransformOrigin(pairedState->transform()->origin());
-
-        gfx::Transform transform(gfx::Transform::kSkipInitialization);
-        transform.matrix() = TransformationMatrix::toSkMatrix44(matrix);
-
-        ccList.CreateAndAppendPairedBeginItem<cc::TransformDisplayItem>(
-            transform);
-        endDisplayItems.push_back(EndTransform);
-        break;
-      }
-      case PropertyTreeState::Clip: {
-        // Clips are handled in |applyClips| when ending the iterator, or
-        // transitioning between transform spaces. Here we store off the
-        // PropertyTreeState of the first found clip, under the transform of
-        // pairedState->transform(). All subsequent clips before applying the
-        // transform will be applied in applyClips.
-        clipSpace = *pairedState;
-        hasClip = true;
-#ifdef DCHECK_IS_ON
-        if (pairedState->clip()->localTransformSpace() !=
-            pairedState->transform()) {
-          const TransformationMatrix& localTransformMatrix =
-              pairedState->effect()->localTransformSpace()->matrix();
-          // Clips are only in descendant spaces that are transformed by scroll.
-          DCHECK(localTransformMatrix.isIdentityOrTranslation());
-        }
-#endif
-        break;
-      }
-      case PropertyTreeState::Effect: {
-        // TODO(chrishtr): skip effect and/or compositing display items if
-        // not necessary.
-
-        FloatRect clipRect =
-            pairedState->effect()->outputClip()->clipRect().rect();
-        // TODO(chrishtr): specify origin of the filter.
-        FloatPoint filterOrigin;
-        if (pairedState->effect()->localTransformSpace() !=
-            pairedState->transform()) {
-          const TransformPaintPropertyNode* transformNode =
-              pairedState->effect()->localTransformSpace();
-          const TransformationMatrix& localToAncestorMatrix =
-              geometryMapper.localToAncestorMatrix(transformNode,
-                                                   pairedState->transform());
-          // Effects are only in descendant spaces that are transformed by one
-          // or more scrolls.
-          DCHECK(localToAncestorMatrix.isIdentityOrTranslation());
-
-          clipRect = localToAncestorMatrix.mapRect(clipRect);
-          filterOrigin = localToAncestorMatrix.mapPoint(filterOrigin);
-        }
-
-        const bool kLcdTextRequiresOpaqueLayer = true;
-        ccList.CreateAndAppendPairedBeginItem<cc::CompositingDisplayItem>(
-            static_cast<uint8_t>(
-                gfx::ToFlooredInt(255 * pairedState->effect()->opacity())),
-            pairedState->effect()->blendMode(),
-            // TODO(chrishtr): compute bounds as necessary.
-            nullptr, nullptr, kLcdTextRequiresOpaqueLayer);
-
-        ccList.CreateAndAppendPairedBeginItem<cc::FilterDisplayItem>(
-            pairedState->effect()->filter().asCcFilterOperations(), clipRect,
-            gfx::PointF(filterOrigin.x(), filterOrigin.y()));
-
-        endDisplayItems.push_back(EndEffect);
-        break;
-      }
-      case PropertyTreeState::None:
-        break;
-    }
-  }
-
-  if (hasClip) {
-    applyClipsBetweenStates(clipSpace, mappedClipDestinationSpace, ccList,
-                            endDisplayItems, geometryMapper);
-  }
-}
-
-static void recordPairedEndDisplayItems(
-    const Vector<EndDisplayItemType>& endDisplayItemTypes,
-    cc::DisplayItemList* ccList) {
-  for (Vector<EndDisplayItemType>::const_reverse_iterator endType =
-           endDisplayItemTypes.rbegin();
-       endType != endDisplayItemTypes.rend(); ++endType) {
-    switch (*endType) {
-      case EndTransform:
-        ccList->CreateAndAppendPairedEndItem<cc::EndTransformDisplayItem>();
-        break;
-      case EndClip:
-        ccList->CreateAndAppendPairedEndItem<cc::EndFloatClipDisplayItem>();
-        break;
-      case EndEffect:
-        ccList->CreateAndAppendPairedEndItem<cc::EndFilterDisplayItem>();
-        ccList->CreateAndAppendPairedEndItem<cc::EndCompositingDisplayItem>();
-        break;
-    }
-  }
-}
-
-}  // namespace
-
-scoped_refptr<cc::DisplayItemList> PaintArtifactCompositor::recordPendingLayer(
-    const PaintArtifact& artifact,
-    const PendingLayer& pendingLayer,
-    const gfx::Rect& combinedBounds,
-    GeometryMapper& geometryMapper) {
-  auto ccList = make_scoped_refptr(new cc::DisplayItemList);
-
-  gfx::Transform translation;
-  translation.Translate(-combinedBounds.x(), -combinedBounds.y());
-  // Passing combinedBounds as the visual rect for the begin/end transform item
-  // would normally be the sensible thing to do, but see comment above re:
-  // visual rects for drawing items and further rework in flight.
-  ccList->CreateAndAppendPairedBeginItem<cc::TransformDisplayItem>(translation);
-
-  const DisplayItemList& displayItems = artifact.getDisplayItemList();
-  for (const auto& paintChunk : pendingLayer.paintChunks) {
-    const PropertyTreeState* state = &paintChunk->properties.propertyTreeState;
-    PropertyTreeStateIterator iterator(*state);
-    Vector<PropertyTreeState> pairedStates;
-    for (; state && *state != pendingLayer.propertyTreeState;
-         state = iterator.next()) {
-      if (state->innermostNode() != PropertyTreeState::None)
-        pairedStates.push_back(*state);
-    }
-
-    // TODO(chrishtr): we can avoid some extra paired display items if
-    // multiple PaintChunks share them. We can also collapse clips between
-    // transforms into single clips in the same way that PaintLayerClipper does.
-    Vector<EndDisplayItemType> endDisplayItems;
-
-    recordPairedBeginDisplayItems(pairedStates, pendingLayer.propertyTreeState,
-                                  *ccList.get(), endDisplayItems,
-                                  geometryMapper);
-
-    for (const auto& displayItem : displayItems.itemsInPaintChunk(*paintChunk))
-      appendDisplayItemToCcDisplayItemList(displayItem, ccList.get());
-
-    recordPairedEndDisplayItems(endDisplayItems, ccList.get());
-  }
-
-  ccList->CreateAndAppendPairedEndItem<cc::EndTransformDisplayItem>();
-
-  ccList->Finalize();
-  return ccList;
 }
 
 std::unique_ptr<PaintArtifactCompositor::ContentLayerClientImpl>
@@ -490,11 +275,6 @@ PaintArtifactCompositor::compositedLayerForPendingLayer(
   DCHECK(pendingLayer.paintChunks.size());
   const PaintChunk& firstPaintChunk = *pendingLayer.paintChunks[0];
   DCHECK(firstPaintChunk.size());
-#if DCHECK_IS_ON
-  for (const auto& paintChunk : pendingLayer.paintChunks) {
-    DCHECK(paintChunk.properties == firstPaintChunk.properties);
-  }
-#endif
 
   // If the paint chunk is a foreign layer, just return that layer.
   if (scoped_refptr<cc::Layer> foreignLayer = foreignLayerForPaintChunk(
@@ -509,12 +289,13 @@ PaintArtifactCompositor::compositedLayerForPendingLayer(
 
   gfx::Rect ccCombinedBounds(enclosingIntRect(pendingLayer.bounds));
 
-  scoped_refptr<cc::DisplayItemList> displayList = recordPendingLayer(
-      paintArtifact, pendingLayer, ccCombinedBounds, geometryMapper);
+  layerOffset = ccCombinedBounds.OffsetFromOrigin();
+  scoped_refptr<cc::DisplayItemList> displayList =
+      PaintChunksToCcLayer::convert(
+          pendingLayer.paintChunks, pendingLayer.propertyTreeState, layerOffset,
+          paintArtifact.getDisplayItemList(), geometryMapper);
   contentLayerClient->SetDisplayList(std::move(displayList));
   contentLayerClient->SetPaintableRegion(gfx::Rect(ccCombinedBounds.size()));
-
-  layerOffset = ccCombinedBounds.OffsetFromOrigin();
 
   scoped_refptr<cc::PictureLayer> ccPictureLayer =
       contentLayerClient->ccPictureLayer();
@@ -561,87 +342,242 @@ PaintArtifactCompositor::compositedLayerForPendingLayer(
   return ccPictureLayer;
 }
 
-bool PaintArtifactCompositor::canMergeInto(
-    const PaintArtifact& paintArtifact,
-    const PaintChunk& newChunk,
-    const PendingLayer& candidatePendingLayer) {
-  const PaintChunk& pendingLayerFirstChunk =
-      *candidatePendingLayer.paintChunks[0];
-  if (paintArtifact.getDisplayItemList()[newChunk.beginIndex].isForeignLayer())
-    return false;
-
-  if (paintArtifact.getDisplayItemList()[pendingLayerFirstChunk.beginIndex]
-          .isForeignLayer())
-    return false;
-
-  if (newChunk.properties.backfaceHidden !=
-      pendingLayerFirstChunk.properties.backfaceHidden)
-    return false;
-
-  DCHECK_GE(candidatePendingLayer.paintChunks.size(), 1u);
-  PropertyTreeStateIterator iterator(newChunk.properties.propertyTreeState);
-  for (const PropertyTreeState* currentState =
-           &newChunk.properties.propertyTreeState;
-       currentState; currentState = iterator.next()) {
-    if (*currentState == candidatePendingLayer.propertyTreeState)
-      return true;
-    if (currentState->hasDirectCompositingReasons())
-      return false;
-  }
-  return false;
+PaintArtifactCompositor::PendingLayer::PendingLayer(
+    const PaintChunk& firstPaintChunk,
+    bool chunkIsForeign)
+    : bounds(firstPaintChunk.bounds),
+      knownToBeOpaque(firstPaintChunk.knownToBeOpaque),
+      backfaceHidden(firstPaintChunk.properties.backfaceHidden),
+      propertyTreeState(firstPaintChunk.properties.propertyTreeState),
+      isForeign(chunkIsForeign) {
+  paintChunks.push_back(&firstPaintChunk);
 }
 
-bool PaintArtifactCompositor::mightOverlap(
-    const PaintChunk& paintChunk,
-    const PendingLayer& candidatePendingLayer,
+void PaintArtifactCompositor::PendingLayer::merge(
+    const PendingLayer& guest,
     GeometryMapper& geometryMapper) {
+  DCHECK(!isForeign && !guest.isForeign);
+  DCHECK_EQ(backfaceHidden, guest.backfaceHidden);
+
+  paintChunks.appendVector(guest.paintChunks);
+  FloatRect guestBoundsInHome = guest.bounds;
+  geometryMapper.localToAncestorVisualRect(
+      guest.propertyTreeState, propertyTreeState, guestBoundsInHome);
+  FloatRect oldBounds = bounds;
+  bounds.unite(guestBoundsInHome);
+  if (bounds != oldBounds)
+    knownToBeOpaque = false;
+  // TODO(crbug.com/701991): Upgrade GeometryMapper.
+  // If we knew the new bounds is enclosed by the mapped opaque region of
+  // the guest layer, we can deduce the merged layer being opaque too.
+}
+
+static bool canUpcastTo(const PropertyTreeState& guest,
+                        const PropertyTreeState& home);
+bool PaintArtifactCompositor::PendingLayer::canMerge(
+    const PendingLayer& guest) const {
+  if (isForeign || guest.isForeign)
+    return false;
+  if (backfaceHidden != guest.backfaceHidden)
+    return false;
+  if (propertyTreeState.effect() != guest.propertyTreeState.effect())
+    return false;
+  return canUpcastTo(guest.propertyTreeState, propertyTreeState);
+}
+
+void PaintArtifactCompositor::PendingLayer::upcast(
+    const PropertyTreeState& newState,
+    GeometryMapper& geometryMapper) {
+  DCHECK(!isForeign);
+  geometryMapper.localToAncestorVisualRect(propertyTreeState, newState, bounds);
+
+  propertyTreeState = newState;
+  // TODO(crbug.com/701991): Upgrade GeometryMapper.
+  // A local visual rect mapped to an ancestor space may become a polygon
+  // (e.g. consider transformed clip), also effects may affect the opaque
+  // region. To determine whether the layer is still opaque, we need to
+  // query conservative opaque rect after mapping to an ancestor space,
+  // which is not supported by GeometryMapper yet.
+  knownToBeOpaque = false;
+}
+
+static bool isNonCompositingAncestorOf(
+    const TransformPaintPropertyNode* ancestor,
+    const TransformPaintPropertyNode* node) {
+  for (; node != ancestor; node = node->parent()) {
+    if (!node || node->hasDirectCompositingReasons())
+      return false;
+  }
+  return true;
+}
+
+// Determines whether drawings based on the 'guest' state can be painted into
+// a layer with the 'home' state. A number of criteria need to be met:
+// 1. The guest effect must be a descendant of the home effect. However this
+//    check is enforced by the layerization recursion. Here we assume the guest
+//    has already been upcasted to the same effect.
+// 2. The guest clip must be a descendant of the home clip.
+// 3. The local space of each clip and effect node on the ancestor chain must
+//    be within compositing boundary of the home transform space.
+// 4. The guest transform space must be within compositing boundary of the home
+//    transform space.
+static bool canUpcastTo(const PropertyTreeState& guest,
+                        const PropertyTreeState& home) {
+  DCHECK_EQ(home.effect(), guest.effect());
+
+  for (const ClipPaintPropertyNode* currentClip = guest.clip();
+       currentClip != home.clip(); currentClip = currentClip->parent()) {
+    if (!currentClip || currentClip->hasDirectCompositingReasons())
+      return false;
+    if (!isNonCompositingAncestorOf(home.transform(),
+                                    currentClip->localTransformSpace()))
+      return false;
+  }
+
+  return isNonCompositingAncestorOf(home.transform(), guest.transform());
+}
+
+// Returns nullptr if 'ancestor' is not a strict ancestor of 'node'.
+// Otherwise, return the child of 'ancestor' that is an ancestor of 'node' or
+// 'node' itself.
+static const EffectPaintPropertyNode* strictChildOfAlongPath(
+    const EffectPaintPropertyNode* ancestor,
+    const EffectPaintPropertyNode* node) {
+  for (; node; node = node->parent()) {
+    if (node->parent() == ancestor)
+      return node;
+  }
+  return nullptr;
+}
+
+bool PaintArtifactCompositor::mightOverlap(const PendingLayer& layerA,
+                                           const PendingLayer& layerB,
+                                           GeometryMapper& geometryMapper) {
   PropertyTreeState rootPropertyTreeState(TransformPaintPropertyNode::root(),
                                           ClipPaintPropertyNode::root(),
                                           EffectPaintPropertyNode::root());
 
-  FloatRect paintChunkScreenVisualRect =
-      geometryMapper
-          .localToAncestorVisualRect(paintChunk.bounds,
-                                     paintChunk.properties.propertyTreeState,
-                                     rootPropertyTreeState)
-          .rect();
+  FloatRect boundsA = layerA.bounds;
+  geometryMapper.localToAncestorVisualRect(layerA.propertyTreeState,
+                                           rootPropertyTreeState, boundsA);
+  FloatRect boundsB = layerB.bounds;
+  geometryMapper.localToAncestorVisualRect(layerB.propertyTreeState,
+                                           rootPropertyTreeState, boundsB);
 
-  FloatRect pendingLayerScreenVisualRect =
-      geometryMapper
-          .localToAncestorVisualRect(candidatePendingLayer.bounds,
-                                     candidatePendingLayer.propertyTreeState,
-                                     rootPropertyTreeState)
-          .rect();
-
-  return paintChunkScreenVisualRect.intersects(pendingLayerScreenVisualRect);
+  return boundsA.intersects(boundsB);
 }
 
-PaintArtifactCompositor::PendingLayer::PendingLayer(
-    const PaintChunk& firstPaintChunk)
-    : bounds(firstPaintChunk.bounds),
-      knownToBeOpaque(firstPaintChunk.knownToBeOpaque),
-      backfaceHidden(firstPaintChunk.properties.backfaceHidden),
-      propertyTreeState(firstPaintChunk.properties.propertyTreeState) {
-  paintChunks.push_back(&firstPaintChunk);
+bool PaintArtifactCompositor::canDecompositeEffect(
+    const EffectPaintPropertyNode* effect,
+    const PendingLayer& layer) {
+  // If the effect associated with the layer is deeper than than the effect
+  // we are attempting to decomposite, than implies some previous decision
+  // did not allow to decomposite intermediate effects.
+  if (layer.propertyTreeState.effect() != effect)
+    return false;
+  if (layer.isForeign)
+    return false;
+  // TODO(trchen): Exotic blending layer may be decomposited only if it could
+  // be merged into the first layer of the current group.
+  if (effect->blendMode() != SkBlendMode::kSrcOver)
+    return false;
+  if (effect->hasDirectCompositingReasons())
+    return false;
+  if (!canUpcastTo(layer.propertyTreeState,
+                   PropertyTreeState(effect->localTransformSpace(),
+                                     effect->outputClip(), effect)))
+    return false;
+  return true;
 }
 
-void PaintArtifactCompositor::PendingLayer::add(
-    const PaintChunk& paintChunk,
-    GeometryMapper* geometryMapper) {
-  DCHECK(paintChunk.properties.backfaceHidden == backfaceHidden);
-  paintChunks.push_back(&paintChunk);
-  FloatRect mappedBounds = paintChunk.bounds;
-  if (geometryMapper) {
-    mappedBounds = geometryMapper->localToAncestorRect(
-        mappedBounds, paintChunk.properties.propertyTreeState.transform(),
-        propertyTreeState.transform());
-  }
-  bounds.unite(mappedBounds);
-  if (bounds.size() != paintChunks[0]->bounds.size()) {
-    if (bounds.size() != paintChunk.bounds.size())
-      knownToBeOpaque = false;
-    else
-      knownToBeOpaque = paintChunk.knownToBeOpaque;
+void PaintArtifactCompositor::layerizeGroup(
+    const PaintArtifact& paintArtifact,
+    Vector<PendingLayer>& pendingLayers,
+    GeometryMapper& geometryMapper,
+    const EffectPaintPropertyNode& currentGroup,
+    Vector<PaintChunk>::const_iterator& chunkIt) {
+  size_t firstLayerInCurrentGroup = pendingLayers.size();
+  // The worst case time complexity of the algorithm is O(pqd), where
+  // p = the number of paint chunks.
+  // q = average number of trials to find a squash layer or rejected
+  //     for overlapping.
+  // d = (sum of) the depth of property trees.
+  // The analysis as follows:
+  // Every paint chunk will be visited by the main loop below for exactly once,
+  // except for chunks that enter or exit groups (case B & C below).
+  // For normal chunk visit (case A), the only cost is determining squash,
+  // which costs O(qd), where d came from "canUpcastTo" and geometry mapping.
+  // Subtotal: O(pqd)
+  // For group entering and exiting, it could cost O(d) for each group, for
+  // searching the shallowest subgroup (strictChildOfAlongPath), thus O(d^2)
+  // in total.
+  // Also when exiting group, the group may be decomposited and squashed to a
+  // previous layer. Again finding the host costs O(qd). Merging would cost O(p)
+  // due to copying the chunk list. Subtotal: O((qd + p)d) = O(qd^2 + pd)
+  // Assuming p > d, the total complexity would be O(pqd + qd^2 + pd) = O(pqd)
+  while (chunkIt != paintArtifact.paintChunks().end()) {
+    // Look at the effect node of the next chunk. There are 3 possible cases:
+    // A. The next chunk belongs to the current group but no subgroup.
+    // B. The next chunk does not belong to the current group.
+    // C. The next chunk belongs to some subgroup of the current group.
+    const EffectPaintPropertyNode* chunkEffect =
+        chunkIt->properties.propertyTreeState.effect();
+    if (chunkEffect == &currentGroup) {
+      // Case A: The next chunk belongs to the current group but no subgroup.
+      bool isForeign = paintArtifact.getDisplayItemList()[chunkIt->beginIndex]
+                           .isForeignLayer();
+      pendingLayers.push_back(PendingLayer(*chunkIt++, isForeign));
+      if (isForeign)
+        continue;
+    } else {
+      const EffectPaintPropertyNode* subgroup =
+          strictChildOfAlongPath(&currentGroup, chunkEffect);
+      // Case B: This means we need to close the current group without
+      //         processing the next chunk.
+      if (!subgroup)
+        break;
+      // Case C: The following chunks belong to a subgroup. Process them by
+      //         a recursion call.
+      size_t firstLayerInSubgroup = pendingLayers.size();
+      layerizeGroup(paintArtifact, pendingLayers, geometryMapper, *subgroup,
+                    chunkIt);
+      // Now the chunk iterator stepped over the subgroup we just saw.
+      // If the subgroup generated 2 or more layers then the subgroup must be
+      // composited to satisfy grouping requirement.
+      // i.e. Grouping effects generally must be applied atomically,
+      // for example,  Opacity(A+B) != Opacity(A) + Opacity(B), thus an effect
+      // either applied 100% within a layer, or not at all applied within layer
+      // (i.e. applied by compositor render surface instead).
+      if (pendingLayers.size() != firstLayerInSubgroup + 1)
+        continue;
+      // Now attempt to "decomposite" subgroup.
+      PendingLayer& subgroupLayer = pendingLayers[firstLayerInSubgroup];
+      if (!canDecompositeEffect(subgroup, subgroupLayer))
+        continue;
+      subgroupLayer.upcast(
+          PropertyTreeState(subgroup->localTransformSpace(),
+                            subgroup->outputClip(), &currentGroup),
+          geometryMapper);
+    }
+    // At this point pendingLayers.back() is the either a layer from a
+    // "decomposited" subgroup or a layer created from a chunk we just
+    // processed. Now determine whether it could be merged into a previous
+    // layer.
+    const PendingLayer& newLayer = pendingLayers.back();
+    DCHECK(!newLayer.isForeign);
+    DCHECK_EQ(&currentGroup, newLayer.propertyTreeState.effect());
+    // This iterates pendingLayers[firstLayerInCurrentGroup:-1] in reverse.
+    for (size_t candidateIndex = pendingLayers.size() - 1;
+         candidateIndex-- > firstLayerInCurrentGroup;) {
+      PendingLayer& candidateLayer = pendingLayers[candidateIndex];
+      if (candidateLayer.canMerge(newLayer)) {
+        candidateLayer.merge(newLayer, geometryMapper);
+        pendingLayers.pop_back();
+        break;
+      }
+      if (mightOverlap(newLayer, candidateLayer, geometryMapper))
+        break;
+    }
   }
 }
 
@@ -649,26 +585,11 @@ void PaintArtifactCompositor::collectPendingLayers(
     const PaintArtifact& paintArtifact,
     Vector<PendingLayer>& pendingLayers,
     GeometryMapper& geometryMapper) {
-  // n = # of paint chunks. Memoizing canMergeInto() can get it to O(n^2), and
-  // other heuristics can make worst-case behavior better.
-  for (const PaintChunk& paintChunk : paintArtifact.paintChunks()) {
-    bool createNew = true;
-    for (Vector<PendingLayer>::reverse_iterator candidatePendingLayer =
-             pendingLayers.rbegin();
-         candidatePendingLayer != pendingLayers.rend();
-         ++candidatePendingLayer) {
-      if (canMergeInto(paintArtifact, paintChunk, *candidatePendingLayer)) {
-        candidatePendingLayer->add(paintChunk, &geometryMapper);
-        createNew = false;
-        break;
-      }
-      if (mightOverlap(paintChunk, *candidatePendingLayer, geometryMapper)) {
-        break;
-      }
-    }
-    if (createNew)
-      pendingLayers.push_back(PendingLayer(paintChunk));
-  }
+  Vector<PaintChunk>::const_iterator cursor =
+      paintArtifact.paintChunks().begin();
+  layerizeGroup(paintArtifact, pendingLayers, geometryMapper,
+                *EffectPaintPropertyNode::root(), cursor);
+  DCHECK_EQ(paintArtifact.paintChunks().end(), cursor);
 }
 
 void PaintArtifactCompositor::update(
@@ -693,11 +614,12 @@ void PaintArtifactCompositor::update(
     m_extraDataForTesting = WTF::wrapUnique(new ExtraDataForTesting);
 
   m_rootLayer->RemoveAllChildren();
-  m_rootLayer->set_property_tree_sequence_number(
-      PropertyTreeManager::kPropertyTreeSequenceNumber);
+
+  m_rootLayer->set_property_tree_sequence_number(sPropertyTreeSequenceNumber);
 
   PropertyTreeManager propertyTreeManager(*layerTreeHost->property_trees(),
-                                          m_rootLayer.get());
+                                          m_rootLayer.get(),
+                                          sPropertyTreeSequenceNumber);
 
   Vector<PendingLayer, 0> pendingLayers;
   collectPendingLayers(paintArtifact, pendingLayers, geometryMapper);
@@ -722,13 +644,11 @@ void PaintArtifactCompositor::update(
     layer->SetElementId(pendingLayer.propertyTreeState.compositorElementId());
 
     m_rootLayer->AddChild(layer);
-    layer->set_property_tree_sequence_number(
-        PropertyTreeManager::kPropertyTreeSequenceNumber);
+    layer->set_property_tree_sequence_number(sPropertyTreeSequenceNumber);
     layer->SetTransformTreeIndex(transformId);
     layer->SetClipTreeIndex(clipId);
     layer->SetEffectTreeIndex(effectId);
-    layer->SetScrollTreeIndex(propertyTreeManager.ensureCompositorScrollNode(
-        transform->findEnclosingScrollNode()));
+    propertyTreeManager.updateLayerScrollMapping(layer.get(), transform);
 
     layer->SetShouldCheckBackfaceVisibility(pendingLayer.backfaceHidden);
 
@@ -740,9 +660,11 @@ void PaintArtifactCompositor::update(
 
   // Mark the property trees as having been rebuilt.
   layerTreeHost->property_trees()->sequence_number =
-      PropertyTreeManager::kPropertyTreeSequenceNumber;
+      sPropertyTreeSequenceNumber;
   layerTreeHost->property_trees()->needs_rebuild = false;
   layerTreeHost->property_trees()->ResetCachedData();
+
+  sPropertyTreeSequenceNumber++;
 }
 
 #ifndef NDEBUG

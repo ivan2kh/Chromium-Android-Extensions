@@ -17,6 +17,7 @@ import android.support.v7.widget.RecyclerView.Adapter;
 import android.support.v7.widget.RecyclerView.AdapterDataObserver;
 import android.support.v7.widget.RecyclerView.ItemAnimator;
 import android.support.v7.widget.RecyclerView.OnScrollListener;
+import android.support.v7.widget.Toolbar;
 import android.support.v7.widget.Toolbar.OnMenuItemClickListener;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
@@ -295,6 +296,16 @@ public class SelectableListLayout<E>
     @Override
     public void onSelectionStateChange(List<E> selectedItems) {
         setToolbarShadowVisibility();
+    }
+
+    /**
+     * Removes the toolbar view from this view and returns it so that it may be re-attached
+     * elsewhere.
+     * @return The toolbar view.
+     */
+    public Toolbar detachToolbarView() {
+        removeView(mToolbar);
+        return mToolbar;
     }
 
     /**

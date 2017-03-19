@@ -76,8 +76,8 @@
 // in Frame::detachChildren for each subframe in a pre-order depth-first
 // traversal. Note that child node order may not match DOM node order!
 // detachChildren() (virtually) calls Frame::detach(), which again calls
-// FrameLoaderClient::detached(). This triggers WebFrame to clear its reference
-// to LocalFrame. FrameLoaderClient::detached() also notifies the embedder via
+// LocalFrameClient::detached(). This triggers WebFrame to clear its reference
+// to LocalFrame. LocalFrameClient::detached() also notifies the embedder via
 // WebFrameClient that the frame is detached. Most embedders will invoke
 // close() on the WebFrame at this point, triggering its deletion unless
 // something else is still retaining a reference.
@@ -176,8 +176,8 @@
 #include "platform/heap/Handle.h"
 #include "platform/instrumentation/tracing/TraceEvent.h"
 #include "platform/loader/fetch/ResourceFetcher.h"
+#include "platform/loader/fetch/ResourceRequest.h"
 #include "platform/loader/fetch/SubstituteData.h"
-#include "platform/network/ResourceRequest.h"
 #include "platform/scroll/ScrollTypes.h"
 #include "platform/scroll/ScrollbarTheme.h"
 #include "platform/weborigin/KURL.h"
@@ -285,6 +285,7 @@ class ChromePrintContext : public PrintContext {
   virtual void begin(float width, float height) {
     DCHECK(!m_printedPageWidth);
     m_printedPageWidth = width;
+    m_printedPageHeight = height;
     PrintContext::begin(m_printedPageWidth, height);
   }
 
@@ -302,12 +303,14 @@ class ChromePrintContext : public PrintContext {
     if (!frame()->document() || frame()->document()->layoutViewItem().isNull())
       return 0;
 
-    IntRect pageRect = m_pageRects[pageNumber];
-    PaintRecordBuilder builder(pageRect, &canvas->getMetaData());
+    // The page rect gets scaled and translated, so specify the entire
+    // print content area here as the recording rect.
+    IntRect printedPageRect(0, 0, m_printedPageHeight, m_printedPageWidth);
+    PaintRecordBuilder builder(printedPageRect, &canvas->getMetaData());
     builder.context().setPrinting(true);
 
     float scale = spoolPage(builder, pageNumber);
-    builder.endRecording()->playback(canvas);
+    canvas->drawPicture(builder.endRecording());
     return scale;
   }
 
@@ -374,7 +377,7 @@ class ChromePrintContext : public PrintContext {
         currentHeight += pageSizeInPixels.height() + 1;
       }
     }
-    builder.endRecording()->playback(canvas);
+    canvas->drawPicture(builder.endRecording());
   }
 
  protected:
@@ -426,6 +429,7 @@ class ChromePrintContext : public PrintContext {
 
   // Set when printing.
   float m_printedPageWidth;
+  float m_printedPageHeight;
 };
 
 // Simple class to override some of PrintContext behavior. This is used when
@@ -506,8 +510,7 @@ WebLocalFrame* WebLocalFrame::frameForCurrentContext() {
 }
 
 WebLocalFrame* WebLocalFrame::frameForContext(v8::Local<v8::Context> context) {
-  return WebLocalFrameImpl::fromFrame(
-      toLocalFrame(toFrameIfNotDetached(context)));
+  return WebLocalFrameImpl::fromFrame(toLocalFrameIfNotDetached(context));
 }
 
 WebLocalFrame* WebLocalFrame::fromFrameOwnerElement(const WebElement& element) {
@@ -532,6 +535,8 @@ WebRemoteFrame* WebLocalFrameImpl::toWebRemoteFrame() {
 }
 
 void WebLocalFrameImpl::close() {
+  WebLocalFrame::close();
+
   m_client = nullptr;
 
   if (m_devToolsAgent)
@@ -669,7 +674,7 @@ void WebLocalFrameImpl::executeScriptInIsolatedWorld(
     unsigned numSources) {
   DCHECK(frame());
   CHECK_GT(worldID, 0);
-  CHECK_LT(worldID, EmbedderWorldIdLimit);
+  CHECK_LT(worldID, DOMWrapperWorld::EmbedderWorldIdLimit);
 
   HeapVector<ScriptSourceCode> sources =
       createSourcesVector(sourcesIn, numSources);
@@ -749,8 +754,11 @@ void WebLocalFrameImpl::requestExecuteScriptAndReturnValue(
     WebScriptExecutionCallback* callback) {
   DCHECK(frame());
 
-  SuspendableScriptExecutor::createAndRun(
-      frame(), 0, createSourcesVector(&source, 1), userGesture, callback);
+  RefPtr<DOMWrapperWorld> mainWorld = &DOMWrapperWorld::mainWorld();
+  SuspendableScriptExecutor* executor = SuspendableScriptExecutor::create(
+      frame(), std::move(mainWorld), createSourcesVector(&source, 1),
+      userGesture, callback);
+  executor->run();
 }
 
 void WebLocalFrameImpl::requestExecuteV8Function(
@@ -773,7 +781,7 @@ void WebLocalFrameImpl::executeScriptInIsolatedWorld(
     WebVector<v8::Local<v8::Value>>* results) {
   DCHECK(frame());
   CHECK_GT(worldID, 0);
-  CHECK_LT(worldID, EmbedderWorldIdLimit);
+  CHECK_LT(worldID, DOMWrapperWorld::EmbedderWorldIdLimit);
 
   HeapVector<ScriptSourceCode> sources =
       createSourcesVector(sourcesIn, numSources);
@@ -798,14 +806,28 @@ void WebLocalFrameImpl::requestExecuteScriptInIsolatedWorld(
     const WebScriptSource* sourcesIn,
     unsigned numSources,
     bool userGesture,
+    ScriptExecutionType option,
     WebScriptExecutionCallback* callback) {
   DCHECK(frame());
   CHECK_GT(worldID, 0);
-  CHECK_LT(worldID, EmbedderWorldIdLimit);
+  CHECK_LT(worldID, DOMWrapperWorld::EmbedderWorldIdLimit);
 
-  SuspendableScriptExecutor::createAndRun(
-      frame(), worldID, createSourcesVector(sourcesIn, numSources), userGesture,
-      callback);
+  RefPtr<DOMWrapperWorld> isolatedWorld =
+      DOMWrapperWorld::ensureIsolatedWorld(toIsolate(frame()), worldID);
+  SuspendableScriptExecutor* executor = SuspendableScriptExecutor::create(
+      frame(), std::move(isolatedWorld),
+      createSourcesVector(sourcesIn, numSources), userGesture, callback);
+  switch (option) {
+    case AsynchronousBlockingOnload:
+      executor->runAsync(SuspendableScriptExecutor::OnloadBlocking);
+      break;
+    case Asynchronous:
+      executor->runAsync(SuspendableScriptExecutor::NonBlocking);
+      break;
+    case Synchronous:
+      executor->run();
+      break;
+  }
 }
 
 // TODO(bashi): Consider returning MaybeLocal.
@@ -921,11 +943,6 @@ void WebLocalFrameImpl::setReferrerForRequest(WebURLRequest& request,
   request.toMutableResourceRequest().setHTTPReferrer(
       SecurityPolicy::generateReferrer(frame()->document()->getReferrerPolicy(),
                                        request.url(), referrer));
-}
-
-void WebLocalFrameImpl::dispatchWillSendRequest(WebURLRequest& request) {
-  frame()->loader().client()->dispatchWillSendRequest(
-      request.toMutableResourceRequest());
 }
 
 WebAssociatedURLLoader* WebLocalFrameImpl::createAssociatedURLLoader(
@@ -1086,7 +1103,14 @@ bool WebLocalFrameImpl::hasSelection() const {
     return pluginContainer->plugin()->hasSelection();
 
   // frame()->selection()->isNone() never returns true.
-  return frame()->selection().start() != frame()->selection().end();
+  return frame()
+             ->selection()
+             .computeVisibleSelectionInDOMTreeDeprecated()
+             .start() !=
+         frame()
+             ->selection()
+             .computeVisibleSelectionInDOMTreeDeprecated()
+             .end();
 }
 
 WebRange WebLocalFrameImpl::selectionRange() const {
@@ -1094,7 +1118,10 @@ WebRange WebLocalFrameImpl::selectionRange() const {
   // needs to be audited.  See http://crbug.com/590369 for more details.
   frame()->document()->updateStyleAndLayoutIgnorePendingStylesheets();
 
-  return frame()->selection().selection().toNormalizedEphemeralRange();
+  return frame()
+      ->selection()
+      .computeVisibleSelectionInDOMTreeDeprecated()
+      .toNormalizedEphemeralRange();
 }
 
 WebString WebLocalFrameImpl::selectionAsText() const {
@@ -1142,7 +1169,8 @@ void WebLocalFrameImpl::selectWordAroundPosition(LocalFrame* frame,
 bool WebLocalFrameImpl::selectWordAroundCaret() {
   TRACE_EVENT0("blink", "WebLocalFrameImpl::selectWordAroundCaret");
   FrameSelection& selection = frame()->selection();
-  if (selection.isNone() || selection.isRange())
+  if (selection.computeVisibleSelectionInDOMTreeDeprecated().isNone() ||
+      selection.computeVisibleSelectionInDOMTreeDeprecated().isRange())
     return false;
 
   // TODO(xiaochengh): The use of updateStyleAndLayoutIgnorePendingStylesheets
@@ -1150,7 +1178,7 @@ bool WebLocalFrameImpl::selectWordAroundCaret() {
   frame()->document()->updateStyleAndLayoutIgnorePendingStylesheets();
 
   return frame()->selection().selectWordAroundPosition(
-      selection.selection().visibleStart());
+      selection.computeVisibleSelectionInDOMTreeDeprecated().visibleStart());
 }
 
 void WebLocalFrameImpl::selectRange(const WebPoint& baseInViewport,
@@ -1286,6 +1314,22 @@ void WebLocalFrameImpl::deleteSurroundingText(int before, int after) {
   frame()->document()->updateStyleAndLayoutIgnorePendingStylesheets();
 
   frame()->inputMethodController().deleteSurroundingText(before, after);
+}
+
+void WebLocalFrameImpl::deleteSurroundingTextInCodePoints(int before,
+                                                          int after) {
+  TRACE_EVENT0("blink", "WebLocalFrameImpl::deleteSurroundingTextInCodePoints");
+  if (WebPlugin* plugin = focusedPluginIfInputMethodSupported()) {
+    plugin->deleteSurroundingTextInCodePoints(before, after);
+    return;
+  }
+
+  // TODO(editing-dev): The use of updateStyleAndLayoutIgnorePendingStylesheets
+  // needs to be audited.  See http://crbug.com/590369 for more details.
+  frame()->document()->updateStyleAndLayoutIgnorePendingStylesheets();
+
+  frame()->inputMethodController().deleteSurroundingTextInCodePoints(before,
+                                                                     after);
 }
 
 void WebLocalFrameImpl::setCaretVisible(bool visible) {
@@ -1485,9 +1529,9 @@ WebLocalFrameImpl* WebLocalFrameImpl::createProvisional(
   FrameOwner* tempOwner = DummyFrameOwner::create();
   // TODO(dcheng): This block is very similar to initializeCoreFrame. Try to
   // reuse it here.
-  LocalFrame* frame = LocalFrame::create(
-      webFrame->m_frameLoaderClientImpl.get(), oldFrame->host(), tempOwner,
-      interfaceProvider, interfaceRegistry);
+  LocalFrame* frame = LocalFrame::create(webFrame->m_localFrameClientImpl.get(),
+                                         oldFrame->host(), tempOwner,
+                                         interfaceProvider, interfaceRegistry);
   // Set the name and unique name directly, bypassing any of the normal logic
   // to calculate unique name.
   frame->tree().setPrecalculatedName(
@@ -1514,7 +1558,7 @@ WebLocalFrameImpl::WebLocalFrameImpl(
     blink::InterfaceProvider* interfaceProvider,
     blink::InterfaceRegistry* interfaceRegistry)
     : WebLocalFrame(scope),
-      m_frameLoaderClientImpl(FrameLoaderClientImpl::create(this)),
+      m_localFrameClientImpl(LocalFrameClientImpl::create(this)),
       m_frameWidget(0),
       m_client(client),
       m_autofillClient(0),
@@ -1548,14 +1592,12 @@ WebLocalFrameImpl::~WebLocalFrameImpl() {
 }
 
 DEFINE_TRACE(WebLocalFrameImpl) {
-  visitor->trace(m_frameLoaderClientImpl);
+  visitor->trace(m_localFrameClientImpl);
   visitor->trace(m_frame);
   visitor->trace(m_devToolsAgent);
   visitor->trace(m_textFinder);
   visitor->trace(m_printContext);
   visitor->trace(m_contextMenuNode);
-  visitor->template registerWeakMembers<WebFrame, &WebFrame::clearWeakFrames>(
-      this);
   WebFrame::traceFrames(visitor, this);
   WebFrameImplBase::trace(visitor);
 }
@@ -1568,7 +1610,7 @@ void WebLocalFrameImpl::initializeCoreFrame(FrameHost* host,
                                             FrameOwner* owner,
                                             const AtomicString& name,
                                             const AtomicString& uniqueName) {
-  setCoreFrame(LocalFrame::create(m_frameLoaderClientImpl.get(), host, owner,
+  setCoreFrame(LocalFrame::create(m_localFrameClientImpl.get(), host, owner,
                                   m_interfaceProvider, m_interfaceRegistry));
   frame()->tree().setPrecalculatedName(name, uniqueName);
   // We must call init() after m_frame is assigned because it is referenced
@@ -1590,6 +1632,12 @@ void WebLocalFrameImpl::initializeCoreFrame(FrameHost* host,
 
     frame()->interfaceRegistry()->addInterface(WTF::bind(
         &InstallationServiceImpl::create, wrapWeakPersistent(frame())));
+    if (!owner) {
+      // This trace event is needed to detect the main frame of the
+      // renderer in telemetry metrics. See crbug.com/692112#c11.
+      TRACE_EVENT_INSTANT1("loading", "markAsMainFrame",
+                           TRACE_EVENT_SCOPE_THREAD, "frame", frame());
+    }
   }
 }
 
@@ -1607,7 +1655,7 @@ LocalFrame* WebLocalFrameImpl::createChildFrame(
       ownerElement->scrollingMode(), ownerElement->marginWidth(),
       ownerElement->marginHeight(), ownerElement->allowFullscreen(),
       ownerElement->allowPaymentRequest(), ownerElement->csp(),
-      ownerElement->delegatedPermissions());
+      ownerElement->allowedFeatures());
   // FIXME: Using subResourceAttributeName as fallback is not a perfect
   // solution. subResourceAttributeName returns just one attribute name. The
   // element might not have the attribute, and there might be other attributes
@@ -1703,10 +1751,10 @@ WebLocalFrameImpl* WebLocalFrameImpl::fromFrame(LocalFrame* frame) {
 }
 
 WebLocalFrameImpl* WebLocalFrameImpl::fromFrame(LocalFrame& frame) {
-  FrameLoaderClient* client = frame.loader().client();
-  if (!client || !client->isFrameLoaderClientImpl())
+  LocalFrameClient* client = frame.loader().client();
+  if (!client || !client->isLocalFrameClientImpl())
     return nullptr;
-  return toFrameLoaderClientImpl(client)->webFrame();
+  return toLocalFrameClientImpl(client)->webFrame();
 }
 
 WebLocalFrameImpl* WebLocalFrameImpl::fromFrameOwnerElement(Element* element) {
@@ -1737,7 +1785,8 @@ void WebLocalFrameImpl::setFindEndstateFocusAndSelection() {
   if (Range* activeMatch = m_textFinder->activeMatch()) {
     // If the user has set the selection since the match was found, we
     // don't focus anything.
-    VisibleSelection selection(frame()->selection().selection());
+    VisibleSelection selection(
+        frame()->selection().computeVisibleSelectionInDOMTreeDeprecated());
     if (!selection.isNone())
       return;
 
@@ -1891,11 +1940,11 @@ void WebLocalFrameImpl::loadJavaScriptURL(const KURL& url) {
 HitTestResult WebLocalFrameImpl::hitTestResultForVisualViewportPos(
     const IntPoint& posInViewport) {
   IntPoint rootFramePoint(
-      frame()->host()->visualViewport().viewportToRootFrame(posInViewport));
+      frame()->page()->visualViewport().viewportToRootFrame(posInViewport));
   IntPoint docPoint(frame()->view()->rootFrameToContents(rootFramePoint));
   HitTestResult result = frame()->eventHandler().hitTestResultAtPoint(
       docPoint, HitTestRequest::ReadOnly | HitTestRequest::Active);
-  result.setToShadowHostIfInUserAgentShadowRoot();
+  result.setToShadowHostIfInRestrictedShadowRoot();
   return result;
 }
 
@@ -2040,9 +2089,37 @@ bool WebLocalFrameImpl::maybeRenderFallbackContent(
     return false;
 
   FrameLoader& frameloader = frame()->loader();
-  frameloader.clearNavigationHandledByClient();
-  frameloader.loadFailed(frameloader.documentLoader(), error);
+  DCHECK(frameloader.provisionalDocumentLoader());
+  frameloader.loadFailed(frameloader.provisionalDocumentLoader(), error);
   return true;
+}
+
+// Called when a navigation is blocked because a Content Security Policy (CSP)
+// is infringed.
+void WebLocalFrameImpl::reportContentSecurityPolicyViolation(
+    const blink::WebContentSecurityPolicyViolation& violation) {
+  DCHECK(frame() && frame()->document());
+  Document* document = frame()->document();
+  Vector<String> reportEndpoints;
+  for (const WebString& endPoint : violation.reportEndpoints)
+    reportEndpoints.push_back(endPoint);
+  document->contentSecurityPolicy()->reportViolation(
+      violation.directive, /* directiveText */
+      ContentSecurityPolicy::getDirectiveType(
+          violation.effectiveDirective), /* effectiveType */
+      violation.consoleMessage,          /* consoleMessage */
+      violation.blockedUrl,              /* blockedUrl */
+      reportEndpoints,                   /* reportEndpoints */
+      violation.header,                  /* header */
+      static_cast<ContentSecurityPolicyHeaderType>(violation.disposition),
+      ContentSecurityPolicy::ViolationType::URLViolation, /* ViolationType */
+      nullptr,                                            /* LocalFrame */
+      violation.afterRedirect ? RedirectStatus::FollowedRedirect
+                              : RedirectStatus::NoRedirect,
+      // TODO(arthursonzogni, clamy) Provide the context line number here.
+      // See http://crbug.com/690946
+      0,        /* contextLine */
+      nullptr); /* Element */
 }
 
 bool WebLocalFrameImpl::isLoading() const {

@@ -330,7 +330,7 @@ void StyleSheetContents::parserAddNamespace(const AtomicString& prefix,
 
 const AtomicString& StyleSheetContents::namespaceURIFromPrefix(
     const AtomicString& prefix) {
-  return m_namespaces.get(prefix);
+  return m_namespaces.at(prefix);
 }
 
 void StyleSheetContents::parseAuthorStyleSheet(
@@ -347,7 +347,8 @@ void StyleSheetContents::parseAuthorStyleSheet(
   // not be same as the base URL.
   // TODO(horo): When we will use the original URL as the base URL, we can
   // remove this check. crbug.com/553535
-  if (cachedStyleSheet->response().wasFetchedViaServiceWorker()) {
+  if (isSameOriginRequest &&
+      cachedStyleSheet->response().wasFetchedViaServiceWorker()) {
     const KURL originalURL(
         cachedStyleSheet->response().originalURLViaServiceWorker());
     // |originalURL| is empty when the response is created in the SW.

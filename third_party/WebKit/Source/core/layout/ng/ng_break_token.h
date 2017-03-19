@@ -6,11 +6,11 @@
 #define NGBreakToken_h
 
 #include "core/CoreExport.h"
+#include "core/layout/ng/ng_layout_input_node.h"
 #include "platform/heap/Handle.h"
+#include "wtf/RefCounted.h"
 
 namespace blink {
-
-class NGLayoutInputNode;
 
 // A break token is a continuation token for layout. A single layout input node
 // can have multiple fragments asssociated with it.
@@ -31,32 +31,33 @@ class NGLayoutInputNode;
 // NGPhysicalFragment* fragment2 = node->Layout(space, fragment->BreakToken());
 //
 // The break token should encapsulate enough information to "resume" the layout.
-class CORE_EXPORT NGBreakToken
-    : public GarbageCollectedFinalized<NGBreakToken> {
+class CORE_EXPORT NGBreakToken : public RefCounted<NGBreakToken> {
  public:
   virtual ~NGBreakToken() {}
 
   enum NGBreakTokenType { kBlockBreakToken, kTextBreakToken };
   NGBreakTokenType Type() const { return static_cast<NGBreakTokenType>(type_); }
 
+  enum NGBreakTokenStatus { kUnfinished, kFinished };
+
   // Whether the layout node cannot produce any more fragments.
-  bool IsFinished() const { return is_finished_; }
+  bool IsFinished() const { return status_ == kFinished; }
 
   // Returns the node associated with this break token. A break token cannot be
   // used with any other node.
   NGLayoutInputNode* InputNode() const { return node_; }
 
-  DEFINE_INLINE_VIRTUAL_TRACE() { visitor->trace(node_); }
-
  protected:
-  NGBreakToken(NGBreakTokenType type, bool is_finished, NGLayoutInputNode* node)
-      : type_(type), is_finished_(is_finished), node_(node) {}
+  NGBreakToken(NGBreakTokenType type,
+               NGBreakTokenStatus status,
+               NGLayoutInputNode* node)
+      : type_(type), status_(status), node_(node) {}
 
  private:
   unsigned type_ : 1;
-  unsigned is_finished_ : 1;
+  unsigned status_ : 1;
 
-  Member<NGLayoutInputNode> node_;
+  Persistent<NGLayoutInputNode> node_;
 };
 
 }  // namespace blink

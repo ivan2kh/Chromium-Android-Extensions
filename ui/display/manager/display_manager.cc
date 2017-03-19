@@ -27,6 +27,7 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/display/display.h"
+#include "ui/display/display_finder.h"
 #include "ui/display/display_observer.h"
 #include "ui/display/display_switches.h"
 #include "ui/display/manager/display_layout_store.h"
@@ -264,16 +265,21 @@ void DisplayManager::SetLayoutForCurrentDisplays(
     delegate_->PostDisplayConfigurationChange(false);
 }
 
-const Display& DisplayManager::GetDisplayForId(int64_t id) const {
-  Display* display = const_cast<DisplayManager*>(this)->FindDisplayForId(id);
+const Display& DisplayManager::GetDisplayForId(int64_t display_id) const {
+  Display* display =
+      const_cast<DisplayManager*>(this)->FindDisplayForId(display_id);
   return display ? *display : GetInvalidDisplay();
+}
+
+bool DisplayManager::IsDisplayIdValid(int64_t display_id) const {
+  return GetDisplayForId(display_id).is_valid();
 }
 
 const Display& DisplayManager::FindDisplayContainingPoint(
     const gfx::Point& point_in_screen) const {
-  int index =
-      FindDisplayIndexContainingPoint(active_display_list_, point_in_screen);
-  return index < 0 ? GetInvalidDisplay() : active_display_list_[index];
+  auto iter = display::FindDisplayContainingPoint(active_display_list_,
+                                                  point_in_screen);
+  return iter == active_display_list_.end() ? GetInvalidDisplay() : *iter;
 }
 
 bool DisplayManager::UpdateWorkAreaOfDisplay(int64_t display_id,

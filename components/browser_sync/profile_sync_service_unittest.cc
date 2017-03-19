@@ -222,8 +222,6 @@ class ProfileSyncServiceTest : public ::testing::Test {
             ProfileSyncService::AUTO_START, builder.Build());
 
     prefs()->SetBoolean(syncer::prefs::kEnableLocalSyncBackend, true);
-    init_params.local_sync_backend_folder =
-        base::FilePath(FILE_PATH_LITERAL("dummyPath"));
     init_params.oauth2_token_service = nullptr;
     init_params.gaia_cookie_manager_service = nullptr;
 
@@ -375,8 +373,7 @@ TEST_F(ProfileSyncServiceTest, InitialState) {
 
 // Verify a successful initialization.
 TEST_F(ProfileSyncServiceTest, SuccessfulInitialization) {
-  prefs()->SetManagedPref(syncer::prefs::kSyncManaged,
-                          new base::FundamentalValue(false));
+  prefs()->SetManagedPref(syncer::prefs::kSyncManaged, new base::Value(false));
   IssueTestTokens();
   CreateService(ProfileSyncService::AUTO_START);
   ExpectDataTypeManagerCreation(1, GetDefaultConfigureCalledCallback());
@@ -388,8 +385,7 @@ TEST_F(ProfileSyncServiceTest, SuccessfulInitialization) {
 
 // Verify a successful initialization.
 TEST_F(ProfileSyncServiceTest, SuccessfulLocalBackendInitialization) {
-  prefs()->SetManagedPref(syncer::prefs::kSyncManaged,
-                          new base::FundamentalValue(false));
+  prefs()->SetManagedPref(syncer::prefs::kSyncManaged, new base::Value(false));
   IssueTestTokens();
   CreateServiceWithLocalSyncBackend();
   ExpectDataTypeManagerCreation(1, GetDefaultConfigureCalledCallback());
@@ -402,8 +398,7 @@ TEST_F(ProfileSyncServiceTest, SuccessfulLocalBackendInitialization) {
 // Verify that an initialization where first setup is not complete does not
 // start up the backend.
 TEST_F(ProfileSyncServiceTest, NeedsConfirmation) {
-  prefs()->SetManagedPref(syncer::prefs::kSyncManaged,
-                          new base::FundamentalValue(false));
+  prefs()->SetManagedPref(syncer::prefs::kSyncManaged, new base::Value(false));
   IssueTestTokens();
   CreateService(ProfileSyncService::MANUAL_START);
   syncer::SyncPrefs sync_prefs(prefs());
@@ -438,8 +433,7 @@ TEST_F(ProfileSyncServiceTest, SetupInProgress) {
 
 // Verify that disable by enterprise policy works.
 TEST_F(ProfileSyncServiceTest, DisabledByPolicyBeforeInit) {
-  prefs()->SetManagedPref(syncer::prefs::kSyncManaged,
-                          new base::FundamentalValue(true));
+  prefs()->SetManagedPref(syncer::prefs::kSyncManaged, new base::Value(true));
   IssueTestTokens();
   CreateService(ProfileSyncService::AUTO_START);
   InitializeForNthSync();
@@ -459,8 +453,7 @@ TEST_F(ProfileSyncServiceTest, DisabledByPolicyAfterInit) {
   EXPECT_FALSE(service()->IsManaged());
   EXPECT_TRUE(service()->IsSyncActive());
 
-  prefs()->SetManagedPref(syncer::prefs::kSyncManaged,
-                          new base::FundamentalValue(true));
+  prefs()->SetManagedPref(syncer::prefs::kSyncManaged, new base::Value(true));
 
   EXPECT_TRUE(service()->IsManaged());
   EXPECT_FALSE(service()->IsSyncActive());

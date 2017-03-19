@@ -5,6 +5,7 @@
 #include "ui/gfx/color_space.h"
 
 #include <map>
+#include <sstream>
 
 #include "base/lazy_instance.h"
 #include "base/synchronization/lock.h"
@@ -201,6 +202,12 @@ ColorSpace ColorSpace::CreateSRGB() {
 }
 
 // static
+ColorSpace ColorSpace::CreateExtendedSRGB() {
+  return ColorSpace(PrimaryID::BT709, TransferID::IEC61966_2_1_HDR,
+                    MatrixID::RGB, RangeID::FULL);
+}
+
+// static
 ColorSpace ColorSpace::CreateCustom(const SkMatrix44& to_XYZD50,
                                     const SkColorSpaceTransferFn& fn) {
   ColorSpace result(ColorSpace::PrimaryID::CUSTOM,
@@ -272,7 +279,15 @@ bool ColorSpace::operator==(const ColorSpace& other) const {
 bool ColorSpace::IsHDR() const {
   return transfer_ == TransferID::SMPTEST2084 ||
          transfer_ == TransferID::ARIB_STD_B67 ||
-         transfer_ == TransferID::LINEAR_HDR;
+         transfer_ == TransferID::LINEAR_HDR ||
+         transfer_ == TransferID::IEC61966_2_1_HDR;
+}
+
+bool ColorSpace::FullRangeEncodedValues() const {
+  return transfer_ == TransferID::LINEAR_HDR ||
+         transfer_ == TransferID::IEC61966_2_1_HDR ||
+         transfer_ == TransferID::BT1361_ECG ||
+         transfer_ == TransferID::IEC61966_2_4;
 }
 
 bool ColorSpace::operator!=(const ColorSpace& other) const {
@@ -315,6 +330,48 @@ bool ColorSpace::operator<(const ColorSpace& other) const {
       return false;
   }
   return false;
+}
+
+std::string ColorSpace::ToString() const {
+  std::stringstream ss;
+  ss << "{primaries:";
+  if (primaries_ == PrimaryID::CUSTOM) {
+    ss << "[";
+    for (size_t i = 0; i < 3; ++i) {
+      ss << "[";
+      for (size_t j = 0; j < 3; ++j) {
+        ss << custom_primary_matrix_[3 * i + j];
+        ss << ",";
+      }
+      ss << "],";
+    }
+    ss << "]";
+  } else {
+    ss << static_cast<int>(primaries_);
+  }
+  ss << ", transfer:";
+  if (transfer_ == TransferID::CUSTOM) {
+    ss << "[";
+    for (size_t i = 0; i < 7; ++i)
+      ss << custom_transfer_params_[i];
+    ss << "]";
+  } else {
+    ss << static_cast<int>(transfer_);
+  }
+  ss << ", matrix:" << static_cast<int>(matrix_);
+  ss << ", range:" << static_cast<int>(range_);
+  ss << ", icc_profile_id:" << icc_profile_id_;
+  ss << "}";
+  return ss.str();
+}
+
+ColorSpace ColorSpace::GetAsFullRangeRGB() const {
+  ColorSpace result(*this);
+  if (!IsValid())
+    return result;
+  result.matrix_ = MatrixID::RGB;
+  result.range_ = RangeID::FULL;
+  return result;
 }
 
 sk_sp<SkColorSpace> ColorSpace::ToSkColorSpace() const {
@@ -368,12 +425,22 @@ sk_sp<SkColorSpace> ColorSpace::ToSkColorSpace() const {
 }
 
 bool ColorSpace::GetICCProfile(ICCProfile* icc_profile) const {
-  if (!IsValid())
+  if (!IsValid()) {
+    DLOG(ERROR) << "Cannot fetch ICCProfile for invalid space.";
     return false;
+  }
+  if (matrix_ != MatrixID::RGB) {
+    DLOG(ERROR) << "Not creating non-RGB ICCProfile";
+    return false;
+  }
+  if (range_ != RangeID::FULL) {
+    DLOG(ERROR) << "Not creating non-full-range ICCProfile";
+    return false;
+  }
 
   // If this was created from an ICC profile, retrieve that exact profile.
   ICCProfile result;
-  if (ICCProfile::FromId(icc_profile_id_, false, icc_profile))
+  if (ICCProfile::FromId(icc_profile_id_, icc_profile))
     return true;
 
   // Otherwise, construct an ICC profile based on the best approximated
@@ -403,6 +470,7 @@ void ColorSpace::GetPrimaryMatrix(SkMatrix44* to_XYZD50) const {
       return;
 
     case ColorSpace::PrimaryID::INVALID:
+    case ColorSpace::PrimaryID::ICC_BASED:
       to_XYZD50->setIdentity();
       return;
 
@@ -585,6 +653,7 @@ bool ColorSpace::GetTransferFunction(SkColorSpaceTransferFn* fn) const {
       fn->fG = 2.222222222222f;
       return true;
     case ColorSpace::TransferID::IEC61966_2_1:
+    case ColorSpace::TransferID::IEC61966_2_1_HDR:
       fn->fA = 0.947867345704f;
       fn->fB = 0.052132654296f;
       fn->fC = 0.077399380805f;
@@ -607,6 +676,7 @@ bool ColorSpace::GetTransferFunction(SkColorSpaceTransferFn* fn) const {
     case ColorSpace::TransferID::SMPTEST2084:
     case ColorSpace::TransferID::SMPTEST2084_NON_HDR:
     case ColorSpace::TransferID::INVALID:
+    case ColorSpace::TransferID::ICC_BASED:
       break;
   }
 
@@ -618,6 +688,11 @@ bool ColorSpace::GetInverseTransferFunction(SkColorSpaceTransferFn* fn) const {
     return false;
   *fn = SkTransferFnInverse(*fn);
   return true;
+}
+
+bool ColorSpace::HasExtendedSkTransferFn() const {
+  return transfer_ == TransferID::LINEAR_HDR ||
+         transfer_ == TransferID::IEC61966_2_1_HDR;
 }
 
 void ColorSpace::GetTransferMatrix(SkMatrix44* matrix) const {
@@ -737,6 +812,10 @@ void ColorSpace::GetRangeAdjustMatrix(SkMatrix44* matrix) const {
       matrix->postTranslate(-16.0f/219.0f, -15.5f/224.0f, -15.5f/224.0f);
       break;
   }
+}
+
+std::ostream& operator<<(std::ostream& out, const ColorSpace& color_space) {
+  return out << color_space.ToString();
 }
 
 }  // namespace gfx

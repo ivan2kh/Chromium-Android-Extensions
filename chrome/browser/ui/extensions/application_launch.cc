@@ -195,28 +195,6 @@ WebContents* OpenApplicationWindow(const AppLaunchParams& params,
   }
 
   return NULL;
-//  Browser::CreateParams browser_params(Browser::CreateParams::CreateForApp(
-//      app_name, true /* trusted_source */, initial_bounds, profile));
-
-//  browser_params.initial_show_state = DetermineWindowShowState(profile,
-//                                                               params.container,
-//                                                               extension);
-//  Browser* browser = new Browser(browser_params);
-//  ui::PageTransition transition =
-//      (extension ? ui::PAGE_TRANSITION_AUTO_BOOKMARK
-//                 : ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
-//
-//  WebContents* web_contents =
-//      chrome::AddSelectedTabWithURL(browser, url, transition);
-//  web_contents->GetMutableRendererPrefs()->can_accept_load_drops = false;
-//  web_contents->GetRenderViewHost()->SyncRendererPrefs();
-//
-//  browser->window()->Show();
-//
-//  // TODO(jcampan): http://crbug.com/8123 we should not need to set the initial
-//  //                focus explicitly.
-//  web_contents->SetInitialFocus();
-//  return web_contents;
 }
 
 WebContents* OpenApplicationTab(const AppLaunchParams& launch_params,
@@ -233,7 +211,11 @@ WebContents* OpenApplicationTab(const AppLaunchParams& launch_params,
   WebContents* contents = NULL;
   if (!browser) {
     // No browser for this profile, need to open a new one.
-    browser = new Browser(Browser::CreateParams(Browser::TYPE_TABBED, profile));
+    //
+    // TODO(erg): AppLaunchParams should pass user_gesture from the extension
+    // system to here.
+    browser =
+        new Browser(Browser::CreateParams(Browser::TYPE_TABBED, profile, true));
     browser->window()->Show();
     // There's no current tab in this browser window, so add a new one.
     disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;

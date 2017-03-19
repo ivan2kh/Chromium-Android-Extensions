@@ -14,9 +14,9 @@
 #import "ios/chrome/browser/ui/contextual_search/contextual_search_web_state_observer.h"
 #import "ios/chrome/common/material_timing.h"
 #include "ios/web/public/load_committed_details.h"
-#import "ios/web/public/web_state/crw_web_view_proxy.h"
-#import "ios/web/public/web_state/crw_web_view_scroll_view_proxy.h"
 #import "ios/web/public/web_state/ui/crw_native_content_provider.h"
+#import "ios/web/public/web_state/ui/crw_web_view_proxy.h"
+#import "ios/web/public/web_state/ui/crw_web_view_scroll_view_proxy.h"
 #import "ios/web/web_state/ui/crw_web_controller.h"
 
 namespace {
@@ -140,14 +140,14 @@ enum SearchResultsViewVisibility { OFFSCREEN, PRELOAD, VISIBLE };
   };
 
   ui::PageTransition transition = ui::PAGE_TRANSITION_FROM_ADDRESS_BAR;
-  Tab* tab = [Tab newPreloadingTabWithBrowserState:self.opener.browserState
-                                               url:url
-                                          referrer:web::Referrer()
-                                        transition:transition
-                                          provider:self
-                                            opener:self.opener
-                                  desktopUserAgent:false
-                                     configuration:searchTabConfiguration];
+  Tab* tab = [Tab preloadingTabWithBrowserState:self.opener.browserState
+                                            url:url
+                                       referrer:web::Referrer()
+                                     transition:transition
+                                       provider:self
+                                         opener:self.opener
+                               desktopUserAgent:false
+                                  configuration:searchTabConfiguration];
   _tab.reset([tab retain]);
   // Don't actually start the page load yet -- that happens in -loadTab
 

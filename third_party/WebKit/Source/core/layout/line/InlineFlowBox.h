@@ -73,7 +73,8 @@ class InlineFlowBox : public InlineBox {
     // must not apply. This change also means that gaps will exist between image
     // bullet list items.  Even when the list bullet is an image, the line is
     // still considered to be immune from the quirk.
-    m_hasTextChildren = lineLayoutItem.style()->display() == EDisplay::ListItem;
+    m_hasTextChildren =
+        lineLayoutItem.style()->display() == EDisplay::kListItem;
     m_hasTextDescendants = m_hasTextChildren;
   }
 
@@ -266,14 +267,15 @@ class InlineFlowBox : public InlineBox {
   SelectionState getSelectionState() const override;
 
   bool canAccommodateEllipsis(bool ltr,
-                              int blockEdge,
-                              int ellipsisWidth) const final;
+                              LayoutUnit blockEdge,
+                              LayoutUnit ellipsisWidth) const final;
   LayoutUnit placeEllipsisBox(bool ltr,
                               LayoutUnit blockLeftEdge,
                               LayoutUnit blockRightEdge,
                               LayoutUnit ellipsisWidth,
                               LayoutUnit& truncatedWidth,
-                              bool&) override;
+                              bool&,
+                              LayoutUnit logicalLeftOffset) override;
 
   bool hasTextChildren() const { return m_hasTextChildren; }
   bool hasTextDescendants() const { return m_hasTextDescendants; }

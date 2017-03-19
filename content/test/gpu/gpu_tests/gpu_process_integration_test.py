@@ -50,8 +50,8 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
     return 'gpu_process'
 
   @classmethod
-  def setUpClass(cls):
-    super(cls, GpuProcessIntegrationTest).setUpClass()
+  def SetUpProcess(cls):
+    super(cls, GpuProcessIntegrationTest).SetUpProcess()
     cls._original_finder_options = cls._finder_options.Copy()
     cls.CustomizeBrowserArgs([])
     cls.StartBrowser()
@@ -110,12 +110,13 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
              ('GpuProcess_driver_bug_workarounds_upon_gl_renderer',
               'chrome:gpu'),
              ('GpuProcess_only_one_workaround', 'chrome:gpu'),
-             ('GpuProcess_skip_gpu_process', 'chrome:gpu'),
+             ('GpuProcess_skip_gpu_process', 'gpu/functional_webgl.html'),
              ('GpuProcess_identify_active_gpu1', 'chrome:gpu'),
              ('GpuProcess_identify_active_gpu2', 'chrome:gpu'),
              ('GpuProcess_identify_active_gpu3', 'chrome:gpu'),
              ('GpuProcess_identify_active_gpu4', 'chrome:gpu'),
-             ('GpuProcess_software_gpu_process', 'about:blank'))
+             ('GpuProcess_disabling_workarounds_works', 'chrome:gpu'),
+             ('GpuProcess_swiftshader_for_webgl', 'gpu/functional_webgl.html'))
 
     # The earlier has_transparent_visuals_gpu_process and
     # no_transparent_visuals_gpu_process tests became no-ops in
@@ -142,22 +143,22 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
 
   def _NavigateAndWait(self, test_path):
     self._Navigate(test_path)
-    self.tab.action_runner.WaitForJavaScriptCondition2(
+    self.tab.action_runner.WaitForJavaScriptCondition(
       'window.domAutomationController._finished', timeout=10)
 
   def _VerifyGpuProcessPresent(self):
     tab = self.tab
-    if not tab.EvaluateJavaScript2('chrome.gpuBenchmarking.hasGpuChannel()'):
+    if not tab.EvaluateJavaScript('chrome.gpuBenchmarking.hasGpuChannel()'):
       self.fail('No GPU channel detected')
 
   def _ValidateDriverBugWorkaroundsImpl(self, process_kind, is_expected,
                                     workaround_name):
     tab = self.tab
     if process_kind == "browser_process":
-      gpu_driver_bug_workarounds = tab.EvaluateJavaScript2(
+      gpu_driver_bug_workarounds = tab.EvaluateJavaScript(
         'GetDriverBugWorkarounds()')
     elif process_kind == "gpu_process":
-      gpu_driver_bug_workarounds = tab.EvaluateJavaScript2(
+      gpu_driver_bug_workarounds = tab.EvaluateJavaScript(
         'chrome.gpuBenchmarking.getGpuDriverBugWorkarounds()')
 
     is_present = workaround_name in gpu_driver_bug_workarounds
@@ -171,7 +172,7 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
 
     if failure:
       print 'Test failed. Printing page contents:'
-      print tab.EvaluateJavaScript2('document.body.innerHTML')
+      print tab.EvaluateJavaScript('document.body.innerHTML')
       self.fail('%s %s in %s workarounds: %s'
                 % (workaround_name, error_message, process_kind,
                    gpu_driver_bug_workarounds))
@@ -199,25 +200,25 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
 
   def _CompareAndCaptureDriverBugWorkarounds(self):
     tab = self.tab
-    if not tab.EvaluateJavaScript2('chrome.gpuBenchmarking.hasGpuProcess()'):
+    if not tab.EvaluateJavaScript('chrome.gpuBenchmarking.hasGpuProcess()'):
       self.fail('No GPU process detected')
 
-    if not tab.EvaluateJavaScript2('chrome.gpuBenchmarking.hasGpuChannel()'):
+    if not tab.EvaluateJavaScript('chrome.gpuBenchmarking.hasGpuChannel()'):
       self.fail('No GPU channel detected')
 
-    browser_list = tab.EvaluateJavaScript2('GetDriverBugWorkarounds()')
-    gpu_list = tab.EvaluateJavaScript2(
+    browser_list = tab.EvaluateJavaScript('GetDriverBugWorkarounds()')
+    gpu_list = tab.EvaluateJavaScript(
       'chrome.gpuBenchmarking.getGpuDriverBugWorkarounds()')
 
     diff = set(browser_list).symmetric_difference(set(gpu_list))
     if len(diff) > 0:
       print 'Test failed. Printing page contents:'
-      print tab.EvaluateJavaScript2('document.body.innerHTML')
+      print tab.EvaluateJavaScript('document.body.innerHTML')
       self.fail('Browser and GPU process list of driver bug'
                 'workarounds are not equal: %s != %s, diff: %s' %
                 (browser_list, gpu_list, list(diff)))
 
-    basic_infos = tab.EvaluateJavaScript2('browserBridge.gpuInfo.basic_info')
+    basic_infos = tab.EvaluateJavaScript('browserBridge.gpuInfo.basic_info')
     disabled_gl_extensions = None
     for info in basic_infos:
       if info['description'].startswith('Disabled Extensions'):
@@ -229,7 +230,7 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
   def _VerifyActiveAndInactiveGPUs(
       self, expected_active_gpu, expected_inactive_gpus):
     tab = self.tab
-    basic_infos = tab.EvaluateJavaScript2('browserBridge.gpuInfo.basic_info')
+    basic_infos = tab.EvaluateJavaScript('browserBridge.gpuInfo.basic_info')
     active_gpu = []
     inactive_gpus = []
     index = 0
@@ -317,7 +318,7 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
         '--gpu-testing-vendor-id=0x8086',
         '--gpu-testing-device-id=0x0116'])
     self._Navigate(test_path)
-    if self.tab.EvaluateJavaScript2('chrome.gpuBenchmarking.hasGpuProcess()'):
+    if self.tab.EvaluateJavaScript('chrome.gpuBenchmarking.hasGpuProcess()'):
       self.fail('GPU process detected')
 
   def _GpuProcess_driver_bug_workarounds_in_gpu_process(self, test_path):
@@ -341,7 +342,7 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
         'on llvmpipe (LLVM 3.4, 256 bits)',
         '--gpu-testing-gl-version="3.0 Mesa 11.2"'])
       self._Navigate(test_path)
-      feature_status_list = self.tab.EvaluateJavaScript2(
+      feature_status_list = self.tab.EvaluateJavaScript(
           'browserBridge.gpuInfo.featureStatus.featureStatus')
       result = True
       for name, status in feature_status_list.items():
@@ -436,25 +437,30 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
     tab = self.tab
     if len(diff) > 0:
       print 'Test failed. Printing page contents:'
-      print tab.EvaluateJavaScript2('document.body.innerHTML')
+      print tab.EvaluateJavaScript('document.body.innerHTML')
       self.fail(
         'GPU process and expected list of driver bug '
         'workarounds are not equal: %s != %s, diff: %s' %
         (recorded_workarounds, new_workarounds, list(diff)))
     if recorded_disabled_gl_extensions != new_disabled_gl_extensions:
       print 'Test failed. Printing page contents:'
-      print tab.EvaluateJavaScript2('document.body.innerHTML')
+      print tab.EvaluateJavaScript('document.body.innerHTML')
       self.fail(
         'The expected disabled gl extensions are '
         'incorrect: %s != %s:' %
         (recorded_disabled_gl_extensions, new_disabled_gl_extensions))
 
   def _GpuProcess_skip_gpu_process(self, test_path):
+    # This test loads functional_webgl.html so that there is a
+    # deliberate attempt to use an API which would start the GPU
+    # process. On platforms where SwiftShader is used, this test
+    # should be skipped. Once SwiftShader is enabled on all platforms,
+    # this test should be removed.
     self.RestartBrowserIfNecessaryWithArgs([
       '--disable-gpu',
       '--skip-gpu-data-loading'])
-    self._Navigate(test_path)
-    if self.tab.EvaluateJavaScript2('chrome.gpuBenchmarking.hasGpuProcess()'):
+    self._NavigateAndWait(test_path)
+    if self.tab.EvaluateJavaScript('chrome.gpuBenchmarking.hasGpuProcess()'):
       self.fail('GPU process detected')
 
   def _GpuProcess_identify_active_gpu1(self, test_path):
@@ -507,16 +513,42 @@ class GpuProcessIntegrationTest(gpu_integration_test.GpuIntegrationTest):
       ['VENDOR = 0x10de, DEVICE= 0x0de1 *ACTIVE*'],
       [])
 
-  def _GpuProcess_software_gpu_process(self, test_path):
-    # Hit exception from id 50 from kSoftwareRenderingListJson.
+  def _GpuProcess_disabling_workarounds_works(self, test_path):
+    # Hit exception from id 215 from kGpuDriverBugListJson.
     self.RestartBrowserIfNecessaryWithArgs([
-      '--gpu-testing-vendor-id=0x10de',
-      '--gpu-testing-device-id=0x0de1',
-      '--gpu-testing-gl-vendor=VMware',
-      '--gpu-testing-gl-renderer=SVGA3D',
-      '--gpu-testing-gl-version=2.1 Mesa 10.1'])
+      '--gpu-testing-vendor-id=0xbad9',
+      '--gpu-testing-device-id=0xbad9',
+      '--gpu-testing-secondary-vendor-ids=',
+      '--gpu-testing-secondary-device-ids=',
+      '--gpu-testing-gl-vendor=FakeVendor',
+      '--gpu-testing-gl-renderer=FakeRenderer',
+      '--use_gpu_driver_workaround_for_testing=0'])
     self._Navigate(test_path)
-    self._VerifyGpuProcessPresent()
+    workarounds, _ = (
+      self._CompareAndCaptureDriverBugWorkarounds())
+    if 'use_gpu_driver_workaround_for_testing' in workarounds:
+      self.fail('use_gpu_driver_workaround_for_testing erroneously present')
+
+  def _GpuProcess_swiftshader_for_webgl(self, test_path):
+    # This test loads functional_webgl.html so that there is a
+    # deliberate attempt to use an API which would start the GPU
+    # process. On Windows, and eventually on other platforms where
+    # SwiftShader is used, this test should pass.
+    #
+    # TODO(kbr): figure out a better way than --disable-gpu to
+    # reliably trigger SwiftShader.
+    self.RestartBrowserIfNecessaryWithArgs(['--disable-gpu'])
+    self._NavigateAndWait(test_path)
+    # It looks like when SwiftShader is in use (via --disable-gpu),
+    # that GPU information collection doesn't yet contain what's
+    # expected (the system_info.gpu.aux_attributes['gl_renderer']
+    # looks like it'll be null). Verified locally that we can fetch
+    # the desired information via WebGL.
+    renderer = self.tab.EvaluateJavaScript('gl_renderer')
+    if not renderer:
+      self.fail('getParameter(UNMASKED_RENDERER_WEBGL) was null')
+    if 'SwiftShader' not in renderer:
+      self.fail('Expected SwiftShader renderer; instead got ' + renderer)
 
 def load_tests(loader, tests, pattern):
   del loader, tests, pattern  # Unused.

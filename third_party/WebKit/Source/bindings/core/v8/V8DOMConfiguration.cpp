@@ -36,21 +36,34 @@ namespace blink {
 
 namespace {
 
+template <class Configuration>
+bool worldConfigurationApplies(const Configuration& config,
+                               const DOMWrapperWorld& world) {
+  const auto currentWorldConfig = world.isMainWorld()
+                                      ? V8DOMConfiguration::MainWorld
+                                      : V8DOMConfiguration::NonMainWorlds;
+  return config.worldConfiguration & currentWorldConfig;
+}
+
+template <>
+bool worldConfigurationApplies(
+    const V8DOMConfiguration::SymbolKeyedMethodConfiguration&,
+    const DOMWrapperWorld&) {
+  return true;
+}
+
 void installAttributeInternal(
     v8::Isolate* isolate,
     v8::Local<v8::ObjectTemplate> instanceTemplate,
     v8::Local<v8::ObjectTemplate> prototypeTemplate,
     const V8DOMConfiguration::AttributeConfiguration& attribute,
     const DOMWrapperWorld& world) {
+  if (!worldConfigurationApplies(attribute, world))
+    return;
+
   v8::Local<v8::Name> name = v8AtomicString(isolate, attribute.name);
   v8::AccessorNameGetterCallback getter = attribute.getter;
   v8::AccessorNameSetterCallback setter = attribute.setter;
-  if (world.isMainWorld()) {
-    if (attribute.getterForMainWorld)
-      getter = attribute.getterForMainWorld;
-    if (attribute.setterForMainWorld)
-      setter = attribute.setterForMainWorld;
-  }
   v8::Local<v8::Value> data =
       v8::External::New(isolate, const_cast<WrapperTypeInfo*>(attribute.data));
 
@@ -79,6 +92,8 @@ void installAttributeInternal(
     v8::Local<v8::Object> prototype,
     const V8DOMConfiguration::AttributeConfiguration& attribute,
     const DOMWrapperWorld& world) {
+  if (!worldConfigurationApplies(attribute, world))
+    return;
   v8::Local<v8::Name> name = v8AtomicString(isolate, attribute.name);
 
   // This method is only being used for installing interfaces which are
@@ -119,8 +134,7 @@ void installLazyDataAttributeInternal(
   v8::Local<v8::Name> name = v8AtomicString(isolate, attribute.name);
   v8::AccessorNameGetterCallback getter = attribute.getter;
   DCHECK(!attribute.setter);
-  DCHECK(!attribute.getterForMainWorld);
-  DCHECK(!attribute.setterForMainWorld);
+  DCHECK_EQ(attribute.worldConfiguration, V8DOMConfiguration::AllWorlds);
   v8::Local<v8::Value> data =
       v8::External::New(isolate, const_cast<WrapperTypeInfo*>(attribute.data));
 
@@ -211,15 +225,13 @@ void installAccessorInternal(
     v8::Local<v8::Signature> signature,
     const V8DOMConfiguration::AccessorConfiguration& accessor,
     const DOMWrapperWorld& world) {
+  if (!worldConfigurationApplies(accessor, world))
+    return;
   v8::Local<v8::Name> name = v8AtomicString(isolate, accessor.name);
   v8::FunctionCallback getterCallback = accessor.getter;
   v8::FunctionCallback setterCallback = accessor.setter;
   V8DOMConfiguration::CachedAccessorCallback cachedAccessorCallback = nullptr;
   if (world.isMainWorld()) {
-    if (accessor.getterForMainWorld)
-      getterCallback = accessor.getterForMainWorld;
-    if (accessor.setterForMainWorld)
-      setterCallback = accessor.setterForMainWorld;
     cachedAccessorCallback = accessor.cachedAccessorCallback;
   }
 
@@ -331,8 +343,11 @@ void installMethodInternal(v8::Isolate* isolate,
                            v8::Local<v8::Signature> signature,
                            const Configuration& method,
                            const DOMWrapperWorld& world) {
+  if (!worldConfigurationApplies(method, world))
+    return;
+
   v8::Local<v8::Name> name = method.methodName(isolate);
-  v8::FunctionCallback callback = method.callbackForWorld(world);
+  v8::FunctionCallback callback = method.callback;
   // Promise-returning functions need to return a reject promise when
   // an exception occurs.  This includes a case that the receiver object is not
   // of the type.  So, we disable the type check of the receiver object on V8
@@ -348,6 +363,8 @@ void installMethodInternal(v8::Isolate* isolate,
         v8::FunctionTemplate::New(isolate, callback, v8::Local<v8::Value>(),
                                   signature, method.length);
     functionTemplate->RemovePrototype();
+    if (method.accessCheckConfiguration == V8DOMConfiguration::CheckAccess)
+      functionTemplate->SetAcceptAnyReceiver(false);
     if (method.propertyLocationConfiguration & V8DOMConfiguration::OnInstance)
       instanceTemplate->Set(
           name, functionTemplate,
@@ -358,13 +375,15 @@ void installMethodInternal(v8::Isolate* isolate,
           static_cast<v8::PropertyAttribute>(method.attribute));
   }
   if (method.propertyLocationConfiguration & V8DOMConfiguration::OnInterface) {
-    // Operations installed on the interface object must be static
-    // operations, so no need to specify a signature, i.e. no need to do
-    // type check against a holder.
+    // Operations installed on the interface object must be static methods, so
+    // no need to specify a signature, i.e. no need to do type check against a
+    // holder.
     v8::Local<v8::FunctionTemplate> functionTemplate =
         v8::FunctionTemplate::New(isolate, callback, v8::Local<v8::Value>(),
                                   v8::Local<v8::Signature>(), method.length);
     functionTemplate->RemovePrototype();
+    // Similarly, there is no need to do an access check for static methods, as
+    // there is no holder to check against.
     interfaceTemplate->Set(
         name, functionTemplate,
         static_cast<v8::PropertyAttribute>(method.attribute));
@@ -379,8 +398,11 @@ void installMethodInternal(
     v8::Local<v8::Signature> signature,
     const V8DOMConfiguration::MethodConfiguration& method,
     const DOMWrapperWorld& world) {
+  if (!worldConfigurationApplies(method, world))
+    return;
+
   v8::Local<v8::Name> name = method.methodName(isolate);
-  v8::FunctionCallback callback = method.callbackForWorld(world);
+  v8::FunctionCallback callback = method.callback;
   // Promise-returning functions need to return a reject promise when
   // an exception occurs.  This includes a case that the receiver object is not
   // of the type.  So, we disable the type check of the receiver object on V8
@@ -396,6 +418,8 @@ void installMethodInternal(
         v8::FunctionTemplate::New(isolate, callback, v8::Local<v8::Value>(),
                                   signature, method.length);
     functionTemplate->RemovePrototype();
+    if (method.accessCheckConfiguration == V8DOMConfiguration::CheckAccess)
+      functionTemplate->SetAcceptAnyReceiver(false);
     v8::Local<v8::Function> function =
         functionTemplate->GetFunction(isolate->GetCurrentContext())
             .ToLocalChecked();

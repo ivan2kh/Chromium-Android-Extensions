@@ -676,7 +676,9 @@ void SimulateTapWithModifiersAt(WebContents* web_contents,
 
 #if defined(USE_AURA)
 void SimulateTouchPressAt(WebContents* web_contents, const gfx::Point& point) {
-  ui::TouchEvent touch(ui::ET_TOUCH_PRESSED, point, 0, base::TimeTicks());
+  ui::TouchEvent touch(
+      ui::ET_TOUCH_PRESSED, point, base::TimeTicks(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
   static_cast<RenderWidgetHostViewAura*>(
       web_contents->GetRenderWidgetHostView())
       ->OnTouchEvent(&touch);
@@ -1038,7 +1040,7 @@ bool WaitForRenderFrameReady(RenderFrameHost* rfh) {
 void EnableAccessibilityForWebContents(WebContents* web_contents) {
   WebContentsImpl* web_contents_impl =
       static_cast<WebContentsImpl*>(web_contents);
-  web_contents_impl->SetAccessibilityMode(ACCESSIBILITY_MODE_COMPLETE);
+  web_contents_impl->SetAccessibilityMode(kAccessibilityModeComplete);
 }
 
 void WaitForAccessibilityFocusChange() {
@@ -1133,11 +1135,13 @@ void SendRoutedTouchTapSequence(content::WebContents* web_contents,
                                 gfx::Point point) {
   RenderWidgetHostViewAura* rwhva = static_cast<RenderWidgetHostViewAura*>(
       web_contents->GetRenderWidgetHostView());
-  ui::TouchEvent touch_start(ui::ET_TOUCH_PRESSED, point, 0,
-                             base::TimeTicks::Now());
+  ui::TouchEvent touch_start(
+      ui::ET_TOUCH_PRESSED, point, base::TimeTicks::Now(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
   rwhva->OnTouchEvent(&touch_start);
-  ui::TouchEvent touch_end(ui::ET_TOUCH_RELEASED, point, 0,
-                           base::TimeTicks::Now());
+  ui::TouchEvent touch_end(
+      ui::ET_TOUCH_RELEASED, point, base::TimeTicks::Now(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
   rwhva->OnTouchEvent(&touch_end);
 }
 

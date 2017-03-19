@@ -643,7 +643,7 @@ public class AwContents implements SmartClipProvider {
 
         @Override
         public void onScaleLimitsChanged(float minPageScaleFactor, float maxPageScaleFactor) {
-            mZoomControls.invokeZoomPicker();
+            mZoomControls.updateZoomControls();
         }
 
         @Override
@@ -758,7 +758,7 @@ public class AwContents implements SmartClipProvider {
         mAwViewMethods = new AwViewMethodsImpl();
         mFullScreenTransitionsState = new FullScreenTransitionsState(
                 mContainerView, mInternalAccessAdapter, mAwViewMethods);
-        mContentViewClient = new AwContentViewClient(contentsClient, settings, this, mContext);
+        mContentViewClient = new AwContentViewClient(contentsClient, settings, this);
         mLayoutSizer = dependencyFactory.createLayoutSizer();
         mSettings = settings;
         mLayoutSizer.setDelegate(new AwLayoutSizerDelegate());
@@ -1051,8 +1051,8 @@ public class AwContents implements SmartClipProvider {
 
         mWindowAndroid = getWindowAndroid(mContext);
         mContentViewCore = new ContentViewCore(mContext, PRODUCT_VERSION);
-        mViewAndroidDelegate = new AwViewAndroidDelegate(mContainerView,
-                mContentViewCore.getRenderCoordinates());
+        mViewAndroidDelegate = new AwViewAndroidDelegate(
+                mContainerView, mContentsClient, mContentViewCore.getRenderCoordinates());
         initializeContentViewCore(mContentViewCore, mContext, mViewAndroidDelegate,
                 mInternalAccessAdapter, webContents, new AwGestureStateListener(),
                 mContentViewClient, mWindowAndroid.getWindowAndroid());
@@ -1159,8 +1159,9 @@ public class AwContents implements SmartClipProvider {
         }
     }
 
+    @VisibleForTesting
     @CalledByNative
-    private void onRenderProcessGone(int childProcessID) {
+    protected void onRenderProcessGone(int childProcessID) {
         // This is the first callback we got for render process gone, we can't destroy the WebView
         // now because we need to get next callback onRenderProcessGoneWithDetail() to know whether
         // render process crashed or was killed.
@@ -1169,8 +1170,9 @@ public class AwContents implements SmartClipProvider {
         mIsNoOperation = true;
     }
 
+    @VisibleForTesting
     @CalledByNative
-    private boolean onRenderProcessGoneDetail(int childProcessID, boolean crashed) {
+    protected boolean onRenderProcessGoneDetail(int childProcessID, boolean crashed) {
         if (isDestroyed(NO_WARN)) return false;
         return mContentsClient.onRenderProcessGone(new AwRenderProcessGoneDetail(
                 crashed, nativeGetRendererCurrentPriority(mNativeAwContents)));
@@ -1232,7 +1234,12 @@ public class AwContents implements SmartClipProvider {
         assert mWebContents == null;
         assert mNavigationController == null;
         assert mNativeAwContents == 0;
+
+        onDestroyed();
     }
+
+    @VisibleForTesting
+    protected void onDestroyed() {}
 
     /**
      * Returns whether this instance of WebView is flagged as destroyed.
@@ -1987,6 +1994,16 @@ public class AwContents implements SmartClipProvider {
         if (!isDestroyedOrNoOperation(WARN)) nativeClearCache(mNativeAwContents, includeDiskFiles);
     }
 
+    @VisibleForTesting
+    public void killRenderProcess() {
+        if (TRACE) Log.i(TAG, "%s killRenderProcess", this);
+        if (isDestroyedOrNoOperation(WARN)) {
+            throw new IllegalStateException("killRenderProcess() shouldn't invoked after render"
+                    + " process is gone or webview is destoryed");
+        }
+        nativeKillRenderProcess(mNativeAwContents);
+    }
+
     public void documentHasImages(Message message) {
         if (!isDestroyedOrNoOperation(WARN)) nativeDocumentHasImages(mNativeAwContents, message);
     }
@@ -2339,9 +2356,7 @@ public class AwContents implements SmartClipProvider {
     void startProcessTextIntent(Intent intent) {
         // on Android M, WebView is not able to replace the text with the processed text.
         // So set the readonly flag for M.
-        // TODO(hush): remove the part about VERSION.CODENAME equality with N, after N release.
-        // crbug.com/543272
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.M && !Build.VERSION.CODENAME.equals("N")) {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.M) {
             intent.putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true);
         }
 
@@ -2354,6 +2369,7 @@ public class AwContents implements SmartClipProvider {
     }
 
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (isDestroyedOrNoOperation(NO_WARN)) return;
         if (requestCode == PROCESS_TEXT_REQUEST_CODE) {
             mContentViewCore.onReceivedProcessTextResult(resultCode, data);
         } else {
@@ -2796,6 +2812,7 @@ public class AwContents implements SmartClipProvider {
     @CalledByNative
     public void invokeVisualStateCallback(
             final VisualStateCallback callback, final long requestId) {
+        if (isDestroyedOrNoOperation(NO_WARN)) return;
         // Posting avoids invoking the callback inside invoking_composite_
         // (see synchronous_compositor_impl.cc and crbug/452530).
         mHandler.post(new Runnable() {
@@ -2904,6 +2921,18 @@ public class AwContents implements SmartClipProvider {
         // TODO(timvolodine) other potential improvements mentioned:
         // consider content, not attached webviews, giant webviews, ..
         return true;
+    }
+
+    @VisibleForTesting
+    public void callProceedOnInterstitial() {
+        if (isDestroyedOrNoOperation(NO_WARN)) return;
+        nativeCallProceedOnInterstitialForTesting(mNativeAwContents);
+    }
+
+    @VisibleForTesting
+    public void callDontProceedOnInterstitial() {
+        if (isDestroyedOrNoOperation(NO_WARN)) return;
+        nativeCallDontProceedOnInterstitialForTesting(mNativeAwContents);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -3129,7 +3158,7 @@ public class AwContents implements SmartClipProvider {
             }
 
             mScrollOffsetManager.setProcessingTouchEvent(true);
-            boolean rv = mContentViewCore.onTouchEvent(event);
+            boolean rv = mWebContents.getEventForwarder().onTouchEvent(event);
             mScrollOffsetManager.setProcessingTouchEvent(false);
 
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
@@ -3232,7 +3261,7 @@ public class AwContents implements SmartClipProvider {
         public void onFocusChanged(boolean focused, int direction, Rect previouslyFocusedRect) {
             if (isDestroyedOrNoOperation(NO_WARN)) return;
             mContainerViewFocused = focused;
-            mContentViewCore.onFocusChanged(focused);
+            mContentViewCore.onFocusChanged(focused, false /* hideKeyboardOnBlur */);
         }
 
         @Override
@@ -3343,6 +3372,8 @@ public class AwContents implements SmartClipProvider {
     private static native void nativeSetShouldDownloadFavicons();
     private static native void nativeUpdateDefaultLocale(String locale, String localeList);
 
+    private native void nativeCallProceedOnInterstitialForTesting(long nativeAwContents);
+    private native void nativeCallDontProceedOnInterstitialForTesting(long nativeAwContents);
     private native void nativeSetJavaPeers(long nativeAwContents, AwContents awContents,
             AwWebContentsDelegate webViewWebContentsDelegate,
             AwContentsClientBridge contentsClientBridge,
@@ -3366,6 +3397,7 @@ public class AwContents implements SmartClipProvider {
     private native void nativeFindNext(long nativeAwContents, boolean forward);
     private native void nativeClearMatches(long nativeAwContents);
     private native void nativeClearCache(long nativeAwContents, boolean includeDiskFiles);
+    private native void nativeKillRenderProcess(long nativeAwContents);
     private native byte[] nativeGetCertificate(long nativeAwContents);
 
     // Coordinates in desity independent pixels.

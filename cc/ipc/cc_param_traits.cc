@@ -10,8 +10,8 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
+#include "cc/base/filter_operations.h"
 #include "cc/output/compositor_frame.h"
-#include "cc/output/filter_operations.h"
 #include "cc/quads/debug_border_draw_quad.h"
 #include "cc/quads/draw_quad.h"
 #include "cc/quads/largest_draw_quad.h"
@@ -715,6 +715,48 @@ void ParamTraits<cc::SurfaceId>::Log(const param_type& p, std::string* l) {
   LogParam(p.frame_sink_id(), l);
   l->append(", ");
   LogParam(p.local_surface_id(), l);
+  l->append(")");
+}
+
+void ParamTraits<cc::SurfaceInfo>::GetSize(base::PickleSizer* s,
+                                           const param_type& p) {
+  GetParamSize(s, p.id());
+  GetParamSize(s, p.device_scale_factor());
+  GetParamSize(s, p.size_in_pixels());
+}
+
+void ParamTraits<cc::SurfaceInfo>::Write(base::Pickle* m, const param_type& p) {
+  WriteParam(m, p.id());
+  WriteParam(m, p.device_scale_factor());
+  WriteParam(m, p.size_in_pixels());
+}
+
+bool ParamTraits<cc::SurfaceInfo>::Read(const base::Pickle* m,
+                                        base::PickleIterator* iter,
+                                        param_type* p) {
+  cc::SurfaceId surface_id;
+  if (!ReadParam(m, iter, &surface_id))
+    return false;
+
+  float device_scale_factor;
+  if (!ReadParam(m, iter, &device_scale_factor))
+    return false;
+
+  gfx::Size size_in_pixels;
+  if (!ReadParam(m, iter, &size_in_pixels))
+    return false;
+
+  *p = cc::SurfaceInfo(surface_id, device_scale_factor, size_in_pixels);
+  return p->is_valid();
+}
+
+void ParamTraits<cc::SurfaceInfo>::Log(const param_type& p, std::string* l) {
+  l->append("SurfaceInfo(");
+  LogParam(p.id(), l);
+  l->append(", ");
+  LogParam(p.device_scale_factor(), l);
+  l->append(", ");
+  LogParam(p.size_in_pixels(), l);
   l->append(")");
 }
 

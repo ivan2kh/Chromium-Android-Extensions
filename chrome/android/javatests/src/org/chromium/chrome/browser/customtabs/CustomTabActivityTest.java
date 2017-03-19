@@ -306,7 +306,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
         startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
 
         final int expectedMenuSize = 12;
-        Menu menu = ContextMenuUtils.openContextMenu(this, getActivity().getActivityTab(), "logo");
+        Menu menu = ContextMenuUtils.openContextMenu(getActivity().getActivityTab(), "logo");
         assertEquals(expectedMenuSize, menu.size());
 
         assertNotNull(menu.findItem(R.id.contextmenu_copy_link_address));
@@ -347,8 +347,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
         startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
 
         final int expectedMenuSize = 12;
-        Menu menu = ContextMenuUtils.openContextMenu(this, getActivity().getActivityTab(),
-                "aboutLink");
+        Menu menu = ContextMenuUtils.openContextMenu(getActivity().getActivityTab(), "aboutLink");
         assertEquals(expectedMenuSize, menu.size());
 
         assertNotNull(menu.findItem(R.id.contextmenu_copy_link_address));
@@ -388,7 +387,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
         startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
 
         final int expectedMenuSize = 12;
-        Menu menu = ContextMenuUtils.openContextMenu(this, getActivity().getActivityTab(), "email");
+        Menu menu = ContextMenuUtils.openContextMenu(getActivity().getActivityTab(), "email");
         assertEquals(expectedMenuSize, menu.size());
 
         assertNotNull(menu.findItem(R.id.contextmenu_copy_link_address));
@@ -428,7 +427,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
         startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
 
         final int expectedMenuSize = 12;
-        Menu menu = ContextMenuUtils.openContextMenu(this, getActivity().getActivityTab(), "tel");
+        Menu menu = ContextMenuUtils.openContextMenu(getActivity().getActivityTab(), "tel");
         assertEquals(expectedMenuSize, menu.size());
 
         assertNotNull(menu.findItem(R.id.contextmenu_copy_link_address));
@@ -672,8 +671,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
             }
         });
         try {
-            DOMUtils.clickNode(CustomTabActivityTest.this,
-                    getActivity().getActivityTab().getContentViewCore(), "select");
+            DOMUtils.clickNode(getActivity().getActivityTab().getContentViewCore(), "select");
         } catch (TimeoutException e) {
             fail();
         }
@@ -903,7 +901,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
                 });
             }
         });
-        DOMUtils.clickNode(this, getActivity().getActivityTab().getContentViewCore(), "new_window");
+        DOMUtils.clickNode(getActivity().getActivityTab().getContentViewCore(), "new_window");
 
         openTabHelper.waitForCallback(0, 1);
         assertEquals("A new tab should have been created.", 2,
@@ -991,13 +989,14 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
     }
 
     /**
-     * Tests that Time To First Contentful Paint is sent.
+     * Tests that Time To First Contentful Paint and Load Event Start timings are sent.
      */
     @SmallTest
     @RetryOnFailure
     public void testPageLoadMetricIsSent() {
         final AtomicReference<Long> firstContentfulPaintMs = new AtomicReference<>(-1L);
         final AtomicReference<Long> activityStartTimeMs = new AtomicReference<>(-1L);
+        final AtomicReference<Long> loadEventStartMs = new AtomicReference<>(-1L);
 
         CustomTabsCallback cb = new CustomTabsCallback() {
             @Override
@@ -1011,9 +1010,16 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
 
                 long firstContentfulPaint =
                         args.getLong(PageLoadMetrics.FIRST_CONTENTFUL_PAINT, -1);
-                assertTrue(firstContentfulPaint > 0);
-                assertTrue(firstContentfulPaint <= (current - navigationStart));
-                firstContentfulPaintMs.set(firstContentfulPaint);
+                if (firstContentfulPaint > 0) {
+                    assertTrue(firstContentfulPaint <= (current - navigationStart));
+                    firstContentfulPaintMs.set(firstContentfulPaint);
+                }
+
+                long loadEventStart = args.getLong(PageLoadMetrics.LOAD_EVENT_START, -1);
+                if (loadEventStart > 0) {
+                    assertTrue(loadEventStart <= (current - navigationStart));
+                    loadEventStartMs.set(loadEventStart);
+                }
             }
         };
 
@@ -1031,6 +1037,12 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
                 @Override
                 public boolean isSatisfied() {
                     return firstContentfulPaintMs.get() > 0;
+                }
+            });
+            CriteriaHelper.pollInstrumentationThread(new Criteria() {
+                @Override
+                public boolean isSatisfied() {
+                    return loadEventStartMs.get() > 0;
                 }
             });
         } catch (InterruptedException e) {

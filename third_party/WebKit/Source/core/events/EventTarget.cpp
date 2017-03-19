@@ -31,6 +31,9 @@
 
 #include "core/events/EventTarget.h"
 
+#include <memory>
+#include "bindings/core/v8/AddEventListenerOptionsOrBoolean.h"
+#include "bindings/core/v8/EventListenerOptionsOrBoolean.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/ScriptEventListener.h"
 #include "bindings/core/v8/SourceLocation.h"
@@ -52,7 +55,6 @@
 #include "wtf/StdLibExtras.h"
 #include "wtf/Threading.h"
 #include "wtf/Vector.h"
-#include <memory>
 
 using namespace WTF;
 
@@ -703,9 +705,7 @@ bool EventTarget::fireEventListeners(Event* event,
     event->setHandlingPassive(eventPassiveMode(registeredListener));
     bool passiveForced = registeredListener.passiveForcedForDocumentTarget();
 
-    InspectorInstrumentation::NativeBreakpoint nativeBreakpoint(context, this,
-                                                                event);
-    PerformanceMonitor::HandlerCall handlerCall(context, event->type(), false);
+    probe::UserCallback probe(context, nullptr, event->type(), false, this);
 
     // To match Mozilla, the AT_TARGET phase fires both capturing and bubbling
     // event listeners, even though that violates some versions of the DOM spec.

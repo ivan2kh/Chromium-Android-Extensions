@@ -216,8 +216,8 @@ double ConvertZoomLevelToZoomFactor(double zoom_level) {
 
 using WebViewKey = std::pair<int, int>;
 using WebViewKeyToIDMap = std::map<WebViewKey, int>;
-static base::LazyInstance<WebViewKeyToIDMap> web_view_key_to_id_map =
-    LAZY_INSTANCE_INITIALIZER;
+static base::LazyInstance<WebViewKeyToIDMap>::DestructorAtExit
+    web_view_key_to_id_map = LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
@@ -895,8 +895,8 @@ void WebViewGuest::DidFinishNavigation(
 
 void WebViewGuest::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
-  // loadStart shouldn't be sent for same page navigations.
-  if (navigation_handle->IsSamePage())
+  // loadStart shouldn't be sent for same document navigations.
+  if (navigation_handle->IsSameDocument())
     return;
 
   std::unique_ptr<base::DictionaryValue> args(new base::DictionaryValue());
@@ -1491,16 +1491,15 @@ void WebViewGuest::RequestNewWindowPermission(WindowOpenDisposition disposition,
   request_info.SetInteger(webview::kInitialHeight, initial_bounds.height());
   request_info.SetInteger(webview::kInitialWidth, initial_bounds.width());
   request_info.Set(webview::kTargetURL,
-                   new base::StringValue(new_window_info.url.spec()));
-  request_info.Set(webview::kName, new base::StringValue(new_window_info.name));
+                   new base::Value(new_window_info.url.spec()));
+  request_info.Set(webview::kName, new base::Value(new_window_info.name));
   request_info.SetInteger(webview::kWindowID, guest->guest_instance_id());
   // We pass in partition info so that window-s created through newwindow
   // API can use it to set their partition attribute.
   request_info.Set(webview::kStoragePartitionId,
-                   new base::StringValue(storage_partition_id));
-  request_info.Set(
-      webview::kWindowOpenDisposition,
-      new base::StringValue(WindowOpenDispositionToString(disposition)));
+                   new base::Value(storage_partition_id));
+  request_info.Set(webview::kWindowOpenDisposition,
+                   new base::Value(WindowOpenDispositionToString(disposition)));
 
   web_view_permission_helper_->
       RequestPermission(WEB_VIEW_PERMISSION_TYPE_NEW_WINDOW,
@@ -1534,7 +1533,7 @@ void WebViewGuest::OnWebViewNewWindowResponse(
     return;
 
   if (!allow)
-    guest->Destroy();
+    guest->Destroy(true);
 }
 
 void WebViewGuest::OnFullscreenPermissionDecided(
